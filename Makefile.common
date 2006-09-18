@@ -1,0 +1,20 @@
+C++ = g++
+
+DEBUG = 1
+STATIC = 0
+EFENCE = 0
+
+CCFLAGS = -I./ -I../comm -I../routing -I../log -I../udt -I../sql -I../metadata
+LDFLAGS = -lstdc++ -lpthread -L. -L../lib
+
+ifeq ($(DEBUG), 1)
+   CCFLAGS += -Wall -g
+endif
+
+ifeq ($(STATIC), 1)
+   LDFLAGS += -static
+endif
+
+ifeq ($(EFENCE), 1)
+   LDFLAGS += ../libduma.a -u malloc
+endif
