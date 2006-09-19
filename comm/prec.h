@@ -71,7 +71,7 @@ private:
    pthread_mutex_t m_PeerRecLock;
 
 private:
-   static const int m_iRecLimit = 500;   
+   static const unsigned int m_uiRecLimit = 500;   
 };
 
 

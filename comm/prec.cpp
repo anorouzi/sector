@@ -30,7 +30,12 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          (*i)->m_iID = id;
 
       if (rtt > 0)
-         (*i)->m_iRTT = rtt;
+      {
+         if (-1 == (*i)->m_iRTT )
+            (*i)->m_iRTT = rtt;
+         else
+            (*i)->m_iRTT = ((*i)->m_iRTT * 7 + rtt) >> 3;
+      }
 
       gettimeofday(&((*i)->m_TimeStamp), 0);
 
@@ -40,15 +45,21 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
    {
       if (id > 0)
          pr->m_iID = id;
+      else
+         pr->m_iID = -1;
+
       if (rtt > 0)
          pr->m_iRTT = rtt;
+      else
+         pr->m_iRTT = -1;
+
       gettimeofday(&(pr->m_TimeStamp), 0);
 
       m_sPeerRec.insert(pr);
       m_sPeerRecByTS.insert(pr);
       m_sPeerRecByIP.insert(pr);
 
-      if (m_sPeerRecByTS.size() > m_iRecLimit)
+      if (m_sPeerRecByTS.size() > m_uiRecLimit)
       {
          // delete first one
          set<CPeerRecord*, CFPeerRecByTS>::iterator j = m_sPeerRecByTS.begin();

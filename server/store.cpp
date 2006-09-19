@@ -104,6 +104,7 @@ void* CStore::run(void* s)
             }
             else
             {
+/*
                int r = (int)(filelist.size() * rand() / double(RAND_MAX));
                set<CFileAttr, CAttrComp>::iterator i = filelist.begin();
                for (int j = 0; j < r; ++ j)
@@ -114,6 +115,17 @@ void* CStore::run(void* s)
                msg->m_iDataLength = 4 + 64 + 4;
 
                cout << "locate " << filename << " " << filelist.size() << " " << i->m_pcHost << " " << i->m_iPort << endl;
+*/
+               int num = 0;
+               for (set<CFileAttr, CAttrComp>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+               {
+                  msg->setData(num * 68, i->m_pcHost, strlen(i->m_pcHost) + 1);
+                  msg->setData(num * 68 + 64, (char*)(&i->m_iPort), 4);
+                  ++ num;
+               }
+               msg->m_iDataLength = 4 + num * (64 + 4);
+
+               cout << "locate " << filename << ": " << filelist.size() << " found!" << endl;
             }
 
             self->m_GMP.sendto(ip, port, id, msg);

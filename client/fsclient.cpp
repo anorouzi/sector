@@ -141,8 +141,26 @@ int CCBFile::open(const string& filename, const int& mode)
 
    if (msg.getType() > 0)
    {
-      m_strServerIP = msg.getData();
-      m_iServerPort = *(int*)(msg.getData() + 64);
+      int num = (msg.m_iDataLength - 4) / 68;
+
+      cout << num << " copies found!" << endl;
+
+      // choose closest server
+      int c = 0;
+      int rtt = 100000000;
+      for (int i = 0; i < num; ++ i)
+      {
+         //cout << "RTT: " << msg.getData() + i * 68 << " " << *(int*)(msg.getData() + i * 68 + 64) << " " << m_GMP.rtt(msg.getData() + i * 68, *(int32_t*)(msg.getData() + i * 68 + 64)) << endl;
+         int r = m_GMP.rtt(msg.getData() + i * 68, *(int32_t*)(msg.getData() + i * 68 + 64));
+         if (r < rtt)
+         {
+            rtt = r;
+            c = i;
+         }
+      }
+
+      m_strServerIP = msg.getData() + c * 68;
+      m_iServerPort = *(int32_t*)(msg.getData() + c * 68 + 64);
    }
    else
    {
