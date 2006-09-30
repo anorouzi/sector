@@ -9,10 +9,13 @@
 using namespace std;
 
 
+const int CStore::m_iCBFSPort = 2237; //cbfs
+
+
 CStore::CStore(const string& ip)
 {
    m_strLocalHost = ip;
-   m_iLocalPort = 7000;
+   m_iLocalPort = m_iCBFSPort;
 
    m_GMP.init(m_iLocalPort);
 }
@@ -34,7 +37,7 @@ int CStore::init(char* ip, int port)
    {
       ///////////////////////////////
       // We use a fixed port here. should be update later
-      res = m_Router.join(m_strLocalHost.c_str(), ip, 2257);
+      res = m_Router.join(m_strLocalHost.c_str(), ip, CRouting::m_iRouterPort);
    }
 
    if (res < 0)
@@ -104,7 +107,7 @@ void* CStore::run(void* s)
             }
             else
             {
-/*
+               /*
                int r = (int)(filelist.size() * rand() / double(RAND_MAX));
                set<CFileAttr, CAttrComp>::iterator i = filelist.begin();
                for (int j = 0; j < r; ++ j)
@@ -115,7 +118,9 @@ void* CStore::run(void* s)
                msg->m_iDataLength = 4 + 64 + 4;
 
                cout << "locate " << filename << " " << filelist.size() << " " << i->m_pcHost << " " << i->m_iPort << endl;
-*/
+               */
+
+               // feedback all copies of the requested file
                int num = 0;
                for (set<CFileAttr, CAttrComp>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
                {
@@ -139,18 +144,24 @@ void* CStore::run(void* s)
             int conn = *(int*)(msg->getData() + 64);
 
             int mode = *(int*)(msg->getData() + 68);
-            // TO DO
-            // check ownership and previlege;
 
-            if (self->m_LocalFile.lookup(filename, NULL) < 0)
+            set<CFileAttr, CAttrComp> filelist;
+            if (self->m_LocalFile.lookup(filename, &filelist) < 0)
             {
                CFileAttr attr;
                memcpy(attr.m_pcName, filename, 64);
+               attr.m_iAttr = 3;
                attr.m_llSize = 0;
                memcpy(attr.m_pcHost, self->m_strLocalHost.c_str(), 64);
                attr.m_iPort = self->m_iLocalPort;
                self->m_LocalFile.insert(attr);
+               filelist.insert(attr);;
             }
+
+            // set IO attributes: READ WRITE
+            // mode &= attr.m_iType;
+            // TO DO: check ownership and previlege;
+            mode = filelist.begin()->m_iAttr;
 
             self->m_AccessLog.insert(ip, port, msg->getData());
 
@@ -302,7 +313,7 @@ void* CStore::run(void* s)
          {
             for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
             {
-               self->m_NameIndex.insert(msg->getData() + i * 64, ip, 7000);
+               self->m_NameIndex.insert(msg->getData() + i * 64, ip, m_iCBFSPort);
             }
 
             //cout << "global name index updated " << (msg->m_iDataLength - 4) / 64 << endl;
@@ -378,7 +389,7 @@ void* CStore::process(void* p)
             *(int32_t*)(msg->getData()) = 1;
             msg->m_iDataLength = 4 + 4;
 
-            if (self->m_GMP.rpc(n.m_pcIP, 7000, msg, msg) < 0)
+            if (self->m_GMP.rpc(n.m_pcIP, m_iCBFSPort, msg, msg) < 0)
                msg->setType(-msg->getType());
          }
 
@@ -418,7 +429,7 @@ void* CStore::process(void* p)
             }
             else
             {
-               if (self->m_GMP.rpc(n.m_pcIP, 7000, msg, msg) < 0)
+               if (self->m_GMP.rpc(n.m_pcIP, m_iCBFSPort, msg, msg) < 0)
                {
                   msg->setType(-msg->getType());
                   msg->m_iDataLength = 4;
@@ -506,6 +517,10 @@ void* CStore::remote(void* p)
       ::close(lt);
    }
 
+
+   self->m_KBase.m_iNumConn ++;
+
+
    filename = self->m_strHomeDir + filename;
 
    timeval t1, t2;
@@ -513,6 +528,8 @@ void* CStore::remote(void* p)
 
    int64_t rb = 0;
    int64_t wb = 0;
+
+   int32_t response = 0;
 
    while (run)
    {
@@ -525,8 +542,10 @@ void* CStore::remote(void* p)
       {
       case 1:
          {
-            //TODO
-            // check mode
+            if (0 < (mode & 1))
+               response = 0;
+            else
+               response = -1;
 
             // READ LOCK
 
@@ -568,8 +587,10 @@ void* CStore::remote(void* p)
 
       case 2:
          {
-            //TODO
-            // check mode
+            if (0 < (mode & 2))
+               response = 0;
+            else
+               response = -1;
 
             // WRITE LOCK
 
@@ -626,8 +647,10 @@ void* CStore::remote(void* p)
 
       case 3:
          {
-            //TODO
-            // check mode
+            if (0 < (mode & 1))
+               response = 0;
+            else
+               response = -1;
 
             // READ LOCK
 
@@ -723,6 +746,10 @@ void* CStore::remote(void* p)
    else
       close(t);
 
+
+   self->m_KBase.m_iNumConn --;
+
+
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
 
    return NULL;
@@ -754,7 +781,7 @@ void CStore::updateOutLink()
       msg.setType(3);
       i->second.begin()->synchronize(msg.getData(), msg.m_iDataLength);
       msg.m_iDataLength += 4;
-      m_GMP.rpc(loc.m_pcIP, 7000, &msg, &msg);
+      m_GMP.rpc(loc.m_pcIP, m_iCBFSPort, &msg, &msg);
    }
 }
 
@@ -790,7 +817,7 @@ void CStore::updateInLink()
          msg.setData(0, j->m_pcName, strlen(j->m_pcName) + 1);
          msg.m_iDataLength = 4 + strlen(j->m_pcName) + 1;
 
-         int r = m_GMP.rpc(j->m_pcHost, 7000, &msg, &msg);
+         int r = m_GMP.rpc(j->m_pcHost, m_iCBFSPort, &msg, &msg);
 
          if ((r <=0) || (msg.getType() < 0))
          {
@@ -836,7 +863,7 @@ int CStore::initLocalFile()
    CFileAttr attr;
 
    // file list
-/*
+   /*
    while (!ft.eof())
    {
       ft.getline(buf, 1024);
@@ -858,7 +885,9 @@ int CStore::initLocalFile()
          m_LocalFile.insert(attr);
       }
    }
-*/
+   */
+
+   // initialize all files in the home directory, excluding "." and ".."
 
    dirent **namelist;
    int n = scandir(m_strHomeDir.c_str(), &namelist, 0, alphasort);
@@ -869,7 +898,13 @@ int CStore::initLocalFile()
    {
       for (int i = 0; i < n; ++ i) 
       {
-         if (namelist[i]->d_name[0] != '.')
+         // skip ".", "..", and other reserved directory starting by '.'
+         // skip directory
+
+         struct stat s;
+         stat((m_strHomeDir + namelist[i]->d_name).c_str(), &s);
+
+         if ((namelist[i]->d_name[0] != '.') && (!S_ISDIR(s.st_mode)))
          {
             ifstream ifs((m_strHomeDir + namelist[i]->d_name).c_str());
             ifs.seekg(0, ios::end);
@@ -879,6 +914,8 @@ int CStore::initLocalFile()
             strcpy(attr.m_pcName, namelist[i]->d_name);
             strcpy(attr.m_pcHost, m_strLocalHost.c_str());
             attr.m_iPort = m_iLocalPort;
+            // original file is read only
+            attr.m_iAttr = 1;
             attr.m_llSize = size;
 
             m_LocalFile.insert(attr);
@@ -915,7 +952,7 @@ void CStore::updateNameIndex(int& next)
    CNameIndex::synchronize(files, msg.getData(), msg.m_iDataLength);
    msg.m_iDataLength += 4;
 
-   m_GMP.rpc(p.m_pcIP, 7000, &msg, &msg);
+   m_GMP.rpc(p.m_pcIP, m_iCBFSPort, &msg, &msg);
 
    ++ next;
    if (next == m_iKeySpace)

@@ -7,3 +7,11 @@ subdirs:
 		$(MAKE) $(TARGETS); \
 		cd ..; \
 	done
+
+clean:
+	for dir in $(SUBDIRS); do \
+		cd $$dir; \
+		$(MAKE) clean; \
+		cd ..; \
+	done
+

@@ -4,19 +4,28 @@ using namespace std;
 
 CFileAttr::CFileAttr() 
 {
+   m_pcName[0] = '\0';
+   m_uiID = 0;
+   gettimeofday(&m_TimeStamp, 0);
    memset(m_pcType, 0, 64);
-   //m_pcDescription[0] = 0;
+   m_iAttr = 0;
+   m_iIsDirectory = 0;
+   m_llSize = 0;
+   m_pcHost[0] = '\0';
+   m_iPort = 0;
 }
 
-CFileAttr::~CFileAttr() {}
+CFileAttr::~CFileAttr()
+{
+}
 
 CFileAttr& CFileAttr::operator=(const CFileAttr& f)
 {
    strcpy(m_pcName, f.m_pcName);
    m_uiID = f.m_uiID;
-//   strcpy(m_pcDescription, f.m_pcDescription);
    m_TimeStamp = f.m_TimeStamp;
    memcpy(m_pcType, f.m_pcType, 64);
+   m_iAttr = f.m_iAttr;
    m_iIsDirectory = f.m_iIsDirectory;
    m_llSize = f.m_llSize;
    strcpy(m_pcHost, f.m_pcHost);
@@ -31,8 +40,6 @@ void CFileAttr::synchronize(char* attr, int& len) const
 
    memcpy(p, m_pcName, 64);
    p += 64;
-   //memcpy(p, m_pcDescription, 1024);
-   //p += 1024;
    memcpy(p, m_pcType, 64);
    p += 64;
    memcpy(p, m_pcHost, 64);
@@ -49,8 +56,6 @@ void CFileAttr::desynchronize(const char* attr, const int& len)
 
    memcpy(m_pcName, p, 64);
    p += 64;
-   //memcpy(m_pcDescription, p, 1024);
-   //p += 1024;
    memcpy(m_pcType, p, 64);
    p += 64;
    memcpy(m_pcHost, p, 64);

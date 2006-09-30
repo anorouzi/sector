@@ -3,6 +3,10 @@
 
 using namespace std;
 
+
+const int CRouting::m_iRouterPort = 24673;      //chord
+
+
 CRouting::CRouting():
 m_iKeySpace(16)
 {
@@ -26,7 +30,7 @@ int CRouting::start(const char* ip)
    m_uiID = CDHash::hash(ip, m_iKeySpace);
 
    strcpy(m_pcIP, ip);
-   m_iPort = 2257;
+   m_iPort = m_iRouterPort;
 
    m_pGMP->init(m_iPort);
 
@@ -48,7 +52,7 @@ int CRouting::join(const char* ip, const char* peer_ip, const int& peer_port)
    m_uiID = CDHash::hash(ip, m_iKeySpace);
 
    strcpy(m_pcIP, ip);
-   m_iPort = 2257;
+   m_iPort = m_iRouterPort;
 
    m_pGMP->init(m_iPort);
 

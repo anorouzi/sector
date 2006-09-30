@@ -88,6 +88,9 @@ private:
 
 private:
    CGMP* m_pGMP;
+
+public:
+   static const int m_iRouterPort;
 };
 
 #endif

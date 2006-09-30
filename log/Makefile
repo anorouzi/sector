@@ -3,7 +3,7 @@ include ../Makefile.common
 CCFLAGS += 
 LDFLAGS += -llog
 
-OBJS = log.o
+OBJS = log.o kb.o
 
 all: liblog.so liblog.a
 

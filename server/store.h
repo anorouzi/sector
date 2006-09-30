@@ -5,6 +5,7 @@
 #include <gmp.h>
 #include <udt.h>
 #include <log.h>
+#include <kb.h>
 #include <index.h>
 
 
@@ -76,6 +77,11 @@ private:
 
    CAccessLog m_AccessLog;
    CPerfLog m_PerfLog;
+
+   CKnowledgeBase m_KBase;
+
+public:
+   static const int m_iCBFSPort;
 };
 
 

@@ -38,6 +38,9 @@ private:
    CGMP* m_pGMP;
 
    int m_iProtocol;	// 1 UDT 2 TCP
+
+private:
+   static const int m_iCBFSPort;
 };
 
 class CCBFile

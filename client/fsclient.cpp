@@ -2,6 +2,10 @@
 
 using namespace std;
 
+
+const int CFSClient::m_iCBFSPort = 2237;         //cbfs
+
+
 CFSClient::CFSClient():
 m_iProtocol(1)
 {
@@ -136,7 +140,7 @@ int CCBFile::open(const string& filename, const int& mode)
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.m_iDataLength = 4 + filename.length() + 1;
 
-   if (m_GMP.rpc(n.m_pcIP, 7000, &msg, &msg) < 0)
+   if (m_GMP.rpc(n.m_pcIP, CFSClient::m_iCBFSPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() > 0)
@@ -173,7 +177,7 @@ int CCBFile::open(const string& filename, const int& mode)
       msg.setData(0, filename.c_str(), filename.length() + 1);
       msg.m_iDataLength = 4 + 64;
 
-      if (m_GMP.rpc(m_strServerIP.c_str(), 7000, &msg, &msg) < 0)
+      if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
          return -1;
    }
 
@@ -183,7 +187,7 @@ int CCBFile::open(const string& filename, const int& mode)
    msg.setData(68, (char*)&mode, 4);
    msg.m_iDataLength = 4 + 64 + 4 + 4;
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), 7000, &msg, &msg) < 0)
+   if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
       return -1;
 
    if (1 == m_iProtocol)

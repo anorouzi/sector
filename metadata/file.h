@@ -23,18 +23,18 @@ public:
    void desynchronize(const char* attr, const int& len);
 
 public:
-   char m_pcName[64];
-   uint32_t m_uiID;
-   //char m_pcDescription[1024];
-   timeval m_TimeStamp;
-   char m_pcType[64];
+   char m_pcName[64];		// unique file name
+   uint32_t m_uiID;		// id
+   timeval m_TimeStamp;		// time stamp
+   char m_pcType[64];		// file type, data, video, audio, etc
+   int32_t m_iAttr;		// 01: READ	10: WRITE	11: READ&WRITE
 
-   int32_t m_iIsDirectory;
+   int32_t m_iIsDirectory;	// directory?
 
-   int64_t m_llSize;
+   int64_t m_llSize;		// size
 
-   char m_pcHost[64];
-   int32_t m_iPort;
+   char m_pcHost[64];		// loc ip
+   int32_t m_iPort;		// loc port
 };
 
 struct CAttrComp
