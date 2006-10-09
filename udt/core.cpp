@@ -35,7 +35,7 @@ UDT protocol specification (draft-gg-udt-xx.txt)
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/22/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/02/2006
 *****************************************************************************/
 
 #ifndef WIN32
@@ -233,9 +233,11 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
       if (m_bOpened)
          throw CUDTException(5, 1, 0);
 
-      m_iMSS = *(int*)optval;
       if (m_iMSS < 28)
          throw CUDTException(5, 3, 0);
+
+      m_iMSS = *(int*)optval;
+
       break;
 
    case UDT_SNDSYN:
@@ -263,27 +265,33 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
       if (m_bConnected)
          throw CUDTException(5, 2, 0);
 
-      m_iFlightFlagSize = *(int*)optval;
       if (m_iFlightFlagSize < 1)
          throw CUDTException(5, 3);
+      m_iFlightFlagSize = *(int*)optval;
+
       break;
 
    case UDT_SNDBUF:
       if (m_bOpened)
          throw CUDTException(5, 1, 0);
 
-      m_iSndQueueLimit = *(int*)optval;
       if (m_iSndQueueLimit <= 0)
          throw CUDTException(5, 3, 0);
+      m_iSndQueueLimit = *(int*)optval;
       break;
 
    case UDT_RCVBUF:
       if (m_bOpened)
          throw CUDTException(5, 1, 0);
 
-      m_iUDTBufSize = *(int*)optval;
-      if (m_iUDTBufSize < (m_iMSS - 28) * 16)
+      if (m_iUDTBufSize <= 0)
          throw CUDTException(5, 3, 0);
+
+      if (m_iUDTBufSize > (m_iMSS - 28) * 16)
+         m_iUDTBufSize = *(int*)optval;
+      else
+         m_iUDTBufSize = (m_iMSS - 28) * 16;
+
       break;
 
    case UDT_LINGER:
@@ -295,6 +303,7 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 1, 0);
 
       m_iUDPSndBufSize = *(int*)optval;
+
       break;
 
    case UDP_RCVBUF:
@@ -309,6 +318,7 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 1, 0);
 
       m_iMaxMsg = *(int*)optval;
+
       break;
 
    case UDT_MSGTTL:
@@ -316,6 +326,7 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 1, 0);
 
       m_iMsgTTL = *(int*)optval;
+
       break;
 
    case UDT_RENDEZVOUS:
@@ -323,6 +334,7 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 1, 0);
 
       m_bRendezvous = *(bool *)optval;
+
       break;
 
    case UDT_SNDTIMEO: 
@@ -377,7 +389,7 @@ void CUDT::getOpt(UDTOpt optName, void* optval, int& optlen)
       break;
 
    case UDT_SNDBUF:
-      *(int*)optval = m_iUDTBufSize;
+      *(int*)optval = m_iSndQueueLimit;
       optlen = sizeof(int);
       break;
 
@@ -659,7 +671,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    timeval entertime;
    gettimeofday(&entertime, 0);
 
-   while ((response.getLength() <= 0) || (1 != response.getFlag()) || (0 != response.getType()))
+   while (((response.getLength() <= 0) || (1 != response.getFlag()) || (0 != response.getType())) && (!m_bClosing))
    {
       m_pChannel->sendto(request, serv_addr);
 
@@ -678,6 +690,14 @@ void CUDT::connect(const sockaddr* serv_addr)
          if (response.getLength() <= 0)
             Sleep(1);
       #endif
+   }
+
+   // if the socket is closed before connection...
+   if (m_bClosing)
+   {
+      delete [] reqdata;
+      delete [] resdata;
+      throw CUDTException(1);
    }
 
    delete [] reqdata;
@@ -716,10 +736,13 @@ void CUDT::connect(const sockaddr* serv_addr)
       throw CUDTException(1, 4, 0);
    }
 
-   if (AF_INET == m_iIPversion)
-      addr4.sin_port = htons(res->m_iPort);
-   else
-      addr6.sin6_port = htons(res->m_iPort);
+   if (!m_bRendezvous)
+   {
+      if (AF_INET == m_iIPversion)
+         addr4.sin_port = htons(res->m_iPort);
+      else
+         addr6.sin6_port = htons(res->m_iPort);
+   }
 
    //request accepted, continue connection setup
    m_pChannel->connect(peer_addr);
@@ -855,6 +878,9 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
 
 void CUDT::close()
 {
+   if (!m_bConnected)
+      m_bClosing = true;
+
    CGuard cg(m_ConnectionLock);
 
    if (!m_bOpened)
@@ -1527,7 +1553,12 @@ DWORD WINAPI CUDT::rcvHandler(LPVOID recver)
       }
       // This is not a regular fixed size packet...
       else if (packet.getLength() != self->m_iPayloadSize)
+      {
          self->m_pIrrPktList->addIrregularPkt(packet.m_iSeqNo, self->m_iPayloadSize - packet.getLength());
+
+         //an irregular sized packet usually indicates the end of a message, so send an ACK immediately
+         self->m_pTimer->rdtsc(nextacktime);
+      }
 
       // Update the current largest sequence number that has been received.
       if (CSeqNo::seqcmp(packet.m_iSeqNo, self->m_iRcvCurrSeqNo) > 0)
@@ -2329,8 +2360,8 @@ int CUDT::recv(char* data, const int& len, int* overlapped, UDT_MEM_ROUTINE func
                timespec locktime; 
     
                gettimeofday(&currtime, 0); 
-               locktime.tv_sec = currtime.tv_sec + ((int64_t)m_iSndTimeOut * 1000 + currtime.tv_usec) / 1000000; 
-               locktime.tv_nsec = ((int64_t)m_iSndTimeOut * 1000 + currtime.tv_usec) % 1000000 * 1000; 
+               locktime.tv_sec = currtime.tv_sec + ((int64_t)m_iRcvTimeOut * 1000 + currtime.tv_usec) / 1000000; 
+               locktime.tv_nsec = ((int64_t)m_iRcvTimeOut * 1000 + currtime.tv_usec) % 1000000 * 1000; 
     
                pthread_cond_timedwait(&m_RecvDataCond, &m_RecvDataLock, &locktime); 
             }
@@ -2590,7 +2621,7 @@ bool CUDT::getOverlappedResult(const int& handle, int& progress, const bool& wai
       throw CUDTException(5, 10, 0);
 
    // throw an exception if not connected
-   if ((m_bBroken) && (0 == m_pRcvBuffer->getRcvDataSize()))
+   if (m_bBroken)
       throw CUDTException(2, 1, 0);
    else if (!m_bConnected)
       throw CUDTException(2, 2, 0);
@@ -2609,6 +2640,10 @@ bool CUDT::getOverlappedResult(const int& handle, int& progress, const bool& wai
 
          res = m_pSndBuffer->getOverlappedResult(handle, progress);
       }
+
+      if (m_bBroken)
+         throw CUDTException(2, 1, 0);
+
       return res;
    }
 
@@ -2626,10 +2661,14 @@ bool CUDT::getOverlappedResult(const int& handle, int& progress, const bool& wai
 
       res = m_pRcvBuffer->getOverlappedResult(handle, progress);
    }
+
+   if (m_bBroken)
+      throw CUDTException(2, 1, 0);
+
    return res;
 }
 
-long long int CUDT::sendfile(ifstream& ifs, const long long int& offset, const long long int& size, const int& block)
+int64_t CUDT::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size, const int& block)
 {
    if (SOCK_DGRAM == m_iSockType)
       throw CUDTException(5, 10, 0);
@@ -2673,7 +2712,7 @@ long long int CUDT::sendfile(ifstream& ifs, const long long int& offset, const l
 
    char* tempbuf = NULL;
    int unitsize = block;
-   long long int count = 1;
+   int64_t count = 1;
 
    // positioning...
    try
@@ -2783,7 +2822,7 @@ long long int CUDT::sendfile(ifstream& ifs, const long long int& offset, const l
    return size;
 }
 
-long long int CUDT::recvfile(ofstream& ofs, const long long int& offset, const long long int& size, const int& block)
+int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size, const int& block)
 {
    if (SOCK_DGRAM == m_iSockType)
       throw CUDTException(5, 10, 0);
@@ -2797,7 +2836,7 @@ long long int CUDT::recvfile(ofstream& ofs, const long long int& offset, const l
       return 0;
 
    int unitsize = block;
-   long long int count = 1;
+   int64_t count = 1;
    int recvsize;
    char* tempbuf;
 

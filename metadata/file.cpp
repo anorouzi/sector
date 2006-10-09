@@ -13,6 +13,8 @@ CFileAttr::CFileAttr()
    m_llSize = 0;
    m_pcHost[0] = '\0';
    m_iPort = 0;
+   m_pcNameHost[0] = '\0';
+   m_iNamePort = 0;
 }
 
 CFileAttr::~CFileAttr()
@@ -30,6 +32,8 @@ CFileAttr& CFileAttr::operator=(const CFileAttr& f)
    m_llSize = f.m_llSize;
    strcpy(m_pcHost, f.m_pcHost);
    m_iPort = f.m_iPort;
+   strcpy(m_pcNameHost, f.m_pcNameHost);
+   m_iNamePort = f.m_iNamePort;
 
    return *this;
 }

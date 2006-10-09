@@ -5,6 +5,8 @@
 #include <dirent.h>
 #include <sys/sendfile.h>
 #include <store.h>
+#include <assert.h>
+#include <sstream>
 
 using namespace std;
 
@@ -66,6 +68,10 @@ int CStore::run()
       sleep(10);
 
       updateNameIndex(next);
+      sleep(10);
+
+      // check out link more often since it is more important
+      updateOutLink();
       sleep(10);
    }
 
@@ -142,8 +148,12 @@ void* CStore::run(void* s)
             char* filename = msg->getData();
 
             int conn = *(int*)(msg->getData() + 64);
-
             int mode = *(int*)(msg->getData() + 68);
+            char cert[1024];
+            if (msg->m_iDataLength > 4 + 64 + 4 + 4)
+               strcpy(cert, msg->getData() + 72);
+            else
+               cert[0] = '\0';
 
             set<CFileAttr, CAttrComp> filelist;
             if (self->m_LocalFile.lookup(filename, &filelist) < 0)
@@ -161,7 +171,37 @@ void* CStore::run(void* s)
             // set IO attributes: READ WRITE
             // mode &= attr.m_iType;
             // TO DO: check ownership and previlege;
-            mode = filelist.begin()->m_iAttr;
+            ifstream ifs;
+            ifs.open((self->m_strHomeDir + "/.cert/" + filename + ".cert").c_str());
+            char ecert[1024];
+            ecert[0] = '\0';
+            ifs.getline(ecert, 1024);
+
+            if ((0 == strlen(cert)) || (0 == strlen(ecert)))
+               mode = 0;
+            else
+            {
+               unsigned char sha[SHA_DIGEST_LENGTH + 1];
+               SHA1((const unsigned char*)cert, strlen(cert), sha);
+               sha[SHA_DIGEST_LENGTH] = '\0';
+               stringstream shastr(stringstream::in | stringstream::out);
+               for (int i = 0; i < SHA_DIGEST_LENGTH; i += 4)
+               {
+                  cout << *(int32_t*)(sha + i) << endl;
+                  shastr << *(int32_t*)(sha + i);
+               }
+
+cout << "sha : " << shastr.str() << endl;
+
+               if (shastr.str() == string(ecert))
+                  mode = 1;
+               else
+                  mode = 0;
+            }
+
+cout << "cert : " << cert << endl;
+cout << "ecert : " << ecert << endl;
+cout << "mode : " << mode << endl;
 
             self->m_AccessLog.insert(ip, port, msg->getData());
 
@@ -290,7 +330,24 @@ void* CStore::run(void* s)
 
             self->m_LocalFile.insert(attr);
 
-            msg->m_iDataLength = 4;
+            // generate certificate for the file owner
+            char cert[1024];
+            timeval t;
+            gettimeofday(&t, 0);
+            srand(t.tv_sec);
+            sprintf(cert, "%s %d %s %d%d%d%d%d", ip, port, filename.c_str(), rand(), rand(), rand(), rand(), rand());
+
+            unsigned char sha[SHA_DIGEST_LENGTH + 1];
+            SHA1((const unsigned char*)cert, strlen(cert), sha);
+            sha[SHA_DIGEST_LENGTH] = '\0';
+
+            ofstream cf((self->m_strHomeDir + ".cert/" + filename + ".cert").c_str());
+            for (int i = 0; i < SHA_DIGEST_LENGTH; i += 4)
+               cf << *(int32_t*)(sha + i);
+            cf.close();
+
+            msg->setData(0, cert, strlen(cert) + 1);
+            msg->m_iDataLength = 4 + strlen(cert) + 1;
 
             self->m_GMP.sendto(ip, port, id, msg);
             break;
@@ -321,6 +378,14 @@ void* CStore::run(void* s)
             msg->m_iDataLength = 4;
 
             self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+      case 10: // remove file from RemoteFileIndex
+         {
+            self->m_RemoteFile.remove(msg->getData());
+            msg->m_iDataLength = 4;
+
             break;
          }
 
@@ -538,6 +603,25 @@ void* CStore::remote(void* p)
       else
          recv(t, (char*)&cmd, 4, 0);
 
+      if (4 != cmd)
+      {
+         if ((2 == cmd) || (5 == cmd))
+         {
+            if (0 == mode)
+               response = -1;
+         }
+         else
+            response = 0;
+
+         if (1 == conn)
+            UDT::send(u, (char*)&response, 4, 0);
+         else
+            send(t, (char*)&response, 4, 0);
+
+         if (-1 == response)
+            continue;
+      }
+
       switch (cmd)
       {
       case 1:
@@ -677,7 +761,7 @@ void* CStore::remote(void* p)
                   break;
                }
 
-               if (UDT::sendfile(u, (ifstream&)ifs, offset, size) < 0)
+               if (UDT::sendfile(u, ifs, offset, size) < 0)
                   run = false;
                else
                   rb += size;
@@ -687,6 +771,70 @@ void* CStore::remote(void* p)
             else
             {
                int fd = open(filename.c_str(), O_RDONLY);
+               ///////////TODO find file length!
+
+               if (::send(t, (char*)&size, 8, 0) < 0)
+               {
+                  run = false;
+                  ::close(fd);
+                  break;
+               }
+
+               if (::send(t, (char*)&size, 8, 0) < 0)
+                  run = false;
+
+               if (::sendfile(t, fd, (off_t*)&offset, size) < 0)
+                  run = false;
+               else
+                  rb += size;
+            }
+
+            // UNLOCK
+
+            break;
+         }
+
+      case 5:
+         {
+            if (0 < (mode & 1))
+               response = 0;
+            else
+               response = -1;
+
+            // WRITE LOCK
+
+            int64_t offset = 0;
+            int64_t size = 0;
+
+            if (1 == conn)
+            {
+               //if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
+               //{
+               //   run = false;
+               //   break;
+               //}
+               offset = 0;
+
+               if (UDT::recv(u, (char*)&size, 8, 0) < 0)
+               {
+                  run = false;
+                  break;
+               }
+
+               cout << "got size " << size << endl;
+
+               ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
+
+               if (UDT::recvfile(u, ofs, offset, size) < 0)
+                  run = false;
+               else
+                  wb += size;
+
+               ofs.close();
+            }
+            else
+            {
+               int fd = open(filename.c_str(), O_WRONLY);
                ///////////TODO find file length!
 
                if (::send(t, (char*)&size, 8, 0) < 0)
@@ -761,13 +909,13 @@ void CStore::updateOutLink()
    m_LocalFile.getFileList(filelist);
 
    CCBMsg msg;
-   msg.resize(65536);
+   //msg.resize(65536);
 
    Node loc;
 
    for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
-      usleep(1000);
+      usleep(500);
 
       // TO DO
       // check disk file for size update
@@ -778,9 +926,29 @@ void CStore::updateOutLink()
       if (-1 == m_Router.lookup(fid, &loc))
          continue;
 
+      set<CFileAttr, CAttrComp>::iterator attr = i->second.begin();
+
+      // if the "loc" already have the file information, no need to update
+      if (0 == strcmp(loc.m_pcIP, attr->m_pcNameHost))
+         continue;
+
+      // notify the current name holder to remove this file from its index
+      if (strlen(attr->m_pcNameHost) > 0)
+      {
+         msg.setType(10);
+         strcpy(msg.getData(), i->first.c_str());
+         msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
+         m_GMP.rpc(attr->m_pcNameHost, m_iCBFSPort, &msg, &msg);
+      }
+
+      // Dangerous const cast!!!
+      strcpy((char*)attr->m_pcNameHost, loc.m_pcIP);
+      const_cast<int&>(attr->m_iNamePort) = m_iCBFSPort;
+
       msg.setType(3);
-      i->second.begin()->synchronize(msg.getData(), msg.m_iDataLength);
+      attr->synchronize(msg.getData(), msg.m_iDataLength);
       msg.m_iDataLength += 4;
+      assert(msg.m_iDataLength < 1024);
       m_GMP.rpc(loc.m_pcIP, m_iCBFSPort, &msg, &msg);
    }
 }
@@ -793,14 +961,18 @@ void CStore::updateInLink()
    CCBMsg msg;
    msg.resize(65536);
 
-   Node loc;
+   //Node loc;
 
    for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
-      usleep(1000);
+      usleep(500);
+
+      /*
+      // check if this node should host the name of the file
+      // do this in updateOutLink
 
       int fid = CDHash::hash(i->first.c_str(), m_iKeySpace);
-
+      
       if (-1 == m_Router.lookup(fid, &loc))
          continue;
 
@@ -809,7 +981,9 @@ void CStore::updateInLink()
          m_RemoteFile.remove(i->first);
          continue;
       }
+      */
 
+      // check if the original file still exists
       int c = 0;
       for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end();)
       {
@@ -933,6 +1107,9 @@ int CStore::initLocalFile()
 
 void CStore::updateNameIndex(int& next)
 {
+   // TODO
+   // only updates changes after last update
+
    Node p;
 
    if (m_Router.lookup((unsigned int)(pow(double(2), next)), &p) < 0)
@@ -946,7 +1123,8 @@ void CStore::updateNameIndex(int& next)
       files.insert(files.end(), i->first.c_str());
 
    CCBMsg msg;
-   msg.resize(65536);
+   if (files.size() * 64 + 4 > msg.m_iBufLength)
+      msg.resize(files.size() * 64 + 4);
 
    msg.setType(7);
    CNameIndex::synchronize(files, msg.getData(), msg.m_iDataLength);

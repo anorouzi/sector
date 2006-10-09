@@ -38,7 +38,7 @@ UDT packet definition: packet.h
 
 /****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/27/2006
 *****************************************************************************/
 
 #ifndef WIN32
@@ -348,7 +348,7 @@ void CChannel::setChannelOpt()
 
    timeval tv;
    tv.tv_sec = 0;
-   #ifdef BSD
+   #if defined (BSD) || defined (OSX)
       // Known BSD bug as the day I wrote these codes.
       // A small time out value will cause the socket to block forever.
       tv.tv_usec = 10000;

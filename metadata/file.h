@@ -35,6 +35,9 @@ public:
 
    char m_pcHost[64];		// loc ip
    int32_t m_iPort;		// loc port
+
+   char m_pcNameHost[64];	// ip for name server
+   int32_t m_iNamePort;		// port for name server
 };
 
 struct CAttrComp

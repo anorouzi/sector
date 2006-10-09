@@ -15,7 +15,7 @@ int main(int argc, char** argv)
    char buf[1024];
    f1->read(buf, 0, 10);
 
-   string test = "Hello World!";
+   string test = "**********Hello World!";
 
    f1->write(test.c_str(), 20, test.length());
 

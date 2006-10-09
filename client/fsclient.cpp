@@ -126,7 +126,7 @@ CCBFile::~CCBFile()
    m_GMP.close();
 }
 
-int CCBFile::open(const string& filename, const int& mode)
+int CCBFile::open(const string& filename, const int& mode, char* cert)
 {
    m_strFileName = filename;
 
@@ -179,13 +179,23 @@ int CCBFile::open(const string& filename, const int& mode)
 
       if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
          return -1;
+
+      cout << "file owner certificate: " << msg.getData() << endl;
+      if (NULL != cert)
+         strcpy(cert, msg.getData());
    }
 
    msg.setType(2); // open the file
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.setData(64, (char*)&m_iProtocol, 4);
    msg.setData(68, (char*)&mode, 4);
-   msg.m_iDataLength = 4 + 64 + 4 + 4;
+   if (NULL != cert)
+   {
+      msg.setData(72, cert, strlen(cert) + 1);
+      msg.m_iDataLength = 4 + 64 + 4 + 4 + strlen(cert) + 1;
+   }
+   else
+      msg.m_iDataLength = 4 + 64 + 4 + 4;
 
    if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
       return -1;
@@ -227,10 +237,13 @@ int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
    int64_t param[2];
    param[0] = offset;
    param[1] = size;
+   int32_t response = -1;
 
    if (1 == m_iProtocol)
    {
       if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
       if (UDT::send(m_uSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
@@ -242,6 +255,8 @@ int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
    else
    {
       if (send(m_tSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
       if (send(m_tSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
@@ -266,10 +281,13 @@ int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
    int64_t param[2];
    param[0] = offset;
    param[1] = size;
+   int32_t response = -1;
 
    if (1 == m_iProtocol)
    {
       if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
       if (UDT::send(m_uSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
@@ -281,6 +299,8 @@ int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
    else
    {
       if (send(m_tSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
       if (send(m_tSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
@@ -299,11 +319,12 @@ int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
    return 1;
 }
 
-int CCBFile::copy(const char* localpath, const bool& cont)
+int CCBFile::download(const char* localpath, const bool& cont)
 {
    int32_t cmd = 3;
    int64_t offset;
    int64_t size;
+   int32_t response = -1;
 
    ofstream ofs;
 
@@ -323,6 +344,8 @@ int CCBFile::copy(const char* localpath, const bool& cont)
    {
       if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
          return -1;
+      if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+         return -1;
       if (UDT::send(m_uSock, (char*)&offset, 8, 0) < 0)
          return -1;
       if (UDT::recv(m_uSock, (char*)&size, 8, 0) < 0)
@@ -334,6 +357,8 @@ int CCBFile::copy(const char* localpath, const bool& cont)
    else
    {
       if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
       if (::send(m_tSock, (char*)&offset, 8, 0) < 0)
          return -1;
@@ -355,6 +380,62 @@ int CCBFile::copy(const char* localpath, const bool& cont)
    }
 
    ofs.close();
+
+   return 1;
+}
+
+int CCBFile::upload(const char* localpath, const bool& cont)
+{
+   int32_t cmd = 5;
+   int64_t offset;
+   int64_t size;
+   int32_t response = -1;
+
+   ifstream ifs;
+   ifs.open(localpath, ios::in | ios::binary);
+
+   ifs.seekg(0, ios::end);
+   size = ifs.tellg();
+   ifs.seekg(0);
+
+   if (1 == m_iProtocol)
+   {
+      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+         return -1;
+      if (UDT::send(m_uSock, (char*)&size, 8, 0) < 0)
+         return -1;
+
+      if (UDT::sendfile(m_uSock, ifs, 0, size) < 0)
+         return -1;
+   }
+   else
+   {
+      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+         return -1;
+      if (::send(m_tSock, (char*)&offset, 8, 0) < 0)
+         return -1;
+      if (::recv(m_tSock, (char*)&size, 8, 0) < 0)
+         return -1;
+
+      int64_t rs = 0;
+      char buf[4096];
+      while (rs < size)
+      {
+         int r = ::recv(m_tSock, buf, 4096, 0);
+         if (r < 0)
+            return -1;
+
+         ifs.read(buf, r);
+
+         rs += r;
+      }
+   }
+
+   ifs.close();
 
    return 1;
 }

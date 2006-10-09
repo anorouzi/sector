@@ -32,7 +32,7 @@ reference: UDT programming manual and socket programming reference
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/22/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/20/2006
 *****************************************************************************/
 
 #ifndef WIN32
@@ -1308,7 +1308,7 @@ int CUDT::recvmsg(UDTSOCKET u, char* buf, int len)
    }
 }
 
-long long int CUDT::sendfile(UDTSOCKET u, ifstream& ifs, const long long int& offset, long long int& size, const int& block)
+int64_t CUDT::sendfile(UDTSOCKET u, ifstream& ifs, const int64_t& offset, int64_t& size, const int& block)
 {
    try
    {
@@ -1333,7 +1333,7 @@ long long int CUDT::sendfile(UDTSOCKET u, ifstream& ifs, const long long int& of
    }
 }
 
-long long int CUDT::recvfile(UDTSOCKET u, ofstream& ofs, const long long int& offset, long long int& size, const int& block)
+int64_t CUDT::recvfile(UDTSOCKET u, ofstream& ofs, const int64_t& offset, int64_t& size, const int& block)
 {
    try
    {
@@ -1521,12 +1521,12 @@ int recvmsg(UDTSOCKET u, char* buf, int len)
    return CUDT::recvmsg(u, buf, len);
 }
 
-long long int sendfile(UDTSOCKET u, ifstream& ifs, const long long int& offset, long long int& size, const int& block)
+int64_t sendfile(UDTSOCKET u, ifstream& ifs, const int64_t& offset, int64_t& size, const int& block)
 {
    return CUDT::sendfile(u, ifs, offset, size, block);
 }
 
-long long int recvfile(UDTSOCKET u, ofstream& ofs, const long long int& offset, long long int& size, const int& block)
+int64_t recvfile(UDTSOCKET u, ofstream& ofs, const int64_t& offset, int64_t& size, const int& block)
 {
    return CUDT::recvfile(u, ofs, offset, size, block);
 }

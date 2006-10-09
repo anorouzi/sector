@@ -52,10 +52,11 @@ private:
    virtual ~CCBFile();
 
 public:
-   int open(const string& filename, const int& mode = 3);
+   int open(const string& filename, const int& mode = 3, char* cert = NULL);
    int read(char* buf, const int64_t& offset, const int64_t& size);
    int write(const char* buf, const int64_t& offset, const int64_t& size);
-   int copy(const char* localpath, const bool& cont = false);
+   int download(const char* localpath, const bool& cont = false);
+   int upload(const char* localpath, const bool& cont = false);
    int close();
 
 private:
