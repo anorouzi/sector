@@ -96,9 +96,30 @@ int upload(CFSClient& fsclient, const char* file)
    if (NULL == fh)
       return -1;
 
+   char* rname = (char*)file;
+   for (int i = strlen(file); i >= 0; -- i)
+   {
+      if ('/' == *rname)
+      {
+         rname = (char*)file + i + 1;
+         break;
+      }
+   }
+
+   cout << "rname " << rname << endl;
+
    char cert[1024];
-   fh->open(file, 2, cert);
-   cout << "got a cert " << cert << endl;
+   cert[0] = '\0';
+   fh->open(rname, 2, cert);
+
+   if (0 != strlen(cert))
+   {
+      cout << "got a cert " << cert << endl;
+
+      ofstream ofs((string(rname) + ".cert").c_str());
+      ofs << cert << endl;
+      ofs.close();
+   }
 
    bool finish = true;
    if (fh->upload(file) < 0)
