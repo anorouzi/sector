@@ -99,7 +99,13 @@ int download(CFSClient& fsclient, const char* file, const char* dest)
    CCBFile* fh = fsclient.createFileHandle();
    if (NULL == fh)
       return -1;
-   fh->open(file);
+   if (fh->open(file) < 0)
+   {
+      cout << "unable to locate file" << endl;
+      return -1;
+   }
+
+cout << ">>>>>>>>>>>>>>>>>>>>>\n";
 
    string localpath;
    if (dest[strlen(dest) - 1] != '/')
@@ -138,13 +144,18 @@ int main(int argc, char** argv)
    while (!src.eof())
    {
       src.getline(buf, 1024);
-      filelist.insert(filelist.end(), buf);
+      if (0 != strlen(buf))
+         filelist.insert(filelist.end(), buf);
    }
    src.close();
 
 
    CFSClient fsclient;
-   fsclient.connect(argv[1], atoi(argv[2]));
+   if (-1 == fsclient.connect(argv[1], atoi(argv[2])))
+   {
+      cout << "unable to connect to the server at " << argv[1] << endl;
+      return -1;
+   }
 
    for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
       download(fsclient, i->c_str(), argv[4]);

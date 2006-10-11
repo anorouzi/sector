@@ -106,15 +106,17 @@ int upload(CFSClient& fsclient, const char* file)
       }
    }
 
-   cout << "rname " << rname << endl;
-
    char cert[1024];
    cert[0] = '\0';
-   fh->open(rname, 2, cert);
+   if (fh->open(rname, 2, cert) < 0)
+   {
+      cout << "ERROR: unable to connect to server." << endl;
+      return -1;
+   }
 
    if (0 != strlen(cert))
    {
-      cout << "got a cert " << cert << endl;
+      cout << "file owner certificate: " << cert << endl;
 
       ofstream ofs((string(rname) + ".cert").c_str());
       ofs << cert << endl;
@@ -147,7 +149,7 @@ int main(int argc, char** argv)
 {
    if (4 != argc)
    {
-      cout << "usage: upload <filename>" << endl;
+      cout << "usage: upload ip port <filename>" << endl;
       return 0;
    }
 

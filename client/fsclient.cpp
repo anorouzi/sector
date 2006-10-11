@@ -180,7 +180,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
       if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
          return -1;
 
-      cout << "file owner certificate: " << msg.getData() << endl;
+      //cout << "file owner certificate: " << msg.getData() << endl;
       if (NULL != cert)
          strcpy(cert, msg.getData());
    }

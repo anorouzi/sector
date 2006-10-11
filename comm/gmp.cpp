@@ -334,31 +334,32 @@ int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len)
 
 int CGMP::recv(const int32_t& id, char* data, int& len)
 {
+   timeval now;
+   timespec timeout;
+   gettimeofday(&now, 0);
+   timeout.tv_sec = now.tv_sec + 1;
+   timeout.tv_nsec = now.tv_usec * 1000;
+
+   pthread_mutex_lock(&m_ResQueueLock);
+   pthread_cond_timedwait(&m_ResQueueCond, &m_ResQueueLock, &timeout);
+
+   map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
+
    bool found = false;
-
-   while (!found & !m_bClosed)
+   if (m != m_mResQueue.end())
    {
-      pthread_mutex_lock(&m_ResQueueLock);
-      while (!m_bClosed && m_mResQueue.empty())
-         pthread_cond_wait(&m_ResQueueCond, &m_ResQueueLock);
+      if (len > m->second->m_pMsg->m_iLength)
+         len = m->second->m_pMsg->m_iLength;
+      if (len > 0)
+         memcpy(data, m->second->m_pMsg->m_pcData, len);
+      delete m->second->m_pMsg;
+      delete m->second;
+      m_mResQueue.erase(m);
 
-      map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
-
-      if (m != m_mResQueue.end())
-      {
-         if (len > m->second->m_pMsg->m_iLength)
-            len = m->second->m_pMsg->m_iLength;
-         if (len > 0)
-            memcpy(data, m->second->m_pMsg->m_pcData, len);
-         delete m->second->m_pMsg;
-         delete m->second;
-         m_mResQueue.erase(m);
-
-         found = true;
-      }
-
-      pthread_mutex_unlock(&m_ResQueueLock);
+      found = true;
    }
+
+   pthread_mutex_unlock(&m_ResQueueLock);
 
    if (!found)
       return -1;
@@ -743,7 +744,9 @@ int CGMP::recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg)
 int CGMP::recv(const int32_t& id, CUserMessage* msg)
 {
    int rsize = msg->m_iBufLength;
-   recv(id, msg->m_pcBuffer, rsize);
+
+   if (recv(id, msg->m_pcBuffer, rsize) < 0)
+      return -1;
 
    if (rsize > 0)
       msg->m_iDataLength = rsize;
@@ -758,7 +761,17 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
    int32_t id = 0;
    if (sendto(ip, port, id, req) < 0)
       return -1;
-   return recv(id, res);
+
+   while (true)
+   {
+      if (recv(id, res) < 0)
+      {
+         if (rtt(ip, port) < 0)
+            return -1;
+      }
+   }
+
+   return 1;
 }
 
 int CGMP::rtt(const char* ip, const int& port)
@@ -808,7 +821,7 @@ int CGMP::rtt(const char* ip, const int& port)
    timeval now;
    timespec timeout;
    gettimeofday(&now, 0);
-   timeout.tv_sec = now.tv_sec + 10;
+   timeout.tv_sec = now.tv_sec + 1;
    timeout.tv_nsec = now.tv_usec * 1000;
    pthread_mutex_lock(&m_RTTLock);
    pthread_cond_timedwait(&m_RTTCond, &m_RTTLock, &timeout);
