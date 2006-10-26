@@ -105,8 +105,6 @@ int download(CFSClient& fsclient, const char* file, const char* dest)
       return -1;
    }
 
-cout << ">>>>>>>>>>>>>>>>>>>>>\n";
-
    string localpath;
    if (dest[strlen(dest) - 1] != '/')
       localpath = string(dest) + string("/") + string(file);

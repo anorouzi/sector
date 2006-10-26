@@ -1,7 +1,9 @@
 #include <sys/time.h>
 #include <time.h>
 #include <prec.h>
+#include <iostream>
 
+using namespace std;
 
 CPeerManagement::CPeerManagement()
 {

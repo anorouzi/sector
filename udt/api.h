@@ -151,7 +151,7 @@ private:
 
 private:
    pthread_key_t m_TLSError;                         // thread local error record (last error)
-   static void TLSDestroy(void* e) {delete (CUDTException*)e;}
+   static void TLSDestroy(void* e) {if (NULL != e) delete (CUDTException*)e;}
 
 private:
    CUDTSocket* locate(const UDTSOCKET u);

@@ -113,7 +113,7 @@ int CGMP::init(const int& port)
    memset(&(addr.sin_zero), '\0', 8);
 
 
-   if (0 != bind(m_iUDPSocket, (sockaddr *)&addr, sizeof(sockaddr_in)))
+   if (0 != ::bind(m_iUDPSocket, (sockaddr *)&addr, sizeof(sockaddr_in)))
    {
       perror("bind");
       return -1;
@@ -341,7 +341,9 @@ int CGMP::recv(const int32_t& id, char* data, int& len)
    timeout.tv_nsec = now.tv_usec * 1000;
 
    pthread_mutex_lock(&m_ResQueueLock);
-   pthread_cond_timedwait(&m_ResQueueCond, &m_ResQueueLock, &timeout);
+
+   if (0 == m_mResQueue.size())
+      pthread_cond_timedwait(&m_ResQueueCond, &m_ResQueueLock, &timeout);
 
    map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
 
@@ -379,7 +381,7 @@ void* CGMP::sndHandler(void* s)
 
       pthread_mutex_lock(&self->m_SndQueueLock);
 
-      for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end(); ++ i)
+      for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end();)
       {
          gettimeofday(&currtime, 0);
          if (currtime.tv_sec - (*i)->m_TimeStamp.tv_sec > 10)
@@ -387,13 +389,16 @@ void* CGMP::sndHandler(void* s)
             // timeout, send with TCP...
 
             list<CMsgRecord*>::iterator j = i;
-            -- i;
+            i ++;
 
             int sock = socket(AF_INET, SOCK_STREAM, 0);
 
             if (-1 == sock)
             {
+               delete (*j)->m_pMsg;
+               delete (*j);
                self->m_lSndQueue.erase(j);
+
                continue;
             }
 
@@ -405,7 +410,11 @@ void* CGMP::sndHandler(void* s)
 
             if (-1 == ::connect(sock, (sockaddr*)&serv_addr, sizeof(serv_addr)));
             {
+               delete (*j)->m_pMsg;
+               delete (*j);
                self->m_lSndQueue.erase(j);
+               ::close(sock);
+
                continue;
             }
 
@@ -413,7 +422,11 @@ void* CGMP::sndHandler(void* s)
                 (-1 == ::send(sock, (char*)((*j)->m_pMsg->m_piHeader), 16, 0)) ||
                 (-1 == ::send(sock, &((*j)->m_pMsg->m_iLength), 4, 0)))
             {
+               delete (*j)->m_pMsg;
+               delete (*j);
                self->m_lSndQueue.erase(j);
+               ::close(sock);
+
                continue;
             }
 
@@ -422,14 +435,21 @@ void* CGMP::sndHandler(void* s)
             {
                int s;
                if (0 > (s = ::send(sock, (*j)->m_pMsg->m_pcData + ssize, (*j)->m_pMsg->m_iLength - ssize, 0)))
+               {
+                  delete (*j)->m_pMsg;
+                  delete (*j);
+                  self->m_lSndQueue.erase(j);
+                  ::close(sock);
+
                   break;
+               }
                ssize += s;
             }
 
-            ::close(sock);
-
-
+            delete (*j)->m_pMsg;
+            delete (*j);
             self->m_lSndQueue.erase(j);
+            ::close(sock);
 
             continue;
          }
@@ -456,7 +476,11 @@ void* CGMP::sndHandler(void* s)
          mh.msg_flags = 0;
 
          sendmsg(self->m_iUDPSocket, &mh, 0);
+
+         // check next msg
+         ++ i;
       }
+
       pthread_mutex_unlock(&self->m_SndQueueLock);
    }
 
@@ -560,8 +584,6 @@ void* CGMP::rcvHandler(void* s)
       inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
       int32_t lastid = self->m_PeerHistory.getLastID(ip, ntohs(addr.sin_port), session);
 
-//cout << "NEW DATA " << lastid << " " << id << endl;
-
       if ((lastid >= 0) && (((id <= lastid) && (lastid - id < (1 << 29))) || ((id > lastid) && (id - lastid > (1 << 29)))))
       {
          ack[2] = id;
@@ -602,7 +624,6 @@ void* CGMP::rcvHandler(void* s)
          pthread_mutex_lock(&self->m_ResQueueLock);
          self->m_mResQueue[info] = rec;
          pthread_mutex_unlock(&self->m_ResQueueLock);
-
          pthread_cond_signal(&self->m_ResQueueCond);
       }
 
@@ -762,13 +783,10 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
    if (sendto(ip, port, id, req) < 0)
       return -1;
 
-   while (true)
+   while (recv(id, res) < 0)
    {
-      if (recv(id, res) < 0)
-      {
-         if (rtt(ip, port) < 0)
-            return -1;
-      }
+      if (rtt(ip, port) < 0)
+         return -1;
    }
 
    return 1;

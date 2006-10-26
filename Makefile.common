@@ -1,7 +1,7 @@
 C++ = g++
 
 DEBUG = 1
-STATIC = 0
+STATIC = 1
 EFENCE = 0
 
 CCFLAGS = -I./ -I../comm -I../routing -I../log -I../udt -I../sql -I../metadata
@@ -16,5 +16,5 @@ ifeq ($(STATIC), 1)
 endif
 
 ifeq ($(EFENCE), 1)
-   LDFLAGS += ../libduma.a -u malloc
+   LDFLAGS += ../libefence.a -u malloc
 endif

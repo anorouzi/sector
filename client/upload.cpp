@@ -10,6 +10,7 @@
 
 using namespace std;
 
+/*
 class CProgressBar
 {
 public:
@@ -77,8 +78,10 @@ private:
       return ws.ws_col;
    }
 };
+*/
 
-int upload(CFSClient& fsclient, const char* file)
+
+int upload(CFSClient& fsclient, const char* file, const char* dst = NULL)
 {
    timeval t1, t2;
    gettimeofday(&t1, 0);
@@ -96,13 +99,22 @@ int upload(CFSClient& fsclient, const char* file)
    if (NULL == fh)
       return -1;
 
-   char* rname = (char*)file;
-   for (int i = strlen(file); i >= 0; -- i)
+   char* rname;
+
+   if (NULL != dst)
    {
-      if ('/' == *rname)
+      rname = (char*)dst;
+   }
+   else
+   {
+      rname = (char*)file;
+      for (int i = strlen(file); i >= 0; -- i)
       {
-         rname = (char*)file + i + 1;
-         break;
+         if ('/' == *rname)
+         {
+            rname = (char*)file + i + 1;
+            break;
+         }
       }
    }
 
@@ -145,18 +157,23 @@ int upload(CFSClient& fsclient, const char* file)
    return 1;
 }
 
+
+
 int main(int argc, char** argv)
 {
-   if (4 != argc)
+   if ((4 != argc) && (5 != argc))
    {
-      cout << "usage: upload ip port <filename>" << endl;
+      cout << "usage: upload <ip> <port> <src file> [dst file]" << endl;
       return 0;
    }
 
-   CFSClient fsclient;
+   CFSClient fsclient(2);
    fsclient.connect(argv[1], atoi(argv[2]));
 
-   upload(fsclient, argv[3]);
+   if (5 == argc)
+      upload(fsclient, argv[3], argv[4]);
+   else
+      upload(fsclient, argv[3]);
 
    fsclient.close();
 

@@ -203,7 +203,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
    if (1 == m_iProtocol)
       m_uSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
    else
-      m_tSock = socket(AF_INET, SOCK_STREAM, 0);
+      m_tSock = ::socket(AF_INET, SOCK_STREAM, 0);
 
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
@@ -220,7 +220,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
    }
    else
    {
-      if (-1 == connect(m_tSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
+      if (-1 == ::connect(m_tSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
          return -1;
 
       //cout << "connect to TCP port " << *(int*)(msg.getData()) << endl;
@@ -254,11 +254,11 @@ int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
    }
    else
    {
-      if (send(m_tSock, (char*)&cmd, 4, 0) < 0)
+      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
          return -1;
-      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+      if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
-      if (send(m_tSock, (char*)param, 8 * 2, 0) < 0)
+      if (::send(m_tSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
 
       int64_t rs = 0;
@@ -298,11 +298,11 @@ int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
    }
    else
    {
-      if (send(m_tSock, (char*)&cmd, 4, 0) < 0)
+      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
          return -1;
-      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+      if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
-      if (send(m_tSock, (char*)param, 8 * 2, 0) < 0)
+      if (::send(m_tSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
 
       int64_t ss = 0;
@@ -358,7 +358,7 @@ int CCBFile::download(const char* localpath, const bool& cont)
    {
       if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
          return -1;
-      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+      if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
       if (::send(m_tSock, (char*)&offset, 8, 0) < 0)
          return -1;
@@ -414,41 +414,78 @@ int CCBFile::upload(const char* localpath, const bool& cont)
    {
       if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
          return -1;
-      if ((recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+      if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
          return -1;
-      if (::send(m_tSock, (char*)&offset, 8, 0) < 0)
-         return -1;
-      if (::recv(m_tSock, (char*)&size, 8, 0) < 0)
+      if (::send(m_tSock, (char*)&size, 8, 0) < 0)
          return -1;
 
-      int64_t rs = 0;
-      char buf[4096];
-      while (rs < size)
+      int unit = 10240000;
+      char* data = new char[unit];
+      int ssize = 0;
+
+      while (ssize + unit <= size)
       {
-         int r = ::recv(m_tSock, buf, 4096, 0);
-         if (r < 0)
-            return -1;
+         ifs.read(data, unit);
 
-         ifs.read(buf, r);
+         int ts = 0;
+         while (ts < unit)
+         {
+            int ss = ::send(m_tSock, data + ts, unit - ts, 0);
+            if (ss < 0)
+               goto ERROR;
 
-         rs += r;
+            ts += ss;
+         }
+
+         ssize += unit;
       }
+
+      if (ssize < size)
+      {
+         ifs.read(data, size - ssize);
+
+         int ts = 0;
+         while (ts < size - ssize)
+         {
+            int ss = ::send(m_tSock, data + ssize, size - ssize, 0);
+            if (ss < 0)
+               goto ERROR;
+
+            ts += ss;
+         }
+      }
+
+      delete [] data;
    }
 
    ifs.close();
 
    return 1;
+
+ERROR:
+   perror("send");
+   ifs.close();
+   return -1;
 }
 
 int CCBFile::close()
 {
    int32_t cmd = 4;
 
-   if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
-      return -1;
+   if (1 == m_iProtocol)
+   {
+      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
 
-   UDT::close(m_uSock);
+      UDT::close(m_uSock);
+   }
+   else
+   {
+      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+         return -1;
+
+      ::close(m_tSock);
+   }
 
    return 1;
 }
-

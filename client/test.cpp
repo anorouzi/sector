@@ -10,7 +10,11 @@ int main(int argc, char** argv)
    if (NULL == f1)
       return -1;
 
-   f1->open("test.txt");
+   if (f1->open("test.txt") < 0)
+   {
+      cout << "error to open file." << endl;
+      return -1;
+   }
 
    char buf[1024];
    f1->read(buf, 0, 10);

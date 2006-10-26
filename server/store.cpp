@@ -7,6 +7,7 @@
 #include <store.h>
 #include <assert.h>
 #include <sstream>
+#include <signal.h>
 
 using namespace std;
 
@@ -51,6 +52,9 @@ int CStore::init(char* ip, int port)
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, run, this);
    pthread_detach(msgserver);
+
+   // ignore TCP broken pipe
+   signal(SIGPIPE, SIG_IGN);
 
    return 1;
 }
@@ -186,12 +190,7 @@ void* CStore::run(void* s)
                sha[SHA_DIGEST_LENGTH] = '\0';
                stringstream shastr(stringstream::in | stringstream::out);
                for (int i = 0; i < SHA_DIGEST_LENGTH; i += 4)
-               {
-                  cout << *(int32_t*)(sha + i) << endl;
                   shastr << *(int32_t*)(sha + i);
-               }
-
-cout << "sha : " << shastr.str() << endl;
 
                if (shastr.str() == string(ecert))
                   mode = 1;
@@ -599,9 +598,15 @@ void* CStore::remote(void* p)
    while (run)
    {
       if (1 == conn)
-         UDT::recv(u, (char*)&cmd, 4, 0);
+      {
+         if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
+            continue;
+      }
       else
-         recv(t, (char*)&cmd, 4, 0);
+      {
+         if (::recv(t, (char*)&cmd, 4, 0) <= 0)
+            continue;
+      }
 
       if (4 != cmd)
       {
@@ -614,9 +619,15 @@ void* CStore::remote(void* p)
             response = 0;
 
          if (1 == conn)
-            UDT::send(u, (char*)&response, 4, 0);
+         {
+            if (UDT::send(u, (char*)&response, 4, 0) < 0)
+               continue;
+         }
          else
-            send(t, (char*)&response, 4, 0);
+         {
+            if (::send(t, (char*)&response, 4, 0) < 0)
+               continue;
+         }
 
          if (-1 == response)
             continue;
@@ -635,34 +646,75 @@ void* CStore::remote(void* p)
 
             int64_t param[2];
 
+            ifstream ifs(filename.c_str(), ios::in | ios::binary);
+
             if (1 == conn)
             {
                if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
                   run = false;
 
-               ifstream ifs(filename.c_str(), ios::in | ios::binary);
-
                if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
                   run = false;
                else
                   rb += param[1];
-
-               ifs.close();
             }
             else
             {
                if (::recv(t, (char*)param, 8 * 2, 0) < 0)
                   run = false;
 
-               int fd = open(filename.c_str(), O_RDONLY);
+               ifs.seekg(param[0]);
 
-               if (::sendfile(t, fd, (off_t*)param, param[1]) < 0)
-                  run = false;
-               else
+               int unit = 10240000;
+               char* data = new char[unit];
+               int ssize = 0;
+
+               while (run && (ssize + unit <= param[1]))
+               {
+                  ifs.read(data, unit);
+
+                  int ts = 0;
+                  while (ts < unit)
+                  {
+                     int ss = ::send(t, data + ts, unit - ts, 0);
+                     if (ss < 0)
+                     {
+                        run = false;
+                        break;
+                     }
+
+                     ts += ss;
+                  }
+
+                  ssize += unit;
+               }
+
+               if (ssize < param[1])
+               {
+                  ifs.read(data, param[1] - ssize);
+
+                  int ts = 0;
+                  while (ts < unit)
+                  {
+                     int ss = ::send(t, data + ssize, param[1] - ssize, 0);
+                     if (ss < 0)
+                     {
+                        run = false;
+                        break;
+                     }
+
+                     ts += ss;
+                  }
+
+               }
+
+               if (run)
                   rb += param[1];
 
-               ::close(fd);
+               delete [] data;
             }
+
+            ifs.close();
 
             // UNLOCK
 
@@ -741,6 +793,11 @@ void* CStore::remote(void* p)
             int64_t offset = 0;
             int64_t size = 0;
 
+            ifstream ifs(filename.c_str(), ios::in | ios::binary);
+            ifs.seekg(0, ios::end);
+            size = (int64_t)(ifs.tellg());
+            ifs.seekg(0, ios::beg);
+
             if (1 == conn)
             {
                if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
@@ -749,10 +806,7 @@ void* CStore::remote(void* p)
                   break;
                }
 
-               ifstream ifs(filename.c_str(), ios::in | ios::binary);
-               ifs.seekg(0, ios::end);
-               size = (int64_t)(ifs.tellg()) - offset;
-               ifs.seekg(0, ios::beg);
+               size -= offset;
 
                if (UDT::send(u, (char*)&size, 8, 0) < 0)
                {
@@ -765,29 +819,70 @@ void* CStore::remote(void* p)
                   run = false;
                else
                   rb += size;
-
-               ifs.close();
             }
             else
             {
-               int fd = open(filename.c_str(), O_RDONLY);
-               ///////////TODO find file length!
-
-               if (::send(t, (char*)&size, 8, 0) < 0)
+               if (::recv(t, (char*)&offset, 8, 0) < 0)
                {
                   run = false;
-                  ::close(fd);
                   break;
                }
 
+               size -= offset;
+
                if (::send(t, (char*)&size, 8, 0) < 0)
                   run = false;
 
-               if (::sendfile(t, fd, (off_t*)&offset, size) < 0)
-                  run = false;
-               else
+               int unit = 10240000;
+               char* data = new char[unit];
+               int ssize = 0;
+
+               while (run && (ssize + unit <= size))
+               {
+                  ifs.read(data, unit);
+
+                  int ts = 0;
+                  while (ts < unit)
+                  {
+                     int ss = ::send(t, data + ts, unit - ts, 0);
+                     if (ss < 0)
+                     {
+                        run = false;
+                        break;
+                     }
+
+                     ts += ss;
+                  }
+
+                  ssize += unit;
+               }
+
+               if (ssize < size)
+               {
+                  ifs.read(data, size - ssize);
+
+                  int ts = 0;
+                  while (ts < size - ssize)
+                  {
+                     int ss = ::send(t, data + ssize, size - ssize, 0);
+                     if (ss < 0)
+                     {
+                        run = false;
+                        break;
+                     }
+
+                     ts += ss;
+                  }
+
+               }
+
+               delete [] data;
+
+               if (run)
                   rb += size;
             }
+
+            ifs.close();
 
             // UNLOCK
 
@@ -806,6 +901,8 @@ void* CStore::remote(void* p)
             int64_t offset = 0;
             int64_t size = 0;
 
+            ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
+
             if (1 == conn)
             {
                //if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
@@ -813,7 +910,7 @@ void* CStore::remote(void* p)
                //   run = false;
                //   break;
                //}
-               offset = 0;
+               //offset = 0;
 
                if (UDT::recv(u, (char*)&size, 8, 0) < 0)
                {
@@ -821,40 +918,47 @@ void* CStore::remote(void* p)
                   break;
                }
 
-               cout << "got size " << size << endl;
-
-               ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
-
                if (UDT::recvfile(u, ofs, offset, size) < 0)
                   run = false;
                else
                   wb += size;
-
-               ofs.close();
             }
             else
             {
-               int fd = open(filename.c_str(), O_WRONLY);
-               ///////////TODO find file length!
-
-               if (::send(t, (char*)&size, 8, 0) < 0)
+               if (::recv(t, (char*)&size, 8, 0) < 0)
                {
                   run = false;
-                  ::close(fd);
                   break;
                }
 
-               if (::send(t, (char*)&size, 8, 0) < 0)
-                  run = false;
+               const int unit = 1024000;
+               char* data = new char [unit];
+               int64_t rsize = 0;
 
-               if (::sendfile(t, fd, (off_t*)&offset, size) < 0)
-                  run = false;
-               else
+               while (rsize < size)
+               {
+                  int rs = ::recv(t, data, (unit < size - rsize) ? unit : size - rsize, 0);
+
+                  if (rs < 0)
+                  {
+                     run = false;
+                     break;
+                  }
+
+                  ofs.write(data, rs);
+
+                  rsize += rs;
+               }
+
+               delete [] data;
+
+               if (run)
                   rb += size;
             }
 
-            // UNLOCK
+            ofs.close();
 
+            // UNLOCK
             break;
          }
 
@@ -894,9 +998,7 @@ void* CStore::remote(void* p)
    else
       close(t);
 
-
    self->m_KBase.m_iNumConn --;
-
 
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
 
@@ -919,7 +1021,6 @@ void CStore::updateOutLink()
 
       // TO DO
       // check disk file for size update
-      // update file.conf
 
       int fid = CDHash::hash(i->first.c_str(), m_iKeySpace);
 
@@ -967,22 +1068,6 @@ void CStore::updateInLink()
    {
       usleep(500);
 
-      /*
-      // check if this node should host the name of the file
-      // do this in updateOutLink
-
-      int fid = CDHash::hash(i->first.c_str(), m_iKeySpace);
-      
-      if (-1 == m_Router.lookup(fid, &loc))
-         continue;
-
-      if (strcmp(loc.m_pcIP, m_strLocalHost.c_str()) != 0)
-      {
-         m_RemoteFile.remove(i->first);
-         continue;
-      }
-      */
-
       // check if the original file still exists
       int c = 0;
       for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end();)
@@ -993,7 +1078,7 @@ void CStore::updateInLink()
 
          int r = m_GMP.rpc(j->m_pcHost, m_iCBFSPort, &msg, &msg);
 
-         if ((r <=0) || (msg.getType() < 0))
+         if ((r <= 0) || (msg.getType() < 0))
          {
             i->second.erase(j);
             j = i->second.begin();
@@ -1035,31 +1120,6 @@ int CStore::initLocalFile()
    cout << "Home Dir " << m_strHomeDir << endl;
 
    CFileAttr attr;
-
-   // file list
-   /*
-   while (!ft.eof())
-   {
-      ft.getline(buf, 1024);
-
-      if ((strlen(buf) > 0) && (buf[0] != '#'))
-      {
-         cout << "load file " <<  buf << endl;
-
-         ifstream ifs((m_strHomeDir+buf).c_str());
-         ifs.seekg(0, ios::end);
-         int64_t size = ifs.tellg();
-         ifs.close();
-
-         strcpy(attr.m_pcName, buf);
-         strcpy(attr.m_pcHost, m_strLocalHost.c_str());
-         attr.m_iPort = m_iLocalPort;
-         attr.m_llSize = size;
-
-         m_LocalFile.insert(attr);
-      }
-   }
-   */
 
    // initialize all files in the home directory, excluding "." and ".."
 
@@ -1120,7 +1180,7 @@ void CStore::updateNameIndex(int& next)
 
    vector<string> files;
    for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-      files.insert(files.end(), i->first.c_str());
+      files.insert(files.end(), i->first);
 
    CCBMsg msg;
    if (files.size() * 64 + 4 > msg.m_iBufLength)

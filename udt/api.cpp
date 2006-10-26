@@ -138,7 +138,7 @@ CUDTUnited::~CUDTUnited()
    #endif
 
    #ifndef WIN32
-      pthread_key_delete(m_TLSError);
+//      pthread_key_delete(m_TLSError);
    #else
       TlsFree(m_TLSError);
    #endif
