@@ -13,6 +13,9 @@ The only configuration file is located at ./conf. file.conf is a text file which
 to store the data files. It is a single line of the adsolute directory.
 
 
+Note: All the parameters of <PORT> mentioned below should use 2237.
+
+
 III. Server
 
 The server program is located at ./server directory. For a stand-alone server, run 

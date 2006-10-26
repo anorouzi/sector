@@ -174,6 +174,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
       m_iServerPort = m_pFSClient->m_iServerPort;
 
       msg.setType(5); // create the file
+
       msg.setData(0, filename.c_str(), filename.length() + 1);
       msg.m_iDataLength = 4 + 64;
 

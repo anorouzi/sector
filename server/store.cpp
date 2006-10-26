@@ -198,10 +198,6 @@ void* CStore::run(void* s)
                   mode = 0;
             }
 
-cout << "cert : " << cert << endl;
-cout << "ecert : " << ecert << endl;
-cout << "mode : " << mode << endl;
-
             self->m_AccessLog.insert(ip, port, msg->getData());
 
             cout << "===> start file server " << endl;
@@ -339,6 +335,21 @@ cout << "mode : " << mode << endl;
             unsigned char sha[SHA_DIGEST_LENGTH + 1];
             SHA1((const unsigned char*)cert, strlen(cert), sha);
             sha[SHA_DIGEST_LENGTH] = '\0';
+
+            DIR* test = opendir((self->m_strHomeDir + ".cert").c_str());
+
+            if (NULL == test)
+            {
+               if ((errno != ENOENT) || (mkdir((self->m_strHomeDir + ".cert").c_str(), S_IRWXU) < 0))
+               {
+                  msg->setType(-msg->getType());
+                  msg->m_iDataLength = 4;
+
+                  self->m_GMP.sendto(ip, port, id, msg);
+                  break;
+               }
+            }
+            closedir(test);
 
             ofstream cf((self->m_strHomeDir + ".cert/" + filename + ".cert").c_str());
             for (int i = 0; i < SHA_DIGEST_LENGTH; i += 4)
@@ -1100,6 +1111,12 @@ void CStore::updateInLink()
 int CStore::initLocalFile()
 {
    ifstream ft("../conf/file.conf");
+
+   if (ft.bad())
+   {
+      cout << "cannot locate configuration file. Please check ../conf/file.conf." << endl;
+      return -1;
+   }
 
    char buf[1024];
 
