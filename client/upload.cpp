@@ -110,7 +110,7 @@ int upload(CFSClient& fsclient, const char* file, const char* dst = NULL)
       rname = (char*)file;
       for (int i = strlen(file); i >= 0; -- i)
       {
-         if ('/' == *rname)
+         if ('/' == file[i])
          {
             rname = (char*)file + i + 1;
             break;
@@ -167,7 +167,7 @@ int main(int argc, char** argv)
       return 0;
    }
 
-   CFSClient fsclient(2);
+   CFSClient fsclient;
    fsclient.connect(argv[1], atoi(argv[2]));
 
    if (5 == argc)

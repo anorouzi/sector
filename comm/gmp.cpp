@@ -413,6 +413,7 @@ void* CGMP::sndHandler(void* s)
                delete (*j)->m_pMsg;
                delete (*j);
                self->m_lSndQueue.erase(j);
+
                ::close(sock);
 
                continue;
@@ -425,6 +426,7 @@ void* CGMP::sndHandler(void* s)
                delete (*j)->m_pMsg;
                delete (*j);
                self->m_lSndQueue.erase(j);
+
                ::close(sock);
 
                continue;
@@ -439,6 +441,7 @@ void* CGMP::sndHandler(void* s)
                   delete (*j)->m_pMsg;
                   delete (*j);
                   self->m_lSndQueue.erase(j);
+
                   ::close(sock);
 
                   break;
@@ -449,6 +452,7 @@ void* CGMP::sndHandler(void* s)
             delete (*j)->m_pMsg;
             delete (*j);
             self->m_lSndQueue.erase(j);
+
             ::close(sock);
 
             continue;
@@ -547,9 +551,8 @@ void* CGMP::rcvHandler(void* s)
                   int rtt = (currtime.tv_sec - (*i)->m_TimeStamp.tv_sec) * 1000000 + currtime.tv_usec - (*i)->m_TimeStamp.tv_usec;
 
                   char ip[64];
-                  inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
-                  //cout << "INSERT " << ip << " " << ntohs(addr.sin_port) << " " << session << " " << id << " " <<  rtt << endl;
-                  self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), session, -1, rtt);
+                  if (NULL != inet_ntop(AF_INET, &(addr.sin_addr), ip, 64))
+                     self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), session, -1, rtt);
 
                   pthread_cond_signal(&self->m_RTTCond);
 
@@ -581,7 +584,11 @@ void* CGMP::rcvHandler(void* s)
 
       // check repeated ID!!!!
       char ip[64];
-      inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
+      if (NULL == inet_ntop(AF_INET, &(addr.sin_addr), ip, 64))
+      {
+         perror("inet_ntop");
+         continue;
+      }
       int32_t lastid = self->m_PeerHistory.getLastID(ip, ntohs(addr.sin_port), session);
 
       if ((lastid >= 0) && (((id <= lastid) && (lastid - id < (1 << 29))) || ((id > lastid) && (id - lastid > (1 << 29)))))
@@ -596,7 +603,12 @@ void* CGMP::rcvHandler(void* s)
 
       CMsgRecord* rec = new CMsgRecord;
 
-      inet_ntop(AF_INET, &(addr.sin_addr), rec->m_pcIP, 64);
+      if (NULL == inet_ntop(AF_INET, &(addr.sin_addr), rec->m_pcIP, 64))
+      {
+         perror("inet_ntop");
+         delete rec;
+         continue;
+      }
       rec->m_iPort = ntohs(addr.sin_port);
       rec->m_pMsg = new CGMPMessage;
       //rec->m_pMsg->m_iType = type;
@@ -624,6 +636,7 @@ void* CGMP::rcvHandler(void* s)
          pthread_mutex_lock(&self->m_ResQueueLock);
          self->m_mResQueue[info] = rec;
          pthread_mutex_unlock(&self->m_ResQueueLock);
+
          pthread_cond_signal(&self->m_ResQueueCond);
       }
 
@@ -654,9 +667,6 @@ void* CGMP::tcpRcvHandler(void* s)
       if (-1 == (sock = ::accept(self->m_iTCPSocket, (sockaddr*)&addr, &namelen)))
          continue;
 
-      //char ip[16];
-      //cout << "new connection: " << inet_ntop(AF_INET, &their_addr.sin_addr, ip, 16) << ":" << ntohs(their_addr.sin_port) << " " << sock << endl;
-
       int port;
       if (0 > ::recv(sock, &port, 4, MSG_WAITALL))
       {
@@ -675,7 +685,13 @@ void* CGMP::tcpRcvHandler(void* s)
 
       CMsgRecord* rec = new CMsgRecord;
 
-      inet_ntop(AF_INET, &(addr.sin_addr), rec->m_pcIP, 64);
+      if (NULL == inet_ntop(AF_INET, &(addr.sin_addr), rec->m_pcIP, 64))
+      {
+         perror("inet_ntop");
+         ::close(sock);
+         delete rec;
+         continue;
+      }
       rec->m_iPort = port;
       rec->m_pMsg = new CGMPMessage;
       //rec->m_pMsg->m_iType = type;
@@ -688,6 +704,7 @@ void* CGMP::tcpRcvHandler(void* s)
       {
          perror("recv");
          ::close(sock);
+         delete rec->m_pMsg;
          delete rec;
          continue;
       }
@@ -710,6 +727,7 @@ void* CGMP::tcpRcvHandler(void* s)
       if (rsize < rec->m_pMsg->m_iLength)
       {
          ::close(sock);
+         delete rec->m_pMsg;
          delete rec;
          continue;
       }
