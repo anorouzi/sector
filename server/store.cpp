@@ -1174,7 +1174,7 @@ int CStore::initLocalFile()
             cout << "init local file... " << namelist[i]->d_name << " " << size << endl;
          }
 
-         free(namelist[n]);
+         free(namelist[i]);
       }
       free(namelist);
    }
