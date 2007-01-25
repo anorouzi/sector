@@ -96,7 +96,7 @@ int CFSClient::stat(const string& filename, CFileAttr& attr)
    return msg.getType();
 }
 
-int CFSClient::ls(vector<string>& filelist)
+int CFSClient::ls(vector<CIndexInfo>& filelist)
 {
    CCBMsg msg;
    msg.resize(65536);
@@ -108,7 +108,18 @@ int CFSClient::ls(vector<string>& filelist)
       return -1;
 
    if (msg.getType() > 0)
-      CNameIndex::desynchronize(filelist, msg.getData(), msg.m_iDataLength - 4);
+   {
+      //CNameIndex::desynchronize(filelist, msg.getData(), msg.m_iDataLength - 4);
+
+      CIndexInfo* pii = (CIndexInfo*)msg.getData();
+
+      for (int i = 0; i < (msg.m_iDataLength - 4) / sizeof(CIndexInfo); ++ i)
+      {
+         filelist.insert(filelist.end(), pii[i]);
+
+      //cout << "------ " << pii[i].m_pcName << " +++ " << pii[i].m_TimeStamp.tv_usec << endl;
+      }
+   }
 
    return filelist.size();
 }
@@ -234,19 +245,17 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
 
 int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
 {
-   int32_t cmd = 1;
-   int64_t param[2];
-   param[0] = offset;
-   param[1] = size;
+   char req[20];
+   *(int32_t*)req = 1; // cmd read
+   *(int64_t*)(req + 4) = offset;
+   *(int64_t*)(req + 12) = size;
    int32_t response = -1;
 
    if (1 == m_iProtocol)
    {
-      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+      if (UDT::send(m_uSock, req, 20, 0) < 0)
          return -1;
       if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (UDT::send(m_uSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
 
       int h;
@@ -255,11 +264,9 @@ int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
    }
    else
    {
-      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+      if (::send(m_tSock, req, 20, 0) < 0)
          return -1;
       if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (::send(m_tSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
 
       int64_t rs = 0;
@@ -278,19 +285,17 @@ int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
 
 int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
 {
-   int32_t cmd = 2;
-   int64_t param[2];
-   param[0] = offset;
-   param[1] = size;
+   char req[20];
+   *(int32_t*)req = 2; // cmd write
+   *(int64_t*)(req + 4) = offset;
+   *(int64_t*)(req + 12) = size;
    int32_t response = -1;
 
    if (1 == m_iProtocol)
    {
-      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+      if (UDT::send(m_uSock, req, 20, 0) < 0)
          return -1;
       if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (UDT::send(m_uSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
 
       int h;
@@ -299,11 +304,9 @@ int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
    }
    else
    {
-      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+      if (::send(m_tSock, req, 20, 0) < 0)
          return -1;
       if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (::send(m_tSock, (char*)param, 8 * 2, 0) < 0)
          return -1;
 
       int64_t ss = 0;
@@ -388,7 +391,6 @@ int CCBFile::download(const char* localpath, const bool& cont)
 int CCBFile::upload(const char* localpath, const bool& cont)
 {
    int32_t cmd = 5;
-   int64_t offset;
    int64_t size;
    int32_t response = -1;
 

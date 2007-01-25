@@ -4,16 +4,10 @@
 #include <vector>
 #include <dhash.h>
 #include <gmp.h>
+#include <node.h>
 
 using namespace std;
 
-
-struct Node
-{
-   uint32_t m_uiID;
-   char m_pcIP[64];
-   int32_t m_iPort;
-};
 
 struct FTItem
 {

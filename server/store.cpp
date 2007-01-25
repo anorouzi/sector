@@ -322,6 +322,7 @@ void* CStore::run(void* s)
             strcpy(attr.m_pcName, filename.c_str());
             strcpy(attr.m_pcHost, self->m_strLocalHost.c_str());
             attr.m_iPort = self->m_iLocalPort;
+            gettimeofday(&attr.m_TimeStamp, 0);
 
             self->m_LocalFile.insert(attr);
 
@@ -378,12 +379,13 @@ void* CStore::run(void* s)
 
       case 7: // update name index
          {
-            for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
+            CIndexInfo* pii = (CIndexInfo*)msg->getData();
+            for (int i = 0; i < (msg->m_iDataLength - 4) / sizeof(CIndexInfo); ++ i)
             {
-               self->m_NameIndex.insert(msg->getData() + i * 64, ip, m_iCBFSPort);
+               self->m_NameIndex.insert(pii[i]);
             }
 
-            //cout << "global name index updated " << (msg->m_iDataLength - 4) / 64 << endl;
+            //cout << "global name index updated " << (msg->m_iDataLength - 4) / sizeof(CIndexInfo) << endl;
 
             msg->m_iDataLength = 4;
 
@@ -439,10 +441,13 @@ void* CStore::process(void* p)
       {
          if (*(int32_t*)(msg->getData()) == 1)
          {
-            vector<string> filelist;
-            self->m_NameIndex.search(filelist);
-            CNameIndex::synchronize(filelist, msg->getData(), msg->m_iDataLength);
-            msg->m_iDataLength += 4;
+//////////////////////////////////////////???????????????????????????????????
+
+            msg->m_iDataLength = msg->m_iBufLength;
+            if (self->m_NameIndex.synchronize(msg->getData(), msg->m_iDataLength) > 0)
+                msg->m_iDataLength += 4;
+            else
+                msg->m_iDataLength = 4;
 
             break;
          }
@@ -454,10 +459,11 @@ void* CStore::process(void* p)
 
          if (string(n.m_pcIP) == self->m_strLocalHost)
          {
-            vector<string> filelist;
-            self->m_NameIndex.search(filelist);
-            CNameIndex::synchronize(filelist, msg->getData(), msg->m_iDataLength);
-            msg->m_iDataLength += 4;
+            msg->m_iDataLength = msg->m_iBufLength;
+            if (self->m_NameIndex.synchronize(msg->getData(), msg->m_iDataLength) > 0)
+                msg->m_iDataLength += 4;
+            else
+                msg->m_iDataLength = 4;
          }
          else
          {
@@ -1168,6 +1174,7 @@ int CStore::initLocalFile()
             // original file is read only
             attr.m_iAttr = 1;
             attr.m_llSize = size;
+            attr.m_TimeStamp.tv_sec = s.st_mtime;
 
             m_LocalFile.insert(attr);
 
@@ -1195,17 +1202,25 @@ void CStore::updateNameIndex(int& next)
    map<string, set<CFileAttr, CAttrComp> > filelist;
    m_LocalFile.getFileList(filelist);
 
-   vector<string> files;
-   for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-      files.insert(files.end(), i->first);
-
    CCBMsg msg;
-   if (files.size() * 64 + 4 > msg.m_iBufLength)
-      msg.resize(files.size() * 64 + 4);
+   if (filelist.size() * sizeof(CIndexInfo) + 4 > msg.m_iBufLength)
+      msg.resize(filelist.size() * sizeof(CIndexInfo) + 4);
+
+   CIndexInfo ii;
+   int c = 0;
+   for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   {
+      strcpy(ii.m_pcName, i->second.begin()->m_pcName);
+      ii.m_TimeStamp = i->second.begin()->m_TimeStamp;
+      ii.m_llSize = i->second.begin()->m_llSize;
+
+      msg.setData(c * sizeof(CIndexInfo), (char*)&ii, sizeof(CIndexInfo));
+
+      ++ c;
+   }
 
    msg.setType(7);
-   CNameIndex::synchronize(files, msg.getData(), msg.m_iDataLength);
-   msg.m_iDataLength += 4;
+   msg.m_iDataLength = filelist.size() * sizeof(CIndexInfo) + 4;
 
    m_GMP.rpc(p.m_pcIP, m_iCBFSPort, &msg, &msg);
 

@@ -161,6 +161,10 @@ int CGMP::close()
 
    m_bClosed = true;
 
+   pthread_mutex_lock(&m_SndQueueLock);
+   pthread_cond_signal(&m_SndQueueCond);
+   pthread_mutex_unlock(&m_SndQueueLock);
+
    pthread_join(m_SndThread, NULL);
    pthread_join(m_RcvThread, NULL);
 
@@ -377,9 +381,16 @@ void* CGMP::sndHandler(void* s)
 
    while (!self->m_bClosed)
    {
-      sleep(1);
-
       pthread_mutex_lock(&self->m_SndQueueLock);
+
+      timespec timeout;
+      timeval now;
+
+      gettimeofday(&now, 0);
+      timeout.tv_sec = now.tv_sec + 1;
+      timeout.tv_nsec = now.tv_usec * 1000;
+
+      pthread_cond_timedwait(&self->m_SndQueueCond, &self->m_SndQueueLock, &timeout);
 
       for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end();)
       {

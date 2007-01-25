@@ -81,65 +81,49 @@ CNameIndex::~CNameIndex()
 {
 }
 
-int CNameIndex::search(vector<string>& files)
+int CNameIndex::insert(const CIndexInfo& file)
 {
-   for (map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.begin(); i != m_mFileList.end(); ++ i)
-      files.insert(files.end(), i->first);
-
-   return files.size();
-}
-
-int CNameIndex::insert(const string& filename, const string& host, const int& port)
-{
-   map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(filename);
-
-   set<CFileAttr, CAttrComp> sa;
-
-   if (i != m_mFileList.end())
-      m_mFileList[filename] = sa;
-
-   CFileAttr attr;
-   strcpy(attr.m_pcName, filename.c_str());
-   strcpy(attr.m_pcHost, host.c_str());
-   attr.m_iPort = port;
-
-   m_mFileList[filename].insert(attr);
+   m_mFileList[file.m_pcName] = file;
 
    return 1;
 }
 
-int CNameIndex::remove(const string& filename, const string& host, const int& port)
+int CNameIndex::remove(const CIndexInfo& file)
 {
-   map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(filename);
+   map<string, CIndexInfo>::iterator i = m_mFileList.find(file.m_pcName);
 
    if (i == m_mFileList.end())
-      return 1;
+      return -1;
 
-   CFileAttr attr;
-   strcpy(attr.m_pcName, filename.c_str());
-   strcpy(attr.m_pcHost, host.c_str());
-   attr.m_iPort = port;
-
-   i->second.erase(attr);
+   m_mFileList.erase(i);
 
    return 1;
 }
 
-void CNameIndex::synchronize(vector<string>& files, char* buffer, int& len)
+int CNameIndex::synchronize(char* buffer, int& len)
 {
-   len = files.size() * 64;
+   if (len < m_mFileList.size() * sizeof(CIndexInfo))
+     return -1;
+
+   len = m_mFileList.size() * sizeof(CIndexInfo);
 
    int c = 0;
 
-   for (vector<string>::iterator i = files.begin(); i != files.end(); ++ i)
+   for (map<string, CIndexInfo>::iterator i = m_mFileList.begin(); i != m_mFileList.end(); ++ i)
    {
-      strcpy(buffer + c * 64, i->c_str());
+      memcpy(buffer + c * sizeof(CIndexInfo), (char*)&(i->second), sizeof(CIndexInfo));
       ++ c;
    }
+
+   return len;
 }
 
-void CNameIndex::desynchronize(vector<string>& files, const char* buffer, const int& len)
+int CNameIndex::desynchronize(const char* buffer, const int& len)
 {
-   for (int i = 0; i < len/64; ++ i)
-      files.insert(files.end(), buffer + i * 64);
+   m_mFileList.clear();
+
+   for (unsigned int i = 0; i < len/sizeof(CIndexInfo); ++ i)
+      insert(((CIndexInfo*)buffer)[i]);
+
+   return len/sizeof(CIndexInfo);
 }

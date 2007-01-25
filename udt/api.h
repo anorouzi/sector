@@ -30,7 +30,7 @@ This header file contains the definition of structures related to UDT API.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/23/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/25/2006
 *****************************************************************************/
 
 #ifndef __UDT_API_H__

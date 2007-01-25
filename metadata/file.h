@@ -4,7 +4,6 @@
 #include <sys/time.h>
 #include <string>
 #include <set>
-#include <routing.h>
 #include <gmp.h>
 #include <udt.h>
 

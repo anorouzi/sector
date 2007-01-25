@@ -1,10 +1,10 @@
 #ifndef __CBFS_CLIENT_H__
 #define __CBFS_CLIENT_H__
 
-#include <routing.h>
 #include <gmp.h>
 #include <index.h>
 #include <file.h>
+#include <node.h>
 
 class CCBFile;
 
@@ -26,7 +26,7 @@ public:
    void releaseFileHandle(CCBFile* f);
 
    int stat(const string& filename, CFileAttr& attr);
-   int ls(vector<string>& filelist);
+   int ls(vector<CIndexInfo>& filelist);
 
 private:
    int lookup(string filename, Node* n);

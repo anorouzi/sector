@@ -29,6 +29,16 @@ private:
    pthread_mutex_t m_IndexLock;
 };
 
+struct CIndexInfo
+{
+   char m_pcName[64];           // unique file name
+   timeval m_TimeStamp;         // time stamp
+   //char m_pcType[64];           // file type, data, video, audio, etc
+   int64_t m_llSize;            // size
+
+   timeval m_LRT;		// last time the file information is reported (Last Report Time)
+};
+
 class CNameIndex
 {
 public:
@@ -36,17 +46,15 @@ public:
    ~CNameIndex();
 
 public:
-   int search(vector<string>& files);
-
-   int insert(const string& filename, const string& host, const int& port);
-   int remove(const string& filename, const string& host, const int& port);
+   int insert(const CIndexInfo& file);
+   int remove(const CIndexInfo& file);
 
 public:
-   static void synchronize(vector<string>& files, char* buffer, int& len);
-   static void desynchronize(vector<string>& files, const char* buffer, const int& len);
+   int synchronize(char* buffer, int& len);
+   int desynchronize(const char* buffer, const int& len);
 
 private:
-   map<string, set<CFileAttr, CAttrComp> > m_mFileList;
+   map<string, CIndexInfo> m_mFileList;
 };
 
 #endif

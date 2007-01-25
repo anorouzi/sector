@@ -1,11 +1,11 @@
 #ifndef __SQL_CLIENT_H__
 #define __SQL_CLIENT_H_
 
-#include <routing.h>
 #include <gmp.h>
 #include <index.h>
 #include <data.h>
 #include <query.h>
+#include <node.h>
 
 class CSQLClient
 {

@@ -8,7 +8,7 @@ ifndef arch
    arch = IA32
 endif
 
-CCFLAGS = -fPIC -Wall -D$(os) -finline-functions -O3 -g
+CCFLAGS = -fPIC -Wall -D$(os) -finline-functions -O3
 
 CCFLAGS += -DNO_BUSY_WAITING
 #CCFLAGS += -DCUSTOM_CC
@@ -36,13 +36,13 @@ endif
 OBJS = common.o window.o list.o buffer.o packet.o channel.o core.o api.o ccc.o
 DIR = $(shell pwd)
 
-all: libudt.so libudt.a
+all: libudt.so libudt.a udt
 
 %.o: %.cpp %.h udt.h
 	$(C++) $(CCFLAGS) $< -c
 
 libudt.so: $(OBJS)
-ifneq ($(os), BSD)
+ifneq ($(os), OSX)
 	$(C++) -shared -o $@ $^
 else
 	$(C++) -dynamiclib -o libudt.dylib -lstdc++ -lpthread -lm $^
@@ -51,8 +51,11 @@ endif
 libudt.a: $(OBJS)
 	ar -rcs $@ $^
 
+udt:
+	cp udt.h udt
+
 clean:
 	rm -f *.o *.so *.dylib *.a udt
 
 install:
-	mv libudt.so libudt.a ../lib
+	export LD_LIBRARY_PATH=$(DIR):$$LD_LIBRARY_PATH

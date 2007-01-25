@@ -1,7 +1,7 @@
 C++ = g++
 
-DEBUG = 1
-STATIC = 1
+DEBUG = 0
+STATIC = 0
 EFENCE = 0
 
 CCFLAGS = -I./ -I../comm -I../routing -I../log -I../udt -I../sql -I../metadata

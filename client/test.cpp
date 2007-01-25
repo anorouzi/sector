@@ -48,12 +48,12 @@ int main(int argc, char** argv)
    fsclient.stat("rate.txt", attr);
    cout << attr.m_pcName << " " << attr.m_pcHost << " " << attr.m_iPort << " " << attr.m_llSize << endl;
 
-   vector<string> filelist;
+   vector<CIndexInfo> filelist;
    fsclient.ls(filelist);
 
    cout << endl << "LS " << endl;
-   for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-      cout << *i << endl;
+   for (vector<CIndexInfo>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+      cout << i->m_pcName << "\t" << i->m_TimeStamp.tv_sec << endl;
 
    return 1;
 }
