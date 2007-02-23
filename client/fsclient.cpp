@@ -1,3 +1,32 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+*****************************************************************************/
+
+
 #include <fsclient.h>
 
 using namespace std;
@@ -27,34 +56,10 @@ void CFSClient::releaseFileHandle(CCBFile* f)
    delete f;
 }
 
-int CFSClient::ls(vector<CIndexInfo>& filelist)
-{
-   CCBMsg msg;
-   msg.resize(65536);
-   msg.setType(101); // retrieve name index
-   *(int32_t*)msg.getData() = 0;
-   msg.m_iDataLength = 4 + 4;
-
-   if (m_pGMP->rpc(m_strServerHost.c_str(), m_iServerPort, &msg, &msg) < 0)
-      return -1;
-
-   if (msg.getType() > 0)
-   {
-      //CNameIndex::deserialize(filelist, msg.getData(), msg.m_iDataLength - 4);
-
-      CIndexInfo* pii = (CIndexInfo*)msg.getData();
-
-      for (int i = 0; i < (msg.m_iDataLength - 4) / sizeof(CIndexInfo); ++ i)
-         filelist.insert(filelist.end(), pii[i]);
-   }
-
-   return filelist.size();
-}
-
 int CFSClient::stat(const string& filename, CFileAttr& attr)
 {
    CCBMsg msg;
-   msg.setType(102); // stat
+   msg.setType(101); // stat
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.m_iDataLength = 4 + filename.length() + 1;
 

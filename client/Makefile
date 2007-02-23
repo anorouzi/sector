@@ -5,7 +5,7 @@ LDFLAGS += -lclient -lrpc -ludt -lsql -lmeta
 
 OBJS = client.o fsclient.o sqlclient.o
 
-all: libclient.so libclient.a test test1 download upload ls
+all: libclient.so libclient.a testfs testsql download upload 
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -16,11 +16,11 @@ libclient.so: $(OBJS)
 libclient.a: $(OBJS)
 	ar -rcs $@ $^
 
-test: test.cpp
-	$(C++) test.cpp -o test $(CCFLAGS) $(LDFLAGS)
+testfs: testfs.cpp
+	$(C++) testfs.cpp -o testfs $(CCFLAGS) $(LDFLAGS)
 
-test1: test1.cpp
-	$(C++) test1.cpp -o test1 $(CCFLAGS) $(LDFLAGS)
+testsql: testsql.cpp
+	$(C++) testsql.cpp -o testsql $(CCFLAGS) $(LDFLAGS)
 
 download: download.cpp
 	$(C++) download.cpp -o download $(CCFLAGS) $(LDFLAGS)
@@ -28,11 +28,8 @@ download: download.cpp
 upload: upload.cpp
 	$(C++) upload.cpp -o upload $(CCFLAGS) $(LDFLAGS)
 
-ls: ls.cpp
-	$(C++) ls.cpp -o ls $(CCFLAGS) $(LDFLAGS)
-
 clean:
-	rm -f *.o *.so *.a test test1 download upload ls
+	rm -f *.o *.so *.a testfs testsql download upload
 
 install:
 	mv libclient.so libclient.a ../lib
