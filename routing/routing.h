@@ -1,3 +1,32 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+*****************************************************************************/
+
+
 #ifndef __ROUTING_H__
 #define __ROUTING_H__
 
@@ -34,8 +63,7 @@ public:
    int join(const char* ip, const char* peer_ip, const int& port = 0, const int& peer_port = 0);
 
 public:
-   int setAppPort(const int& port);
-
+   void setAppPort(const int& port);
    int lookup(const unsigned int& key, Node* n);
 
 private:
@@ -51,6 +79,8 @@ private:
    void fix_fingers(int& next);
    void check_predecessor();
    void check_successor(int& next);
+
+   uint32_t hash(const char* ip, const int& port);
 
 private:
    struct Param
@@ -69,7 +99,9 @@ private:
 private:
    char m_pcIP[64];
    int m_iPort;
-   unsigned int m_uiID;
+   uint32_t m_uiID;
+
+   int m_iAppPort;
 
    int m_iKeySpace;
 
@@ -80,16 +112,10 @@ private:
    vector<Node> m_vBackupSuccessors;
 
 private:
-   vector<unsigned int> m_vKeys;
-
-private:
    CGMP* m_pGMP;
 
 public:
    static const int m_iRouterPort;
-
-private:
-   int m_iAppPort;
 };
 
 #endif

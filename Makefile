@@ -5,6 +5,7 @@ subdirs:
 	for dir in $(SUBDIRS); do \
 		cd $$dir; \
 		$(MAKE); \
+		$(MAKE) install; \
 		cd ..; \
 	done
 
@@ -14,11 +15,3 @@ clean:
 		$(MAKE) clean; \
 		cd ..; \
 	done
-
-install:
-	for dir in $(SUBDIRS); do \
-		cd $$dir; \
-		$(MAKE) clean; \
-		cd ..; \
-	done
-

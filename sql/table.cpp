@@ -16,7 +16,7 @@ int Table::loadSemantics(const string& semfile)
    return Semantics::loadSemantics(semfile, m_AttrList);
 }
 
-int Table::close()
+void Table::close()
 {
    m_DataFile.close();
 }
@@ -26,7 +26,6 @@ int Table::readTuple(char* tuple, int& len)
    if (m_DataFile.bad() || m_DataFile.eof())
       return -1;
 
-   char* p = tuple;
    int size = 0;
 
    for (vector<DataAttr>::iterator i = m_AttrList.begin(); i != m_AttrList.end(); ++ i)

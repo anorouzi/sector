@@ -1,3 +1,32 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+*****************************************************************************/
+
+
 #include <routing.h>
 #include <iostream>
 
@@ -8,8 +37,8 @@ const int CRouting::m_iRouterPort = 24673;      //chord
 
 
 CRouting::CRouting():
-m_iKeySpace(16),
-m_iAppPort(0)
+m_iAppPort(0),
+m_iKeySpace(16)
 {
    m_pGMP = new CGMP;
 
@@ -28,13 +57,13 @@ CRouting::~CRouting()
 
 int CRouting::start(const char* ip, const int& port)
 {
-   m_uiID = CDHash::hash(ip, m_iKeySpace);
-
    strcpy(m_pcIP, ip);
    if (port > 0)
       m_iPort = port;
    else
       m_iPort = m_iRouterPort;
+
+   m_uiID = hash(m_pcIP, m_iPort);
 
    m_pGMP->init(m_iPort);
 
@@ -53,13 +82,13 @@ int CRouting::start(const char* ip, const int& port)
 
 int CRouting::join(const char* ip, const char* peer_ip, const int& port, const int& peer_port)
 {
-   m_uiID = CDHash::hash(ip, m_iKeySpace);
-
    strcpy(m_pcIP, ip);
    if (port > 0)
       m_iPort = port;
    else
       m_iPort = m_iRouterPort;
+
+   m_uiID = hash(m_pcIP, m_iPort);
 
    m_pGMP->init(m_iPort);
 
@@ -70,12 +99,12 @@ int CRouting::join(const char* ip, const char* peer_ip, const int& port, const i
    pthread_detach(msgserver);
 
    Node n;
-   n.m_uiID = CDHash::hash(ip, m_iKeySpace);
    strcpy(n.m_pcIP, peer_ip);
    if (peer_port > 0)
       n.m_iPort = peer_port;
    else
       n.m_iPort = m_iRouterPort;
+   n.m_uiID = hash(n.m_pcIP, n.m_iPort);
 
    CRTMsg msg;
    msg.setType(3); // find_successor
@@ -94,7 +123,7 @@ int CRouting::join(const char* ip, const char* peer_ip, const int& port, const i
    return 0;
 }
 
-int CRouting::setAppPort(const int& port)
+void CRouting::setAppPort(const int& port)
 {
    m_iAppPort = port;
 }
@@ -485,4 +514,11 @@ void* CRouting::stabilize(void* r)
    }
 
    return NULL;
+}
+
+uint32_t CRouting::hash(const char* ip, const int& port)
+{
+   char str[64];
+   sprintf(str, "%s:%d", ip, port);
+   return DHash::hash(str, m_iKeySpace);
 }

@@ -1,3 +1,32 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+*****************************************************************************/
+
+
 #ifndef __INDEX_H__
 #define __INDEX_H__
 
@@ -33,29 +62,11 @@ private:
 struct CIndexInfo
 {
    char m_pcName[64];           // unique file name
-   int64_t m_llTimeStamp;         // time stamp
+   int64_t m_llTimeStamp;       // time stamp
    //char m_pcType[64];           // file type, data, video, audio, etc
    int64_t m_llSize;            // size
 
    timeval m_LRT;		// last time the file information is reported (Last Report Time)
-};
-
-class CNameIndex
-{
-public:
-   CNameIndex();
-   ~CNameIndex();
-
-public:
-   int insert(const CIndexInfo& file);
-   int remove(const CIndexInfo& file);
-
-public:
-   int serialize(char* buffer, int& len);
-   int deserialize(const char* buffer, const int& len);
-
-private:
-   map<string, CIndexInfo> m_mFileList;
 };
 
 #endif

@@ -1,3 +1,32 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+*****************************************************************************/
+
+
 #include <index.h>
 #include <util.h>
 
@@ -67,60 +96,4 @@ int CIndex::getFileList(map<string, set<CFileAttr, CAttrComp> >& list)
    list.clear();
    list = m_mFileList;
    return list.size();
-}
-
-
-CNameIndex::CNameIndex()
-{
-   m_mFileList.clear();
-}
-
-CNameIndex::~CNameIndex()
-{
-}
-
-int CNameIndex::insert(const CIndexInfo& file)
-{
-   m_mFileList[file.m_pcName] = file;
-   return 1;
-}
-
-int CNameIndex::remove(const CIndexInfo& file)
-{
-   map<string, CIndexInfo>::iterator i = m_mFileList.find(file.m_pcName);
-
-   if (i == m_mFileList.end())
-      return -1;
-
-   m_mFileList.erase(i);
-
-   return 1;
-}
-
-int CNameIndex::serialize(char* buffer, int& len)
-{
-   if (len < m_mFileList.size() * sizeof(CIndexInfo))
-     return -1;
-
-   len = m_mFileList.size() * sizeof(CIndexInfo);
-
-   int c = 0;
-
-   for (map<string, CIndexInfo>::iterator i = m_mFileList.begin(); i != m_mFileList.end(); ++ i)
-   {
-      memcpy(buffer + c * sizeof(CIndexInfo), (char*)&(i->second), sizeof(CIndexInfo));
-      ++ c;
-   }
-
-   return len;
-}
-
-int CNameIndex::deserialize(const char* buffer, const int& len)
-{
-   m_mFileList.clear();
-
-   for (unsigned int i = 0; i < len/sizeof(CIndexInfo); ++ i)
-      insert(((CIndexInfo*)buffer)[i]);
-
-   return len/sizeof(CIndexInfo);
 }

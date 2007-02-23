@@ -12,7 +12,7 @@ class Table
 public:
    int loadDataFile(const string& filename);
    int loadSemantics(const string& semfile);
-   int close();
+   void close();
 
    int readTuple(char* tuple, int& len);
    DataItem readItem(const char* tuple, const string& attr);
