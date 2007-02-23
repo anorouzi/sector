@@ -1,15 +1,21 @@
+#ifdef WIN32
+   #include <windows.h>
+#else
+   #include <unistd.h>
+   #include <sys/ioctl.h>
+   #include <termios.h>
+#endif
+
 #include <fstream>
 #include <fsclient.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <termios.h>
 #include <string.h>
 #include <errno.h>
 
 using namespace std;
 
+#ifndef WIN32
 class CProgressBar
 {
 public:
@@ -77,11 +83,21 @@ private:
       return ws.ws_col;
    }
 };
+#endif
 
 int download(CFSClient& fsclient, const char* file, const char* dest)
 {
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
+   #ifndef WIN32
+      timeval t1, t2;
+   #else
+      DWORD t1, t2;
+   #endif
+
+   #ifndef WIN32
+      gettimeofday(&t1, 0);
+   #else
+      t1 = GetTickCount();
+   #endif
 
    CFileAttr attr;
    if (fsclient.stat(file, attr) < 0)
@@ -120,17 +136,21 @@ int download(CFSClient& fsclient, const char* file, const char* dest)
 
    if (finish)
    {
-      gettimeofday(&t2, 0);
-      float throughput = size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
+      #ifndef WIN32
+         gettimeofday(&t2, 0);
+         float throughput = size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
+      #else
+         float throughput = size * 8.0 / 1000000.0 / ((GetTickCount() - t1) / 1000.0);
+      #endif
 
       //bar.update(size, throughput);
 
       cout << "Downloading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
-   }
-   else
-      cout << "Downloading failed! Please retry. " << endl << endl;
 
-   return 1;
+      return 1;
+   }
+
+   return -1;
 }
 
 int main(int argc, char** argv)
@@ -147,7 +167,6 @@ int main(int argc, char** argv)
    }
    src.close();
 
-
    CFSClient fsclient;
    if (-1 == fsclient.connect(argv[1], atoi(argv[2])))
    {
@@ -156,7 +175,19 @@ int main(int argc, char** argv)
    }
 
    for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-      download(fsclient, i->c_str(), argv[4]);
+   {
+      int c = 0;
+
+      for (; c < 5; ++ c)
+      {
+         if (download(fsclient, i->c_str(), argv[4]) > 0)
+            break;
+         else if (c < 4)
+            cout << "download interuppted, trying again from break point." << endl;
+         else
+            cout << "download failed after 5 attempts." << endl;
+      }
+   }
 
    fsclient.close();
 

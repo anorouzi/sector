@@ -4,55 +4,37 @@
 #include <gmp.h>
 #include <index.h>
 #include <data.h>
-#include <query.h>
-#include <node.h>
+#include <sql.h>
+#include <udt.h>
+#include <client.h>
 
-class CSQLClient
+class SQLClient: public Client
 {
-friend class CQuery;
+friend class Query;
 
 public:
-   CSQLClient();
-   CSQLClient(const int& protocol);
-   ~CSQLClient();
+   Query* createQueryHandle();
+   void releaseQueryHandle(Query* q);
 
-public:
-   int connect(const string& server, const int& port);
-   int close();
-
-public:
-   CQuery* createQueryHandle();
-   void releaseFileHandle(CQuery* q);
-
-   int execute(const string& q);
-
-private:
-   int lookup(string table, Node* n);
-
-private:
-   string m_strServerHost;
-   int m_iServerPort;
-
-   CGMP* m_pGMP;
-
-   int m_iProtocol;     // 1 UDT 2 TCP
+   int getSemantics(const string& name, vector<DataAttr>& attr);
 };
 
-class CQuery
+class Query
 {
+friend class SQLClient;
+
 public:
-   CQuery();
-   ~CQuery();
+   Query();
+   ~Query();
 
 public:
    int open(const string& query);
    int close();
 
-   int execute();   // return number of rows?
-   int fetch(chat* res, int& rows, int& size);
+   int fetch(char* res, int& rows, int& size);
 
 private:
-   CSQLClient* m_pSQLClient;
+   SQLClient* m_pSQLClient;
 
    string m_strServerIP;
    int m_iServerPort;
@@ -60,7 +42,7 @@ private:
    CGMP m_GMP;
 
    string m_strQuery;
-   CQueryAttr* m_pQuery;
+   SQLExpr m_SQLExpr;
 
    int m_iProtocol;     // 1 UDT 2 TCP
 

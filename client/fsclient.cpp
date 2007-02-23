@@ -3,43 +3,6 @@
 using namespace std;
 
 
-const int CFSClient::m_iCBFSPort = 2237;         //cbfs
-
-
-CFSClient::CFSClient():
-m_iProtocol(1)
-{
-   m_pGMP = new CGMP;
-}
-
-CFSClient::CFSClient(const int& protocol):
-m_iProtocol(protocol)
-{
-   m_pGMP = new CGMP;
-}
-
-CFSClient::~CFSClient()
-{
-   delete m_pGMP;
-}
-
-int CFSClient::connect(const string& server, const int& port)
-{
-   m_strServerHost = server;
-   m_iServerPort = port;
-
-   m_pGMP->init(0);
-
-   return 1;
-}
-
-int CFSClient::close()
-{
-   m_pGMP->close();
-
-   return 1;
-}
-
 CCBFile* CFSClient::createFileHandle()
 {
    CCBFile *f = NULL;
@@ -64,43 +27,11 @@ void CFSClient::releaseFileHandle(CCBFile* f)
    delete f;
 }
 
-int CFSClient::lookup(string filename, Node* n)
-{
-   CCBMsg msg;
-   msg.setType(4); // look up a file server
-   msg.setData(0, filename.c_str(), filename.length() + 1);
-   msg.m_iDataLength = 4 + filename.length() + 1;
-
-   if (m_pGMP->rpc(m_strServerHost.c_str(), m_iServerPort, &msg, &msg) < 0)
-      return -1;
-
-   if (msg.getType() > 0)
-      memcpy(n, msg.getData(), sizeof(Node)); 
-
-   return msg.getType();
-}
-
-int CFSClient::stat(const string& filename, CFileAttr& attr)
-{
-   CCBMsg msg;
-   msg.setType(9); // stat
-   msg.setData(0, filename.c_str(), filename.length() + 1);
-   msg.m_iDataLength = 4 + filename.length() + 1;
-
-   if (m_pGMP->rpc(m_strServerHost.c_str(), m_iServerPort, &msg, &msg) < 0)
-      return -1;
-
-   if (msg.getType() > 0)
-      attr.desynchronize(msg.getData(), msg.m_iDataLength - 4);
-
-   return msg.getType();
-}
-
 int CFSClient::ls(vector<CIndexInfo>& filelist)
 {
    CCBMsg msg;
    msg.resize(65536);
-   msg.setType(8); // retrieve name index
+   msg.setType(101); // retrieve name index
    *(int32_t*)msg.getData() = 0;
    msg.m_iDataLength = 4 + 4;
 
@@ -109,21 +40,32 @@ int CFSClient::ls(vector<CIndexInfo>& filelist)
 
    if (msg.getType() > 0)
    {
-      //CNameIndex::desynchronize(filelist, msg.getData(), msg.m_iDataLength - 4);
+      //CNameIndex::deserialize(filelist, msg.getData(), msg.m_iDataLength - 4);
 
       CIndexInfo* pii = (CIndexInfo*)msg.getData();
 
       for (int i = 0; i < (msg.m_iDataLength - 4) / sizeof(CIndexInfo); ++ i)
-      {
          filelist.insert(filelist.end(), pii[i]);
-
-      //cout << "------ " << pii[i].m_pcName << " +++ " << pii[i].m_TimeStamp.tv_usec << endl;
-      }
    }
 
    return filelist.size();
 }
 
+int CFSClient::stat(const string& filename, CFileAttr& attr)
+{
+   CCBMsg msg;
+   msg.setType(102); // stat
+   msg.setData(0, filename.c_str(), filename.length() + 1);
+   msg.m_iDataLength = 4 + filename.length() + 1;
+
+   if (m_pGMP->rpc(m_strServerHost.c_str(), m_iServerPort, &msg, &msg) < 0)
+      return -1;
+
+   if (msg.getType() > 0)
+      attr.deserialize(msg.getData(), msg.m_iDataLength - 4);
+
+   return msg.getType();
+}
 
 
 CCBFile::CCBFile():
@@ -151,7 +93,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.m_iDataLength = 4 + filename.length() + 1;
 
-   if (m_GMP.rpc(n.m_pcIP, CFSClient::m_iCBFSPort, &msg, &msg) < 0)
+   if (m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() > 0)
@@ -189,7 +131,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
       msg.setData(0, filename.c_str(), filename.length() + 1);
       msg.m_iDataLength = 4 + 64;
 
-      if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
+      if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
          return -1;
 
       //cout << "file owner certificate: " << msg.getData() << endl;
@@ -209,19 +151,30 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
    else
       msg.m_iDataLength = 4 + 64 + 4 + 4;
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), CFSClient::m_iCBFSPort, &msg, &msg) < 0)
+   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (1 == m_iProtocol)
+   {
       m_uSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
+
+      #ifdef WIN32
+         int mtu = 1052;
+         UDT::setsockopt(m_uSock, 0, UDT_MSS, &mtu, sizeof(int));
+      #endif
+   }
    else
       m_tSock = ::socket(AF_INET, SOCK_STREAM, 0);
 
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
    serv_addr.sin_port = *(int*)(msg.getData()); // port
-   inet_pton(AF_INET, m_strServerIP.c_str(), &serv_addr.sin_addr);
-   memset(&(serv_addr.sin_zero), '\0', 8);
+   #ifndef WIN32
+      inet_pton(AF_INET, m_strServerIP.c_str(), &serv_addr.sin_addr);
+   #else
+      serv_addr.sin_addr.s_addr = inet_addr(m_strServerIP.c_str());
+   #endif
+      memset(&(serv_addr.sin_zero), '\0', 8);
 
    if (1 == m_iProtocol)
    {
@@ -344,13 +297,15 @@ int CCBFile::download(const char* localpath, const bool& cont)
       offset = 0LL;
    }
 
+   char req[12];
+   *(int32_t*)req = cmd;
+   *(int64_t*)(req + 4) = offset;
+
    if (1 == m_iProtocol)
    {
-      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+      if (UDT::send(m_uSock, req, 12, 0) < 0)
          return -1;
       if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (UDT::send(m_uSock, (char*)&offset, 8, 0) < 0)
          return -1;
       if (UDT::recv(m_uSock, (char*)&size, 8, 0) < 0)
          return -1;
@@ -360,11 +315,9 @@ int CCBFile::download(const char* localpath, const bool& cont)
    }
    else
    {
-      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+      if (::send(m_tSock, req, 12, 0) < 0)
          return -1;
       if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (::send(m_tSock, (char*)&offset, 8, 0) < 0)
          return -1;
       if (::recv(m_tSock, (char*)&size, 8, 0) < 0)
          return -1;
@@ -401,13 +354,15 @@ int CCBFile::upload(const char* localpath, const bool& cont)
    size = ifs.tellg();
    ifs.seekg(0);
 
+   char req[12];
+   *(int32_t*)req = cmd;
+   *(int64_t*)(req + 4) = size;
+
    if (1 == m_iProtocol)
    {
-      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+      if (UDT::send(m_uSock, req, 12, 0) < 0)
          return -1;
       if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (UDT::send(m_uSock, (char*)&size, 8, 0) < 0)
          return -1;
 
       if (UDT::sendfile(m_uSock, ifs, 0, size) < 0)
@@ -415,11 +370,9 @@ int CCBFile::upload(const char* localpath, const bool& cont)
    }
    else
    {
-      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
+      if (::send(m_tSock, req, 12, 0) < 0)
          return -1;
       if ((::recv(m_tSock, (char*)&response, 4, 0) < 0) || (-1 == response))
-         return -1;
-      if (::send(m_tSock, (char*)&size, 8, 0) < 0)
          return -1;
 
       int unit = 10240000;
@@ -487,7 +440,7 @@ int CCBFile::close()
       if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
          return -1;
 
-      ::close(m_tSock);
+      closesocket(m_tSock);
    }
 
    return 1;

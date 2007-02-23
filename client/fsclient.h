@@ -5,42 +5,21 @@
 #include <index.h>
 #include <file.h>
 #include <node.h>
+#include <client.h>
+#include <udt.h>
 
 class CCBFile;
 
-class CFSClient
+class CFSClient: public Client
 {
 friend class CCBFile;
-
-public:
-   CFSClient();
-   CFSClient(const int& protocol);
-   ~CFSClient();
-
-public:
-   int connect(const string& server, const int& port);
-   int close();
 
 public:
    CCBFile* createFileHandle();
    void releaseFileHandle(CCBFile* f);
 
-   int stat(const string& filename, CFileAttr& attr);
    int ls(vector<CIndexInfo>& filelist);
-
-private:
-   int lookup(string filename, Node* n);
-
-private:
-   string m_strServerHost;
-   int m_iServerPort;
-
-   CGMP* m_pGMP;
-
-   int m_iProtocol;	// 1 UDT 2 TCP
-
-private:
-   static const int m_iCBFSPort;
+   int stat(const string& filename, CFileAttr& attr);
 };
 
 class CCBFile

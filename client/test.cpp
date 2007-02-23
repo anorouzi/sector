@@ -53,7 +53,7 @@ int main(int argc, char** argv)
 
    cout << endl << "LS " << endl;
    for (vector<CIndexInfo>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-      cout << i->m_pcName << "\t" << i->m_TimeStamp.tv_sec << endl;
+      cout << i->m_pcName << "\t" << i->m_llTimeStamp << endl;
 
    return 1;
 }
