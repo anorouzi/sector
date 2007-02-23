@@ -1,19 +1,19 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lstore -lrouting -lcrypto -lrpc -ludt -lsql -lmeta
+LDFLAGS += -lserver -lrouting -lcrypto -lrpc -ludt -lsql -lmeta
 
-OBJS = store.o
+OBJS = server.o file.o sql.o
 
-all: libstore.so libstore.a cbfs
+all: libserver.so libserver.a cbfs
 
-%.o: %.cpp %.h
+%.o: %.cpp server.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
-libstore.so: $(OBJS)
+libserver.so: $(OBJS)
 	$(C++) -shared -o $@ $^
 
-libstore.a: $(OBJS)
+libserver.a: $(OBJS)
 	ar -rcs $@ $^
 
 cbfs: cbfs.cpp
@@ -23,4 +23,4 @@ clean:
 	rm -f *.o *.so *.a cbfs
 
 install:
-	mv libstore.so libstore.a ../lib
+	mv libserver.so libserver.a ../lib

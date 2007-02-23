@@ -1,8 +1,8 @@
-#include <store.h>
+#include <server.h>
 
 int main(int argc, char** argv)
 {
-   CStore cba(argv[1]);
+   Server cba(argv[1]);
 
    if (argc == 2)
    {

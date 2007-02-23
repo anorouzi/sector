@@ -1,10 +1,39 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+*****************************************************************************/
+
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/sendfile.h>
-#include <store.h>
+#include <server.h>
 #include <assert.h>
 #include <sstream>
 #include <signal.h>
@@ -16,17 +45,17 @@
 using namespace std;
 using namespace CodeBlue;
 
-CStore::CStore(const string& ip)
+Server::Server(const string& ip)
 {
    m_strLocalHost = ip;
 }
 
-CStore::~CStore()
+Server::~Server()
 {
    m_GMP.close();
 }
 
-int CStore::init(char* ip, int port)
+int Server::init(char* ip, int port)
 {
    m_SysConfig.init("sector.conf");
 
@@ -66,19 +95,14 @@ int CStore::init(char* ip, int port)
    return 1;
 }
 
-int CStore::run()
+int Server::run()
 {
-   int next = 0;
-
    while (true)
    {
       updateOutLink();
       sleep(10);
 
       updateInLink();
-      sleep(10);
-
-      updateNameIndex(next);
       sleep(10);
 
       // check out link more often since it is more important
@@ -89,9 +113,9 @@ int CStore::run()
    return 1;
 }
 
-void* CStore::run(void* s)
+void* Server::run(void* s)
 {
-   CStore* self = (CStore*)s;
+   Server* self = (Server*)s;
 
    char ip[64];
    int port;
@@ -291,7 +315,7 @@ void* CStore::run(void* s)
       case 4: // lookup a file server
          {
             string filename = msg->getData();
-            int fid = CDHash::hash(filename.c_str(), m_iKeySpace);
+            int fid = DHash::hash(filename.c_str(), m_iKeySpace);
 
             int r = self->m_Router.lookup(fid, (Node*)msg->getData());
 
@@ -387,23 +411,7 @@ void* CStore::run(void* s)
             break;
          }
 
-      case 7: // update name index
-         {
-            CIndexInfo* pii = (CIndexInfo*)msg->getData();
-            for (int i = 0; i < (msg->m_iDataLength - 4) / sizeof(CIndexInfo); ++ i)
-            {
-               self->m_NameIndex.insert(pii[i]);
-            }
-
-            //cout << "global name index updated " << (msg->m_iDataLength - 4) / sizeof(CIndexInfo) << endl;
-
-            msg->m_iDataLength = 4;
-
-            self->m_GMP.sendto(ip, port, id, msg);
-            break;
-         }
-
-      case 10: // remove file from RemoteFileIndex
+      case 7: // remove file from RemoteFileIndex
          {
             self->m_RemoteFile.remove(msg->getData());
             msg->m_iDataLength = 4;
@@ -515,9 +523,9 @@ void* CStore::run(void* s)
    return NULL;
 }
 
-void* CStore::process(void* p)
+void* Server::process(void* p)
 {
-   CStore* self = ((Param1*)p)->s;
+   Server* self = ((Param1*)p)->s;
    char* ip = ((Param1*)p)->ip;
    int port = ((Param1*)p)->port;
    int32_t id = ((Param1*)p)->id;
@@ -527,50 +535,10 @@ void* CStore::process(void* p)
 
    switch (msg->getType())
    {
-   case 101: // retrieve name index
-      {
-         if (*(int32_t*)(msg->getData()) == 1)
-         {
-//////////////////////////////////////////???????????????????????????????????
-
-            msg->m_iDataLength = msg->m_iBufLength;
-            if (self->m_NameIndex.serialize(msg->getData(), msg->m_iDataLength) > 0)
-                msg->m_iDataLength += 4;
-            else
-                msg->m_iDataLength = 4;
-
-            break;
-         }
-
-         int loc = (int)(m_iKeySpace * rand() / (RAND_MAX+1.0));
-         Node n;
-
-         self->m_Router.lookup(loc, &n);
-
-         if (string(n.m_pcIP) == self->m_strLocalHost)
-         {
-            msg->m_iDataLength = msg->m_iBufLength;
-            if (self->m_NameIndex.serialize(msg->getData(), msg->m_iDataLength) > 0)
-                msg->m_iDataLength += 4;
-            else
-                msg->m_iDataLength = 4;
-         }
-         else
-         {
-            *(int32_t*)(msg->getData()) = 1;
-            msg->m_iDataLength = 4 + 4;
-
-            if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
-               msg->setType(-msg->getType());
-         }
-
-         break;
-      }
-
-   case 102: // stat
+   case 101: // stat
       {
          string filename = msg->getData();
-         int fid = CDHash::hash(filename.c_str(), m_iKeySpace);
+         int fid = DHash::hash(filename.c_str(), m_iKeySpace);
          Node n;
 
          int r = self->m_Router.lookup(fid, &n);
@@ -614,7 +582,7 @@ void* CStore::process(void* p)
    case 201: //semantics
       {
          string filename = msg->getData();
-         int fid = CDHash::hash(filename.c_str(), m_iKeySpace);
+         int fid = DHash::hash(filename.c_str(), m_iKeySpace);
          Node n;
          set<CFileAttr, CAttrComp> sa;
 
@@ -683,634 +651,7 @@ void* CStore::process(void* p)
    return NULL;
 }
 
-void* CStore::fileHandler(void* p)
-{
-   CStore* self = ((Param2*)p)->s;
-   string filename = ((Param2*)p)->fn;
-   UDTSOCKET u = ((Param2*)p)->u;
-   int t = ((Param2*)p)->t;
-   int conn = ((Param2*)p)->c;
-   int mode = ((Param2*)p)->m;
-   delete (Param2*)p;
-
-   int32_t cmd;
-   bool run = true;
-
-/*
-   // timed wait on accept!
-   if (1 == conn)
-   {
-      timeval tv;
-      UDT::UDSET readfds;
-
-      tv.tv_sec = 60;
-      tv.tv_usec = 0;
-
-      UD_ZERO(&readfds);
-      UD_SET(u, &readfds);
-
-      int res = UDT::select(0, &readfds, NULL, NULL, &tv);
-
-      if (UDT::ERROR == res)
-         return NULL;
-   }
-   else
-   {
-      timeval tv;
-      fd_set readfds;
-
-      tv.tv_sec = 60;
-      tv.tv_usec = 0;
-
-      FD_ZERO(&readfds);
-      FD_SET(t, &readfds);
-
-      select(t+1, &readfds, NULL, NULL, &tv);
-
-      if (!FD_ISSET(t, &readfds))
-         return NULL;
-   }
-*/
-
-   UDTSOCKET lu = u;
-   int lt = t;
-
-   if (1 == conn)
-   {
-      u = UDT::accept(u, NULL, NULL);
-      UDT::close(lu);
-   }
-   else
-   {
-      t = accept(t, NULL, NULL);
-      ::close(lt);
-   }
-
-//   self->m_KBase.m_iNumConn ++;
-
-   filename = self->m_strHomeDir + filename;
-
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
-
-   int64_t rb = 0;
-   int64_t wb = 0;
-
-   int32_t response = 0;
-
-   while (run)
-   {
-      if (1 == conn)
-      {
-         if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
-            continue;
-      }
-      else
-      {
-         if (::recv(t, (char*)&cmd, 4, 0) <= 0)
-            continue;
-      }
-
-      if (4 != cmd)
-      {
-         if ((2 == cmd) || (5 == cmd))
-         {
-            if (0 == mode)
-               response = -1;
-         }
-         else
-            response = 0;
-
-         if (1 == conn)
-         {
-            if (UDT::send(u, (char*)&response, 4, 0) < 0)
-               continue;
-         }
-         else
-         {
-            if (::send(t, (char*)&response, 4, 0) < 0)
-               continue;
-         }
-
-         if (-1 == response)
-            continue;
-      }
-
-      switch (cmd)
-      {
-      case 1:
-         {
-            if (0 < (mode & 1))
-               response = 0;
-            else
-               response = -1;
-
-            // READ LOCK
-
-            int64_t param[2];
-
-            ifstream ifs(filename.c_str(), ios::in | ios::binary);
-
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
-
-               if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
-                  run = false;
-               else
-                  rb += param[1];
-            }
-            else
-            {
-               if (::recv(t, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
-
-               ifs.seekg(param[0]);
-
-               int unit = 10240000;
-               char* data = new char[unit];
-               int ssize = 0;
-
-               while (run && (ssize + unit <= param[1]))
-               {
-                  ifs.read(data, unit);
-
-                  int ts = 0;
-                  while (ts < unit)
-                  {
-                     int ss = ::send(t, data + ts, unit - ts, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-                  ssize += unit;
-               }
-
-               if (ssize < param[1])
-               {
-                  ifs.read(data, param[1] - ssize);
-
-                  int ts = 0;
-                  while (ts < unit)
-                  {
-                     int ss = ::send(t, data + ssize, param[1] - ssize, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-               }
-
-               if (run)
-                  rb += param[1];
-
-               delete [] data;
-            }
-
-            ifs.close();
-
-            // UNLOCK
-
-            break;
-         }
-
-      case 2:
-         {
-            if (0 < (mode & 2))
-               response = 0;
-            else
-               response = -1;
-
-            // WRITE LOCK
-
-            int64_t param[2];
-
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
-
-               ofstream ofs;
-               ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-
-               if (UDT::recvfile(u, ofs, param[0], param[1]) < 0)
-                  run = false;
-               else
-                  wb += param[1];
-
-               ofs.close();
-            }
-            else
-            {
-               if (::recv(t, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
-
-               char* temp = new char[param[1]];
-               int rs = 0;
-               while (rs < param[1])
-               {
-                  int r = ::recv(t, temp + rs, param[1] - rs, 0);
-                  if (r < 0)
-                  {
-                     run = false;
-                     break;
-                  }
-
-                  rs += r;
-               }
-
-               ofstream ofs;
-               ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-               ofs.seekp(param[0], ios::beg);
-               ofs.write(temp, param[1]);
-               ofs.close();
-
-               delete [] temp;
-               wb += param[1];
-            }
-
-            // UNLOCK
-
-            break;
-         }
-
-      case 3:
-         {
-            if (0 < (mode & 1))
-               response = 0;
-            else
-               response = -1;
-
-            // READ LOCK
-
-            int64_t offset = 0;
-            int64_t size = 0;
-
-            ifstream ifs(filename.c_str(), ios::in | ios::binary);
-            ifs.seekg(0, ios::end);
-            size = (int64_t)(ifs.tellg());
-            ifs.seekg(0, ios::beg);
-
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               size -= offset;
-
-               if (UDT::send(u, (char*)&size, 8, 0) < 0)
-               {
-                  run = false;
-                  ifs.close();
-                  break;
-               }
-
-               if (UDT::sendfile(u, ifs, offset, size) < 0)
-                  run = false;
-               else
-                  rb += size;
-            }
-            else
-            {
-               if (::recv(t, (char*)&offset, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               size -= offset;
-
-               if (::send(t, (char*)&size, 8, 0) < 0)
-                  run = false;
-
-               int unit = 10240000;
-               char* data = new char[unit];
-               int ssize = 0;
-
-               while (run && (ssize + unit <= size))
-               {
-                  ifs.read(data, unit);
-
-                  int ts = 0;
-                  while (ts < unit)
-                  {
-                     int ss = ::send(t, data + ts, unit - ts, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-                  ssize += unit;
-               }
-
-               if (ssize < size)
-               {
-                  ifs.read(data, size - ssize);
-
-                  int ts = 0;
-                  while (ts < size - ssize)
-                  {
-                     int ss = ::send(t, data + ssize, size - ssize, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-               }
-
-               delete [] data;
-
-               if (run)
-                  rb += size;
-            }
-
-            ifs.close();
-
-            // UNLOCK
-
-            break;
-         }
-
-      case 5:
-         {
-            if (0 < (mode & 1))
-               response = 0;
-            else
-               response = -1;
-
-            // WRITE LOCK
-
-            int64_t offset = 0;
-            int64_t size = 0;
-
-            ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
-
-            if (1 == conn)
-            {
-               //if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
-               //{
-               //   run = false;
-               //   break;
-               //}
-               //offset = 0;
-
-               if (UDT::recv(u, (char*)&size, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               if (UDT::recvfile(u, ofs, offset, size) < 0)
-                  run = false;
-               else
-                  wb += size;
-            }
-            else
-            {
-               if (::recv(t, (char*)&size, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               const int unit = 1024000;
-               char* data = new char [unit];
-               int64_t rsize = 0;
-
-               while (rsize < size)
-               {
-                  int rs = ::recv(t, data, (unit < size - rsize) ? unit : size - rsize, 0);
-
-                  if (rs < 0)
-                  {
-                     run = false;
-                     break;
-                  }
-
-                  ofs.write(data, rs);
-
-                  rsize += rs;
-               }
-
-               delete [] data;
-
-               if (run)
-                  rb += size;
-            }
-
-            ofs.close();
-
-            // UNLOCK
-            break;
-         }
-
-      case 4:
-         run = false;
-         break;
-
-      default:
-         break;
-      }
-   }
-
-   gettimeofday(&t2, 0);
-   int duration = t2.tv_sec - t1.tv_sec;
-   double avgRS = 0;
-   double avgWS = 0;
-   if (duration > 0)
-   {
-      avgRS = rb / duration * 8.0 / 1000000.0;
-      avgWS = wb / duration * 8.0 / 1000000.0;
-   }
-
-   sockaddr_in addr;
-   int addrlen = sizeof(addr);
-   if (1 == conn)
-      UDT::getpeername(u, (sockaddr*)&addr, &addrlen);
-   else
-      getpeername(t, (sockaddr*)&addr, (socklen_t*)&addrlen);
-   char ip[64];
-   inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
-   int port = ntohs(addr.sin_port);
-   
-   self->m_PerfLog.insert(ip, port, filename.c_str(), duration, avgRS, avgWS);
-
-   if (1 == conn)
-      UDT::close(u);
-   else
-      close(t);
-
-//   self->m_KBase.m_iNumConn --;
-
-   cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
-
-   return NULL;
-}
-
-void* CStore::SQLHandler(void* p)
-{
-   CStore* self = ((Param3*)p)->s;
-   string filename = ((Param3*)p)->fn;
-   string query = ((Param3*)p)->q;
-   UDTSOCKET u = ((Param3*)p)->u;
-   int t = ((Param3*)p)->t;
-   int conn = ((Param3*)p)->c;
-   delete (Param3*)p;
-
-
-   SQLExpr sql;
-   SQLParser::parse(query, sql);
-   Table table;
-   table.loadDataFile(filename);
-   table.loadSemantics(filename + ".sem");
-   EvalTree* tree;
-   SQLParser::buildTree(sql.m_Condition, 0, sql.m_Condition.size(), tree);
-   bool project;
-   if ((sql.m_vstrFieldList.size() == 1) && (sql.m_vstrFieldList[0] == "*"))
-      project = false;
-   else
-      project = true;
-
-   int32_t cmd;
-   bool run = true;
-
-   UDTSOCKET lu = u;
-   int lt = t;
-
-   if (1 == conn)
-   {
-      u = UDT::accept(u, NULL, NULL);
-      UDT::close(lu);
-   }
-   else
-   {
-      t = accept(t, NULL, NULL);
-      ::close(lt);
-   }
-
-   while (run)
-   {
-      if (1 == conn)
-      {
-         if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
-            continue;
-      }
-      else
-      {
-         if (::recv(t, (char*)&cmd, 4, 0) <= 0)
-            continue;
-      }
-
-      switch (cmd)
-      {
-      case 1: // fetch
-         {
-            int numOfRows;
-
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)&numOfRows, 4, 0) < 0)
-                  continue;
-            }
-            else
-            {
-               if (::recv(t, (char*)&numOfRows, 4, 0) <= 0)
-                  continue;
-            }
-
-            char* buf = new char[4096 * numOfRows];
-            int size = 0;
-            int unitsize = 4096;
-
-            for (int i = 0; i < numOfRows; ++ i)
-            {
-               unitsize = 4096;
-               if (table.readTuple(buf + size, unitsize) < 0)
-                  break;
-               if (table.select(buf + size, tree))
-               {
-                  if (project)
-                  {
-                     char temp[4096];
-                     unitsize = table.project(buf + size, temp, sql.m_vstrFieldList);
-                     memcpy(buf + size, temp, unitsize);
-                  }
-
-                  size += unitsize;
-               }
-            }
-
-            if (1 == conn)
-            {
-               if (UDT::send(u, (char*)&size, 4, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               int h;
-               if (UDT::send(u, buf, size, 0, &h) < 0)
-                  run = false;
-            }
-            else
-            {
-               if (::send(u, (char*)&size, 4, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               int unit = 1460;
-               int ts = 0;
-               while (size > 0)
-               {
-                  int ss = ::send(t, buf + ts, (size > unit) ? unit : size, 0);
-                  if (ss < 0)
-                  {
-                     run = false;
-                     break;
-                  }
-                  size -= ss;
-                  ts += ss;
-               }
-            }
-
-            break;
-        }
-
-      case 2: // close
-         run = false;
-
-      default:
-         break;
-      }
-   }
-
-   return NULL;
-}
-
-void CStore::updateOutLink()
+void Server::updateOutLink()
 {
    map<string, set<CFileAttr, CAttrComp> > filelist;
    m_LocalFile.getFileList(filelist);
@@ -1327,7 +668,7 @@ void CStore::updateOutLink()
       // TO DO
       // check disk file for size update
 
-      int fid = CDHash::hash(i->first.c_str(), m_iKeySpace);
+      int fid = DHash::hash(i->first.c_str(), m_iKeySpace);
 
       if (-1 == m_Router.lookup(fid, &loc))
          continue;
@@ -1341,7 +682,7 @@ void CStore::updateOutLink()
       // notify the current name holder to remove this file from its index
       if (strlen(attr->m_pcNameHost) > 0)
       {
-         msg.setType(10);
+         msg.setType(7);
          strcpy(msg.getData(), i->first.c_str());
          msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
          m_GMP.rpc(attr->m_pcNameHost, attr->m_iPort, &msg, &msg);
@@ -1359,7 +700,7 @@ void CStore::updateOutLink()
    }
 }
 
-void CStore::updateInLink()
+void Server::updateInLink()
 {
    map<string, set<CFileAttr, CAttrComp> > filelist;
    m_RemoteFile.getFileList(filelist);
@@ -1402,7 +743,7 @@ void CStore::updateInLink()
    }
 }
 
-int CStore::initLocalFile()
+int Server::initLocalFile()
 {
    m_strHomeDir = m_SysConfig.m_strDataDir;
 
@@ -1452,55 +793,4 @@ int CStore::initLocalFile()
    }
 
    return 1;
-}
-
-void CStore::updateNameIndex(int& next)
-{
-   // TODO
-   // only updates changes after last update
-
-   Node p;
-
-   if (m_Router.lookup((unsigned int)(pow(double(2), next)), &p) < 0)
-      return;
-
-   map<string, set<CFileAttr, CAttrComp> > filelist;
-   m_LocalFile.getFileList(filelist);
-
-   CCBMsg msg;
-   if (filelist.size() * sizeof(CIndexInfo) + 4 > msg.m_iBufLength)
-      msg.resize(filelist.size() * sizeof(CIndexInfo) + 4);
-
-   CIndexInfo ii;
-   int c = 0;
-   for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-   {
-      strcpy(ii.m_pcName, i->second.begin()->m_pcName);
-      ii.m_llTimeStamp = i->second.begin()->m_llTimeStamp;
-      ii.m_llSize = i->second.begin()->m_llSize;
-
-      msg.setData(c * sizeof(CIndexInfo), (char*)&ii, sizeof(CIndexInfo));
-
-      ++ c;
-   }
-
-   msg.setType(7);
-   msg.m_iDataLength = filelist.size() * sizeof(CIndexInfo) + 4;
-
-   m_GMP.rpc(p.m_pcIP, p.m_iAppPort, &msg, &msg);
-
-   ++ next;
-   if (next == m_iKeySpace)
-      next = 0;
-}
-
-int CStore::checkIndexLoc(const unsigned int& id)
-{
-   for (int i = 0; i < m_iKeySpace; ++ i)
-   {
-      if (0 == !((unsigned int)(pow(double(2), i))) & id)
-         return i;
-   }
-
-   return -1;
 }
