@@ -1,12 +1,13 @@
 #include <file.h>
 
 using namespace std;
+using namespace CodeBlue;
 
 CFileAttr::CFileAttr() 
 {
    m_pcName[0] = '\0';
    m_uiID = 0;
-   gettimeofday(&m_TimeStamp, 0);
+   m_llTimeStamp = Time::getTime();
    memset(m_pcType, 0, 64);
    m_iAttr = 0;
    m_iIsDirectory = 0;
@@ -25,7 +26,7 @@ CFileAttr& CFileAttr::operator=(const CFileAttr& f)
 {
    strcpy(m_pcName, f.m_pcName);
    m_uiID = f.m_uiID;
-   m_TimeStamp = f.m_TimeStamp;
+   m_llTimeStamp = f.m_llTimeStamp;
    memcpy(m_pcType, f.m_pcType, 64);
    m_iAttr = f.m_iAttr;
    m_iIsDirectory = f.m_iIsDirectory;
@@ -38,7 +39,7 @@ CFileAttr& CFileAttr::operator=(const CFileAttr& f)
    return *this;
 }
 
-void CFileAttr::synchronize(char* attr, int& len) const
+void CFileAttr::serialize(char* attr, int& len) const
 {
    char* p = attr;
 
@@ -47,14 +48,14 @@ void CFileAttr::synchronize(char* attr, int& len) const
    memcpy(p, m_pcType, 64);
    p += 64;
    memcpy(p, m_pcHost, 64);
-   p += 64; 
+   p += 64;
 
-   sprintf(p, "%d %ld %ld %d %lld %d \n", m_uiID, m_TimeStamp.tv_sec, m_TimeStamp.tv_usec, m_iIsDirectory, m_llSize, m_iPort);
+   sprintf(p, "%d %lld %d %lld %d \n", m_uiID, m_llTimeStamp, m_iIsDirectory, m_llSize, m_iPort);
 
    len = 64 * 3 + strlen(p) + 1;
 }
 
-void CFileAttr::desynchronize(const char* attr, const int& len)
+void CFileAttr::deserialize(const char* attr, const int& len)
 {
    char* p = (char*)attr;
 
@@ -65,5 +66,5 @@ void CFileAttr::desynchronize(const char* attr, const int& len)
    memcpy(m_pcHost, p, 64);
    p += 64;
 
-   sscanf(p, "%d %ld %ld %d %lld %d", &m_uiID, &m_TimeStamp.tv_sec, &m_TimeStamp.tv_usec, &m_iIsDirectory, &m_llSize, &m_iPort);
+   sscanf(p, "%d %lld %d %lld %d", &m_uiID, &m_llTimeStamp, &m_iIsDirectory, &m_llSize, &m_iPort);
 }

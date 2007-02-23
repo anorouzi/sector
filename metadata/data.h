@@ -1,45 +1,48 @@
-#ifndef __DATA_H__
-#define __DATA_H__
+#ifndef __CB_DATA_H__
+#define __CB_DATA_H__
 
-#include <cstdio>
-#include <string>
+
+#include <fstream>
 #include <vector>
-#include <algorithm>
+#include <string>
 
 using namespace std;
 
-struct CAttribute
+enum DataType {INTEGER, CHAR, FLOAT, BOOLEAN, STRING};
+enum BOOLEAN {TRUE, FALSE};
+
+struct DataItem
 {
-   char m_pcID[256];
-   int m_iType;
-   int m_iArray;
-   int m_iWidth;
+   DataType m_Type;
+   union
+   {
+      int m_iVal;
+      char m_cVal;
+      float m_fVal;
+      bool m_bVal;
+   };
+   string m_strVal;
 };
 
-class CTable
+struct DataAttr
 {
-public:
-   CTable();
-   CTable(const CTable& t);
-   ~CTable();
-
-public:
-   int addAttr(const char* id, int type, int array, int width);
-
-   int serialize(vector<string>& table);
-   int deserialize(vector<string>& table);
-
-   void dispaly();
-
-   int size();
-
-public:
-   char m_pcName[256];
-   vector<CAttribute> m_vAttr;
-
-   int m_iSize;
+   string m_strName;
+   DataType m_Type;
 };
 
-typedef CTable CView;
+class Semantics
+{
+public:
+   static int loadSemantics(const string& semfile, vector<DataAttr>& attrlist);
+
+   static int serialize(string& semstring, vector<DataAttr>& attrlist);
+   static int deserialize(const string& semstring, vector<DataAttr>& attrlist);
+
+   static void display(vector<DataAttr>& attrlist);
+
+private:
+   static int getToken(char** line, string& token);
+};
+
 
 #endif

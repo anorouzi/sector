@@ -1,11 +1,12 @@
 #ifndef __FILE_H__
 #define __FILE_H__
 
-#include <sys/time.h>
+#ifndef WIN32
+   #include <stdint.h>
+#endif
+#include <util.h>
 #include <string>
 #include <set>
-#include <gmp.h>
-#include <udt.h>
 
 class CFSClient;
 
@@ -18,15 +19,15 @@ public:
    CFileAttr& operator=(const CFileAttr& f);
 
 public:
-   void synchronize(char* attr, int& len) const;
-   void desynchronize(const char* attr, const int& len);
+   void serialize(char* attr, int& len) const;
+   void deserialize(const char* attr, const int& len);
 
 public:
-   char m_pcName[64];		// unique file name
-   uint32_t m_uiID;		// id
-   timeval m_TimeStamp;		// time stamp
-   char m_pcType[64];		// file type, data, video, audio, etc
-   int32_t m_iAttr;		// 01: READ	10: WRITE	11: READ&WRITE
+   char m_pcName[64];           // unique file name
+   uint32_t m_uiID;	        // id
+   int64_t m_llTimeStamp;       // time stamp
+   char m_pcType[64];           // file type, data, video, audio, etc
+   int32_t m_iAttr;	        // 01: READ	10: WRITE	11: READ&WRITE
 
    int32_t m_iIsDirectory;	// directory?
 

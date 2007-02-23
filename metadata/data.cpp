@@ -1,113 +1,137 @@
 #include "data.h"
 #include <iostream>
 
-using namespace std;
-
-CTable::CTable():
-m_iSize(0)
+int Semantics::loadSemantics(const string& semfile, vector<DataAttr>& attrlist)
 {
-   m_vAttr.clear();
+   attrlist.clear();
+
+   ifstream ifs(semfile.c_str());
+   if (ifs.fail())
+      goto ERROR;
+
+   char line[1024];
+   line[0] = '\0';
+
+   // skip all comments and blank lines
+   while (!ifs.eof())
+   {
+      line[0] = '\0';
+      ifs.getline(line, 1024);
+      if (0 == strcmp(line, "BEGIN"))
+         break;
+   }
+
+   if (0 != strcmp(line, "BEGIN"))
+      goto ERROR;
+
+   while (!ifs.eof())
+   {
+      line[0] = '\0';
+      ifs.getline(line, 1024);
+
+      if (0 == strcmp(line, "END"))
+         return 0;
+
+      DataAttr attr;
+      string token;
+      char* p = line;
+
+      if (0 != getToken(&p, token))
+         break;
+      attr.m_strName = token;
+
+      if (0 != getToken(&p, token))
+         break;
+
+      if ("INTEGER" == token)
+         attr.m_Type = INTEGER;
+      else if ("CHAR" == token)
+         attr.m_Type = CHAR;
+      else if ("FLOAT" == token)
+         attr.m_Type = FLOAT;
+      else if ("BOOLEAN" == token)
+         attr.m_Type = BOOLEAN;
+      else if ("STRING" == token)
+         attr.m_Type = STRING;
+      else
+         goto ERROR;
+
+      attrlist.insert(attrlist.end(), attr);
+   }
+
+ERROR:
+   ifs.close();
+   return -1;
 }
 
-CTable::CTable(const CTable& t):
-m_iSize(t.m_iSize)
+int Semantics::getToken(char** line, string& token)
 {
-   strcpy(m_pcName, t.m_pcName);
-   copy(t.m_vAttr.begin(), t.m_vAttr.end(), m_vAttr.begin());
-}
+   char* p = *line;
 
-CTable::~CTable()
-{
-   m_vAttr.clear();
-}
+   while (((' ' == *p) || ('\t' == *p)) && ('\0' != *p))
+      ++ p;
 
-int CTable::addAttr(const char* id, int type, int array, int width)
-{
-   CAttribute attr;
-
-   if (strlen(id) > 256)
+   if ('\0' == *p)
       return -1;
 
-   memcpy(attr.m_pcID, id, strlen(id));
-   attr.m_iType = type;
-   attr.m_iArray = array;
-   attr.m_iWidth = width;
+   token = "";
+   while ((' ' != *p) && ('\t' != *p) && ('\0' != *p))
+      token.append(1, *p++);
 
-   m_vAttr.insert(m_vAttr.end(), attr);
+   *line = p;
 
-   if (0 == array)
-      m_iSize += width;
-   else
-      m_iSize += array * width;
-
-   return 1;
+   return 0;
 }
 
-int CTable::serialize(vector<string>& table)
+int Semantics::serialize(string& semstring, vector<DataAttr>& attrlist)
 {
-   table.clear();
+   semstring = "";
 
-   char str[512];
-
-   for (vector<CAttribute>::iterator i = m_vAttr.begin(); i != m_vAttr.end(); ++ i)
+   for (vector<DataAttr>::iterator i = attrlist.begin(); i != attrlist.end(); ++ i)
    {
-      sprintf(str, "%s %d %d %d", i->m_pcID, i->m_iType, i->m_iArray, i->m_iWidth);
-      table.insert(table.end(), str);
+      char line[1024];
+      sprintf(line, "%s %d ", i->m_strName.c_str(), i->m_Type);
+      semstring += line;
    }
 
-   return table.size();
+   return semstring.length();
 }
 
-int CTable::deserialize(vector<string>& table)
+int Semantics::deserialize(const string& semstring, vector<DataAttr>& attrlist)
 {
-   m_vAttr.clear();
-   m_iSize = 0;
+   char* p = (char*)semstring.c_str();
+   string token;
 
-   for (vector<string>::iterator i = table.begin(); i != table.end(); i ++)
+   attrlist.clear();
+
+   for (;;)
    {
-      const char* p = i->c_str();
-      CAttribute attr;
+      DataAttr attr;
 
-      int c = 0;
-      while (' ' == *(p + c))
-         ++ c;
+      if (0 != getToken(&p, token))
+         break;
+      attr.m_strName = token;
 
-      memcpy(attr.m_pcID, p, c);
-      attr.m_pcID[c] = '\0';
+      if (0 != getToken(&p, token))
+         return -1;
+      attr.m_Type = (DataType)atoi(token.c_str());
 
-      p += c;
-      char* str = (char*)p;
-
-      attr.m_iType = strtol(p, &str, 10);
-      p = str;
-      attr.m_iArray = strtol(p, &str, 10);
-      p = str;
-      attr.m_iWidth = strtol(p, &str, 10);
-
-      m_vAttr.insert(m_vAttr.end(), attr);
-
-      if (0 == attr.m_iArray)
-         m_iSize += attr.m_iWidth;
-      else
-         m_iSize += attr.m_iArray * attr.m_iWidth;
+      attrlist.insert(attrlist.end(), attr); 
    }
 
-   return m_vAttr.size();
+   return attrlist.size();
 }
 
-void CTable::dispaly()
+void Semantics::display(vector<DataAttr>& attrlist)
 {
-   for (vector<CAttribute>::iterator i = m_vAttr.begin(); i != m_vAttr.end(); i ++)
+   if (0 == attrlist.size())
    {
-      cout << i->m_pcID << " ";
-      cout << i->m_iType;
-      if (i->m_iArray > 1)
-         cout << "[" << i->m_iArray << "]";
-      cout << endl;
+      cout << "NULL\n";
+      return;
    }
-}
 
-int CTable::size()
-{
-   return m_iSize;
+   for (vector<DataAttr>::iterator i = attrlist.begin(); i != attrlist.end(); ++ i)
+   {
+      cout << i->m_strName << " " << i->m_Type << endl;
+   }
 }

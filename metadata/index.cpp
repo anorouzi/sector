@@ -1,22 +1,24 @@
 #include <index.h>
+#include <util.h>
 
 using namespace std;
+using namespace CodeBlue;
 
 CIndex::CIndex()
 {
-   pthread_mutex_init(&m_IndexLock, NULL);
+   Sync::initMutex(m_IndexLock);
 }
 
 CIndex::~CIndex()
 {
-   pthread_mutex_destroy(&m_IndexLock);
+   Sync::releaseMutex(m_IndexLock);
 }
 
 int CIndex::lookup(const string& filename, set<CFileAttr, CAttrComp>* filelist)
 {
    int res = -1;
 
-   pthread_mutex_lock(&m_IndexLock);
+   Sync::enterCS(m_IndexLock);
 
    map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(filename);
 
@@ -27,14 +29,14 @@ int CIndex::lookup(const string& filename, set<CFileAttr, CAttrComp>* filelist)
       res =  1;
    }
 
-   pthread_mutex_unlock(&m_IndexLock);
+   Sync::leaveCS(m_IndexLock);
 
    return res;
 }
 
 int CIndex::insert(const CFileAttr& attr)
 {
-   pthread_mutex_lock(&m_IndexLock);
+   Sync::enterCS(m_IndexLock);
 
    map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(attr.m_pcName);
 
@@ -46,18 +48,16 @@ int CIndex::insert(const CFileAttr& attr)
 
    m_mFileList[attr.m_pcName].insert(attr);
 
-   pthread_mutex_unlock(&m_IndexLock);
+   Sync::leaveCS(m_IndexLock);
 
    return 1;
 }
    
 int CIndex::remove(const string& filename)
 {
-   pthread_mutex_lock(&m_IndexLock);
-
+   Sync::enterCS(m_IndexLock);
    m_mFileList.erase(filename);
-
-   pthread_mutex_unlock(&m_IndexLock);
+   Sync::leaveCS(m_IndexLock);
 
    return 1;
 }
@@ -65,9 +65,7 @@ int CIndex::remove(const string& filename)
 int CIndex::getFileList(map<string, set<CFileAttr, CAttrComp> >& list)
 {
    list.clear();
-
    list = m_mFileList;
-
    return list.size();
 }
 
@@ -84,7 +82,6 @@ CNameIndex::~CNameIndex()
 int CNameIndex::insert(const CIndexInfo& file)
 {
    m_mFileList[file.m_pcName] = file;
-
    return 1;
 }
 
@@ -100,7 +97,7 @@ int CNameIndex::remove(const CIndexInfo& file)
    return 1;
 }
 
-int CNameIndex::synchronize(char* buffer, int& len)
+int CNameIndex::serialize(char* buffer, int& len)
 {
    if (len < m_mFileList.size() * sizeof(CIndexInfo))
      return -1;
@@ -118,7 +115,7 @@ int CNameIndex::synchronize(char* buffer, int& len)
    return len;
 }
 
-int CNameIndex::desynchronize(const char* buffer, const int& len)
+int CNameIndex::deserialize(const char* buffer, const int& len)
 {
    m_mFileList.clear();
 

@@ -1,6 +1,7 @@
 #ifndef __INDEX_H__
 #define __INDEX_H__
 
+#include <util.h>
 #include <file.h>
 #include <map>
 #include <set>
@@ -32,7 +33,7 @@ private:
 struct CIndexInfo
 {
    char m_pcName[64];           // unique file name
-   timeval m_TimeStamp;         // time stamp
+   int64_t m_llTimeStamp;         // time stamp
    //char m_pcType[64];           // file type, data, video, audio, etc
    int64_t m_llSize;            // size
 
@@ -50,8 +51,8 @@ public:
    int remove(const CIndexInfo& file);
 
 public:
-   int synchronize(char* buffer, int& len);
-   int desynchronize(const char* buffer, const int& len);
+   int serialize(char* buffer, int& len);
+   int deserialize(const char* buffer, const int& len);
 
 private:
    map<string, CIndexInfo> m_mFileList;
