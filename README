@@ -8,24 +8,22 @@ Note:
 Makefile.common and ./udt/Makefile to use the proper version.
 2. SECTOR requres libssl-dev to compile.
 
+
 II. Configuration
-The only configuration file is located at ./conf. file.conf is a text file which tells where
-to store the data files. It is a single line of the adsolute directory.
-
-
-Note: All the parameters of <PORT> mentioned below should use 2237.
+The only configuration file is ./server/sector.cof. You may need to edit this file to assign
+a specific location for file storage and port numbers.
 
 
 III. Server
 
 The server program is located at ./server directory. For a stand-alone server, run 
-./cbfs <LOCAL IP ADDRESS>
+./cbfs <LOCAL IP ADDRESS> 
 
 For more servers:
 ./cbfs <LOCAL IP ADDRESS> <REMOTE IP ADDRESS> <REMOTE PORT>
 
 For example,
-If you are start the first server on 10.0.0.1, run ./cbfs 10.0.0.1
+If you are start the first server on 10.0.0.1 at port 2237, run ./cbfs 10.0.0.1
 Then if you are start the second server on 10.0.0.2, run ./cbfs 10.0.0.2 10.0.0.1 2237
 
 
@@ -50,3 +48,4 @@ Note that SECTOR is a flat file system. There is no directory structure, so ever
 unique file name. In addition, the client cannot modify or overwrite a file unless the file is 
 originally uploaded by the same client.
 
+The SECTOR client also works on Windows system.
