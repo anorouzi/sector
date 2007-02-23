@@ -3,7 +3,7 @@ include ../Makefile.common
 CCFLAGS += 
 LDFLAGS += -lrpc -ludt
 
-OBJS = gmp.o message.o transport.o prec.o
+OBJS = gmp.o message.o prec.o
 
 all: librpc.so librpc.a gs gc
 

@@ -1,14 +1,58 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+Group Messaging Protocol (GMP)
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2007
+*****************************************************************************/
+
+
 #ifndef __GMP_H__
 #define __GMP_H__
 
-#include <pthread.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#ifndef WIN32
+   #include <pthread.h>
+   #include <sys/time.h>
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <sys/stat.h>
+   #include <netinet/in.h>
+   #include <arpa/inet.h>
 
+   #define GMP_API
+#else
+   #include <windows.h>
+
+   #ifdef GMP_EXPORTS
+      #define GMP_API __declspec(dllexport)
+   #else
+      #define GMP_API __declspec(dllimport)
+   #endif
+#endif
+
+#include <util.h>
 #include <message.h>
 #include <prec.h>
 
@@ -59,10 +103,8 @@ struct CMsgRecord
 {
    char m_pcIP[64];
    int m_iPort;
-
    CGMPMessage* m_pMsg;
-
-   timeval m_TimeStamp;
+   int64_t m_llTimeStamp;
 };
 
 struct CFMsgRec
@@ -82,7 +124,7 @@ struct CFMsgRec
 };
 
 
-class CGMP
+class GMP_API CGMP
 {
 public:
    CGMP();
@@ -113,9 +155,15 @@ private:
    pthread_t m_SndThread;
    pthread_t m_RcvThread;
    pthread_t m_TCPRcvThread;
+#ifndef WIN32
    static void* sndHandler(void*);
    static void* rcvHandler(void*);
    static void* tcpRcvHandler(void*);
+#else
+   static DWORD WINAPI sndHandler(LPVOID);
+   static DWORD WINAPI rcvHandler(LPVOID);
+   static DWORD WINAPI tcpRcvHandler(LPVOID);
+#endif
 
    pthread_mutex_t m_SndQueueLock;
    pthread_cond_t m_SndQueueCond;
@@ -129,14 +177,20 @@ private:
 private:
    int m_iPort;
 
-   int m_iUDPSocket;
-   int m_iTCPSocket;
+   #ifndef WIN32
+      int m_UDPSocket;
+      int m_TCPSocket;
+   #else
+      SOCKET m_UDPSocket;
+      SOCKET m_TCPSocket;
+   #endif
 
    list<CMsgRecord*> m_lSndQueue;
    queue<CMsgRecord*> m_qRcvQueue;
    map<int32_t, CMsgRecord*> m_mResQueue;
    CPeerManagement m_PeerHistory;
 
+   volatile bool m_bInit;
    volatile bool m_bClosed;
 
 private:

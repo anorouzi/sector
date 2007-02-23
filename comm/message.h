@@ -1,11 +1,55 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+Group Messaging Protocol (GMP)
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/25/2007
+*****************************************************************************/
+
+
 #ifndef __CB_MESSAGE_H__
 #define __CB_MESSAGE_H__
 
-#include <sys/types.h>
+#ifndef WIN32
+   #include <sys/types.h>
+
+   #define GMP_API
+#else
+   #include <util.h>
+
+   #ifdef GMP_EXPORTS
+      #define GMP_API __declspec(dllexport)
+   #else
+      #define GMP_API __declspec(dllimport)
+   #endif
+#endif
+
 #include <iostream>
 using namespace std;
 
-class CUserMessage
+class GMP_API CUserMessage
 {
 friend class CGMP;
 
@@ -24,7 +68,7 @@ public:
    int m_iBufLength;
 };
 
-class CRTMsg: public CUserMessage
+class GMP_API CRTMsg: public CUserMessage
 {
 public:
    int32_t getType() const;
@@ -36,7 +80,7 @@ public:
    static const int m_iHdrSize = 4;
 };
 
-class CCBMsg: public CUserMessage
+class GMP_API CCBMsg: public CUserMessage
 {
 public:
    int32_t getType() const;

@@ -1,23 +1,58 @@
-#include <sys/time.h>
-#include <time.h>
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+Group Messaging Protocol (GMP)
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/25/2007
+*****************************************************************************/
+
+#ifndef WIN32
+   #include <sys/time.h>
+   #include <time.h>
+#else
+   #include <windows.h>
+#endif
+
 #include <prec.h>
 #include <iostream>
-
 using namespace std;
+using namespace CodeBlue;
 
 CPeerManagement::CPeerManagement()
 {
-   pthread_mutex_init(&m_PeerRecLock, NULL);
+   Sync::initMutex(m_PeerRecLock);
 }
 
 CPeerManagement::~CPeerManagement()
 {
-   pthread_mutex_destroy(&m_PeerRecLock);
+   Sync::releaseMutex(m_PeerRecLock);
 }
 
 void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt)
 {
-   pthread_mutex_lock(&m_PeerRecLock);
+   Sync::enterCS(m_PeerRecLock);
 
    CPeerRecord* pr = new CPeerRecord;
    pr->m_strIP = ip;
@@ -39,7 +74,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
             (*i)->m_iRTT = ((*i)->m_iRTT * 7 + rtt) >> 3;
       }
 
-      gettimeofday(&((*i)->m_TimeStamp), 0);
+      (*i)->m_llTimeStamp = Time::getTime();
 
       delete pr;
    }
@@ -55,7 +90,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
       else
          pr->m_iRTT = -1;
 
-      gettimeofday(&(pr->m_TimeStamp), 0);
+      pr->m_llTimeStamp = Time::getTime();
 
       m_sPeerRec.insert(pr);
       m_sPeerRecByTS.insert(pr);
@@ -68,32 +103,34 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
 
          CPeerRecord* t = *j;
          m_sPeerRec.erase(t);
-         pair<set<CPeerRecord*, CFPeerRecByIP>::iterator, set<CPeerRecord*, CFPeerRecByIP>::iterator> p = m_sPeerRecByIP.equal_range(t);
-         for (set<CPeerRecord*, CFPeerRecByIP>::iterator k = p.first; k != p.second; k ++)
+
+         pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
+		 p = m_sPeerRecByIP.equal_range(t);
+         for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator k = p.first; k != p.second; k ++)
          {
             if ((*k)->m_iPort == t->m_iPort)
-            {
                m_sPeerRecByIP.erase(k);
-            }
          }
+
+         m_sPeerRecByTS.erase(t);
+
          delete t;
-         m_sPeerRecByTS.erase(j);
       }
    }
 
-   pthread_mutex_unlock(&m_PeerRecLock);
+   Sync::leaveCS(m_PeerRecLock);
 }
 
 int CPeerManagement::getRTT(const string& ip)
 {
-   pair<set<CPeerRecord*, CFPeerRecByIP>::iterator, set<CPeerRecord*, CFPeerRecByIP>::iterator> p;
+   pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
 
    CPeerRecord pr;
    pr.m_strIP = ip;
 
    p = m_sPeerRecByIP.equal_range(&pr);
 
-   for (set<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
+   for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
    {
       if ((*i)->m_iRTT > 0)
          return (*i)->m_iRTT;
