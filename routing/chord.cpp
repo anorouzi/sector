@@ -4,13 +4,13 @@ int main(int argc, char** argv)
 {
    CRouting chord;
 
-   if (2 == argc)
+   if (3 == argc)
    {
-      chord.start(argv[1]);
+      chord.start(argv[1], atoi(argv[2]));
    }
-   else if (4 == argc)
+   else if (5 == argc)
    {
-      chord.join(argv[1], argv[2], atoi(argv[3]));
+      chord.join(argv[1], argv[2], atoi(argv[3]), atoi(argv[4]));
    }
    else
       return -1;

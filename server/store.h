@@ -5,7 +5,7 @@
 #include <gmp.h>
 #include <udt.h>
 #include <log.h>
-#include <kb.h>
+#include <conf.h>
 #include <index.h>
 
 
@@ -33,19 +33,26 @@ private:
    {
       CStore* s;
       string fn;	// filename
-
       UDTSOCKET u;
       int t;		// TCP socket
       int c;		// connection type
-
       int m;		// file access mode
-   };   
+   };
+
+   struct Param3
+   {
+      CStore* s;
+      string fn;        // filename
+      string q;		// query
+      UDTSOCKET u;
+      int t;            // TCP socket
+      int c;            // connection type
+   };
 
    static void* run(void* s);
-
    static void* process(void* p);
-
-   static void* remote(void* p);
+   static void* fileHandler(void* p);
+   static void* SQLHandler(void* p);
 
 private:
    void updateOutLink();
@@ -78,10 +85,7 @@ private:
    CAccessLog m_AccessLog;
    CPerfLog m_PerfLog;
 
-   CKnowledgeBase m_KBase;
-
-public:
-   static const int m_iCBFSPort;
+   SECTORParam m_SysConfig;
 };
 
 

@@ -58,4 +58,4 @@ clean:
 	rm -f *.o *.so *.dylib *.a udt
 
 install:
-	export LD_LIBRARY_PATH=$(DIR):$$LD_LIBRARY_PATH
+	mv libudt.so libudt.a ../lib

@@ -1,11 +1,11 @@
 C++ = g++
 
-DEBUG = 0
+DEBUG = 1
 STATIC = 0
 EFENCE = 0
 
-CCFLAGS = -I./ -I../comm -I../routing -I../log -I../udt -I../sql -I../metadata
-LDFLAGS = -lstdc++ -lpthread -L. -L../lib
+CCFLAGS = -I./ -I../util -I../gmp -I../routing -I../udt -I../sql -I../metadata
+LDFLAGS = -lstdc++ -lpthread -L. -L../lib -lutil
 
 ifeq ($(DEBUG), 1)
    CCFLAGS += -Wall -g

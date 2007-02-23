@@ -8,7 +8,8 @@ const int CRouting::m_iRouterPort = 24673;      //chord
 
 
 CRouting::CRouting():
-m_iKeySpace(16)
+m_iKeySpace(16),
+m_iAppPort(0)
 {
    m_pGMP = new CGMP;
 
@@ -25,12 +26,15 @@ CRouting::~CRouting()
    delete m_pGMP;
 }
 
-int CRouting::start(const char* ip)
+int CRouting::start(const char* ip, const int& port)
 {
    m_uiID = CDHash::hash(ip, m_iKeySpace);
 
    strcpy(m_pcIP, ip);
-   m_iPort = m_iRouterPort;
+   if (port > 0)
+      m_iPort = port;
+   else
+      m_iPort = m_iRouterPort;
 
    m_pGMP->init(m_iPort);
 
@@ -47,12 +51,15 @@ int CRouting::start(const char* ip)
    return 0;
 }
 
-int CRouting::join(const char* ip, const char* peer_ip, const int& peer_port)
+int CRouting::join(const char* ip, const char* peer_ip, const int& port, const int& peer_port)
 {
    m_uiID = CDHash::hash(ip, m_iKeySpace);
 
    strcpy(m_pcIP, ip);
-   m_iPort = m_iRouterPort;
+   if (port > 0)
+      m_iPort = port;
+   else
+      m_iPort = m_iRouterPort;
 
    m_pGMP->init(m_iPort);
 
@@ -65,7 +72,10 @@ int CRouting::join(const char* ip, const char* peer_ip, const int& peer_port)
    Node n;
    n.m_uiID = CDHash::hash(ip, m_iKeySpace);
    strcpy(n.m_pcIP, peer_ip);
-   n.m_iPort = peer_port;
+   if (peer_port > 0)
+      n.m_iPort = peer_port;
+   else
+      n.m_iPort = m_iRouterPort;
 
    CRTMsg msg;
    msg.setType(3); // find_successor
@@ -84,6 +94,11 @@ int CRouting::join(const char* ip, const char* peer_ip, const int& peer_port)
    return 0;
 }
 
+int CRouting::setAppPort(const int& port)
+{
+   m_iAppPort = port;
+}
+
 int CRouting::lookup(const unsigned int& key, Node* n)
 {
    return find_successor(key, n);
@@ -96,6 +111,7 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
       n->m_uiID = m_uiID;
       memcpy(n->m_pcIP, m_pcIP, 64);
       n->m_iPort = m_iPort;
+      n->m_iAppPort = m_iAppPort;
 
       return 0;
    }
@@ -140,6 +156,7 @@ void CRouting::closest_preceding_finger(const unsigned int& id, Node* n)
    n->m_uiID = m_uiID;
    memcpy(n->m_pcIP, m_pcIP, 64);
    n->m_iPort = m_iPort;
+   n->m_iAppPort = m_iAppPort;
 }
 
 void CRouting::init_finger_table()
@@ -152,6 +169,7 @@ void CRouting::init_finger_table()
       f.m_Node.m_uiID = m_uiID;
       memcpy(f.m_Node.m_pcIP, m_pcIP, 64);
       f.m_Node.m_iPort = m_iPort;
+      f.m_Node.m_iAppPort = m_iAppPort;
 
       m_vFingerTable[i] = f;
    }
@@ -205,6 +223,7 @@ void CRouting::stabilize()
       ((Node*)(msg.getData()))->m_uiID = m_uiID;
       memcpy(((Node*)(msg.getData()))->m_pcIP, m_pcIP, 64);
       ((Node*)(msg.getData()))->m_iPort = m_iPort;
+      ((Node*)(msg.getData()))->m_iAppPort = m_iAppPort;
       msg.m_iDataLength = 4 + sizeof(Node);
 
       m_pGMP->rpc(m_Successor.m_pcIP, m_Successor.m_iPort, &msg, &msg);
@@ -296,6 +315,7 @@ void CRouting::check_successor(int& next)
             // no successor found, isolated
             memcpy(m_Successor.m_pcIP, m_pcIP, 64);
             m_Successor.m_iPort = m_iPort;
+            m_Successor.m_iAppPort = m_iAppPort;
             m_Successor.m_uiID = m_uiID;
             m_vFingerTable[0].m_Node = m_Successor;
          }

@@ -1,7 +1,7 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lstore -lrouting -lcrypto -lrpc -ludt -llog -lsql -lmeta
+LDFLAGS += -lstore -lrouting -lcrypto -lrpc -ludt -lsql -lmeta
 
 OBJS = store.o
 

@@ -8,19 +8,17 @@
 #include <assert.h>
 #include <sstream>
 #include <signal.h>
+#include <util.h>
+#include <data.h>
+#include <sql.h>
+#include <table.h>
 
 using namespace std;
-
-
-const int CStore::m_iCBFSPort = 2237; //cbfs
-
+using namespace CodeBlue;
 
 CStore::CStore(const string& ip)
 {
    m_strLocalHost = ip;
-   m_iLocalPort = m_iCBFSPort;
-
-   m_GMP.init(m_iLocalPort);
 }
 
 CStore::~CStore()
@@ -30,19 +28,28 @@ CStore::~CStore()
 
 int CStore::init(char* ip, int port)
 {
-   int res;
+   m_SysConfig.init("sector.conf");
 
+   m_iLocalPort = m_SysConfig.m_iSECTORPort;
+   m_GMP.init(m_iLocalPort);
+   m_Router.setAppPort(m_iLocalPort);
+
+   int res;
    if (NULL == ip)
    {
-      res = m_Router.start(m_strLocalHost.c_str());
+      res = m_Router.start(m_strLocalHost.c_str(), m_iLocalPort);
    }
    else
    {
-      ///////////////////////////////
-      // We use a fixed port here. should be update later
-      res = m_Router.join(m_strLocalHost.c_str(), ip, CRouting::m_iRouterPort);
-   }
+      CCBMsg msg;
+      msg.setType(11); // look up port for the router
+      msg.m_iDataLength = 4;
 
+      if ((m_GMP.rpc(ip, port, &msg, &msg) < 0) || (msg.getType() < 0))
+         return -1;
+
+      res = m_Router.join(m_strLocalHost.c_str(), ip, m_iLocalPort, *(int*)msg.getData());
+   }
    if (res < 0)
       return -1;
 
@@ -244,9 +251,9 @@ void* CStore::run(void* s)
             p->c = conn;
             p->m = mode;
 
-            pthread_t remote_thread;
-            pthread_create(&remote_thread, NULL, remote, p);
-            pthread_detach(remote_thread);
+            pthread_t file_handler;
+            pthread_create(&file_handler, NULL, fileHandler, p);
+            pthread_detach(file_handler);
 
             int size = sizeof(sockaddr_in);
             if (1 == conn)
@@ -259,13 +266,16 @@ void* CStore::run(void* s)
             //cout << "feedback port " << my_addr.sin_port <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
+
+            //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
+
             break;
         }
 
       case 3: // add a new file
          {
             CFileAttr attr;
-            attr.desynchronize(msg->getData(), msg->m_iDataLength - 4);
+            attr.deserialize(msg->getData(), msg->m_iDataLength - 4);
 
             //cout << "remote file : " << attr.m_pcName << " " << attr.m_llSize << endl;
 
@@ -322,7 +332,7 @@ void* CStore::run(void* s)
             strcpy(attr.m_pcName, filename.c_str());
             strcpy(attr.m_pcHost, self->m_strLocalHost.c_str());
             attr.m_iPort = self->m_iLocalPort;
-            gettimeofday(&attr.m_TimeStamp, 0);
+            attr.m_llTimeStamp = Time::getTime();
 
             self->m_LocalFile.insert(attr);
 
@@ -401,6 +411,86 @@ void* CStore::run(void* s)
             break;
          }
 
+      case 200: // open a SQL connection
+         {
+            char* filename = msg->getData();
+
+            set<CFileAttr, CAttrComp> filelist;
+            if (self->m_LocalFile.lookup(filename, &filelist) < 0)
+            {
+               msg->setType(-msg->getType());
+               msg->m_iDataLength = 4;
+               self->m_GMP.sendto(ip, port, id, msg);
+               break;
+            }
+
+            self->m_AccessLog.insert(ip, port, msg->getData());
+
+            cout << "===> start SQL server " << endl;
+
+            UDTSOCKET u;
+            int t;
+
+            int conn = *(int*)(msg->getData() + 64);
+            if (1 == conn)
+               u = UDT::socket(AF_INET, SOCK_STREAM, 0);
+            else
+               t = socket(AF_INET, SOCK_STREAM, 0);
+
+            sockaddr_in my_addr;
+            my_addr.sin_family = AF_INET;
+            my_addr.sin_port = 0;
+            my_addr.sin_addr.s_addr = INADDR_ANY;
+            memset(&(my_addr.sin_zero), '\0', 8);
+
+            int res;
+            if (1 == conn)
+               res = UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr));
+            else
+               res = bind(t, (sockaddr*)&my_addr, sizeof(my_addr));
+
+            if (((1 == conn) && (UDT::ERROR == res)) || ((2 == conn) && (-1 == res)))
+            {
+               msg->setType(-msg->getType());
+               msg->m_iDataLength = 4;
+               self->m_GMP.sendto(ip, port, id, msg);
+               break;
+            }
+
+            if (1 == conn)
+               UDT::listen(u, 1);
+            else
+               listen(t, 1);
+
+            Param3* p = new Param3;
+            p->s = self;
+            p->fn = msg->getData();
+            p->q = msg->getData() + 64 + 4;
+            p->u = u;
+            p->t = t;
+            p->c = conn;
+
+            pthread_t sql_handler;
+            pthread_create(&sql_handler, NULL, SQLHandler, p);
+            pthread_detach(sql_handler);
+
+            int size = sizeof(sockaddr_in);
+            if (1 == conn)
+               UDT::getsockname(u, (sockaddr*)&my_addr, &size);
+            else
+               getsockname(t, (sockaddr*)&my_addr, (socklen_t*)&size);
+
+            msg->setData(0, (char*)&my_addr.sin_port, 4);
+            msg->m_iDataLength = 4 + 4;
+            //cout << "feedback port " << my_addr.sin_port <<endl;
+
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
+
+            break; 
+         }
+
       default:
          {
             Param1* p = new Param1;
@@ -433,18 +523,18 @@ void* CStore::process(void* p)
    int32_t id = ((Param1*)p)->id;
    CCBMsg* msg = ((Param1*)p)->msg;
 
-   //cout << "recv request " << msg->getType() << endl;
+   cout << "recv request " << msg->getType() << endl;
 
    switch (msg->getType())
    {
-   case 8: // retrieve name index
+   case 101: // retrieve name index
       {
          if (*(int32_t*)(msg->getData()) == 1)
          {
 //////////////////////////////////////////???????????????????????????????????
 
             msg->m_iDataLength = msg->m_iBufLength;
-            if (self->m_NameIndex.synchronize(msg->getData(), msg->m_iDataLength) > 0)
+            if (self->m_NameIndex.serialize(msg->getData(), msg->m_iDataLength) > 0)
                 msg->m_iDataLength += 4;
             else
                 msg->m_iDataLength = 4;
@@ -460,7 +550,7 @@ void* CStore::process(void* p)
          if (string(n.m_pcIP) == self->m_strLocalHost)
          {
             msg->m_iDataLength = msg->m_iBufLength;
-            if (self->m_NameIndex.synchronize(msg->getData(), msg->m_iDataLength) > 0)
+            if (self->m_NameIndex.serialize(msg->getData(), msg->m_iDataLength) > 0)
                 msg->m_iDataLength += 4;
             else
                 msg->m_iDataLength = 4;
@@ -470,14 +560,14 @@ void* CStore::process(void* p)
             *(int32_t*)(msg->getData()) = 1;
             msg->m_iDataLength = 4 + 4;
 
-            if (self->m_GMP.rpc(n.m_pcIP, m_iCBFSPort, msg, msg) < 0)
+            if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
                msg->setType(-msg->getType());
          }
 
          break;
       }
 
-   case 9: // stat
+   case 102: // stat
       {
          string filename = msg->getData();
          int fid = CDHash::hash(filename.c_str(), m_iKeySpace);
@@ -502,7 +592,7 @@ void* CStore::process(void* p)
                }
                else
                {
-                  sa.begin()->synchronize(msg->getData(), msg->m_iDataLength);
+                  sa.begin()->serialize(msg->getData(), msg->m_iDataLength);
                   msg->m_iDataLength += 4;
                }
 
@@ -510,7 +600,65 @@ void* CStore::process(void* p)
             }
             else
             {
-               if (self->m_GMP.rpc(n.m_pcIP, m_iCBFSPort, msg, msg) < 0)
+               if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
+               {
+                  msg->setType(-msg->getType());
+                  msg->m_iDataLength = 4;
+               }
+            }
+         }
+
+         break;
+      }
+
+   case 201: //semantics
+      {
+         string filename = msg->getData();
+         int fid = CDHash::hash(filename.c_str(), m_iKeySpace);
+         Node n;
+         set<CFileAttr, CAttrComp> sa;
+
+         if (self->m_LocalFile.lookup(filename, &sa) >= 0)
+         {
+            vector<DataAttr> attr;
+            string tmp;
+            Semantics::loadSemantics(self->m_strHomeDir + filename + ".sem", attr);
+            Semantics::serialize(tmp, attr);
+            memcpy(msg->getData(), tmp.c_str(), tmp.length());
+            msg->m_iDataLength = 4 + tmp.length();
+
+            break;
+         }
+
+         int r = self->m_Router.lookup(fid, &n);
+
+         if (-1 == r)
+         {
+            msg->setType(-msg->getType());
+            msg->m_iDataLength = 4;
+         }
+         else
+         {
+            if (self->m_strLocalHost == n.m_pcIP)
+            {
+               set<CFileAttr, CAttrComp> sa;
+               if (self->m_RemoteFile.lookup(filename, &sa) < 0)
+               {
+                  msg->setType(-msg->getType());
+                  msg->m_iDataLength = 4;
+               }
+               else
+               {
+                  if (self->m_GMP.rpc(sa.begin()->m_pcHost, sa.begin()->m_iPort, msg, msg) < 0)
+                  {
+                     msg->setType(-msg->getType());
+                     msg->m_iDataLength = 4;
+                  }
+               }
+            }
+            else
+            {
+               if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
                {
                   msg->setType(-msg->getType());
                   msg->m_iDataLength = 4;
@@ -527,7 +675,7 @@ void* CStore::process(void* p)
 
    self->m_GMP.sendto(ip, port, id, msg);
 
-   //cout << "responded " << msg->getType() << " " << msg->m_iDataLength << endl;
+   //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
    delete msg;
    delete (Param1*)p;
@@ -535,7 +683,7 @@ void* CStore::process(void* p)
    return NULL;
 }
 
-void* CStore::remote(void* p)
+void* CStore::fileHandler(void* p)
 {
    CStore* self = ((Param2*)p)->s;
    string filename = ((Param2*)p)->fn;
@@ -598,9 +746,7 @@ void* CStore::remote(void* p)
       ::close(lt);
    }
 
-
-   self->m_KBase.m_iNumConn ++;
-
+//   self->m_KBase.m_iNumConn ++;
 
    filename = self->m_strHomeDir + filename;
 
@@ -1015,9 +1161,151 @@ void* CStore::remote(void* p)
    else
       close(t);
 
-   self->m_KBase.m_iNumConn --;
+//   self->m_KBase.m_iNumConn --;
 
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
+
+   return NULL;
+}
+
+void* CStore::SQLHandler(void* p)
+{
+   CStore* self = ((Param3*)p)->s;
+   string filename = ((Param3*)p)->fn;
+   string query = ((Param3*)p)->q;
+   UDTSOCKET u = ((Param3*)p)->u;
+   int t = ((Param3*)p)->t;
+   int conn = ((Param3*)p)->c;
+   delete (Param3*)p;
+
+
+   SQLExpr sql;
+   SQLParser::parse(query, sql);
+   Table table;
+   table.loadDataFile(filename);
+   table.loadSemantics(filename + ".sem");
+   EvalTree* tree;
+   SQLParser::buildTree(sql.m_Condition, 0, sql.m_Condition.size(), tree);
+   bool project;
+   if ((sql.m_vstrFieldList.size() == 1) && (sql.m_vstrFieldList[0] == "*"))
+      project = false;
+   else
+      project = true;
+
+   int32_t cmd;
+   bool run = true;
+
+   UDTSOCKET lu = u;
+   int lt = t;
+
+   if (1 == conn)
+   {
+      u = UDT::accept(u, NULL, NULL);
+      UDT::close(lu);
+   }
+   else
+   {
+      t = accept(t, NULL, NULL);
+      ::close(lt);
+   }
+
+   while (run)
+   {
+      if (1 == conn)
+      {
+         if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
+            continue;
+      }
+      else
+      {
+         if (::recv(t, (char*)&cmd, 4, 0) <= 0)
+            continue;
+      }
+
+      switch (cmd)
+      {
+      case 1: // fetch
+         {
+            int numOfRows;
+
+            if (1 == conn)
+            {
+               if (UDT::recv(u, (char*)&numOfRows, 4, 0) < 0)
+                  continue;
+            }
+            else
+            {
+               if (::recv(t, (char*)&numOfRows, 4, 0) <= 0)
+                  continue;
+            }
+
+            char* buf = new char[4096 * numOfRows];
+            int size = 0;
+            int unitsize = 4096;
+
+            for (int i = 0; i < numOfRows; ++ i)
+            {
+               unitsize = 4096;
+               if (table.readTuple(buf + size, unitsize) < 0)
+                  break;
+               if (table.select(buf + size, tree))
+               {
+                  if (project)
+                  {
+                     char temp[4096];
+                     unitsize = table.project(buf + size, temp, sql.m_vstrFieldList);
+                     memcpy(buf + size, temp, unitsize);
+                  }
+
+                  size += unitsize;
+               }
+            }
+
+            if (1 == conn)
+            {
+               if (UDT::send(u, (char*)&size, 4, 0) < 0)
+               {
+                  run = false;
+                  break;
+               }
+
+               int h;
+               if (UDT::send(u, buf, size, 0, &h) < 0)
+                  run = false;
+            }
+            else
+            {
+               if (::send(u, (char*)&size, 4, 0) < 0)
+               {
+                  run = false;
+                  break;
+               }
+
+               int unit = 1460;
+               int ts = 0;
+               while (size > 0)
+               {
+                  int ss = ::send(t, buf + ts, (size > unit) ? unit : size, 0);
+                  if (ss < 0)
+                  {
+                     run = false;
+                     break;
+                  }
+                  size -= ss;
+                  ts += ss;
+               }
+            }
+
+            break;
+        }
+
+      case 2: // close
+         run = false;
+
+      default:
+         break;
+      }
+   }
 
    return NULL;
 }
@@ -1056,18 +1344,18 @@ void CStore::updateOutLink()
          msg.setType(10);
          strcpy(msg.getData(), i->first.c_str());
          msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
-         m_GMP.rpc(attr->m_pcNameHost, m_iCBFSPort, &msg, &msg);
+         m_GMP.rpc(attr->m_pcNameHost, attr->m_iPort, &msg, &msg);
       }
 
       // Dangerous const cast!!!
       strcpy((char*)attr->m_pcNameHost, loc.m_pcIP);
-      const_cast<int&>(attr->m_iNamePort) = m_iCBFSPort;
+      const_cast<int&>(attr->m_iNamePort) = m_iLocalPort;
 
       msg.setType(3);
-      attr->synchronize(msg.getData(), msg.m_iDataLength);
+      attr->serialize(msg.getData(), msg.m_iDataLength);
       msg.m_iDataLength += 4;
       assert(msg.m_iDataLength < 1024);
-      m_GMP.rpc(loc.m_pcIP, m_iCBFSPort, &msg, &msg);
+      m_GMP.rpc(loc.m_pcIP, loc.m_iAppPort, &msg, &msg);
    }
 }
 
@@ -1093,7 +1381,7 @@ void CStore::updateInLink()
          msg.setData(0, j->m_pcName, strlen(j->m_pcName) + 1);
          msg.m_iDataLength = 4 + strlen(j->m_pcName) + 1;
 
-         int r = m_GMP.rpc(j->m_pcHost, m_iCBFSPort, &msg, &msg);
+         int r = m_GMP.rpc(j->m_pcHost, j->m_iPort, &msg, &msg);
 
          if ((r <= 0) || (msg.getType() < 0))
          {
@@ -1116,36 +1404,13 @@ void CStore::updateInLink()
 
 int CStore::initLocalFile()
 {
-   ifstream ft("../conf/file.conf");
-
-   if (ft.bad())
-   {
-      cout << "cannot locate configuration file. Please check ../conf/file.conf." << endl;
-      return -1;
-   }
-
-   char buf[1024];
-
-   // home directory information
-   while (!ft.eof())
-   {
-      sleep(1);
-
-      ft.getline(buf, 1024);
-
-      if ((strlen(buf) > 0) && (buf[0] != '#'))
-      {
-         m_strHomeDir = buf;
-         break;
-      }
-   }
+   m_strHomeDir = m_SysConfig.m_strDataDir;
 
    cout << "Home Dir " << m_strHomeDir << endl;
 
    CFileAttr attr;
 
    // initialize all files in the home directory, excluding "." and ".."
-
    dirent **namelist;
    int n = scandir(m_strHomeDir.c_str(), &namelist, 0, alphasort);
 
@@ -1174,7 +1439,7 @@ int CStore::initLocalFile()
             // original file is read only
             attr.m_iAttr = 1;
             attr.m_llSize = size;
-            attr.m_TimeStamp.tv_sec = s.st_mtime;
+            attr.m_llTimeStamp = (int64_t)s.st_mtime * 1000000;
 
             m_LocalFile.insert(attr);
 
@@ -1211,7 +1476,7 @@ void CStore::updateNameIndex(int& next)
    for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       strcpy(ii.m_pcName, i->second.begin()->m_pcName);
-      ii.m_TimeStamp = i->second.begin()->m_TimeStamp;
+      ii.m_llTimeStamp = i->second.begin()->m_llTimeStamp;
       ii.m_llSize = i->second.begin()->m_llSize;
 
       msg.setData(c * sizeof(CIndexInfo), (char*)&ii, sizeof(CIndexInfo));
@@ -1222,7 +1487,7 @@ void CStore::updateNameIndex(int& next)
    msg.setType(7);
    msg.m_iDataLength = filelist.size() * sizeof(CIndexInfo) + 4;
 
-   m_GMP.rpc(p.m_pcIP, m_iCBFSPort, &msg, &msg);
+   m_GMP.rpc(p.m_pcIP, p.m_iAppPort, &msg, &msg);
 
    ++ next;
    if (next == m_iKeySpace)

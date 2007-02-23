@@ -30,10 +30,12 @@ public:
    ~CRouting();
 
 public:
-   int start(const char* ip);
-   int join(const char* ip, const char* peer_ip, const int& peer_port);
+   int start(const char* ip, const int& port = 0);
+   int join(const char* ip, const char* peer_ip, const int& port = 0, const int& peer_port = 0);
 
 public:
+   int setAppPort(const int& port);
+
    int lookup(const unsigned int& key, Node* n);
 
 private:
@@ -85,6 +87,9 @@ private:
 
 public:
    static const int m_iRouterPort;
+
+private:
+   int m_iAppPort;
 };
 
 #endif

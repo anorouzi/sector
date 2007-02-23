@@ -1,9 +1,9 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lsql
+LDFLAGS += -lmeta -lsql
 
-OBJS = sql.o
+OBJS = sql.o table.o
 
 all: libsql.so libsql.a test
 

@@ -5,18 +5,22 @@ using namespace std;
 
 int main()
 {
-   char* sql = "SELECT attr1, attr2 FROM ta;";
+   char* sql = "SELECT attr1, attr2, attr3 FROM ta1, ta2 WHERE a = 1;";
+   SQLExpr expr;
 
-   CQueryAttr* q = CParser::parse(sql, strlen(sql));
+   if (0 != SQLParser::parse(sql, expr))
+   {
+      cout << "grammar error!\n";
+      return -1;
+   }
 
    cout << endl << "ATTR LIST" << endl;
-   for (vector<string>::iterator i = q->m_vAttrList.begin(); i != q->m_vAttrList.end(); ++ i)
+   for (vector<string>::iterator i = expr.m_vstrFieldList.begin(); i != expr.m_vstrFieldList.end(); ++ i)
       cout << *i << endl;
 
    cout << endl << "TABLE LIST" << endl;
-   for (vector<string>::iterator i = q->m_vTableList.begin(); i != q->m_vTableList.end(); ++ i)
+   for (vector<string>::iterator i = expr.m_vstrTableList.begin(); i != expr.m_vstrTableList.end(); ++ i)
       cout << *i << endl;
-
 
    return 1;
 }
