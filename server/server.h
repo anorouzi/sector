@@ -37,6 +37,8 @@ written by
 #include <conf.h>
 #include <index.h>
 
+namespace cb
+{
 
 class Server
 {
@@ -110,5 +112,6 @@ private:
    SECTORParam m_SysConfig;
 };
 
+}; //namespace
 
 #endif

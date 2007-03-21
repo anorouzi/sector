@@ -30,6 +30,7 @@ written by
 #include <sql.h>
 #include <table.h>
 
+using namespace cb;
 
 void* Server::SQLHandler(void* p)
 {

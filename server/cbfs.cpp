@@ -2,7 +2,7 @@
 
 int main(int argc, char** argv)
 {
-   Server cba(argv[1]);
+   cb::Server cba(argv[1]);
 
    if (argc == 2)
    {

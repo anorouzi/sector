@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <util.h>
 
+using namespace cb;
 
 void* Server::fileHandler(void* p)
 {

@@ -43,7 +43,7 @@ written by
 #include <table.h>
 
 using namespace std;
-using namespace CodeBlue;
+using namespace cb;
 
 Server::Server(const string& ip)
 {
