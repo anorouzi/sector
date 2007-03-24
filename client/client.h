@@ -33,6 +33,9 @@ written by
 #include <gmp.h>
 #include <node.h>
 
+namespace cb
+{
+
 class Client
 {
 public:
@@ -55,5 +58,7 @@ protected:
 
    int m_iProtocol;     // 1 UDT 2 TCP
 };
+
+}; // namespace
 
 #endif

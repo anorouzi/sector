@@ -30,7 +30,7 @@ written by
 #include <file.h>
 
 using namespace std;
-using namespace CodeBlue;
+using namespace cb;
 
 CFileAttr::CFileAttr() 
 {

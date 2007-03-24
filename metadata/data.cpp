@@ -30,6 +30,8 @@ written by
 #include "data.h"
 #include <iostream>
 
+using namespace cb;
+
 int Semantics::loadSemantics(const string& semfile, vector<DataAttr>& attrlist)
 {
    attrlist.clear();

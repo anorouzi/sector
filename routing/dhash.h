@@ -31,12 +31,11 @@ written by
 #define __DHASH_H__
 
 #include <openssl/sha.h>
-#include <algorithm>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <errno.h>
 #include <math.h>
+#include <string>
+
+namespace cb
+{
 
 class DHash
 {
@@ -66,5 +65,7 @@ public:
 private:
    unsigned int m_im;
 };
+
+}; // namespace
 
 #endif

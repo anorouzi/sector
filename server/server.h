@@ -36,6 +36,7 @@ written by
 #include <log.h>
 #include <conf.h>
 #include <index.h>
+#include <kb.h>
 
 namespace cb
 {
@@ -110,6 +111,8 @@ private:
    CPerfLog m_PerfLog;
 
    SECTORParam m_SysConfig;
+
+   KnowledgeBase m_KBase;
 };
 
 }; //namespace

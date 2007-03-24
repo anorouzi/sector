@@ -3,7 +3,7 @@ include ../Makefile.common
 CCFLAGS += 
 LDFLAGS += -lmeta
 
-OBJS = file.o index.o data.o
+OBJS = file.o index.o data.o kb.o
 
 all: libmeta.so libmeta.a
 

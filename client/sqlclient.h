@@ -37,6 +37,9 @@ written by
 #include <udt.h>
 #include <client.h>
 
+namespace cb
+{
+
 class SQLClient: public Client
 {
 friend class Query;
@@ -78,5 +81,7 @@ private:
    UDTSOCKET m_uSock;
    int m_tSock;
 };
+
+}; // namespace
 
 #endif

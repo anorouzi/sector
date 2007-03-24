@@ -37,6 +37,9 @@ written by
 #include <client.h>
 #include <udt.h>
 
+namespace cb
+{
+
 class CCBFile;
 
 class CFSClient: public Client
@@ -81,5 +84,7 @@ private:
    UDTSOCKET m_uSock;
    int m_tSock;
 };
+
+}; // namespace
 
 #endif

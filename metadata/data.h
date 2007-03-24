@@ -37,6 +37,9 @@ written by
 
 using namespace std;
 
+namespace cb
+{
+
 enum DataType {INTEGER, CHAR, FLOAT, BOOLEAN, STRING};
 enum BOOLEAN {TRUE, FALSE};
 
@@ -73,5 +76,6 @@ private:
    static int getToken(char** line, string& token);
 };
 
+}; // namespace
 
 #endif

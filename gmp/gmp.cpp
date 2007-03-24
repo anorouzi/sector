@@ -42,7 +42,7 @@ written by
 #include <iostream>
 
 using namespace std;
-using namespace CodeBlue;
+using namespace cb;
 
 int32_t CGMPMessage::g_iSession = CGMPMessage::initSession();
 int32_t CGMPMessage::g_iID = 1;

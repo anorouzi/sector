@@ -5,7 +5,7 @@ using namespace std;
 
 int main()
 {
-   CGMP gmp;
+   cb::CGMP gmp;
 
    gmp.init(6000);
 

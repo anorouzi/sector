@@ -49,6 +49,9 @@ written by
 #include <iostream>
 using namespace std;
 
+namespace cb
+{
+
 class GMP_API CUserMessage
 {
 friend class CGMP;
@@ -92,5 +95,6 @@ public:
    static const int m_iHdrSize = 4;
 };
 
+}; // namespace
 
 #endif

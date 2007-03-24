@@ -2,7 +2,7 @@
 
 int main(int argc, char** argv)
 {
-   CRouting chord;
+   cb::CRouting chord;
 
    if (3 == argc)
    {

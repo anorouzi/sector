@@ -35,6 +35,9 @@ written by
 
 using namespace std;
 
+namespace cb
+{
+
 struct Param
 {
    string m_strName;
@@ -64,6 +67,9 @@ public:
    string m_strDataDir;		// DATADIR
    int m_iSECTORPort;		// SECTOR_PORT
    int m_iRouterPort;		// ROUTER_PORT
+   int m_iDataPort;		// DATA_PORT
 };
+
+}; // namespace
 
 #endif

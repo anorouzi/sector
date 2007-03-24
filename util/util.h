@@ -30,6 +30,8 @@ written by
 #ifndef __UTIL_H__
 #define __UTIL_H__
 
+namespace cb
+{
 
 #ifdef WIN32
 
@@ -61,11 +63,7 @@ written by
 
 #endif
 
-
 enum PROTOCOL {PUDT, PTCP};
-
-namespace CodeBlue
-{
 
 class Time
 {
@@ -88,8 +86,6 @@ class Guard
 {
 };
 
-} 
-//namespace 
-
+}; //namespace 
 
 #endif

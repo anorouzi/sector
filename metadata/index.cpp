@@ -31,7 +31,7 @@ written by
 #include <util.h>
 
 using namespace std;
-using namespace CodeBlue;
+using namespace cb;
 
 CIndex::CIndex()
 {

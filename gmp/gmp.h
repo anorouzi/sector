@@ -64,6 +64,8 @@ written by
 #include <queue>
 using namespace std;
 
+namespace cb
+{
 
 class CGMPMessage
 {
@@ -196,5 +198,7 @@ private:
 private:
    static const int m_iMaxUDPMsgSize = 1456;
 };
+
+}; // namespace
 
 #endif

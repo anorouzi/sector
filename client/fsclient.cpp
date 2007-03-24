@@ -30,7 +30,7 @@ written by
 #include <fsclient.h>
 
 using namespace std;
-
+using namespace cb;
 
 CCBFile* CFSClient::createFileHandle()
 {

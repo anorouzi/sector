@@ -30,10 +30,13 @@ written by
 #ifndef __KNOWLEDGE_BASE_H__
 #define __KNOWLEDGE_BASE_H__
 
-class CKnowledgeBase
+namespace cb
+{
+
+class KnowledgeBase
 {
 public:
-   CKnowledgeBase():
+   KnowledgeBase():
    m_iNumConn(0)
    {
    }
@@ -51,5 +54,7 @@ public:
    int m_iDiskReadIndex;
    int m_iDiskWriteIndex;
 };
+
+} // namespace
 
 #endif

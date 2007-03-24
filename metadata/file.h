@@ -33,9 +33,12 @@ written by
 #ifndef WIN32
    #include <stdint.h>
 #endif
-#include <util.h>
 #include <string>
 #include <set>
+#include <util.h>
+
+namespace cb
+{
 
 class CFSClient;
 
@@ -84,5 +87,7 @@ struct CAttrComp
       return (a1.m_iPort > a2.m_iPort);
    }
 };
+
+}; // namespace
 
 #endif

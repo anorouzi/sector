@@ -23,13 +23,15 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/24/2007
 *****************************************************************************/
 
 
 #include "sql.h"
 #include <iostream>
 #include <stack>
+
+using namespace cb;
 
 int SQLParser::getToken(char** expr, SQLToken& token)
 {
@@ -91,10 +93,10 @@ int SQLParser::getToken(char** expr, SQLToken& token)
       *expr = p;
       return 0;
    }
-   
+
    if ((('A' <= *p) && ('Z' >= *p)) || (('a' <= *p) && ('z' >= *p)))
    {
-      while ((('A' <= *p) && ('Z' >= *p)) || (('a' <= *p) && ('z' >= *p)) || (('0' <= *p) && ('9' >= *p)))
+      while ((('A' <= *p) && ('Z' >= *p)) || (('a' <= *p) && ('z' >= *p)) || (('0' <= *p) && ('9' >= *p)) || ('_' == *p) || ('.' == *p))
          token.m_strToken.append(1, *p++);
 
       if (("SELECT" == token.m_strToken) || ("FROM" == token.m_strToken) || ("WHERE" == token.m_strToken))
@@ -133,8 +135,9 @@ int SQLParser::parse(const string& expr, SQLExpr& sql)
       return -1;
 
    // retrieve "field" section
-   if ((0 != getToken(&p, token)) || (UNKNOWN != token.m_Type))
+   if ((0 != getToken(&p, token)) || ((UNKNOWN != token.m_Type) && ("*" != token.m_strToken)))
       return -1;
+
    sql.m_vstrFieldList.insert(sql.m_vstrFieldList.end(), token.m_strToken);
 
    if (0 != getToken(&p, token))
@@ -156,6 +159,7 @@ int SQLParser::parse(const string& expr, SQLExpr& sql)
    // FROM "table" list
    if ((0 != getToken(&p, token)) || (UNKNOWN != token.m_Type))
       return -1;
+
    sql.m_vstrTableList.insert(sql.m_vstrTableList.end(), token.m_strToken);
 
    if (0 != getToken(&p, token))
@@ -307,14 +311,19 @@ int SQLParser::validateCond(vector<SQLToken>& cond)
    return -1;
 }
 
-int SQLParser::buildTree(vector<SQLToken>& expr, const int& start, const int& end, EvalTree* tree)
+EvalTree* SQLParser::buildTree(vector<SQLToken>& expr, const int& start, const int& end)
 {
+   if (start > end)
+      return NULL;
+
+   EvalTree* tree;
+
    if (start == end)
    {
       tree = new EvalTree;
       tree->m_Token = expr[start];
       tree->m_Left = tree->m_Right = NULL;
-      return 0;
+      return tree;
    }
 
    list<EvalTree*> subtree;
@@ -335,8 +344,7 @@ int SQLParser::buildTree(vector<SQLToken>& expr, const int& start, const int& en
                  c --;
              ++ i;
          }
-         EvalTree* t;
-         buildTree(expr, s + 1, i - 1, t);
+         EvalTree* t = buildTree(expr, s + 1, i - 1);
          subtree.push_back(t);
       }
       else
@@ -351,7 +359,7 @@ int SQLParser::buildTree(vector<SQLToken>& expr, const int& start, const int& en
    if (subtree.size() == 1)
    {
        tree = *subtree.begin();
-       return 0;
+       return tree;
    }
 
    for (list<EvalTree*>::iterator i = subtree.begin(); i != subtree.end(); ++ i)
@@ -363,12 +371,12 @@ int SQLParser::buildTree(vector<SQLToken>& expr, const int& start, const int& en
    }
 
    if (subtree.size() > 1)
-      return -1;
+      return NULL;
 
    if (!subtree.empty())
       tree = *subtree.begin();
 
-   return 0;
+   return tree;
 }
 
 int SQLParser::buildArithTree(list<EvalTree*>& expr)

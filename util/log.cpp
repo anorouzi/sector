@@ -33,7 +33,7 @@ written by
 #include <iostream>
 
 using namespace std;
-
+using namespace cb;
 
 fstream CAccessLog::m_LogFile;
 pthread_mutex_t CAccessLog::m_FAccessLock = PTHREAD_MUTEX_INITIALIZER;

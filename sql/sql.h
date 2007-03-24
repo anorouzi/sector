@@ -42,6 +42,8 @@ using namespace std;
 // SELECT * FROM table WHERE condition;
 // SELECT * FROM table1, table2, ... WHERE condition;
 
+namespace cb
+{
 
 enum SQL_TokenType {UNKNOWN, KEYWORD, CONSTANT, ARITH_OP, BOOL_OP, MARK};
 enum SQL_KeyWord {SELECT, FROM, WHERE};
@@ -81,7 +83,8 @@ class SQLParser
 {
 public:
    static int parse(const string& expr, SQLExpr& sql);
-   static int buildTree(vector<SQLToken>& expr, const int& start, const int& end, EvalTree* tree);
+   static EvalTree* buildTree(vector<SQLToken>& expr, const int& start, const int& end);
+   static void releaseTree(EvalTree* tree) {}
 
 private:
    static int getToken(char** expr, SQLToken& token);
@@ -91,5 +94,6 @@ private:
    static int buildBoolTree(list<EvalTree*>& expr);
 };
 
+}; // namespace
 
 #endif

@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/24/2007
 *****************************************************************************/
 
 
@@ -63,10 +63,12 @@ int Server::init(char* ip, int port)
    m_GMP.init(m_iLocalPort);
    m_Router.setAppPort(m_iLocalPort);
 
+cout << "CONFIG " << m_iLocalPort << " " << m_SysConfig.m_iRouterPort << endl;
+
    int res;
    if (NULL == ip)
    {
-      res = m_Router.start(m_strLocalHost.c_str(), m_iLocalPort);
+      res = m_Router.start(m_strLocalHost.c_str(), m_SysConfig.m_iRouterPort);
    }
    else
    {
@@ -77,7 +79,7 @@ int Server::init(char* ip, int port)
       if ((m_GMP.rpc(ip, port, &msg, &msg) < 0) || (msg.getType() < 0))
          return -1;
 
-      res = m_Router.join(m_strLocalHost.c_str(), ip, m_iLocalPort, *(int*)msg.getData());
+      res = m_Router.join(m_strLocalHost.c_str(), ip, m_SysConfig.m_iRouterPort, *(int*)msg.getData());
    }
    if (res < 0)
       return -1;
@@ -231,7 +233,7 @@ void* Server::run(void* s)
 
             self->m_AccessLog.insert(ip, port, msg->getData());
 
-            cout << "===> start file server " << endl;
+            cout << "===> start file server " << ip << " " << port << endl;
 
             UDTSOCKET u;
             int t;
@@ -494,7 +496,7 @@ void* Server::run(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
+            cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
             break; 
          }

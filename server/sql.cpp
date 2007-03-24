@@ -34,22 +34,22 @@ using namespace cb;
 
 void* Server::SQLHandler(void* p)
 {
-   //Server* self = ((Param3*)p)->s;
-   string filename = ((Param3*)p)->fn;
+   Server* self = ((Param3*)p)->s;
+   string filename = self->m_strHomeDir + ((Param3*)p)->fn;
    string query = ((Param3*)p)->q;
    UDTSOCKET u = ((Param3*)p)->u;
    int t = ((Param3*)p)->t;
    int conn = ((Param3*)p)->c;
    delete (Param3*)p;
 
+//cout << "handling " << filename << endl;
 
    SQLExpr sql;
    SQLParser::parse(query, sql);
    Table table;
    table.loadDataFile(filename);
    table.loadSemantics(filename + ".sem");
-   EvalTree* tree;
-   SQLParser::buildTree(sql.m_Condition, 0, sql.m_Condition.size(), tree);
+   EvalTree* tree = SQLParser::buildTree(sql.m_Condition, 0, sql.m_Condition.size() - 1);
    bool project;
    if ((sql.m_vstrFieldList.size() == 1) && (sql.m_vstrFieldList[0] == "*"))
       project = false;
@@ -106,12 +106,16 @@ void* Server::SQLHandler(void* p)
             char* buf = new char[4096 * numOfRows];
             int size = 0;
             int unitsize = 4096;
+            int rows = 0;
 
             for (int i = 0; i < numOfRows; ++ i)
             {
                unitsize = 4096;
                if (table.readTuple(buf + size, unitsize) < 0)
                   break;
+
+               //cout << "tuple " << i << " " << *(int*)(buf + size) << " " << unitsize << endl;
+
                if (table.select(buf + size, tree))
                {
                   if (project)
@@ -122,23 +126,35 @@ void* Server::SQLHandler(void* p)
                   }
 
                   size += unitsize;
+                  rows ++;
                }
             }
 
             if (1 == conn)
             {
+               if (UDT::send(u, (char*)&rows, 4, 0) < 0)
+               {
+                  run = false;
+                  break;
+               }
                if (UDT::send(u, (char*)&size, 4, 0) < 0)
                {
                   run = false;
                   break;
                }
 
+               cout << "sening out size " << rows << " " << size << endl;
                int h;
                if (UDT::send(u, buf, size, 0, &h) < 0)
                   run = false;
             }
             else
             {
+               if (::send(u, (char*)&rows, 4, 0) < 0)
+               {
+                  run = false;
+                  break;
+               }
                if (::send(u, (char*)&size, 4, 0) < 0)
                {
                   run = false;

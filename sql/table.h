@@ -36,6 +36,9 @@ written by
 
 using namespace std;
 
+namespace cb
+{
+
 class Table
 {
 public:
@@ -56,5 +59,7 @@ private:
    ifstream m_DataFile;
    vector<DataAttr> m_AttrList;
 };
+
+}; // namespace
 
 #endif

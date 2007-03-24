@@ -29,6 +29,9 @@ written by
 
 #include "table.h"
 #include "sql.h"
+#include <iostream>
+using namespace std;
+using namespace cb;
 
 int Table::loadDataFile(const string& filename)
 {
@@ -53,7 +56,12 @@ void Table::close()
 int Table::readTuple(char* tuple, int& len)
 {
    if (m_DataFile.bad() || m_DataFile.eof())
+   {
+cout << "bad file!!!!\n";
       return -1;
+   }
+
+//cout << "attr " << m_AttrList.size() << endl;
 
    int size = 0;
 
@@ -93,7 +101,11 @@ int Table::readTuple(char* tuple, int& len)
       }
    }
 
+   if (len < size)
+     return -1;
+
    m_DataFile.read(tuple, size);
+   len = size;
    return 0;
 }
 
@@ -174,6 +186,9 @@ DataItem Table::readItem(const char* tuple, const string& attr)
 
 bool Table::select(const char* tuple, EvalTree* tree)
 {
+   if (NULL == tree)
+      return true;
+
    DataItem res;
    if (0 != evaluate(tuple, tree, res))
       return false;

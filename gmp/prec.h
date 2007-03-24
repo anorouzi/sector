@@ -41,6 +41,8 @@ written by
 #include <string>
 using namespace std;
 
+namespace cb
+{
 
 struct CPeerRecord
 {
@@ -106,5 +108,6 @@ private:
    static const unsigned int m_uiRecLimit = 500;   
 };
 
+}; // namespace
 
 #endif

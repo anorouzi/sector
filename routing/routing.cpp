@@ -31,10 +31,9 @@ written by
 #include <iostream>
 
 using namespace std;
-
+using namespace cb;
 
 const int CRouting::m_iRouterPort = 24673;      //chord
-
 
 CRouting::CRouting():
 m_iAppPort(0),

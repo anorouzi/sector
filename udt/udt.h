@@ -241,7 +241,7 @@ UDT_API int select(int nfds, UDSET* readfds, UDSET* writefds, UDSET* exceptfds, 
 UDT_API ERRORINFO getlasterror();
 
 UDT_API int perfmon(UDTSOCKET u, TRACEINFO* perf, bool clear = true);
-}
+};
 
 
 #endif

@@ -31,6 +31,7 @@ written by
 #include <iostream>
 
 using namespace std;
+using namespace cb;
 
 Query* SQLClient::createQueryHandle()
 {
@@ -91,6 +92,8 @@ int Query::open(const string& query)
 {
    if (0 != SQLParser::parse(query, m_SQLExpr))
       return -1;
+
+cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_vstrTableList.size() << endl;
 
    // currently we can only deal with single table
    if (m_SQLExpr.m_vstrTableList.size() != 1)
@@ -212,18 +215,18 @@ int Query::fetch(char* res, int& rows, int& size)
    char req[8];
    *(int32_t*)req = 1; // fetch (more) records
    *(int32_t*)(req + 4) = rows;
-   int32_t response[2];
-   response[0] = -1;
 
    if (1 == m_iProtocol)
    {
       if (UDT::send(m_uSock, req, 8, 0) < 0)
          return -1;
-      if ((UDT::recv(m_uSock, (char*)response, 8, 0) < 0) || (-1 == response[0]))
+      if ((UDT::recv(m_uSock, (char*)&rows, 4, 0) < 0) || (-1 == rows))
+         return -1;
+      if ((UDT::recv(m_uSock, (char*)&size, 4, 0) < 0) || (-1 == size))
          return -1;
 
-      size = response[1];
       int h;
+      cout << "to recv " << rows << " " << size << endl;
       if (UDT::recv(m_uSock, res, size, 0, &h) < 0)
          return -1;
    }
@@ -231,10 +234,11 @@ int Query::fetch(char* res, int& rows, int& size)
    {
       if (::send(m_tSock, req, 8, 0) < 0)
          return -1;
-      if ((::recv(m_tSock, (char*)response, 8, 0) < 0) || (-1 == response[0]))
+      if ((::recv(m_tSock, (char*)&rows, 4, 0) < 0) || (-1 == rows))
+         return -1;
+      if ((::recv(m_tSock, (char*)&size, 4, 0) < 0) || (-1 == size))
          return -1;
 
-      size = response[1];
       int64_t rs = 0;
       while (rs < size)
       {

@@ -30,14 +30,17 @@ written by
 #ifndef __INDEX_H__
 #define __INDEX_H__
 
-#include <util.h>
 #include <file.h>
 #include <map>
 #include <set>
 #include <vector>
 #include <iostream>
+#include <util.h>
 
 using namespace std;
+
+namespace cb
+{
 
 class CIndex
 {
@@ -59,14 +62,6 @@ private:
    pthread_mutex_t m_IndexLock;
 };
 
-struct CIndexInfo
-{
-   char m_pcName[64];           // unique file name
-   int64_t m_llTimeStamp;       // time stamp
-   //char m_pcType[64];           // file type, data, video, audio, etc
-   int64_t m_llSize;            // size
-
-   timeval m_LRT;		// last time the file information is reported (Last Report Time)
-};
+}; // namespace
 
 #endif

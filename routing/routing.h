@@ -37,6 +37,8 @@ written by
 
 using namespace std;
 
+namespace cb
+{
 
 struct FTItem
 {
@@ -117,5 +119,7 @@ private:
 public:
    static const int m_iRouterPort;
 };
+
+}; // namespace
 
 #endif

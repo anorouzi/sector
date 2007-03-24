@@ -29,12 +29,14 @@ written by
 
 #include <kb.h>
 
-int CKnowledgeBase::init()
+using namespace cb;
+
+int KnowledgeBase::init()
 {
    return 0;
 }
 
-int CKnowledgeBase::refresh()
+int KnowledgeBase::refresh()
 {
    //using snmp ??
 

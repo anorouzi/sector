@@ -28,7 +28,7 @@ written by
 
 
 #include "client.h"
-
+using namespace cb;
 
 Client::Client():
 m_iProtocol(1)

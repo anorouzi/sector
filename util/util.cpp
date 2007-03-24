@@ -34,7 +34,7 @@ written by
 #endif
 #include <util.h>
 
-using namespace CodeBlue;
+using namespace cb;
 
 int64_t Time::getTime()
 {

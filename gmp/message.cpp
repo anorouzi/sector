@@ -32,6 +32,9 @@ written by
 #include <string.h>
 #include <message.h>
 
+using namespace cb;
+
+
 CUserMessage::CUserMessage():
 m_iDataLength(0),
 m_iBufLength(65536)

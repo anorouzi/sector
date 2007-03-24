@@ -35,6 +35,9 @@ written by
 
 using namespace std;
 
+namespace cb
+{
+
 class CLog
 {
 public:
@@ -88,5 +91,7 @@ private:
    static int m_iAccessCount;
    static pthread_mutex_t m_FIOLock;
 };
+
+}; // namespace
 
 #endif

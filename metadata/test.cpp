@@ -3,8 +3,8 @@
 int main()
 {
    vector<DataAttr> attr;
-   Semantics::loadSemantics("semantics1.sem", attr);
-   Semantics::display(attr);
+   cb::Semantics::loadSemantics("semantics1.sem", attr);
+   cb::Semantics::display(attr);
 
    return 0;
 }

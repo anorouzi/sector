@@ -30,6 +30,9 @@ written by
 #ifndef __NODE_H__
 #define __NODE_H__
 
+namespace cb
+{
+
 struct Node
 {
    uint32_t m_uiID;
@@ -37,5 +40,7 @@ struct Node
    int32_t m_iPort;
    int32_t m_iAppPort;
 };
+
+}; // namespace
 
 #endif

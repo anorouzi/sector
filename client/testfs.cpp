@@ -1,4 +1,5 @@
 #include <fsclient.h>
+using namespace cb;
 
 int main(int argc, char** argv)
 {

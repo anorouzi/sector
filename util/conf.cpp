@@ -29,7 +29,9 @@ written by
 
 #include "conf.h"
 #include <iostream>
+
 using namespace std;
+using namespace cb;
 
 int ConfParser::init(string path)
 {
@@ -115,8 +117,9 @@ char* ConfParser::getToken(char* str, string& token)
 int SECTORParam::init(const string& path)
 {
    m_strDataDir = "../data/";
-   m_iSECTORPort = 2237;
-   m_iRouterPort = 24673;
+   m_iSECTORPort = 2237;	// CBFS
+   m_iRouterPort = 24673;	// CHORD
+   m_iDataPort = 8386;		// UDTM
 
    ConfParser parser;
    Param param;
@@ -135,6 +138,8 @@ int SECTORParam::init(const string& path)
          m_iSECTORPort = atoi(param.m_strValue.c_str());
       else if ("ROUTER_PORT" == param.m_strName)
          m_iRouterPort = atoi(param.m_strValue.c_str());
+      else if ("DATA_PORT" == param.m_strName)
+         m_iDataPort = atoi(param.m_strValue.c_str());
    }
 
    parser.close();

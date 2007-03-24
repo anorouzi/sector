@@ -35,10 +35,10 @@ written by
    #include <windows.h>
 #endif
 
-#include <prec.h>
 #include <iostream>
+#include <prec.h>
 using namespace std;
-using namespace CodeBlue;
+using namespace cb;
 
 CPeerManagement::CPeerManagement()
 {
