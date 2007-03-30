@@ -58,10 +58,9 @@ public:
    char m_pcName[64];           // unique file name
    uint32_t m_uiID;	        // id
    int64_t m_llTimeStamp;       // time stamp
-   char m_pcType[64];           // file type, data, video, audio, etc
    int32_t m_iAttr;	        // 01: READ	10: WRITE	11: READ&WRITE
 
-   int32_t m_iIsDirectory;	// directory?
+   int32_t m_iType;		// 0: normal	1: cache	2: semantics	
 
    int64_t m_llSize;		// size
 

@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/24/2007
 *****************************************************************************/
 
 #include <server.h>

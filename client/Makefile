@@ -3,9 +3,9 @@ include ../Makefile.common
 CCFLAGS += 
 LDFLAGS += -lclient -lrpc -ludt -lsql -lmeta
 
-OBJS = client.o fsclient.o sqlclient.o
+OBJS = client.o fsclient.o sqlclient.o speclient.o
 
-all: libclient.so libclient.a testfs testsql download upload 
+all: libclient.so libclient.a testfs testsql testspe download upload 
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -21,6 +21,9 @@ testfs: testfs.cpp
 
 testsql: testsql.cpp
 	$(C++) testsql.cpp -o testsql $(CCFLAGS) $(LDFLAGS)
+
+testspe: testspe.cpp
+	$(C++) testspe.cpp -o testspe $(CCFLAGS) $(LDFLAGS)
 
 download: download.cpp
 	$(C++) download.cpp -o download $(CCFLAGS) $(LDFLAGS)

@@ -1,9 +1,9 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lserver -lrouting -lcrypto -lrpc -ludt -lsql -lmeta
+LDFLAGS += -lserver -lrouting -lcrypto -lrpc -ludt -lsql -lmeta -dl
 
-OBJS = server.o file.o sql.o
+OBJS = server.o file.o sql.o spe.o
 
 all: libserver.so libserver.a cbfs
 

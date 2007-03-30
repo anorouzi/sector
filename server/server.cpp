@@ -41,6 +41,7 @@ written by
 #include <data.h>
 #include <sql.h>
 #include <table.h>
+#include <spe.h>
 
 using namespace std;
 using namespace cb;
@@ -63,8 +64,6 @@ int Server::init(char* ip, int port)
    m_GMP.init(m_iLocalPort);
    m_Router.setAppPort(m_iLocalPort);
 
-cout << "CONFIG " << m_iLocalPort << " " << m_SysConfig.m_iRouterPort << endl;
-
    int res;
    if (NULL == ip)
    {
@@ -73,7 +72,7 @@ cout << "CONFIG " << m_iLocalPort << " " << m_SysConfig.m_iRouterPort << endl;
    else
    {
       CCBMsg msg;
-      msg.setType(11); // look up port for the router
+      msg.setType(8); // look up port for the router
       msg.m_iDataLength = 4;
 
       if ((m_GMP.rpc(ip, port, &msg, &msg) < 0) || (msg.getType() < 0))
@@ -88,7 +87,7 @@ cout << "CONFIG " << m_iLocalPort << " " << m_SysConfig.m_iRouterPort << endl;
       return -1;
 
    pthread_t msgserver;
-   pthread_create(&msgserver, NULL, run, this);
+   pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
 
    // ignore TCP broken pipe
@@ -115,7 +114,7 @@ int Server::run()
    return 1;
 }
 
-void* Server::run(void* s)
+void* Server::process(void* s)
 {
    Server* self = (Server*)s;
 
@@ -137,7 +136,7 @@ void* Server::run(void* s)
 
       switch (msg->getType())
       {
-      case 1: // locate file
+         case 1: // locate file
          {
             string filename = msg->getData();
 
@@ -180,7 +179,7 @@ void* Server::run(void* s)
             break;
          }
 
-      case 2: // open file
+         case 2: // open file
          {
             char* filename = msg->getData();
 
@@ -296,9 +295,9 @@ void* Server::run(void* s)
             //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
             break;
-        }
+         }
 
-      case 3: // add a new file
+         case 3: // add a new file
          {
             CFileAttr attr;
             attr.deserialize(msg->getData(), msg->m_iDataLength - 4);
@@ -314,7 +313,7 @@ void* Server::run(void* s)
             break;
          }
 
-      case 4: // lookup a file server
+         case 4: // lookup a file server
          {
             string filename = msg->getData();
             int fid = DHash::hash(filename.c_str(), m_iKeySpace);
@@ -335,7 +334,7 @@ void* Server::run(void* s)
             break;
          }
 
-      case 5: // create a local file
+         case 5: // create a local file
          {
             string filename = msg->getData();
 
@@ -400,7 +399,7 @@ void* Server::run(void* s)
             break;
          }
 
-      case 6: // probe the existence of a file
+         case 6: // probe the existence of a file
          {
             string filename = msg->getData();
 
@@ -413,15 +412,25 @@ void* Server::run(void* s)
             break;
          }
 
-      case 7: // remove file from RemoteFileIndex
+         case 7: // remove file from RemoteFileIndex
          {
             self->m_RemoteFile.remove(msg->getData());
             msg->m_iDataLength = 4;
 
+            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
-      case 200: // open a SQL connection
+         case 8: // server join request router port number
+         {
+            *(int*)(msg->getData()) = self->m_SysConfig.m_iRouterPort;
+            msg->m_iDataLength = 4 + 4;
+
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 200: // open a SQL connection
          {
             char* filename = msg->getData();
 
@@ -501,7 +510,75 @@ void* Server::run(void* s)
             break; 
          }
 
-      default:
+
+         case 300: // processing engine
+         {
+            SPE spe;
+            spe.m_strDataFile = msg->getData();
+            spe.m_strOperator = msg->getData() + 64;
+            spe.m_uiID = *(int32_t*)(msg->getData() + 128);
+            spe.m_llOffset = *(int64_t*)(msg->getData() + 132);
+            spe.m_llSize = *(int64_t*)(msg->getData() + 140);
+            spe.m_iUnitSize = *(int32_t*)(msg->getData() + 148);
+            spe.m_iParamSize = *(int32_t*)(msg->getData() + 152);
+            cout << "SPE " << msg->m_iDataLength << " " << spe.m_llOffset << " " << spe.m_llSize << " " << spe.m_iUnitSize << " " << spe.m_iParamSize << endl;
+
+            if (spe.m_iParamSize > 0)
+            {
+               spe.m_pcParam = new char[spe.m_iParamSize];
+               memcpy(spe.m_pcParam, msg->getData() + 156, spe.m_iParamSize);
+            }
+            else
+               spe.m_pcParam = NULL;
+
+            UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
+
+            sockaddr_in my_addr;
+            my_addr.sin_family = AF_INET;
+            my_addr.sin_port = 0;
+            my_addr.sin_addr.s_addr = INADDR_ANY;
+            memset(&(my_addr.sin_zero), '\0', 8);
+
+            if (UDT::ERROR == UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr)))
+            {
+               msg->setType(-msg->getType());
+               msg->m_iDataLength = 4;
+               self->m_GMP.sendto(ip, port, id, msg);
+               break;
+            }
+
+            UDT::listen(u, 1);
+
+            Param4* p = new Param4;
+            p->s = self;
+            p->u = u;
+            p->ip = new char[strlen(ip) + 1];
+            strcpy(p->ip, ip);
+            p->port = port;
+            p->spe = spe;
+
+            cout << "starting SPE ... \n";
+
+            pthread_t spe_handler;
+            pthread_create(&spe_handler, NULL, SPEHandler, p);
+            pthread_detach(spe_handler);
+
+            int size = sizeof(sockaddr_in);
+            UDT::getsockname(u, (sockaddr*)&my_addr, &size);
+
+            msg->setData(0, (char*)&my_addr.sin_port, 4);
+            msg->m_iDataLength = 4 + 4;
+            //cout << "feedback port " << my_addr.sin_port <<endl;
+
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
+
+            break;
+         }
+
+
+         default:
          {
             Param1* p = new Param1;
             p->s = self;
@@ -510,9 +587,9 @@ void* Server::run(void* s)
             p->port = port;
             p->msg = new CCBMsg(*msg);
 
-            pthread_t process_thread;
-            pthread_create(&process_thread, NULL, process, p);
-            pthread_detach(process_thread);
+            pthread_t ex_thread;
+            pthread_create(&ex_thread, NULL, processEx, p);
+            pthread_detach(ex_thread);
 
             break;
          }
@@ -525,7 +602,7 @@ void* Server::run(void* s)
    return NULL;
 }
 
-void* Server::process(void* p)
+void* Server::processEx(void* p)
 {
    Server* self = ((Param1*)p)->s;
    char* ip = ((Param1*)p)->ip;
@@ -537,7 +614,99 @@ void* Server::process(void* p)
 
    switch (msg->getType())
    {
-   case 101: // stat
+      case 11:
+      {
+         string filename = msg->getData();
+
+         //check if file already exists!
+         if (self->m_LocalFile.lookup(filename, NULL) > 0)
+         {
+            msg->setType(-msg->getType());
+            msg->m_iDataLength = 4;
+            break;
+         }
+
+         int fid = DHash::hash(filename.c_str(), m_iKeySpace);
+         Node n;
+         if (- 1 == self->m_Router.lookup(fid, &n))
+         {
+            msg->setType(-msg->getType());
+            msg->m_iDataLength = 4;
+            break;
+         }
+
+         msg->setType(1); // locate file
+         msg->setData(0, filename.c_str(), filename.length() + 1);
+         msg->m_iDataLength = 4 + filename.length() + 1;
+
+         if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
+         {
+            msg->setType(-8);
+            msg->m_iDataLength = 4;
+            break;
+         }
+
+         string ip = msg->getData();
+         int port = *(int32_t*)(msg->getData() + 64);
+
+         int protocol = 1; // UDT
+         int mode = 1; // READ ONLY
+
+         msg->setType(2); // open the file
+         msg->setData(0, filename.c_str(), filename.length() + 1);
+         msg->setData(64, (char*)&protocol, 4);
+         msg->setData(68, (char*)&mode, 4);
+         msg->m_iDataLength = 4 + 64 + 4 + 4;
+
+         if (self->m_GMP.rpc(ip.c_str(), port, msg, msg) < 0)
+         {
+            msg->setType(-8);
+            msg->m_iDataLength = 4;
+            break;
+         }
+
+         msg->setType(-8);
+         msg->m_iDataLength = 4;
+
+         UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
+
+         sockaddr_in serv_addr;
+         serv_addr.sin_family = AF_INET;
+         serv_addr.sin_port = *(int*)(msg->getData()); // port
+         inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr);
+         memset(&(serv_addr.sin_zero), '\0', 8);
+
+         if (UDT::ERROR == UDT::connect(u, (sockaddr*)&serv_addr, sizeof(serv_addr)))
+            break;
+
+         string localfile = self->m_strHomeDir + filename;
+         ofstream ofs;
+         ofs.open(localfile.c_str(), ios::out | ios::binary | ios::trunc);
+         char req[12];
+         *(int32_t*)req = 3; // download
+         *(int64_t*)(req + 4) = 0LL;
+
+         int64_t size;
+         int response = -1;
+
+         if (UDT::send(u, req, 12, 0) < 0)
+            break;
+         if ((UDT::recv(u, (char*)&response, 4, 0) < 0) || (-1 == response))
+            break;
+         if (UDT::recv(u, (char*)&size, 8, 0) < 0)
+            break;
+
+         if (UDT::recvfile(u, ofs, 0, size) < 0)
+            break;
+
+         ofs.close();
+
+         msg->setType(8);
+
+         break;
+      }
+
+      case 101: // stat
       {
          string filename = msg->getData();
          int fid = DHash::hash(filename.c_str(), m_iKeySpace);
@@ -581,7 +750,7 @@ void* Server::process(void* p)
          break;
       }
 
-   case 201: //semantics
+      case 201: //semantics
       {
          string filename = msg->getData();
          int fid = DHash::hash(filename.c_str(), m_iKeySpace);
@@ -639,8 +808,10 @@ void* Server::process(void* p)
          break;
       }
 
-   default:
-      break;
+      default:
+         msg->setType(-msg->getType());
+         msg->m_iDataLength = 4;
+         break;
    }
 
    self->m_GMP.sendto(ip, port, id, msg);

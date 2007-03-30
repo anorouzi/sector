@@ -10,7 +10,11 @@ int main(int argc, char** argv)
    }
    else
    {
-      cba.init(argv[2], atoi(argv[3]));
+      if (cba.init(argv[2], atoi(argv[3])) < 0)
+      {
+         cout << "didn't find existing server on " << argv[2] << endl;
+         return -1;
+      }
    }
 
    cba.run();

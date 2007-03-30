@@ -37,6 +37,7 @@ written by
 #include <conf.h>
 #include <index.h>
 #include <kb.h>
+#include <spe.h>
 
 namespace cb
 {
@@ -81,10 +82,20 @@ private:
       int c;            // connection type
    };
 
-   static void* run(void* s);
-   static void* process(void* p);
+   struct Param4
+   {
+      Server* s;
+      UDTSOCKET u;
+      char* ip;
+      int port;
+      SPE spe;
+   };
+
+   static void* process(void* s);
+   static void* processEx(void* p);
    static void* fileHandler(void* p);
    static void* SQLHandler(void* p);
+   static void* SPEHandler(void* p);
 
 private:
    void updateOutLink();
