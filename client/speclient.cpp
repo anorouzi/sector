@@ -36,18 +36,16 @@ int SPEClient::createJob(STREAM stream, string op, const char* param, const int&
 
    int64_t totalUnits = attr.m_llSize / stream.m_iUnitSize;
 
-cout << "STAT " <<attr.m_llSize << " " << stream.m_iUnitSize << " " << totalUnits << endl;
-
    if (lookup(op + ".so", &no) < 0)
       return -1;
-cout << "step 1 " << (op + ".so") << endl;
+
    msg.setType(1); // locate file
    msg.setData(0, (op + ".so").c_str(), (op + ".so").length() + 1);
    msg.m_iDataLength = 4 + (op + ".so").length() + 1;
 
    if ((m_pGMP->rpc(no.m_pcIP, no.m_iAppPort, &msg, &msg) < 0) || (msg.getType() < 0))
       return -1;
-cout << "step 2\n";
+
    SPE spe;
    int n = (msg.m_iDataLength - 4) / 68;
    int64_t unitsize = totalUnits / n * stream.m_iUnitSize;

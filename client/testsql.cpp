@@ -15,7 +15,11 @@ cout << "connected\n";
    Semantics::display(attr);
 
    Query* q = sqlclient.createQueryHandle();
-   q->open("SELECT * FROM stream.dat;");
+   if (q->open("SELECT * FROM stream.dat;") < 0)
+   {
+      cout << "open failed\n";
+      return -1;
+   }
 
    char res[80];
    int rows = 10;

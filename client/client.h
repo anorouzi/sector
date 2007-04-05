@@ -40,7 +40,6 @@ class Client
 {
 public:
    Client();
-   Client(const int& protocol);
    ~Client();
 
 public:
@@ -55,8 +54,6 @@ protected:
    int m_iServerPort;
 
    CGMP* m_pGMP;
-
-   int m_iProtocol;     // 1 UDT 2 TCP
 };
 
 }; // namespace

@@ -67,9 +67,9 @@ private:
       Server* s;
       string fn;	// filename
       UDTSOCKET u;
-      int t;		// TCP socket
-      int c;		// connection type
       int m;		// file access mode
+      string ip;	// client IP
+      int p;		// client UDT port
    };
 
    struct Param3
@@ -78,8 +78,8 @@ private:
       string fn;        // filename
       string q;		// query
       UDTSOCKET u;
-      int t;            // TCP socket
-      int c;            // connection type
+      string ip;        // client IP
+      int p;            // client UDT port
    };
 
    struct Param4

@@ -32,7 +32,7 @@ upload: upload.cpp
 	$(C++) upload.cpp -o upload $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o *.so *.a testfs testsql download upload
+	rm -f *.o *.so *.a testfs testsql testspe download upload
 
 install:
 	mv libclient.so libclient.a ../lib

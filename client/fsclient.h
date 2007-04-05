@@ -79,10 +79,7 @@ private:
 
    string m_strFileName;
 
-   int m_iProtocol;     // 1 UDT 2 TCP
-
    UDTSOCKET m_uSock;
-   int m_tSock;
 };
 
 }; // namespace

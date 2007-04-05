@@ -44,63 +44,24 @@ void* Server::fileHandler(void* p)
    Server* self = ((Param2*)p)->s;
    string filename = ((Param2*)p)->fn;
    UDTSOCKET u = ((Param2*)p)->u;
-   int t = ((Param2*)p)->t;
-   int conn = ((Param2*)p)->c;
+   string ip = ((Param2*)p)->ip;
+   int port = ((Param2*)p)->p;
    int mode = ((Param2*)p)->m;
    delete (Param2*)p;
 
    int32_t cmd;
    bool run = true;
 
-/*
-   // timed wait on accept!
-   if (1 == conn)
-   {
-      timeval tv;
-      UDT::UDSET readfds;
+   sockaddr_in cli_addr;
+   cli_addr.sin_family = AF_INET;
+   cli_addr.sin_port = port;
+   inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
+   memset(&(cli_addr.sin_zero), '\0', 8);
 
-      tv.tv_sec = 60;
-      tv.tv_usec = 0;
+   cout << "rendezvous connect " << ip << " " << port << endl;
 
-      UD_ZERO(&readfds);
-      UD_SET(u, &readfds);
-
-      int res = UDT::select(0, &readfds, NULL, NULL, &tv);
-
-      if (UDT::ERROR == res)
-         return NULL;
-   }
-   else
-   {
-      timeval tv;
-      fd_set readfds;
-
-      tv.tv_sec = 60;
-      tv.tv_usec = 0;
-
-      FD_ZERO(&readfds);
-      FD_SET(t, &readfds);
-
-      select(t+1, &readfds, NULL, NULL, &tv);
-
-      if (!FD_ISSET(t, &readfds))
-         return NULL;
-   }
-*/
-
-   UDTSOCKET lu = u;
-   int lt = t;
-
-   if (1 == conn)
-   {
-      u = UDT::accept(u, NULL, NULL);
-      UDT::close(lu);
-   }
-   else
-   {
-      t = accept(t, NULL, NULL);
-      ::close(lt);
-   }
+   if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
+      return NULL;
 
 //   self->m_KBase.m_iNumConn ++;
 
@@ -116,16 +77,8 @@ void* Server::fileHandler(void* p)
 
    while (run)
    {
-      if (1 == conn)
-      {
-         if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
-            continue;
-      }
-      else
-      {
-         if (::recv(t, (char*)&cmd, 4, 0) <= 0)
-            continue;
-      }
+      if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
+         continue;
 
       if (4 != cmd)
       {
@@ -137,16 +90,8 @@ void* Server::fileHandler(void* p)
          else
             response = 0;
 
-         if (1 == conn)
-         {
-            if (UDT::send(u, (char*)&response, 4, 0) < 0)
-               continue;
-         }
-         else
-         {
-            if (::send(t, (char*)&response, 4, 0) < 0)
-               continue;
-         }
+         if (UDT::send(u, (char*)&response, 4, 0) < 0)
+            continue;
 
          if (-1 == response)
             continue;
@@ -167,71 +112,11 @@ void* Server::fileHandler(void* p)
 
             ifstream ifs(filename.c_str(), ios::in | ios::binary);
 
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
+            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+               run = false;
 
-               if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
-                  run = false;
-               else
-                  rb += param[1];
-            }
-            else
-            {
-               if (::recv(t, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
-
-               ifs.seekg(param[0]);
-
-               int unit = 10240000;
-               char* data = new char[unit];
-               int ssize = 0;
-
-               while (run && (ssize + unit <= param[1]))
-               {
-                  ifs.read(data, unit);
-
-                  int ts = 0;
-                  while (ts < unit)
-                  {
-                     int ss = ::send(t, data + ts, unit - ts, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-                  ssize += unit;
-               }
-
-               if (ssize < param[1])
-               {
-                  ifs.read(data, param[1] - ssize);
-
-                  int ts = 0;
-                  while (ts < unit)
-                  {
-                     int ss = ::send(t, data + ssize, param[1] - ssize, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-               }
-
-               if (run)
-                  rb += param[1];
-
-               delete [] data;
-            }
+            if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
+               run = false;
 
             ifs.close();
 
@@ -251,49 +136,18 @@ void* Server::fileHandler(void* p)
 
             int64_t param[2];
 
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
+            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+               run = false;
 
-               ofstream ofs;
-               ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
+            ofstream ofs;
+            ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
 
-               if (UDT::recvfile(u, ofs, param[0], param[1]) < 0)
-                  run = false;
-               else
-                  wb += param[1];
-
-               ofs.close();
-            }
+            if (UDT::recvfile(u, ofs, param[0], param[1]) < 0)
+               run = false;
             else
-            {
-               if (::recv(t, (char*)param, 8 * 2, 0) < 0)
-                  run = false;
-
-               char* temp = new char[param[1]];
-               int rs = 0;
-               while (rs < param[1])
-               {
-                  int r = ::recv(t, temp + rs, param[1] - rs, 0);
-                  if (r < 0)
-                  {
-                     run = false;
-                     break;
-                  }
-
-                  rs += r;
-               }
-
-               ofstream ofs;
-               ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-               ofs.seekp(param[0], ios::beg);
-               ofs.write(temp, param[1]);
-               ofs.close();
-
-               delete [] temp;
                wb += param[1];
-            }
+
+            ofs.close();
 
             // UNLOCK
 
@@ -317,89 +171,25 @@ void* Server::fileHandler(void* p)
             size = (int64_t)(ifs.tellg());
             ifs.seekg(0, ios::beg);
 
-            if (1 == conn)
+            if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
             {
-               if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               size -= offset;
-
-               if (UDT::send(u, (char*)&size, 8, 0) < 0)
-               {
-                  run = false;
-                  ifs.close();
-                  break;
-               }
-
-               if (UDT::sendfile(u, ifs, offset, size) < 0)
-                  run = false;
-               else
-                  rb += size;
+               run = false;
+               break;
             }
+
+            size -= offset;
+
+            if (UDT::send(u, (char*)&size, 8, 0) < 0)
+            {
+               run = false;
+               ifs.close();
+               break;
+            }
+
+            if (UDT::sendfile(u, ifs, offset, size) < 0)
+               run = false;
             else
-            {
-               if (::recv(t, (char*)&offset, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               size -= offset;
-
-               if (::send(t, (char*)&size, 8, 0) < 0)
-                  run = false;
-
-               int unit = 10240000;
-               char* data = new char[unit];
-               int ssize = 0;
-
-               while (run && (ssize + unit <= size))
-               {
-                  ifs.read(data, unit);
-
-                  int ts = 0;
-                  while (ts < unit)
-                  {
-                     int ss = ::send(t, data + ts, unit - ts, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-                  ssize += unit;
-               }
-
-               if (ssize < size)
-               {
-                  ifs.read(data, size - ssize);
-
-                  int ts = 0;
-                  while (ts < size - ssize)
-                  {
-                     int ss = ::send(t, data + ssize, size - ssize, 0);
-                     if (ss < 0)
-                     {
-                        run = false;
-                        break;
-                     }
-
-                     ts += ss;
-                  }
-
-               }
-
-               delete [] data;
-
-               if (run)
-                  rb += size;
-            }
+               rb += size;
 
             ifs.close();
 
@@ -422,58 +212,16 @@ void* Server::fileHandler(void* p)
 
             ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
 
-            if (1 == conn)
+            if (UDT::recv(u, (char*)&size, 8, 0) < 0)
             {
-               //if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
-               //{
-               //   run = false;
-               //   break;
-               //}
-               //offset = 0;
-
-               if (UDT::recv(u, (char*)&size, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               if (UDT::recvfile(u, ofs, offset, size) < 0)
-                  run = false;
-               else
-                  wb += size;
+               run = false;
+               break;
             }
+
+            if (UDT::recvfile(u, ofs, offset, size) < 0)
+               run = false;
             else
-            {
-               if (::recv(t, (char*)&size, 8, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               const int unit = 1024000;
-               char* data = new char [unit];
-               int64_t rsize = 0;
-
-               while (rsize < size)
-               {
-                  int rs = ::recv(t, data, (unit < size - rsize) ? unit : size - rsize, 0);
-
-                  if (rs < 0)
-                  {
-                     run = false;
-                     break;
-                  }
-
-                  ofs.write(data, rs);
-
-                  rsize += rs;
-               }
-
-               delete [] data;
-
-               if (run)
-                  rb += size;
-            }
+               wb += size;
 
             ofs.close();
 
@@ -500,22 +248,9 @@ void* Server::fileHandler(void* p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   sockaddr_in addr;
-   int addrlen = sizeof(addr);
-   if (1 == conn)
-      UDT::getpeername(u, (sockaddr*)&addr, &addrlen);
-   else
-      getpeername(t, (sockaddr*)&addr, (socklen_t*)&addrlen);
-   char ip[64];
-   inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
-   int port = ntohs(addr.sin_port);
-   
-   self->m_PerfLog.insert(ip, port, filename.c_str(), duration, avgRS, avgWS);
+   self->m_PerfLog.insert(ip.c_str(), port, filename.c_str(), duration, avgRS, avgWS);
 
-   if (1 == conn)
-      UDT::close(u);
-   else
-      close(t);
+   UDT::close(u);
 
 //   self->m_KBase.m_iNumConn --;
 

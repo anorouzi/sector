@@ -30,14 +30,7 @@ written by
 #include "client.h"
 using namespace cb;
 
-Client::Client():
-m_iProtocol(1)
-{
-   m_pGMP = new CGMP;
-}
-
-Client::Client(const int& protocol):
-m_iProtocol(protocol)
+Client::Client()
 {
    m_pGMP = new CGMP;
 }

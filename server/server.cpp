@@ -149,19 +149,6 @@ void* Server::process(void* s)
             }
             else
             {
-               /*
-               int r = (int)(filelist.size() * rand() / double(RAND_MAX));
-               set<CFileAttr, CAttrComp>::iterator i = filelist.begin();
-               for (int j = 0; j < r; ++ j)
-                  ++ i;
-
-               msg->setData(0, i->m_pcHost, strlen(i->m_pcHost) + 1);
-               msg->setData(64, (char*)(&i->m_iPort), 4);
-               msg->m_iDataLength = 4 + 64 + 4;
-
-               cout << "locate " << filename << " " << filelist.size() << " " << i->m_pcHost << " " << i->m_iPort << endl;
-               */
-
                // feedback all copies of the requested file
                int num = 0;
                for (set<CFileAttr, CAttrComp>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
@@ -183,8 +170,7 @@ void* Server::process(void* s)
          {
             char* filename = msg->getData();
 
-            int conn = *(int*)(msg->getData() + 64);
-            int mode = *(int*)(msg->getData() + 68);
+            int mode = *(int*)(msg->getData() + 64);
             char cert[1024];
             if (msg->m_iDataLength > 4 + 64 + 4 + 4)
                strcpy(cert, msg->getData() + 72);
@@ -234,13 +220,7 @@ void* Server::process(void* s)
 
             cout << "===> start file server " << ip << " " << port << endl;
 
-            UDTSOCKET u;
-            int t;
-
-            if (1 == conn)
-               u = UDT::socket(AF_INET, SOCK_STREAM, 0);
-            else
-               t = socket(AF_INET, SOCK_STREAM, 0);
+            UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);;
 
             sockaddr_in my_addr;
             my_addr.sin_family = AF_INET;
@@ -248,13 +228,7 @@ void* Server::process(void* s)
             my_addr.sin_addr.s_addr = INADDR_ANY;
             memset(&(my_addr.sin_zero), '\0', 8);
 
-            int res;
-            if (1 == conn)
-               res = UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr));
-            else
-               res = bind(t, (sockaddr*)&my_addr, sizeof(my_addr));
-
-            if (((1 == conn) && (UDT::ERROR == res)) || ((2 == conn) && (-1 == res)))
+            if (UDT::ERROR == UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr)))
             {
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;
@@ -263,17 +237,15 @@ void* Server::process(void* s)
                break;
             }
 
-            if (1 == conn)
-               UDT::listen(u, 1);
-            else
-               listen(t, 1);
+            int rendezvous = 1;
+            UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, 4);
 
             Param2* p = new Param2;
             p->s = self;
             p->fn = msg->getData();
             p->u = u;
-            p->t = t;
-            p->c = conn;
+            p->ip = ip;
+            p->p = *(int*)(msg->getData() + 68);
             p->m = mode;
 
             pthread_t file_handler;
@@ -281,10 +253,7 @@ void* Server::process(void* s)
             pthread_detach(file_handler);
 
             int size = sizeof(sockaddr_in);
-            if (1 == conn)
-               UDT::getsockname(u, (sockaddr*)&my_addr, &size);
-            else
-               getsockname(t, (sockaddr*)&my_addr, (socklen_t*)&size);
+            UDT::getsockname(u, (sockaddr*)&my_addr, &size);
 
             msg->setData(0, (char*)&my_addr.sin_port, 4);
             msg->m_iDataLength = 4 + 4;
@@ -432,7 +401,9 @@ void* Server::process(void* s)
 
          case 200: // open a SQL connection
          {
-            char* filename = msg->getData();
+            char* filename = msg->getData() + 4;
+
+            cout << "retrieving table " << filename << endl;
 
             set<CFileAttr, CAttrComp> filelist;
             if (self->m_LocalFile.lookup(filename, &filelist) < 0)
@@ -447,14 +418,7 @@ void* Server::process(void* s)
 
             cout << "===> start SQL server " << endl;
 
-            UDTSOCKET u;
-            int t;
-
-            int conn = *(int*)(msg->getData() + 64);
-            if (1 == conn)
-               u = UDT::socket(AF_INET, SOCK_STREAM, 0);
-            else
-               t = socket(AF_INET, SOCK_STREAM, 0);
+            UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
             sockaddr_in my_addr;
             my_addr.sin_family = AF_INET;
@@ -462,13 +426,7 @@ void* Server::process(void* s)
             my_addr.sin_addr.s_addr = INADDR_ANY;
             memset(&(my_addr.sin_zero), '\0', 8);
 
-            int res;
-            if (1 == conn)
-               res = UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr));
-            else
-               res = bind(t, (sockaddr*)&my_addr, sizeof(my_addr));
-
-            if (((1 == conn) && (UDT::ERROR == res)) || ((2 == conn) && (-1 == res)))
+            if (UDT::ERROR == UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr)))
             {
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;
@@ -476,28 +434,23 @@ void* Server::process(void* s)
                break;
             }
 
-            if (1 == conn)
-               UDT::listen(u, 1);
-            else
-               listen(t, 1);
+            int rendezvous = 1;
+            UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, 4);
 
             Param3* p = new Param3;
             p->s = self;
-            p->fn = msg->getData();
-            p->q = msg->getData() + 64 + 4;
+            p->fn = msg->getData() + 4;
+            p->q = msg->getData() + 68;
             p->u = u;
-            p->t = t;
-            p->c = conn;
+            p->ip = ip;
+            p->p = *(int*)(msg->getData());
 
             pthread_t sql_handler;
             pthread_create(&sql_handler, NULL, SQLHandler, p);
             pthread_detach(sql_handler);
 
             int size = sizeof(sockaddr_in);
-            if (1 == conn)
-               UDT::getsockname(u, (sockaddr*)&my_addr, &size);
-            else
-               getsockname(t, (sockaddr*)&my_addr, (socklen_t*)&size);
+            UDT::getsockname(u, (sockaddr*)&my_addr, &size);
 
             msg->setData(0, (char*)&my_addr.sin_port, 4);
             msg->m_iDataLength = 4 + 4;
@@ -649,13 +602,11 @@ void* Server::processEx(void* p)
          string ip = msg->getData();
          int port = *(int32_t*)(msg->getData() + 64);
 
-         int protocol = 1; // UDT
          int mode = 1; // READ ONLY
 
          msg->setType(2); // open the file
          msg->setData(0, filename.c_str(), filename.length() + 1);
-         msg->setData(64, (char*)&protocol, 4);
-         msg->setData(68, (char*)&mode, 4);
+         msg->setData(64, (char*)&mode, 4);
          msg->m_iDataLength = 4 + 64 + 4 + 4;
 
          if (self->m_GMP.rpc(ip.c_str(), port, msg, msg) < 0)
@@ -913,6 +864,10 @@ void Server::updateInLink()
 
       if (i->second.size() == 0)
          m_RemoteFile.remove(i->first);
+      else if (i->second.size() < 2)
+      {
+         // less than 2 copies in the system, create a new one
+      }
    }
 }
 

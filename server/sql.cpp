@@ -38,11 +38,22 @@ void* Server::SQLHandler(void* p)
    string filename = self->m_strHomeDir + ((Param3*)p)->fn;
    string query = ((Param3*)p)->q;
    UDTSOCKET u = ((Param3*)p)->u;
-   int t = ((Param3*)p)->t;
-   int conn = ((Param3*)p)->c;
+   string ip = ((Param3*)p)->ip;
+   int port = ((Param3*)p)->p;
    delete (Param3*)p;
 
-//cout << "handling " << filename << endl;
+   sockaddr_in cli_addr;
+   cli_addr.sin_family = AF_INET;
+   cli_addr.sin_port = port;
+   inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
+   memset(&(cli_addr.sin_zero), '\0', 8);
+
+   cout << "rendezvous connect " << ip << " " << port << endl;
+
+   if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
+      return NULL;
+
+   cout << "run sql " << query << endl;
 
    SQLExpr sql;
    SQLParser::parse(query, sql);
@@ -59,32 +70,10 @@ void* Server::SQLHandler(void* p)
    int32_t cmd;
    bool run = true;
 
-   UDTSOCKET lu = u;
-   int lt = t;
-
-   if (1 == conn)
-   {
-      u = UDT::accept(u, NULL, NULL);
-      UDT::close(lu);
-   }
-   else
-   {
-      t = accept(t, NULL, NULL);
-      ::close(lt);
-   }
-
    while (run)
    {
-      if (1 == conn)
-      {
-         if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
-            continue;
-      }
-      else
-      {
-         if (::recv(t, (char*)&cmd, 4, 0) <= 0)
-            continue;
-      }
+      if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
+         continue;
 
       switch (cmd)
       {
@@ -92,16 +81,8 @@ void* Server::SQLHandler(void* p)
          {
             int numOfRows;
 
-            if (1 == conn)
-            {
-               if (UDT::recv(u, (char*)&numOfRows, 4, 0) < 0)
-                  continue;
-            }
-            else
-            {
-               if (::recv(t, (char*)&numOfRows, 4, 0) <= 0)
-                  continue;
-            }
+            if (UDT::recv(u, (char*)&numOfRows, 4, 0) < 0)
+               continue;
 
             char* buf = new char[4096 * numOfRows];
             int size = 0;
@@ -130,51 +111,21 @@ void* Server::SQLHandler(void* p)
                }
             }
 
-            if (1 == conn)
+            if (UDT::send(u, (char*)&rows, 4, 0) < 0)
             {
-               if (UDT::send(u, (char*)&rows, 4, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-               if (UDT::send(u, (char*)&size, 4, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               cout << "sening out size " << rows << " " << size << endl;
-               int h;
-               if (UDT::send(u, buf, size, 0, &h) < 0)
-                  run = false;
+               run = false;
+               break;
             }
-            else
+            if (UDT::send(u, (char*)&size, 4, 0) < 0)
             {
-               if (::send(u, (char*)&rows, 4, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-               if (::send(u, (char*)&size, 4, 0) < 0)
-               {
-                  run = false;
-                  break;
-               }
-
-               int unit = 1460;
-               int ts = 0;
-               while (size > 0)
-               {
-                  int ss = ::send(t, buf + ts, (size > unit) ? unit : size, 0);
-                  if (ss < 0)
-                  {
-                     run = false;
-                     break;
-                  }
-                  size -= ss;
-                  ts += ss;
-               }
+               run = false;
+               break;
             }
+
+            cout << "sening out size " << rows << " " << size << endl;
+            int h;
+            if (UDT::send(u, buf, size, 0, &h) < 0)
+               run = false;
 
             break;
         }
@@ -189,4 +140,3 @@ void* Server::SQLHandler(void* p)
 
    return NULL;
 }
-

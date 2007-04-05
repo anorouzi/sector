@@ -47,7 +47,6 @@ Query* SQLClient::createQueryHandle()
    }
 
    q->m_pSQLClient = this;
-   q->m_iProtocol = m_iProtocol;
 
    return q;
 }
@@ -141,26 +140,33 @@ cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_
       return -1;
    }
 
-   msg.setType(200); // open the file
-   msg.setData(0, table.c_str(), table.length() + 1);
-   msg.setData(64, (char*)&m_iProtocol, 4);
-   msg.setData(68, query.c_str(), query.length() + 1);
-   msg.m_iDataLength = 4 + 64 + 4 + query.length() + 1;
 
+   m_uSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
+
+   sockaddr_in my_addr;
+   my_addr.sin_family = AF_INET;
+   my_addr.sin_port = 0;
+   my_addr.sin_addr.s_addr = INADDR_ANY;
+   memset(&(my_addr.sin_zero), '\0', 8);
+   UDT::bind(m_uSock, (sockaddr*)&my_addr, sizeof(my_addr));
+   int size = sizeof(sockaddr_in);
+   UDT::getsockname(m_uSock, (sockaddr*)&my_addr, &size);
+
+   msg.setType(200); // submit sql request
+   msg.setData(0, (char*)&(my_addr.sin_port), 4);
+   msg.setData(4, table.c_str(), table.length() + 1);
+   msg.setData(68, query.c_str(), query.length() + 1);
+   msg.m_iDataLength = 4 + 4 + 64 + query.length() + 1;
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
 
-   if (1 == m_iProtocol)
-   {
-      m_uSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
+   #ifdef WIN32
+      int mtu = 1052;
+      UDT::setsockopt(m_uSock, 0, UDT_MSS, &mtu, sizeof(int));
+   #endif
 
-      #ifdef WIN32
-         int mtu = 1052;
-         UDT::setsockopt(m_uSock, 0, UDT_MSS, &mtu, sizeof(int));
-      #endif
-   }
-   else
-      m_tSock = ::socket(AF_INET, SOCK_STREAM, 0);
+   int rendezvous = 1;
+   UDT::setsockopt(m_uSock, 0, UDT_RENDEZVOUS, &rendezvous, 4);
 
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
@@ -172,16 +178,10 @@ cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_
    #endif
       memset(&(serv_addr.sin_zero), '\0', 8);
 
-   if (1 == m_iProtocol)
-   {
-      if (UDT::ERROR == UDT::connect(m_uSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-         return -1;
-   }
-   else
-   {
-      if (-1 == ::connect(m_tSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-         return -1;
-   }
+   cout << "connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;
+
+   if (UDT::ERROR == UDT::connect(m_uSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
+      return -1;
 
    m_strQuery = query;
 
@@ -192,20 +192,10 @@ int Query::close()
 {
    int32_t cmd = 2; // close
 
-   if (1 == m_iProtocol)
-   {
-      if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
-         return -1;
+   if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+      return -1;
 
-      UDT::close(m_uSock);
-   }
-   else
-   {
-      if (::send(m_tSock, (char*)&cmd, 4, 0) < 0)
-         return -1;
-
-      closesocket(m_tSock);
-   }
+   UDT::close(m_uSock);
 
    return 1;
 }
@@ -216,39 +206,17 @@ int Query::fetch(char* res, int& rows, int& size)
    *(int32_t*)req = 1; // fetch (more) records
    *(int32_t*)(req + 4) = rows;
 
-   if (1 == m_iProtocol)
-   {
-      if (UDT::send(m_uSock, req, 8, 0) < 0)
-         return -1;
-      if ((UDT::recv(m_uSock, (char*)&rows, 4, 0) < 0) || (-1 == rows))
-         return -1;
-      if ((UDT::recv(m_uSock, (char*)&size, 4, 0) < 0) || (-1 == size))
-         return -1;
+   if (UDT::send(m_uSock, req, 8, 0) < 0)
+      return -1;
+   if ((UDT::recv(m_uSock, (char*)&rows, 4, 0) < 0) || (-1 == rows))
+      return -1;
+   if ((UDT::recv(m_uSock, (char*)&size, 4, 0) < 0) || (-1 == size))
+      return -1;
 
-      int h;
-      cout << "to recv " << rows << " " << size << endl;
-      if (UDT::recv(m_uSock, res, size, 0, &h) < 0)
-         return -1;
-   }
-   else
-   {
-      if (::send(m_tSock, req, 8, 0) < 0)
-         return -1;
-      if ((::recv(m_tSock, (char*)&rows, 4, 0) < 0) || (-1 == rows))
-         return -1;
-      if ((::recv(m_tSock, (char*)&size, 4, 0) < 0) || (-1 == size))
-         return -1;
-
-      int64_t rs = 0;
-      while (rs < size)
-      {
-         int r = ::recv(m_tSock, res, size, 0);
-         if (r < 0)
-            return -1;
-
-         rs += r;
-      }
-   }
+   int h;
+   cout << "to recv " << rows << " " << size << endl;
+   if (UDT::recv(m_uSock, res, size, 0, &h) < 0)
+      return -1;
 
    return size;
 }
