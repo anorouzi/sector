@@ -86,9 +86,10 @@ private:
    {
       Server* s;
       UDTSOCKET u;
-      char* ip;
+      string ip;
       int port;
       SPE spe;
+      int p;
    };
 
    static void* process(void* s);

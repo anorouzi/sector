@@ -36,24 +36,29 @@ void* Server::SPEHandler(void* p)
 {
    Server* self = ((Param4*)p)->s;
    UDTSOCKET u = ((Param4*)p)->u;
-   char* ip = ((Param4*)p)->ip;
+   string ip = ((Param4*)p)->ip;
    int port = ((Param4*)p)->port;
+   int uport = ((Param4*)p)->p;
    SPE spe = ((Param4*)p)->spe;
    delete (Param4*)p;
    CCBMsg msg;
 
-   UDTSOCKET lu = u;
+   sockaddr_in cli_addr;
+   cli_addr.sin_family = AF_INET;
+   cli_addr.sin_port = uport;
+   inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
+   memset(&(cli_addr.sin_zero), '\0', 8);
 
-   u = UDT::accept(u, NULL, NULL);
-   UDT::close(lu);
+   cout << "rendezvous connect " << ip << " " << port << endl;
+
+   if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
+      return NULL;
 
    timeval t1, t2;
    gettimeofday(&t1, 0);
 
-
    int size = spe.m_llSize;
    char* block = new char[size];
-   
 
    //check if file already exists!
    if (self->m_LocalFile.lookup(spe.m_strDataFile.c_str(), NULL) > 0)
@@ -83,13 +88,25 @@ cout << "read data into block...\n";
       string srcip = msg.getData();
       int srcport = *(int32_t*)(msg.getData() + 64);
 
-      int protocol = 1; // UDT
       int mode = 1; // READ ONLY
+
+      UDTSOCKET fu = UDT::socket(AF_INET, SOCK_STREAM, 0);
+
+      sockaddr_in my_addr;
+      my_addr.sin_family = AF_INET;
+      my_addr.sin_port = 0;
+      my_addr.sin_addr.s_addr = INADDR_ANY;
+      memset(&(my_addr.sin_zero), '\0', 8);
+
+      UDT::bind(fu, (sockaddr*)&my_addr, sizeof(my_addr));
+
+      int size = sizeof(sockaddr_in);
+      UDT::getsockname(u, (sockaddr*)&my_addr, &size);
 
       msg.setType(2); // open the file
       msg.setData(0, spe.m_strDataFile.c_str(), spe.m_strDataFile.length() + 1);
-      msg.setData(64, (char*)&protocol, 4);
-      msg.setData(68, (char*)&mode, 4);
+      msg.setData(64, (char*)&mode, 4);
+      msg.setData(68, (char*)&my_addr.sin_port, 4);
       msg.m_iDataLength = 4 + 64 + 4 + 4;
 
       if (self->m_GMP.rpc(srcip.c_str(), srcport, &msg, &msg) < 0)
@@ -98,7 +115,8 @@ cout << "read data into block...\n";
       msg.setType(-8);
       msg.m_iDataLength = 4;
 
-      UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
+      int rendezvous = 1;
+      UDT::setsockopt(fu, 0, UDT_RENDEZVOUS, &rendezvous, 4);
 
       sockaddr_in serv_addr;
       serv_addr.sin_family = AF_INET;
@@ -106,12 +124,18 @@ cout << "read data into block...\n";
       inet_pton(AF_INET, srcip.c_str(), &serv_addr.sin_addr);
       memset(&(serv_addr.sin_zero), '\0', 8);
 
-      if (UDT::ERROR == UDT::connect(u, (sockaddr*)&serv_addr, sizeof(serv_addr)))
+      if (UDT::ERROR == UDT::connect(fu, (sockaddr*)&serv_addr, sizeof(serv_addr)))
          return NULL;
 
       int h;
-      if (UDT::ERROR == UDT::recv(u, block, size, 0, &h))
+      if (UDT::ERROR == UDT::recv(fu, block, size, 0, &h))
          return NULL;
+
+      int32_t cmd = 4;
+      if (UDT::ERROR == UDT::send(fu, (char*)&cmd, 4, 0))
+         return NULL;
+
+      UDT::close(fu);
    }
 
 
@@ -149,7 +173,7 @@ cout << "process found~\n";
    msg.setData(0, (char*)&(spe.m_uiID), 4);
    msg.setData(4, (char*)&rsize, 4);
    msg.m_iDataLength = 4 + 8;
-   if (self->m_GMP.rpc(ip, port, &msg, &msg) < 0)
+   if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
       return NULL;
 
 cout << "sending data back... " << rsize << endl;
@@ -168,7 +192,6 @@ cout << "sending data back... " << rsize << endl;
    delete [] block;
    delete [] res;
 
-   delete [] ip;
    if (NULL != spe.m_pcParam)
       delete [] spe.m_pcParam;
 

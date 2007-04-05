@@ -11,15 +11,16 @@ int main(int argc, char** argv)
    s.m_strDataFile = "stream.dat";
    s.m_iUnitSize = 8;
 
-   sc.createJob(s, "myProc");
+   Process* myproc = sc.createJob();
 
-   sc.run();
+   myproc->open(s, "myProc");
+   myproc->run();
 
    while (true)
    {
       char* res;
       int size;
-      if ((-1 == sc.read(res, size)) || (0 == size))
+      if ((-1 == myproc->read(res, size)) || (0 == size))
          break;
 
       cout << "read one block " << size << endl;
@@ -28,7 +29,8 @@ int main(int argc, char** argv)
          cout << *(int*)(res + i) << endl;
    }
 
-   sc.releaseJob();
+   myproc->close();
+   sc.releaseJob(myproc);
 
    return 0;
 }

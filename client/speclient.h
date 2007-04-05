@@ -18,12 +18,24 @@ struct STREAM
 
 class SPEClient: public Client
 {
-public:
-   SPEClient();
-   ~SPEClient();
+friend class Process;
 
-   int createJob(STREAM stream, string op, const char* param = NULL, const int& size = 0);
-   int releaseJob();
+public:
+   Process* createJob();
+   int releaseJob(Process* proc);
+};
+
+class Process
+{
+friend class SPEClient;
+
+public:
+   Process();
+   ~Process();
+
+   int open(STREAM stream, string op, const char* param = NULL, const int& size = 0);
+   int close();
+
    int run();
    int read(char*& data, int& size);
 
@@ -33,15 +45,19 @@ private:
 private:
    vector<SPE> m_vSPE;
 
-private:
    struct Result
    {
       char* m_pcRes;
       int m_iSize;
    };
    vector<Result> m_vResult;
+
    pthread_mutex_t m_ResLock;
    pthread_cond_t m_ResCond;
+
+   CGMP m_GMP;
+
+   SPEClient* m_pSPEClient;
 };
 
 #endif

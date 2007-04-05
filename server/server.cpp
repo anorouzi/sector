@@ -479,7 +479,7 @@ void* Server::process(void* s)
             if (spe.m_iParamSize > 0)
             {
                spe.m_pcParam = new char[spe.m_iParamSize];
-               memcpy(spe.m_pcParam, msg->getData() + 156, spe.m_iParamSize);
+               memcpy(spe.m_pcParam, msg->getData() + 160, spe.m_iParamSize);
             }
             else
                spe.m_pcParam = NULL;
@@ -500,15 +500,16 @@ void* Server::process(void* s)
                break;
             }
 
-            UDT::listen(u, 1);
+            int rendezvous = 1;
+            UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, 4);
 
             Param4* p = new Param4;
             p->s = self;
             p->u = u;
-            p->ip = new char[strlen(ip) + 1];
-            strcpy(p->ip, ip);
+            p->ip = ip;
             p->port = port;
             p->spe = spe;
+            p->p = *(int32_t*)(msg->getData() + 156);
 
             cout << "starting SPE ... \n";
 
