@@ -37,7 +37,7 @@ const int CRouting::m_iRouterPort = 24673;      //chord
 
 CRouting::CRouting():
 m_iAppPort(0),
-m_iKeySpace(16)
+m_iKeySpace(32)
 {
    m_pGMP = new CGMP;
 

@@ -59,7 +59,13 @@ public:
 
       SHA1((const unsigned char*)str, strlen(str), res);
 
-      return (*(unsigned int*)(res + SHA_DIGEST_LENGTH - 4)) & (int(pow(2, double(m))) - 1);
+      if (m >= 32)
+         return *(unsigned int*)(res + SHA_DIGEST_LENGTH - 4);
+
+      unsigned int mask = 1;
+      mask = (mask << m) - 1;
+
+      return (*(unsigned int*)(res + SHA_DIGEST_LENGTH - 4)) & mask;
    }
 
 private:

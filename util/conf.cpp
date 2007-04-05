@@ -134,6 +134,8 @@ int SECTORParam::init(const string& path)
    {
       if ("DATADIR" == param.m_strName)
          m_strDataDir = param.m_strValue;
+      else if ("MAXDATASIZE" == param.m_strName)
+         m_llMaxDataSize = atoll(param.m_strValue.c_str());
       else if ("SECTOR_PORT" == param.m_strName)
          m_iSECTORPort = atoi(param.m_strValue.c_str());
       else if ("ROUTER_PORT" == param.m_strName)

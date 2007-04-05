@@ -570,7 +570,7 @@ void* Server::processEx(void* p)
    {
       case 11:
       {
-         string filename = msg->getData();
+         string filename = msg->getData() + 8;
 
          //check if file already exists!
          if (self->m_LocalFile.lookup(filename, NULL) > 0)
@@ -580,9 +580,16 @@ void* Server::processEx(void* p)
             break;
          }
 
+         if (*(int*)msg->getData() > self->m_SysConfig.m_llMaxDataSize - KnowledgeBase::getTotalDataSize(self->m_SysConfig.m_strDataDir))
+         {
+            msg->setType(-msg->getType());
+            msg->m_iDataLength = 4;
+            break;
+         }
+
          int fid = DHash::hash(filename.c_str(), m_iKeySpace);
          Node n;
-         if (- 1 == self->m_Router.lookup(fid, &n))
+         if (-1 == self->m_Router.lookup(fid, &n))
          {
             msg->setType(-msg->getType());
             msg->m_iDataLength = 4;
@@ -595,7 +602,7 @@ void* Server::processEx(void* p)
 
          if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
          {
-            msg->setType(-8);
+            msg->setType(-11);
             msg->m_iDataLength = 4;
             break;
          }
@@ -603,24 +610,37 @@ void* Server::processEx(void* p)
          string ip = msg->getData();
          int port = *(int32_t*)(msg->getData() + 64);
 
-         int mode = 1; // READ ONLY
 
+         UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
+
+         sockaddr_in my_addr;
+         my_addr.sin_family = AF_INET;
+         my_addr.sin_port = 0;
+         my_addr.sin_addr.s_addr = INADDR_ANY;
+         memset(&(my_addr.sin_zero), '\0', 8);
+         UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr));
+         int addrsize = sizeof(sockaddr_in);
+         UDT::getsockname(u, (sockaddr*)&my_addr, &addrsize);
+
+         int mode = 1; // READ ONLY
          msg->setType(2); // open the file
          msg->setData(0, filename.c_str(), filename.length() + 1);
          msg->setData(64, (char*)&mode, 4);
+         msg->setData(68, (char*)&(my_addr.sin_port), 4);
          msg->m_iDataLength = 4 + 64 + 4 + 4;
 
          if (self->m_GMP.rpc(ip.c_str(), port, msg, msg) < 0)
          {
-            msg->setType(-8);
+            msg->setType(-11);
             msg->m_iDataLength = 4;
             break;
          }
 
-         msg->setType(-8);
+         msg->setType(-11);
          msg->m_iDataLength = 4;
 
-         UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
+         bool rendezvous = 1;
+         UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
 
          sockaddr_in serv_addr;
          serv_addr.sin_family = AF_INET;
@@ -653,7 +673,11 @@ void* Server::processEx(void* p)
 
          ofs.close();
 
-         msg->setType(8);
+         int32_t cmd = 4; // terminate the data connection
+         UDT::send(u, (char*)&cmd, 4, 0);
+         UDT::close(u);
+
+         msg->setType(11);
 
          break;
       }
@@ -868,6 +892,16 @@ void Server::updateInLink()
       else if (i->second.size() < 2)
       {
          // less than 2 copies in the system, create a new one
+         int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
+         Node n;
+         m_Router.lookup(seed, &n);
+
+         msg.setType(11);
+         msg.setData(0, (char*)&(i->second.begin()->m_llSize), 8);
+         msg.setData(8, i->second.begin()->m_pcName, strlen(i->second.begin()->m_pcName) + 1);
+         msg.m_iDataLength = 4 + 8 + strlen(i->second.begin()->m_pcName) + 1;
+
+         m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg);
       }
    }
 }

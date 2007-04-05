@@ -30,6 +30,11 @@ written by
 #ifndef __KNOWLEDGE_BASE_H__
 #define __KNOWLEDGE_BASE_H__
 
+#include <sys/types.h>
+#include <string>
+
+using namespace std;
+
 namespace cb
 {
 
@@ -44,6 +49,8 @@ public:
 public:
    int init();
    int refresh();
+
+   static int64_t getTotalDataSize(const string& path);
 
 public:
    int m_iNumConn;

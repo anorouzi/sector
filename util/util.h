@@ -63,8 +63,6 @@ namespace cb
 
 #endif
 
-enum PROTOCOL {PUDT, PTCP};
-
 class Time
 {
 public:
@@ -80,10 +78,6 @@ public:
    static void releaseCond(pthread_cond_t& cond);
    static void enterCS(pthread_mutex_t& mutex);
    static void leaveCS(pthread_mutex_t& mutex);
-};
-
-class Guard
-{
 };
 
 }; //namespace 

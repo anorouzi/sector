@@ -177,8 +177,8 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
       UDT::setsockopt(m_uSock, 0, UDT_MSS, &mtu, sizeof(int));
    #endif
 
-   int rendezvous = 1;
-   UDT::setsockopt(m_uSock, 0, UDT_RENDEZVOUS, &rendezvous, 4);
+   bool rendezvous = 1;
+   UDT::setsockopt(m_uSock, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
 
 cout << "rendezvous connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;
 

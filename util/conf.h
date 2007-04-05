@@ -65,6 +65,8 @@ public:
 
 public:
    string m_strDataDir;		// DATADIR
+   int64_t m_llMaxDataSize;	// maximum disk space for sector to store its data
+
    int m_iSECTORPort;		// SECTOR_PORT
    int m_iRouterPort;		// ROUTER_PORT
    int m_iDataPort;		// DATA_PORT

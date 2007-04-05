@@ -28,6 +28,7 @@ written by
 
 
 #include <kb.h>
+#include <sys/stat.h>
 
 using namespace cb;
 
@@ -41,4 +42,13 @@ int KnowledgeBase::refresh()
    //using snmp ??
 
    return 0;
+}
+
+int64_t KnowledgeBase::getTotalDataSize(const string& path)
+{
+   struct stat64 pathinfo;
+
+   stat64(path.c_str(), &pathinfo);
+
+   return pathinfo.st_size;
 }

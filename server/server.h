@@ -103,6 +103,7 @@ private:
    void updateInLink();
 
    int initLocalFile();
+   void updateLocalFile();
 
 private:
    CRouting m_Router;
@@ -115,7 +116,7 @@ private:
    string m_strLocalHost;
    int m_iLocalPort;
 
-   static const int m_iKeySpace = 16;
+   static const int m_iKeySpace = 32;
 
    string m_strHomeDir;
 
