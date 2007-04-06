@@ -63,6 +63,8 @@ void* Server::fileHandler(void* p)
    if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
       return NULL;
 
+   cout << "client connected " << "MODE " << mode << endl;
+
 //   self->m_KBase.m_iNumConn ++;
 
    filename = self->m_strHomeDir + filename;
@@ -80,15 +82,20 @@ void* Server::fileHandler(void* p)
       if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
          continue;
 
-      if (4 != cmd)
+      if (5 != cmd)
       {
-         if ((2 == cmd) || (5 == cmd))
+         response = -1;
+
+         if ((2 == cmd) || (4 == cmd))
          {
-            if (0 == mode)
-               response = -1;
+            if (0 != (mode & 2))
+               response = 0;
          }
-         else
-            response = 0;
+         else if ((1 == cmd) || (3 == cmd))
+         {
+            if (0 != (mode & 1))
+               response = 0;
+         }
 
          if (UDT::send(u, (char*)&response, 4, 0) < 0)
             continue;
@@ -99,15 +106,8 @@ void* Server::fileHandler(void* p)
 
       switch (cmd)
       {
-      case 1:
+      case 1: // read
          {
-            if (0 < (mode & 1))
-               response = 0;
-            else
-               response = -1;
-
-            // READ LOCK
-
             int64_t param[2];
 
             ifstream ifs(filename.c_str(), ios::in | ios::binary);
@@ -120,20 +120,11 @@ void* Server::fileHandler(void* p)
 
             ifs.close();
 
-            // UNLOCK
-
             break;
          }
 
-      case 2:
+      case 2: // write
          {
-            if (0 < (mode & 2))
-               response = 0;
-            else
-               response = -1;
-
-            // WRITE LOCK
-
             int64_t param[2];
 
             if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
@@ -149,20 +140,11 @@ void* Server::fileHandler(void* p)
 
             ofs.close();
 
-            // UNLOCK
-
             break;
          }
 
-      case 3:
+      case 3: // download
          {
-            if (0 < (mode & 1))
-               response = 0;
-            else
-               response = -1;
-
-            // READ LOCK
-
             int64_t offset = 0;
             int64_t size = 0;
 
@@ -193,20 +175,11 @@ void* Server::fileHandler(void* p)
 
             ifs.close();
 
-            // UNLOCK
-
             break;
          }
 
-      case 5:
+      case 4: // upload
          {
-            if (0 < (mode & 1))
-               response = 0;
-            else
-               response = -1;
-
-            // WRITE LOCK
-
             int64_t offset = 0;
             int64_t size = 0;
 
@@ -225,11 +198,10 @@ void* Server::fileHandler(void* p)
 
             ofs.close();
 
-            // UNLOCK
             break;
          }
 
-      case 4:
+      case 5: // end session
          run = false;
          break;
 

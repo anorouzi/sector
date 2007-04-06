@@ -126,6 +126,8 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
    else
    {
       // file does not exist
+      if (1 == mode)
+         return -1;
 
       m_strServerIP = m_pFSClient->m_strServerHost;
       m_iServerPort = m_pFSClient->m_iServerPort;
@@ -282,7 +284,7 @@ int CCBFile::download(const char* localpath, const bool& cont)
 
 int CCBFile::upload(const char* localpath, const bool& cont)
 {
-   int32_t cmd = 5;
+   int32_t cmd = 4;
    int64_t size;
    int32_t response = -1;
 
@@ -299,6 +301,7 @@ int CCBFile::upload(const char* localpath, const bool& cont)
 
    if (UDT::send(m_uSock, req, 12, 0) < 0)
       return -1;
+
    if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
       return -1;
 
@@ -312,7 +315,7 @@ int CCBFile::upload(const char* localpath, const bool& cont)
 
 int CCBFile::close()
 {
-   int32_t cmd = 4;
+   int32_t cmd = 5;
 
    if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
       return -1;

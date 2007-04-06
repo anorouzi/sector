@@ -170,39 +170,50 @@ void* Server::process(void* s)
          {
             char* filename = msg->getData();
 
-            int mode = *(int*)(msg->getData() + 64);
-            char cert[1024];
-            if (msg->m_iDataLength > 4 + 64 + 4 + 4)
-               strcpy(cert, msg->getData() + 72);
-            else
-               cert[0] = '\0';
-
-            set<CFileAttr, CAttrComp> filelist;
-            if (self->m_LocalFile.lookup(filename, &filelist) < 0)
+            if (self->m_LocalFile.lookup(filename, NULL) < 0)
             {
-               CFileAttr attr;
-               memcpy(attr.m_pcName, filename, 64);
-               attr.m_iAttr = 3;
-               attr.m_llSize = 0;
-               memcpy(attr.m_pcHost, self->m_strLocalHost.c_str(), 64);
-               attr.m_iPort = self->m_iLocalPort;
-               self->m_LocalFile.insert(attr);
-               filelist.insert(attr);;
+               // no file exist
+               msg->setType(-msg->getType());
+               msg->m_iDataLength = 4;
+
+               self->m_GMP.sendto(ip, port, id, msg);
+               break;
             }
 
-            // set IO attributes: READ WRITE
-            // mode &= attr.m_iType;
-            // TO DO: check ownership and previlege;
-            ifstream ifs;
-            ifs.open((self->m_strHomeDir + "/.cert/" + filename + ".cert").c_str());
-            char ecert[1024];
-            ecert[0] = '\0';
-            ifs.getline(ecert, 1024);
+            int mode = *(int*)(msg->getData() + 64);
 
-            if ((0 == strlen(cert)) || (0 == strlen(ecert)))
-               mode = 0;
-            else
+            if (mode > 1)
             {
+               char cert[1024];
+               if (msg->m_iDataLength > 4 + 64 + 4 + 4)
+                  strcpy(cert, msg->getData() + 72);
+               else
+               {
+                  // no certificate, reject write request
+                  msg->setType(-msg->getType());
+                  msg->m_iDataLength = 4;
+
+                  self->m_GMP.sendto(ip, port, id, msg);
+                  break;
+               }
+
+               // check ownership and previlege;
+               ifstream ifs;
+               ifs.open((self->m_strHomeDir + "/.cert/" + filename + ".cert").c_str());
+               char ecert[1024];
+               ecert[0] = '\0';
+               ifs.getline(ecert, 1024);
+
+               if (0 == strlen(ecert))
+               {
+                  // read only file
+                  msg->setType(-msg->getType());
+                  msg->m_iDataLength = 4;
+
+                  self->m_GMP.sendto(ip, port, id, msg);
+                  break;
+               }
+
                unsigned char sha[SHA_DIGEST_LENGTH + 1];
                SHA1((const unsigned char*)cert, strlen(cert), sha);
                sha[SHA_DIGEST_LENGTH] = '\0';
@@ -210,10 +221,15 @@ void* Server::process(void* s)
                for (int i = 0; i < SHA_DIGEST_LENGTH; i += 4)
                   shastr << *(int32_t*)(sha + i);
 
-               if (shastr.str() == string(ecert))
-                  mode = 1;
-               else
-                  mode = 0;
+               if (shastr.str() != string(ecert))
+               {
+                  // certificate do not match!
+                  msg->setType(-msg->getType());
+                  msg->m_iDataLength = 4;
+
+                  self->m_GMP.sendto(ip, port, id, msg);
+                  break;
+               }
             }
 
             self->m_AccessLog.insert(ip, port, msg->getData());
@@ -307,8 +323,9 @@ void* Server::process(void* s)
          {
             string filename = msg->getData();
 
-            if (self->m_LocalFile.lookup(filename) > 0)
+            if ((self->m_LocalFile.lookup(filename) > 0) || (!self->m_SysConfig.m_IPSec.checkIP(ip)))
             {
+               // file already exist, or not from an allowed IP
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;
 
@@ -342,7 +359,6 @@ void* Server::process(void* s)
             sha[SHA_DIGEST_LENGTH] = '\0';
 
             DIR* test = opendir((self->m_strHomeDir + ".cert").c_str());
-
             if (NULL == test)
             {
                if ((errno != ENOENT) || (mkdir((self->m_strHomeDir + ".cert").c_str(), S_IRWXU) < 0))
@@ -564,7 +580,7 @@ void* Server::processEx(void* p)
    int32_t id = ((Param1*)p)->id;
    CCBMsg* msg = ((Param1*)p)->msg;
 
-   cout << "recv request " << msg->getType() << endl;
+   //cout << "recv request " << msg->getType() << endl;
 
    switch (msg->getType())
    {

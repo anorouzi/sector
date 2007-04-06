@@ -77,8 +77,6 @@ int upload(CFSClient& fsclient, const char* file, const char* dst = NULL)
       gettimeofday(&t2, 0);
       float throughput = size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
 
-      //bar.update(size, throughput);
-
       cout << "Uploading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
    }
    else

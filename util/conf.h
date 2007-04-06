@@ -32,6 +32,9 @@ written by
 
 #include <string>
 #include <fstream>
+#include <vector>
+#include <sys/types.h>
+#include <stdint.h>
 
 using namespace std;
 
@@ -41,7 +44,7 @@ namespace cb
 struct Param
 {
    string m_strName;
-   string m_strValue;
+   vector<string> m_vstrValue;
 };
 
 class ConfParser
@@ -58,6 +61,25 @@ private:
    ifstream m_ConfFile;
 };
 
+class IPSec
+{
+public:
+   IPSec();
+
+public:
+   int addIP(const string& ip);
+   bool checkIP(const string& ip);
+
+private:
+   struct IPRange
+   {
+      uint32_t m_uiIP;
+      uint32_t m_uiMask;
+   };
+
+   vector<IPRange> m_vIPList;
+};
+
 class SECTORParam
 {
 public:
@@ -70,6 +92,8 @@ public:
    int m_iSECTORPort;		// SECTOR_PORT
    int m_iRouterPort;		// ROUTER_PORT
    int m_iDataPort;		// DATA_PORT
+
+   IPSec m_IPSec;		// IP security check
 };
 
 }; // namespace
