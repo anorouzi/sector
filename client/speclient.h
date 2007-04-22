@@ -7,7 +7,9 @@
 #include <pthread.h>
 
 using namespace std;
-using namespace cb;
+
+namespace cb
+{
 
 struct STREAM
 {
@@ -59,5 +61,7 @@ private:
 
    SPEClient* m_pSPEClient;
 };
+
+}; // namespace cb
 
 #endif

@@ -1,6 +1,8 @@
 #include "speclient.h"
 #include <file.h>
 
+using namespace cb;
+
 Process* SPEClient::createJob()
 {
    Process* process = new Process;

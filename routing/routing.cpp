@@ -127,6 +127,22 @@ void CRouting::setAppPort(const int& port)
    m_iAppPort = port;
 }
 
+bool CRouting::has(const unsigned int& id)
+{
+   cout << "judge " << m_Predecessor.m_uiID << " " << m_uiID << " " << id << endl;
+
+   if (0 == strlen(m_Predecessor.m_pcIP))
+      return true;
+
+   if (m_Predecessor.m_uiID < m_uiID)
+      return ((m_Predecessor.m_uiID < id) && (id <= m_uiID));
+
+   if (m_Predecessor.m_uiID > m_uiID)
+      return ((m_Predecessor.m_uiID < id) || (id <= m_uiID));
+
+   return (id == m_uiID);
+}
+
 int CRouting::lookup(const unsigned int& key, Node* n)
 {
    return find_successor(key, n);
@@ -140,7 +156,6 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
       memcpy(n->m_pcIP, m_pcIP, 64);
       n->m_iPort = m_iPort;
       n->m_iAppPort = m_iAppPort;
-
       return 0;
    }
 
@@ -148,10 +163,8 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
        ((m_uiID >= m_Successor.m_uiID) && ((m_uiID < id) || (id <= m_Successor.m_uiID))))
    {
       *n = m_Successor;
-
       return 0;
    }
-
 
    Node c;
    closest_preceding_finger(id, &c);
@@ -160,6 +173,8 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
    msg.setType(3); // find successor
    msg.setData(0, (char*)&id, 4);
    msg.m_iDataLength = 4 + 4;
+
+cout << "lookup " << c.m_pcIP << " " << c.m_iPort << endl;
 
    int res = m_pGMP->rpc(c.m_pcIP, c.m_iPort, &msg, &msg);
 
@@ -396,16 +411,54 @@ void* CRouting::run(void* r)
 
       self->m_pGMP->recvfrom(ip, port, id, msg);
 
-      Param* p = new Param;
-      p->r = self;
-      memcpy(p->ip, ip, 64);
-      p->id = id;
-      p->port = port;
-      p->msg = msg;
+      cout << "recv request RT " << msg->getType() << endl;
 
-      pthread_t process_thread;
-      pthread_create(&process_thread, NULL, process, p);
-      pthread_detach(process_thread);
+      switch(msg->getType())
+      {
+      case 1: // get Successor
+         msg->setData(0, (char*)&self->m_Successor, sizeof(Node));
+         msg->m_iDataLength = 4 + sizeof(Node);
+         self->m_pGMP->sendto(ip, port, id, msg);
+         break;
+
+      case 2: // get Predecessor
+         msg->setData(0, (char*)&self->m_Predecessor, sizeof(Node));
+         msg->m_iDataLength = 4 + sizeof(Node);
+         self->m_pGMP->sendto(ip, port, id, msg);
+         break;
+
+      case 4: // notify
+         self->notify((Node*)msg->getData());
+         msg->m_iDataLength = 4;
+         self->m_pGMP->sendto(ip, port, id, msg);
+         break;
+
+      case 5: // closest_preceding_node
+         {
+         int id = *(int*)(msg->getData());
+         self->closest_preceding_finger(id, (Node*)(msg->getData()));
+         msg->m_iDataLength = 4 + sizeof(Node);
+         self->m_pGMP->sendto(ip, port, id, msg);
+         break;
+         }
+
+      case 6: // check status
+         msg->m_iDataLength = 4;
+         self->m_pGMP->sendto(ip, port, id, msg);
+         break;
+
+      default:
+         Param* p = new Param;
+         p->r = self;
+         memcpy(p->ip, ip, 64);
+         p->id = id;
+         p->port = port;
+         p->msg = msg;
+
+         pthread_t process_thread;
+         pthread_create(&process_thread, NULL, process, p);
+         pthread_detach(process_thread);
+      }
    }
 }
 
@@ -421,18 +474,6 @@ void* CRouting::process(void* p)
 
    switch (msg->getType())
    {
-   case 1: // get Successor
-      msg->setData(0, (char*)&self->m_Successor, sizeof(Node));
-      msg->m_iDataLength = 4 + sizeof(Node);
-
-      break;
-
-   case 2: // get Predecessor
-      msg->setData(0, (char*)&self->m_Predecessor, sizeof(Node));
-      msg->m_iDataLength = 4 + sizeof(Node);
-
-      break;
-
    case 3: // find successor
       {
       int id = *(int*)(msg->getData());
@@ -444,27 +485,6 @@ void* CRouting::process(void* p)
 
       break;
       }
-
-   case 4: // notify
-      self->notify((Node*)msg->getData());
-
-      msg->m_iDataLength = 4;
-
-      break;
-
-   case 5: // closest_preceding_node
-      {
-      int id = *(int*)(msg->getData());
-      self->closest_preceding_finger(id, (Node*)(msg->getData()));
-
-      msg->m_iDataLength = 4 + sizeof(Node);
-
-      break;
-      }
-
-   case 6: // check status
-      msg->m_iDataLength = 4;
-      break;
 
    default:
       break;

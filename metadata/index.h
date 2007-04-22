@@ -36,6 +36,7 @@ written by
 #include <vector>
 #include <iostream>
 #include <util.h>
+#include <node.h>
 
 using namespace std;
 
@@ -52,6 +53,7 @@ public:
    int lookup(const string& filename, set<CFileAttr, CAttrComp>* attr = NULL);
    int insert(const CFileAttr& attr);
    int remove(const string& filename);
+   void updateNameServer(const string& filename, const Node& loc);
 
 public:
    int getFileList(map<string, set<CFileAttr, CAttrComp> >& list);
@@ -60,6 +62,9 @@ private:
    map<string, set<CFileAttr, CAttrComp> > m_mFileList;
 
    pthread_mutex_t m_IndexLock;
+
+private:
+   int64_t m_llTotalSize;
 };
 
 }; // namespace

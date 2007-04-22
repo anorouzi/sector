@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/06/2007
 *****************************************************************************/
 
 
@@ -60,7 +60,7 @@ public:
    int64_t m_llTimeStamp;       // time stamp
    int32_t m_iAttr;	        // 01: READ	10: WRITE	11: READ&WRITE
 
-   int32_t m_iType;		// 0: normal	1: cache	2: semantics	
+   int32_t m_iType;		// 0: normal	1: cache	2: semantics	3: operator
 
    int64_t m_llSize;		// size
 

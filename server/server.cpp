@@ -132,7 +132,7 @@ void* Server::process(void* s)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
 
-      //cout << "recv CB " << msg->getType() << " " << ip << " " << port << endl;
+      cout << "recv CB " << msg->getType() << " " << ip << " " << port << endl;
 
       switch (msg->getType())
       {
@@ -397,11 +397,15 @@ void* Server::process(void* s)
             break;
          }
 
-         case 7: // remove file from RemoteFileIndex
+         case 7: // check query from RemoteFileIndex
          {
-            self->m_RemoteFile.remove(msg->getData());
-            msg->m_iDataLength = 4;
+            if (!self->m_Router.has(DHash::hash(msg->getData(), m_iKeySpace)))
+            {
+               self->m_RemoteFile.remove(msg->getData());
+               msg->setType(- msg->getType());
+            }
 
+            msg->m_iDataLength = 4;
             self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
@@ -830,37 +834,27 @@ void Server::updateOutLink()
    {
       usleep(500);
 
-      // TO DO
-      // check disk file for size update
+      // ask remote if it is the right node to hold the metadata for this file
+      msg.setType(7);
+      strcpy(msg.getData(), i->first.c_str());
+      msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
+      if ((m_GMP.rpc(i->second.begin()->m_pcNameHost, i->second.begin()->m_iNamePort, &msg, &msg) >= 0) && (msg.getType() > 0))
+         continue;
+
+cout << "wrong node??? " << i->first << " " << i->second.begin()->m_pcNameHost << " " << i->second.begin()->m_iNamePort << endl;
 
       int fid = DHash::hash(i->first.c_str(), m_iKeySpace);
-
       if (-1 == m_Router.lookup(fid, &loc))
          continue;
 
-      set<CFileAttr, CAttrComp>::iterator attr = i->second.begin();
+cout << "new loc " << loc.m_pcIP << " " << loc.m_iAppPort << endl;
 
-      // if the "loc" already have the file information, no need to update
-      if (0 == strcmp(loc.m_pcIP, attr->m_pcNameHost))
-         continue;
+      m_LocalFile.updateNameServer(i->first, loc);
 
-      // notify the current name holder to remove this file from its index
-      if (strlen(attr->m_pcNameHost) > 0)
-      {
-         msg.setType(7);
-         strcpy(msg.getData(), i->first.c_str());
-         msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
-         m_GMP.rpc(attr->m_pcNameHost, attr->m_iPort, &msg, &msg);
-      }
-
-      // Dangerous const cast!!!
-      strcpy((char*)attr->m_pcNameHost, loc.m_pcIP);
-      const_cast<int&>(attr->m_iNamePort) = m_iLocalPort;
-
+      // send metadata to a new node
       msg.setType(3);
-      attr->serialize(msg.getData(), msg.m_iDataLength);
+      i->second.begin()->serialize(msg.getData(), msg.m_iDataLength);
       msg.m_iDataLength += 4;
-      assert(msg.m_iDataLength < 1024);
       m_GMP.rpc(loc.m_pcIP, loc.m_iAppPort, &msg, &msg);
    }
 }
@@ -905,7 +899,7 @@ void Server::updateInLink()
 
       if (i->second.size() == 0)
          m_RemoteFile.remove(i->first);
-      else if (i->second.size() < 2)
+      else if ((i->second.size() < 2) && (i->second.begin()->m_iType != 3))
       {
          // less than 2 copies in the system, create a new one
          int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
@@ -956,6 +950,8 @@ int Server::initLocalFile()
             strcpy(attr.m_pcName, namelist[i]->d_name);
             strcpy(attr.m_pcHost, m_strLocalHost.c_str());
             attr.m_iPort = m_iLocalPort;
+            strcpy(attr.m_pcNameHost, m_strLocalHost.c_str());
+            attr.m_iNamePort = m_iLocalPort;
             // original file is read only
             attr.m_iAttr = 1;
             attr.m_llSize = size;

@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/06/2007
 *****************************************************************************/
 
 
@@ -57,7 +57,7 @@ int Client::close()
    return 1;
 }
 
-int Client::lookup(string name, Node* n)
+int Client::lookup(const string& name, Node* n)
 {
    CCBMsg msg;
    msg.setType(4); // look up a file server
@@ -71,4 +71,33 @@ int Client::lookup(string name, Node* n)
       memcpy(n, msg.getData(), sizeof(Node));
 
    return msg.getType();
+}
+
+int Client::lookup(const string& name, vector<Node>& nl)
+{
+   nl.clear();
+
+   Node n;
+   if (lookup(name, &n) < 0)
+      return 0;
+
+   CCBMsg msg;
+   msg.setType(1); // locate file
+   msg.setData(0, name.c_str(), name.length() + 1);
+   msg.m_iDataLength = 4 + name.length() + 1;
+
+   if (m_pGMP->rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg) < 0)
+      return 0;
+
+   int num = (msg.m_iDataLength - 4) / 68;
+   n.m_uiID = 0;
+   n.m_iPort = 0;
+   for (int i = 0; i < num; ++ i)
+   {
+      strcpy(n.m_pcIP, msg.getData() + 68 * i);
+      n.m_iAppPort = *(int*)(msg.getData() + 68 * i + 64);
+      nl.insert(nl.end(), n);
+   }
+
+   return nl.size();
 }

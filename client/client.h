@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/06/2007
 *****************************************************************************/
 
 
@@ -46,8 +46,10 @@ public:
    int connect(const string& server, const int& port);
    int close();
 
+   int lookup(const string& name, vector<Node>& nl);
+
 protected:
-   int lookup(string filename, Node* n);
+   int lookup(const string& name, Node* n);
 
 protected:
    string m_strServerHost;

@@ -1,7 +1,9 @@
 I. Installation
 
-SECTOR currently only works on Linux system. Simple use "make" to compile the source code 
-and the generated executables can be found in ./server and ./client respectively.
+SECTOR Servers currently only works on Linux system. Simple use "make" to compile the source 
+code and the generated executables can be found in ./server and ./client respectively.
+
+SECTOR uses dynamic libraries, which can be found in ./lib directory.
 
 Note:
 1. Do NOT use GCC version 3.3. If you have multiple versions of GCC in your system, change 
@@ -10,7 +12,7 @@ Makefile.common and ./udt/Makefile to use the proper version.
 
 
 II. Configuration
-The only configuration file is ./server/sector.cof. You may need to edit this file to assign
+The only configuration file is ./server/sector.conf. You may need to edit this file to assign
 a specific location for file storage and port numbers.
 
 

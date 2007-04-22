@@ -91,6 +91,12 @@ int CIndex::remove(const string& filename)
    return 1;
 }
 
+void CIndex::updateNameServer(const string& filename, const Node& loc)
+{
+   strcpy((char*)m_mFileList[filename].begin()->m_pcNameHost, loc.m_pcIP);
+   const_cast<int&>(m_mFileList[filename].begin()->m_iNamePort) = loc.m_iAppPort;
+}
+
 int CIndex::getFileList(map<string, set<CFileAttr, CAttrComp> >& list)
 {
    list.clear();

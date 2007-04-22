@@ -65,8 +65,9 @@ public:
    int join(const char* ip, const char* peer_ip, const int& port = 0, const int& peer_port = 0);
 
 public:
-   void setAppPort(const int& port);
    int lookup(const unsigned int& key, Node* n);
+   void setAppPort(const int& port);
+   bool has(const unsigned int& id);
 
 private:
    int find_successor(const unsigned int& id, Node* n);
