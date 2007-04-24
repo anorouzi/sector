@@ -401,12 +401,10 @@ void* CRouting::run(void* r)
    char ip[64];
    int port;
    int32_t id;
-   CRTMsg* msg;
+   CRTMsg* msg = new CRTMsg;
 
    while (true)
    {
-      msg = new CRTMsg;
-
       self->m_pGMP->recvfrom(ip, port, id, msg);
 
       cout << "recv request RT " << msg->getType() << endl;
@@ -451,13 +449,15 @@ void* CRouting::run(void* r)
          memcpy(p->ip, ip, 64);
          p->id = id;
          p->port = port;
-         p->msg = msg;
+         p->msg = new CRTMsg(*msg);
 
          pthread_t process_thread;
          pthread_create(&process_thread, NULL, process, p);
          pthread_detach(process_thread);
       }
    }
+
+   delete msg;
 }
 
 void* CRouting::process(void* p)

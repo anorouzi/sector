@@ -879,6 +879,7 @@ void Server::updateInLink()
       // check if the original file still exists
       for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end(); ++ j)
       {
+cout << "checking " << j->m_pcName << endl;
          msg.setType(6);
          msg.setData(0, j->m_pcName, strlen(j->m_pcName) + 1);
          msg.m_iDataLength = 4 + strlen(j->m_pcName) + 1;
@@ -908,6 +909,7 @@ cout << "check " << j->m_pcName << " " << j->m_pcHost << " " << j->m_iPort << " 
 
          m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg);
       }
+cout << "check done!\n";
    }
 }
 
