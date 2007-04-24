@@ -287,7 +287,7 @@ void* Server::process(void* s)
             CFileAttr attr;
             attr.deserialize(msg->getData(), msg->m_iDataLength - 4);
 
-            //cout << "remote file : " << attr.m_pcName << " " << attr.m_llSize << endl;
+            cout << "remote file : " << attr.m_pcName << " " << attr.m_llSize << endl;
 
             if (self->m_RemoteFile.insert(attr) < 0)
                msg->setType(-msg->getType());
@@ -717,7 +717,7 @@ void* Server::processEx(void* p)
          }
          else
          {
-            if (self->m_strLocalHost == n.m_pcIP)
+            if ((self->m_strLocalHost == n.m_pcIP) && (self->m_iLocalPort == n.m_iAppPort))
             {
                set<CFileAttr, CAttrComp> sa;
                if (self->m_RemoteFile.lookup(filename, &sa) < 0)
@@ -832,22 +832,25 @@ void Server::updateOutLink()
 
    for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
-      usleep(500);
+      usleep(100);
 
       // ask remote if it is the right node to hold the metadata for this file
       msg.setType(7);
       strcpy(msg.getData(), i->first.c_str());
       msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
+
+//cout << "checking "<< i->first << " " << i->second.begin()->m_pcNameHost << " " << i->second.begin()->m_iNamePort << endl;
+
       if ((m_GMP.rpc(i->second.begin()->m_pcNameHost, i->second.begin()->m_iNamePort, &msg, &msg) >= 0) && (msg.getType() > 0))
          continue;
 
-cout << "wrong node??? " << i->first << " " << i->second.begin()->m_pcNameHost << " " << i->second.begin()->m_iNamePort << endl;
+//cout << "wrong node??? " << i->first << " " << i->second.begin()->m_pcNameHost << " " << i->second.begin()->m_iNamePort << endl;
 
       int fid = DHash::hash(i->first.c_str(), m_iKeySpace);
       if (-1 == m_Router.lookup(fid, &loc))
          continue;
 
-cout << "new loc " << loc.m_pcIP << " " << loc.m_iAppPort << endl;
+//cout << "new loc " << loc.m_pcIP << " " << loc.m_iAppPort << endl;
 
       m_LocalFile.updateNameServer(i->first, loc);
 
@@ -871,11 +874,10 @@ void Server::updateInLink()
 
    for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
-      usleep(500);
+      usleep(100);
 
       // check if the original file still exists
-      int c = 0;
-      for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end();)
+      for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end(); ++ j)
       {
          msg.setType(6);
          msg.setData(0, j->m_pcName, strlen(j->m_pcName) + 1);
@@ -883,18 +885,10 @@ void Server::updateInLink()
 
          int r = m_GMP.rpc(j->m_pcHost, j->m_iPort, &msg, &msg);
 
+cout << "check " << j->m_pcName << " " << j->m_pcHost << " " << j->m_iPort << " " << r << " " << i->second.size() << endl;
+
          if ((r <= 0) || (msg.getType() < 0))
-         {
-            i->second.erase(j);
-            j = i->second.begin();
-            for (int k = 0; k < c; ++ k)
-               ++ j;
-         }
-         else
-         {
-            ++ j;
-            ++ c;
-         }
+            m_RemoteFile.removeCopy(*j);
       }
 
       if (i->second.size() == 0)
@@ -904,7 +898,8 @@ void Server::updateInLink()
          // less than 2 copies in the system, create a new one
          int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
          Node n;
-         m_Router.lookup(seed, &n);
+         if (m_Router.lookup(seed, &n) < 0)
+            continue;
 
          msg.setType(11);
          msg.setData(0, (char*)&(i->second.begin()->m_llSize), 8);
@@ -950,8 +945,8 @@ int Server::initLocalFile()
             strcpy(attr.m_pcName, namelist[i]->d_name);
             strcpy(attr.m_pcHost, m_strLocalHost.c_str());
             attr.m_iPort = m_iLocalPort;
-            strcpy(attr.m_pcNameHost, m_strLocalHost.c_str());
-            attr.m_iNamePort = m_iLocalPort;
+            strcpy(attr.m_pcNameHost, "");
+            attr.m_iNamePort = 0;
             // original file is read only
             attr.m_iAttr = 1;
             attr.m_llSize = size;

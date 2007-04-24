@@ -62,13 +62,19 @@ m_iLength(0)
 {
    m_iSession = g_iSession;
 
-   Sync::initMutex(g_IDLock);
+   Sync::enterCS(g_IDLock);
 
    m_iID = g_iID ++;
    if (g_iID == g_iMaxID)
       g_iID = 1;
 
-   Sync::releaseMutex(g_IDLock);
+   Sync::leaveCS(g_IDLock);
+}
+
+CGMPMessage::~CGMPMessage()
+{
+   if (NULL != m_pcData)
+      delete [] m_pcData;
 }
 
 void CGMPMessage::pack(const char* data, const int& len, const int32_t& info)
@@ -96,17 +102,12 @@ void CGMPMessage::pack(const int32_t& type, const int32_t& info)
    m_iInfo = info;
 }
 
-CGMPMessage::~CGMPMessage()
-{
-   if (NULL != m_pcData)
-      delete [] m_pcData;
-}
-
 int32_t CGMPMessage::initSession()
 {
    srand(Time::getTime());
    return (int32_t)(rand() + 1);
 }
+
 
 CGMP::CGMP()
 {
@@ -254,7 +255,7 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
    addr.sin_family = AF_INET;
    addr.sin_port = htons(port);
    #ifndef WIN32
-      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) < 0)
+      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) <= 0)
          return -1;
    #else
       if (INADDR_NONE == (addr.sin_addr.s_addr = inet_addr(ip)))
@@ -307,7 +308,7 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
    WSASendTo(m_UDPSocket, vec, 2, &ssize, 0, (sockaddr*)&addr, sizeof(sockaddr_in), NULL, NULL);
 #endif
 
-   //cout << "send to " << ip << " " << port << " " << msg->m_iSession << " " << msg->m_iID << " " << msg->m_iInfo << " " << msg->m_iLength << endl;
+//   cout << "send to " << ip << " " << port << " " << msg->m_iSession << " " << msg->m_iID << " " << msg->m_iInfo << " " << msg->m_iLength << endl;
 
    if (!reliable)
       delete msg;
@@ -1012,25 +1013,29 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
 
    while (recv(id, res) < 0)
    {
-      if (rtt(ip, port) < 0)
+      if (rtt(ip, port, true) < 0)
          return -1;
    }
 
    return 1;
 }
 
-int CGMP::rtt(const char* ip, const int& port)
+int CGMP::rtt(const char* ip, const int& port, const bool& clear)
 {
-   int r = m_PeerHistory.getRTT(ip);
-
-   if (r > 0)
-      return r;
+   if (!clear)
+   {
+      int r = m_PeerHistory.getRTT(ip);
+      if (r > 0)
+         return r;
+   }
+   else
+      m_PeerHistory.clearRTT(ip);
 
    sockaddr_in addr;
    addr.sin_family = AF_INET;
    addr.sin_port = htons(port);
    #ifndef WIN32
-      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) < 0)
+      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) <= 0)
          return -1;
    #else
       if (INADDR_NONE == (addr.sin_addr.s_addr = inet_addr(ip)))

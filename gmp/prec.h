@@ -96,6 +96,7 @@ public:
    void insert(const string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1);
    int getRTT(const string& ip);
    int getLastID(const string& ip, const int& port, const int& session);
+   void clearRTT(const string& ip);
 
 private:
    set<CPeerRecord*, CFPeerRec> m_sPeerRec;

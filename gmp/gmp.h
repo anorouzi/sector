@@ -151,7 +151,7 @@ public:
    int recv(const int32_t& id, CUserMessage* msg);
    int rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* res);
 
-   int rtt(const char* ip, const int& port);
+   int rtt(const char* ip, const int& port, const bool& clear = false);
 
 private:
    pthread_t m_SndThread;

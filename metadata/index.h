@@ -54,6 +54,7 @@ public:
    int insert(const CFileAttr& attr);
    int remove(const string& filename);
    void updateNameServer(const string& filename, const Node& loc);
+   void removeCopy(const CFileAttr& attr);
 
 public:
    int getFileList(map<string, set<CFileAttr, CAttrComp> >& list);

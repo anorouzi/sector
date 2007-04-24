@@ -129,8 +129,6 @@ void CRouting::setAppPort(const int& port)
 
 bool CRouting::has(const unsigned int& id)
 {
-   cout << "judge " << m_Predecessor.m_uiID << " " << m_uiID << " " << id << endl;
-
    if (0 == strlen(m_Predecessor.m_pcIP))
       return true;
 

@@ -93,8 +93,26 @@ int CIndex::remove(const string& filename)
 
 void CIndex::updateNameServer(const string& filename, const Node& loc)
 {
+   Sync::enterCS(m_IndexLock);
    strcpy((char*)m_mFileList[filename].begin()->m_pcNameHost, loc.m_pcIP);
    const_cast<int&>(m_mFileList[filename].begin()->m_iNamePort) = loc.m_iAppPort;
+   Sync::leaveCS(m_IndexLock);
+}
+
+void CIndex::removeCopy(const CFileAttr& attr)
+{
+   Sync::enterCS(m_IndexLock);
+
+   map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(attr.m_pcName);
+   if (i != m_mFileList.end())
+   {
+      i->second.erase(attr);
+
+      if (0 == i->second.size())
+         m_mFileList.erase(i);
+   }
+
+   Sync::leaveCS(m_IndexLock);
 }
 
 int CIndex::getFileList(map<string, set<CFileAttr, CAttrComp> >& list)

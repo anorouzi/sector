@@ -105,7 +105,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          m_sPeerRec.erase(t);
 
          pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
-		 p = m_sPeerRecByIP.equal_range(t);
+         p = m_sPeerRecByIP.equal_range(t);
          for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator k = p.first; k != p.second; k ++)
          {
             if ((*k)->m_iPort == t->m_iPort)
@@ -152,4 +152,14 @@ int CPeerManagement::getLastID(const string& ip, const int& port, const int& ses
       return -1;
    else
       return (*i)->m_iID;
+}
+
+void CPeerManagement::clearRTT(const string& ip)
+{
+   CPeerRecord pr;
+   pr.m_strIP = ip;
+   pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
+   p = m_sPeerRecByIP.equal_range(&pr);
+   for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
+      (*i)->m_iRTT = -1;
 }
