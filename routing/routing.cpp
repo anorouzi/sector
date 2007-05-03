@@ -172,8 +172,6 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
    msg.setData(0, (char*)&id, 4);
    msg.m_iDataLength = 4 + 4;
 
-cout << "lookup " << c.m_pcIP << " " << c.m_iPort << endl;
-
    int res = m_pGMP->rpc(c.m_pcIP, c.m_iPort, &msg, &msg);
 
    if (res >= 0)
@@ -407,7 +405,7 @@ void* CRouting::run(void* r)
    {
       self->m_pGMP->recvfrom(ip, port, id, msg);
 
-      cout << "recv request RT " << msg->getType() << endl;
+      //cout << "recv request RT " << msg->getType() << endl;
 
       switch(msg->getType())
       {

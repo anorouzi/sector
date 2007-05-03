@@ -127,16 +127,24 @@ int CPeerManagement::getRTT(const string& ip)
 
    CPeerRecord pr;
    pr.m_strIP = ip;
+   int rtt = -1;
+
+   Sync::enterCS(m_PeerRecLock);
 
    p = m_sPeerRecByIP.equal_range(&pr);
 
    for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
    {
       if ((*i)->m_iRTT > 0)
-         return (*i)->m_iRTT;
+      {
+         rtt = (*i)->m_iRTT;
+         break;
+      }
    }
 
-   return -1;
+   Sync::leaveCS(m_PeerRecLock);
+
+   return rtt;
 }
 
 int CPeerManagement::getLastID(const string& ip, const int& port, const int& session)
@@ -145,21 +153,30 @@ int CPeerManagement::getLastID(const string& ip, const int& port, const int& ses
    pr.m_strIP = ip;
    pr.m_iPort = port;
    pr.m_iSession = session;
+   int id = -1;
+
+   Sync::enterCS(m_PeerRecLock);
 
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
+   if (i != m_sPeerRec.end())
+      id = (*i)->m_iID;
 
-   if (i == m_sPeerRec.end())
-      return -1;
-   else
-      return (*i)->m_iID;
+   Sync::leaveCS(m_PeerRecLock);
+
+   return id;
 }
 
 void CPeerManagement::clearRTT(const string& ip)
 {
    CPeerRecord pr;
    pr.m_strIP = ip;
+
+   Sync::enterCS(m_PeerRecLock);
+
    pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
    p = m_sPeerRecByIP.equal_range(&pr);
    for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
       (*i)->m_iRTT = -1;
+
+   Sync::leaveCS(m_PeerRecLock);
 }

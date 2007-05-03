@@ -132,7 +132,7 @@ void* Server::process(void* s)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
 
-      cout << "recv CB " << msg->getType() << " " << ip << " " << port << endl;
+      //cout << "recv CB " << msg->getType() << " " << ip << " " << port << endl;
 
       switch (msg->getType())
       {
@@ -158,8 +158,6 @@ void* Server::process(void* s)
                   ++ num;
                }
                msg->m_iDataLength = 4 + num * (64 + 4);
-
-               cout << "locate " << filename << ": " << filelist.size() << " found!" << endl;
             }
 
             self->m_GMP.sendto(ip, port, id, msg);
@@ -286,8 +284,6 @@ void* Server::process(void* s)
          {
             CFileAttr attr;
             attr.deserialize(msg->getData(), msg->m_iDataLength - 4);
-
-            cout << "remote file : " << attr.m_pcName << " " << attr.m_llSize << endl;
 
             if (self->m_RemoteFile.insert(attr) < 0)
                msg->setType(-msg->getType());
@@ -422,8 +418,6 @@ void* Server::process(void* s)
          case 200: // open a SQL connection
          {
             char* filename = msg->getData() + 4;
-
-            cout << "retrieving table " << filename << endl;
 
             set<CFileAttr, CAttrComp> filelist;
             if (self->m_LocalFile.lookup(filename, &filelist) < 0)
@@ -879,14 +873,11 @@ void Server::updateInLink()
       // check if the original file still exists
       for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end(); ++ j)
       {
-cout << "checking " << j->m_pcName << endl;
          msg.setType(6);
          msg.setData(0, j->m_pcName, strlen(j->m_pcName) + 1);
          msg.m_iDataLength = 4 + strlen(j->m_pcName) + 1;
 
          int r = m_GMP.rpc(j->m_pcHost, j->m_iPort, &msg, &msg);
-
-cout << "check " << j->m_pcName << " " << j->m_pcHost << " " << j->m_iPort << " " << r << " " << i->second.size() << endl;
 
          if ((r <= 0) || (msg.getType() < 0))
             m_RemoteFile.removeCopy(*j);
@@ -897,6 +888,8 @@ cout << "check " << j->m_pcName << " " << j->m_pcHost << " " << j->m_iPort << " 
       else if ((i->second.size() < 2) && (i->second.begin()->m_iType != 3))
       {
          // less than 2 copies in the system, create a new one
+         // TODO: start a timeout before making a copy
+         /*
          int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
          Node n;
          if (m_Router.lookup(seed, &n) < 0)
@@ -908,8 +901,8 @@ cout << "check " << j->m_pcName << " " << j->m_pcHost << " " << j->m_iPort << " 
          msg.m_iDataLength = 4 + 8 + strlen(i->second.begin()->m_pcName) + 1;
 
          m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg);
+         */
       }
-cout << "check done!\n";
    }
 }
 

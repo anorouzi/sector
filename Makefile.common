@@ -1,6 +1,6 @@
 C++ = g++
 
-DEBUG = 1
+DEBUG = 0
 STATIC = 0
 EFENCE = 0
 

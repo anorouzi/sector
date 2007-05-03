@@ -118,6 +118,10 @@ void CIndex::removeCopy(const CFileAttr& attr)
 int CIndex::getFileList(map<string, set<CFileAttr, CAttrComp> >& list)
 {
    list.clear();
+
+   Sync::enterCS(m_IndexLock);
    list = m_mFileList;
+   Sync::leaveCS(m_IndexLock);
+
    return list.size();
 }

@@ -334,7 +334,7 @@ int CGMP::TCPsend(const char* ip, const int& port, int32_t& id, const char* data
       if (INADDR_NONE == (serv_addr.sin_addr.s_addr = inet_addr(ip)))
    #endif
    {
-      cout << "incorrect network address:" << ip << endl;
+      //cout << "incorrect network address:" << ip << endl;
       return -1;
    }
    memset(&(serv_addr.sin_zero), '\0', 8);
@@ -434,7 +434,9 @@ int CGMP::recv(const int32_t& id, char* data, int& len)
 {
    Sync::enterCS(m_ResQueueLock);
 
-   if (0 == m_mResQueue.size())
+   map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
+
+   if (m == m_mResQueue.end())
    {
       #ifndef WIN32
          timeval now;
@@ -448,9 +450,9 @@ int CGMP::recv(const int32_t& id, char* data, int& len)
          WaitForSingleObject(m_ResQueueCond, 1000);
          WaitForSingleObject(m_ResQueueLock, INFINITE);
       #endif
-   }
 
-   map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
+      m = m_mResQueue.find(id);
+   }
 
    bool found = false;
    if (m != m_mResQueue.end())
@@ -495,7 +497,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
          pthread_cond_timedwait(&self->m_SndQueueCond, &self->m_SndQueueLock, &timeout);
       #else
          ReleaseMutex(self->m_SndQueueLock);
-	    WaitForSingleObject(self->m_SndQueueCond, 1000);
+         WaitForSingleObject(self->m_SndQueueCond, 1000);
          WaitForSingleObject(self->m_SndQueueLock, INFINITE);
       #endif
 
