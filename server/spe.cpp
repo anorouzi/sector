@@ -52,7 +52,7 @@ void* Server::SPEHandler(void* p)
    inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
    memset(&(cli_addr.sin_zero), '\0', 8);
 
-   cout << "rendezvous connect " << ip << " " << port << endl;
+   cout << "rendezvous connect " << ip << " " << uport << endl;
 
    if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
       return NULL;

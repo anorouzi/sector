@@ -49,7 +49,9 @@ private:
    struct SPE
    {
       uint32_t m_uiID;
-      Node m_Loc;
+      string m_strIP;
+      int m_iPort;
+
       DS* m_pDS;
       int m_iStatus;
       int m_iProgress;

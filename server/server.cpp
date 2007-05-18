@@ -136,7 +136,7 @@ void* Server::process(void* s)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
 
-      //cout << "recv CB " << msg->getType() << " " << ip << " " << port << endl;
+      //cout << "recv CB " << msg->getType() << " " << ip << " " << port << " " << msg->m_iDataLength << endl;
 
       switch (msg->getType())
       {
@@ -529,7 +529,7 @@ void* Server::process(void* s)
             p->param = msg->getData() + 72;
             p->p = *(int32_t*)(msg->getData() + 4);
 
-            cout << "starting SPE ... \n";
+            cout << "starting SPE ... " << p->id << " " << p->p << " " << p->op << endl;
 
             pthread_t spe_handler;
             pthread_create(&spe_handler, NULL, SPEHandler, p);

@@ -90,6 +90,8 @@ int Process::open(vector<string> stream, string op, const char* param, const int
    if ((m_GMP.rpc(no.m_pcIP, no.m_iAppPort, &msg, &msg) < 0) || (msg.getType() < 0))
       return -1;
 
+   char* spenodes = new char[msg.m_iDataLength - 4];
+   memcpy(spenodes, msg.getData(), msg.m_iDataLength - 4);
    int n = (msg.m_iDataLength - 4) / 68;
    int64_t avg = totalSize / n;
    int64_t unitsize;
@@ -129,8 +131,8 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       spe.m_iStatus = 0;
       spe.m_iProgress = 0;
 
-      strcpy(spe.m_Loc.m_pcIP, msg.getData() + i * 68);
-      spe.m_Loc.m_iPort = *(int32_t*)(msg.getData() + i * 68 + 64);
+      spe.m_strIP = spenodes + i * 68;
+      spe.m_iPort = *(int32_t*)(spenodes + i * 68 + 64);
 
       spe.m_DataSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
@@ -150,9 +152,11 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       msg.setData(4, (char*)&(my_addr.sin_port), 4);
       msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
       msg.setData(72, m_strParam.c_str(), m_strParam.length() + 1);
+      msg.m_iDataLength = 4 + 72 + m_strParam.length() + 1;
 
-      if (m_GMP.rpc(spe.m_Loc.m_pcIP, spe.m_Loc.m_iPort, &msg, &msg) < 0)
+      if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
       {
+         cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
          UDT::close(spe.m_DataSock);
          continue;
       }
@@ -160,10 +164,10 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       sockaddr_in serv_addr;
       serv_addr.sin_family = AF_INET;
       serv_addr.sin_port = *(int*)(msg.getData()); // port
-      inet_pton(AF_INET, spe.m_Loc.m_pcIP, &serv_addr.sin_addr);
+      inet_pton(AF_INET, spe.m_strIP.c_str(), &serv_addr.sin_addr);
       memset(&(serv_addr.sin_zero), '\0', 8);
 
-      cout << "UDT connecting " <<  spe.m_Loc.m_pcIP << " " << *(int*)(msg.getData()) << endl;
+      cout << "UDT connecting " <<  spe.m_strIP << " " << *(int*)(msg.getData()) << endl;
 
       int rendezvous = 1;
       UDT::setsockopt(spe.m_DataSock, 0, UDT_RENDEZVOUS, &rendezvous, 4);
@@ -178,6 +182,7 @@ int Process::open(vector<string> stream, string op, const char* param, const int
    }
 
    m_iProgress = 0;
+   delete [] spenodes;
 
    cout << m_vSPE.size() << " spes found! " << m_vDS.size() << " data seg total." << endl;
 
