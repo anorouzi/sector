@@ -3,11 +3,9 @@ using namespace cb;
 
 int main(int argc, char** argv)
 {
-   CFSClient fsclient;
+   Sector::init(argv[1], atoi(argv[2]));
 
-   fsclient.connect(argv[1], atoi(argv[2]));
-
-   CCBFile* f1 = fsclient.createFileHandle();
+   File* f1 = Sector::createFileHandle();
    if (NULL == f1)
       return -1;
 
@@ -40,14 +38,16 @@ int main(int argc, char** argv)
    f1->write(test.c_str(), 20, test.length());
    f1->close();
 
-   fsclient.releaseFileHandle(f1);
+   Sector::releaseFileHandle(f1);
 
    CFileAttr attr;
-   fsclient.stat("test.txt", attr);
+   Sector::stat("test.txt", attr);
    cout << attr.m_pcName << " " << attr.m_pcHost << " " << attr.m_iPort << " " << attr.m_llSize << endl;
 
-   fsclient.stat("rate.txt", attr);
+   Sector::stat("rate.txt", attr);
    cout << attr.m_pcName << " " << attr.m_pcHost << " " << attr.m_iPort << " " << attr.m_llSize << endl;
+
+   Sector::close();
 
    return 1;
 }

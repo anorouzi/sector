@@ -40,20 +40,9 @@ written by
 namespace cb
 {
 
-class SQLClient: public Client
-{
-friend class Query;
-
-public:
-   Query* createQueryHandle();
-   void releaseQueryHandle(Query* q);
-
-   int getSemantics(const string& name, vector<DataAttr>& attr);
-};
-
 class Query
 {
-friend class SQLClient;
+friend class Client;
 
 public:
    Query();
@@ -66,8 +55,6 @@ public:
    int fetch(char* res, int& rows, int& size);
 
 private:
-   SQLClient* m_pSQLClient;
-
    string m_strServerIP;
    int m_iServerPort;
 

@@ -41,7 +41,7 @@ written by
 #include <data.h>
 #include <sql.h>
 #include <table.h>
-#include <spe.h>
+#include <fsclient.h>
 
 using namespace std;
 using namespace cb;
@@ -54,6 +54,8 @@ Server::Server(const string& ip)
 Server::~Server()
 {
    m_GMP.close();
+
+   Client::close();
 }
 
 int Server::init(char* ip, int port)
@@ -92,6 +94,8 @@ int Server::init(char* ip, int port)
 
    // ignore TCP broken pipe
    signal(SIGPIPE, SIG_IGN);
+
+   Client::init(m_strLocalHost.c_str(), m_iLocalPort);
 
    return 1;
 }
@@ -156,6 +160,10 @@ void* Server::process(void* s)
                   msg->setData(num * 68, i->m_pcHost, strlen(i->m_pcHost) + 1);
                   msg->setData(num * 68 + 64, (char*)(&i->m_iPort), 4);
                   ++ num;
+
+                  // only a limited number of nodes to be sent back
+                  if (num * 68 > 65536 - 68 - 4)
+                     break;
                }
                msg->m_iDataLength = 4 + num * (64 + 4);
             }
@@ -415,6 +423,18 @@ void* Server::process(void* s)
             break;
          }
 
+         case 9: // server information
+         {
+            NodeInfo* ni = (NodeInfo*)msg->getData();
+            ni->m_iStatus = 1;
+            ni->m_iSPEMem = self->m_SysConfig.m_iMaxSPEMem;
+
+            msg->m_iDataLength = 4 + sizeof(NodeInfo);
+
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
          case 200: // open a SQL connection
          {
             char* filename = msg->getData() + 4;
@@ -480,24 +500,6 @@ void* Server::process(void* s)
 
          case 300: // processing engine
          {
-            SPE spe;
-            spe.m_strDataFile = msg->getData();
-            spe.m_strOperator = msg->getData() + 64;
-            spe.m_uiID = *(int32_t*)(msg->getData() + 128);
-            spe.m_llOffset = *(int64_t*)(msg->getData() + 132);
-            spe.m_llSize = *(int64_t*)(msg->getData() + 140);
-            spe.m_iUnitSize = *(int32_t*)(msg->getData() + 148);
-            spe.m_iParamSize = *(int32_t*)(msg->getData() + 152);
-            cout << "SPE " << msg->m_iDataLength << " " << spe.m_llOffset << " " << spe.m_llSize << " " << spe.m_iUnitSize << " " << spe.m_iParamSize << endl;
-
-            if (spe.m_iParamSize > 0)
-            {
-               spe.m_pcParam = new char[spe.m_iParamSize];
-               memcpy(spe.m_pcParam, msg->getData() + 160, spe.m_iParamSize);
-            }
-            else
-               spe.m_pcParam = NULL;
-
             UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
             sockaddr_in my_addr;
@@ -522,8 +524,10 @@ void* Server::process(void* s)
             p->u = u;
             p->ip = ip;
             p->port = port;
-            p->spe = spe;
-            p->p = *(int32_t*)(msg->getData() + 156);
+            p->id = *(int32_t*)msg->getData();
+            p->op = msg->getData() + 8;
+            p->param = msg->getData() + 72;
+            p->p = *(int32_t*)(msg->getData() + 4);
 
             cout << "starting SPE ... \n";
 
@@ -594,6 +598,7 @@ void* Server::processEx(void* p)
             break;
          }
 
+         // check if there is enough local disk space
          if (*(int*)msg->getData() > self->m_SysConfig.m_llMaxDataSize - KnowledgeBase::getTotalDataSize(self->m_SysConfig.m_strDataDir))
          {
             msg->setType(-msg->getType());
@@ -601,97 +606,15 @@ void* Server::processEx(void* p)
             break;
          }
 
-         int fid = DHash::hash(filename.c_str(), m_iKeySpace);
-         Node n;
-         if (-1 == self->m_Router.lookup(fid, &n))
-         {
+         File* f = Client::createFileHandle();
+         if (f->open(filename) < 0)
             msg->setType(-msg->getType());
-            msg->m_iDataLength = 4;
-            break;
-         }
+         else if (f->download((self->m_strHomeDir + filename).c_str()) < 0)
+            msg->setType(-msg->getType());
+         f->close();
+         Client::releaseFileHandle(f);
 
-         msg->setType(1); // locate file
-         msg->setData(0, filename.c_str(), filename.length() + 1);
-         msg->m_iDataLength = 4 + filename.length() + 1;
-
-         if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
-         {
-            msg->setType(-11);
-            msg->m_iDataLength = 4;
-            break;
-         }
-
-         string ip = msg->getData();
-         int port = *(int32_t*)(msg->getData() + 64);
-
-
-         UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-         sockaddr_in my_addr;
-         my_addr.sin_family = AF_INET;
-         my_addr.sin_port = 0;
-         my_addr.sin_addr.s_addr = INADDR_ANY;
-         memset(&(my_addr.sin_zero), '\0', 8);
-         UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr));
-         int addrsize = sizeof(sockaddr_in);
-         UDT::getsockname(u, (sockaddr*)&my_addr, &addrsize);
-
-         int mode = 1; // READ ONLY
-         msg->setType(2); // open the file
-         msg->setData(0, filename.c_str(), filename.length() + 1);
-         msg->setData(64, (char*)&mode, 4);
-         msg->setData(68, (char*)&(my_addr.sin_port), 4);
-         msg->m_iDataLength = 4 + 64 + 4 + 4;
-
-         if (self->m_GMP.rpc(ip.c_str(), port, msg, msg) < 0)
-         {
-            msg->setType(-11);
-            msg->m_iDataLength = 4;
-            break;
-         }
-
-         msg->setType(-11);
          msg->m_iDataLength = 4;
-
-         bool rendezvous = 1;
-         UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
-
-         sockaddr_in serv_addr;
-         serv_addr.sin_family = AF_INET;
-         serv_addr.sin_port = *(int*)(msg->getData()); // port
-         inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr);
-         memset(&(serv_addr.sin_zero), '\0', 8);
-
-         if (UDT::ERROR == UDT::connect(u, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-            break;
-
-         string localfile = self->m_strHomeDir + filename;
-         ofstream ofs;
-         ofs.open(localfile.c_str(), ios::out | ios::binary | ios::trunc);
-         char req[12];
-         *(int32_t*)req = 3; // download
-         *(int64_t*)(req + 4) = 0LL;
-
-         int64_t size;
-         int response = -1;
-
-         if (UDT::send(u, req, 12, 0) < 0)
-            break;
-         if ((UDT::recv(u, (char*)&response, 4, 0) < 0) || (-1 == response))
-            break;
-         if (UDT::recv(u, (char*)&size, 8, 0) < 0)
-            break;
-
-         if (UDT::recvfile(u, ofs, 0, size) < 0)
-            break;
-
-         ofs.close();
-
-         int32_t cmd = 4; // terminate the data connection
-         UDT::send(u, (char*)&cmd, 4, 0);
-         UDT::close(u);
-
-         msg->setType(11);
 
          break;
       }

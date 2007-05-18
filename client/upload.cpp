@@ -11,7 +11,7 @@
 using namespace std;
 using namespace cb;
 
-int upload(CFSClient& fsclient, const char* file, const char* dst = NULL)
+int upload(const char* file, const char* dst = NULL)
 {
    timeval t1, t2;
    gettimeofday(&t1, 0);
@@ -22,10 +22,7 @@ int upload(CFSClient& fsclient, const char* file, const char* dst = NULL)
    ifs.seekg(0);
    cout << "uploading " << file << " of " << size << " bytes" << endl;
 
-   //CProgressBar bar;
-   //bar.init(size);
-
-   CCBFile* fh = fsclient.createFileHandle();
+   File* fh = Sector::createFileHandle();
    if (NULL == fh)
       return -1;
 
@@ -70,7 +67,7 @@ int upload(CFSClient& fsclient, const char* file, const char* dst = NULL)
       finish = false;
 
    fh->close();
-   fsclient.releaseFileHandle(fh);
+   Sector::releaseFileHandle(fh);
 
    if (finish)
    {
@@ -93,15 +90,14 @@ int main(int argc, char** argv)
       return 0;
    }
 
-   CFSClient fsclient;
-   fsclient.connect(argv[1], atoi(argv[2]));
+   Sector::init(argv[1], atoi(argv[2]));
 
    if (5 == argc)
-      upload(fsclient, argv[3], argv[4]);
+      upload(argv[3], argv[4]);
    else
-      upload(fsclient, argv[3]);
+      upload(argv[3]);
 
-   fsclient.close();
+   Sector::close();
 
    return 1;
 }

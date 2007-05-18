@@ -3,18 +3,16 @@ using namespace cb;
 
 int main(int argc, char** argv)
 {
-   SQLClient sqlclient;
-
-   sqlclient.connect(argv[1], atoi(argv[2]));
+   Sector::init(argv[1], atoi(argv[2]));
 
 cout << "connected\n";
 
    vector<DataAttr> attr;
-   sqlclient.getSemantics("stream.dat", attr);
+   Sector::getSemantics("stream.dat", attr);
 
    Semantics::display(attr);
 
-   Query* q = sqlclient.createQueryHandle();
+   Query* q = Sector::createQueryHandle();
    if (q->open("SELECT * FROM stream.dat;") < 0)
    {
       cout << "open failed\n";
@@ -34,7 +32,9 @@ cout << "connected\n";
    }
 
    q->close();
-   sqlclient.releaseQueryHandle(q);
+   Sector::releaseQueryHandle(q);
+
+   Sector::close();
 
    return 0;
 }

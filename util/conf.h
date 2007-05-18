@@ -94,6 +94,8 @@ public:
    int m_iDataPort;		// DATA_PORT
 
    IPSec m_IPSec;		// IP security check
+
+   int m_iMaxSPEMem;		// Available physical memory for SPE
 };
 
 }; // namespace

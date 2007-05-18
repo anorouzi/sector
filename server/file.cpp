@@ -109,13 +109,34 @@ void* Server::fileHandler(void* p)
       case 1: // read
          {
             int64_t param[2];
+            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            {
+               run = false;
+               break;
+            }
 
             ifstream ifs(filename.c_str(), ios::in | ios::binary);
 
-            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
                run = false;
 
-            if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
+            ifs.close();
+
+            break;
+         }
+
+      case 6: // readridx
+         {
+            int64_t param[2];
+            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            {
+               run = false;
+               break;
+            }
+
+            ifstream ifs((filename + ".idx").c_str(), ios::in | ios::binary);
+
+            if (UDT::sendfile(u, ifs, param[0] * 8, (param[1] + 1) * 8) < 0)
                run = false;
 
             ifs.close();
@@ -128,7 +149,10 @@ void* Server::fileHandler(void* p)
             int64_t param[2];
 
             if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            {
                run = false;
+               break;
+            }
 
             ofstream ofs;
             ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
@@ -148,16 +172,16 @@ void* Server::fileHandler(void* p)
             int64_t offset = 0;
             int64_t size = 0;
 
-            ifstream ifs(filename.c_str(), ios::in | ios::binary);
-            ifs.seekg(0, ios::end);
-            size = (int64_t)(ifs.tellg());
-            ifs.seekg(0, ios::beg);
-
             if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
             {
                run = false;
                break;
             }
+
+            ifstream ifs(filename.c_str(), ios::in | ios::binary);
+            ifs.seekg(0, ios::end);
+            size = (int64_t)(ifs.tellg());
+            ifs.seekg(0, ios::beg);
 
             size -= offset;
 
@@ -183,13 +207,13 @@ void* Server::fileHandler(void* p)
             int64_t offset = 0;
             int64_t size = 0;
 
-            ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
-
             if (UDT::recv(u, (char*)&size, 8, 0) < 0)
             {
                run = false;
                break;
             }
+
+            ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
 
             if (UDT::recvfile(u, ofs, offset, size) < 0)
                run = false;
@@ -230,5 +254,3 @@ void* Server::fileHandler(void* p)
 
    return NULL;
 }
-
-

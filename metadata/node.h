@@ -41,6 +41,15 @@ struct Node
    int32_t m_iAppPort;
 };
 
+struct NodeInfo
+{
+   int32_t m_iStatus;		// good, bad
+   int32_t m_iAvailDisk;	// MB
+   int32_t m_iSPEMem;		// MB
+   int32_t m_iJobs;		// number of clients currently serves
+   int32_t m_iRTT;		// RTT
+};
+
 }; // namespace
 
 #endif

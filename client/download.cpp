@@ -16,7 +16,7 @@
 using namespace std;
 using namespace cb;
 
-int download(CFSClient& fsclient, const char* file, const char* dest)
+int download(const char* file, const char* dest)
 {
    #ifndef WIN32
       timeval t1, t2;
@@ -31,7 +31,7 @@ int download(CFSClient& fsclient, const char* file, const char* dest)
    #endif
 
    CFileAttr attr;
-   if (fsclient.stat(file, attr) < 0)
+   if (Sector::stat(file, attr) < 0)
    {
       cout << "ERROR: cannot locate file " << file << endl;
       return -1;
@@ -43,7 +43,7 @@ int download(CFSClient& fsclient, const char* file, const char* dest)
    //CProgressBar bar;
    //bar.init(size);
 
-   CCBFile* fh = fsclient.createFileHandle();
+   File* fh = Sector::createFileHandle();
    if (NULL == fh)
       return -1;
    if (fh->open(file) < 0)
@@ -63,7 +63,7 @@ int download(CFSClient& fsclient, const char* file, const char* dest)
       finish = false;
 
    fh->close();
-   fsclient.releaseFileHandle(fh);
+   Sector::releaseFileHandle(fh);
 
    if (finish)
    {
@@ -98,8 +98,7 @@ int main(int argc, char** argv)
    }
    src.close();
 
-   CFSClient fsclient;
-   if (-1 == fsclient.connect(argv[1], atoi(argv[2])))
+   if (-1 == Sector::init(argv[1], atoi(argv[2])))
    {
       cout << "unable to connect to the server at " << argv[1] << endl;
       return -1;
@@ -111,7 +110,7 @@ int main(int argc, char** argv)
 
       for (; c < 5; ++ c)
       {
-         if (download(fsclient, i->c_str(), argv[4]) > 0)
+         if (download(i->c_str(), argv[4]) > 0)
             break;
          else if (c < 4)
             cout << "download interuppted, trying again from break point." << endl;
@@ -120,7 +119,7 @@ int main(int argc, char** argv)
       }
    }
 
-   fsclient.close();
+   Sector::close();
 
    return 1;
 }

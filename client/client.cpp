@@ -30,21 +30,28 @@ written by
 #include "client.h"
 using namespace cb;
 
+string Client::m_strServerHost = "";
+int Client::m_iServerPort = 0;
+CGMP* Client::m_pGMP = NULL;
+int Client::m_iCount = 0;
+
 Client::Client()
 {
-   m_pGMP = new CGMP;
 }
 
 Client::~Client()
 {
-   delete m_pGMP;
 }
 
-int Client::connect(const string& server, const int& port)
+int Client::init(const string& server, const int& port)
 {
+   if (m_iCount ++ > 0)
+      return 1;
+
    m_strServerHost = server;
    m_iServerPort = port;
 
+   m_pGMP = new CGMP;
    m_pGMP->init(0);
 
    return 1;
@@ -52,7 +59,13 @@ int Client::connect(const string& server, const int& port)
 
 int Client::close()
 {
-   m_pGMP->close();
+   if (m_iCount -- == 0)
+   {
+      m_strServerHost = "";
+      m_iServerPort = 0;
+      m_pGMP->close();
+      delete m_pGMP;
+   }
 
    return 1;
 }
@@ -82,6 +95,7 @@ int Client::lookup(const string& name, vector<Node>& nl)
       return 0;
 
    CCBMsg msg;
+   msg.resize(65536);
    msg.setType(1); // locate file
    msg.setData(0, name.c_str(), name.length() + 1);
    msg.m_iDataLength = 4 + name.length() + 1;
@@ -100,4 +114,30 @@ int Client::lookup(const string& name, vector<Node>& nl)
    }
 
    return nl.size();
+}
+
+int Client::checkServStatus(const vector<Node>& nl, vector<NodeInfo>& il)
+{
+   il.clear();
+   il.resize(nl.size());
+
+   CCBMsg msg;
+   msg.setType(1); // query server information
+   msg.m_iDataLength = 4;
+
+   vector<NodeInfo>::iterator c = il.begin();
+   for (vector<Node>::const_iterator i = nl.begin(); i != nl.end(); ++ i)
+   {
+      if (m_pGMP->rpc(i->m_pcIP, i->m_iAppPort, &msg, &msg) > 0)
+      {
+         *c = *(NodeInfo*)msg.getData();
+         c->m_iRTT = m_pGMP->rtt(i->m_pcIP, i->m_iAppPort);
+      }
+      else
+         c->m_iStatus = -1;
+
+      ++ c;
+   }
+
+   return 1;
 }

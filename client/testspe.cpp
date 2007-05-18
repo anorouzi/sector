@@ -4,14 +4,12 @@ using namespace cb;
 
 int main(int argc, char** argv)
 {
-   SPEClient sc;
-   sc.connect(argv[1], atoi(argv[2]));
+   Sector::init(argv[1], atoi(argv[2]));
 
-   STREAM s;
-   s.m_strDataFile = "stream.dat";
-   s.m_iUnitSize = 8;
+   vector<string> s;
+   s.insert(s.begin(), "stream.dat");
 
-   Process* myproc = sc.createJob();
+   Process* myproc = Sector::createJob();
 
    myproc->open(s, "myProc");
    myproc->run();
@@ -20,7 +18,11 @@ int main(int argc, char** argv)
    {
       char* res;
       int size;
-      if ((-1 == myproc->read(res, size)) || (0 == size))
+      string file;
+      int64_t offset;
+      int rows;
+
+      if ((-1 == myproc->read(res, size, file, offset, rows, true)) || (0 == size))
          break;
 
       cout << "read one block " << size << endl;
@@ -30,7 +32,9 @@ int main(int argc, char** argv)
    }
 
    myproc->close();
-   sc.releaseJob(myproc);
+   Sector::releaseJob(myproc);
+
+   Sector::close();
 
    return 0;
 }

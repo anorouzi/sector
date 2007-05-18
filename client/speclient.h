@@ -3,63 +3,70 @@
 
 #include "client.h"
 #include <string>
-#include <spe.h>
 #include <pthread.h>
+#include <udt.h>
 
 using namespace std;
 
 namespace cb
 {
 
-struct STREAM
-{
-   string m_strDataFile;
-   int64_t m_llSize;
-   int32_t m_iUnitSize;
-};
-
-class SPEClient: public Client
-{
-friend class Process;
-
-public:
-   Process* createJob();
-   int releaseJob(Process* proc);
-};
-
 class Process
 {
-friend class SPEClient;
+friend class Client;
 
 public:
    Process();
    ~Process();
 
-   int open(STREAM stream, string op, const char* param = NULL, const int& size = 0);
+   int open(vector<string> stream, string op, const char* param = NULL, const int& size = 0);
    int close();
 
    int run();
-   int read(char*& data, int& size);
+   int read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder);
 
 private:
    static void* run(void*);
 
 private:
+   string m_strOperator;
+   string m_strParam;
+   vector<string> m_vstrStream;
+
+   struct DS
+   {
+      string m_strDataFile;
+      int64_t m_llOffset;
+      int64_t m_llSize;
+
+      int m_iSPEID;
+
+      char* m_pResult;
+      int m_iResSize;
+   };
+   vector<DS> m_vDS;
+
+   struct SPE
+   {
+      uint32_t m_uiID;
+      Node m_Loc;
+      DS* m_pDS;
+      int m_iStatus;
+      int m_iProgress;
+
+      UDTSOCKET m_DataSock;
+   };
    vector<SPE> m_vSPE;
 
-   struct Result
-   {
-      char* m_pcRes;
-      int m_iSize;
-   };
-   vector<Result> m_vResult;
+   int m_iProgress;
 
    pthread_mutex_t m_ResLock;
    pthread_cond_t m_ResCond;
 
-   CGMP m_GMP;
+   int m_iMinUnitSize;
+   int m_iMaxUnitSize;
 
-   SPEClient* m_pSPEClient;
+   CGMP m_GMP;
 };
 
 }; // namespace cb

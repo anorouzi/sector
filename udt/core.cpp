@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 UDP-based Data Transfer Library (UDT) version 3
@@ -35,7 +35,7 @@ UDT protocol specification (draft-gg-udt-xx.txt)
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/09/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -288,10 +288,10 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
       if (*(int*)optval <= 0)
          throw CUDTException(5, 3, 0);
 
-      if (*(int*)optval > (m_iMSS - 28) * 16)
+      if (*(int*)optval > (m_iMSS - 28) * 32)
          m_iUDTBufSize = *(int*)optval;
       else
-         m_iUDTBufSize = (m_iMSS - 28) * 16;
+         m_iUDTBufSize = (m_iMSS - 28) * 32;
 
       break;
 
@@ -602,7 +602,8 @@ void CUDT::listen()
       if (0 != pthread_create(&m_ListenThread, NULL, CUDT::listenHandler, this))
          throw CUDTException(3, 1, errno);
    #else
-      if (NULL == (m_ListenThread = CreateThread(NULL, 0, CUDT::listenHandler, this, 0, NULL)))
+      DWORD threadID;
+      if (NULL == (m_ListenThread = CreateThread(NULL, 0, CUDT::listenHandler, this, 0, &threadID)))
          throw CUDTException(3, 1, GetLastError());
    #endif
 
@@ -792,7 +793,8 @@ void CUDT::connect(const sockaddr* serv_addr)
          throw CUDTException(3, 1, errno);
    #else
       m_SndThread = NULL;
-      if (NULL == (m_RcvThread = CreateThread(NULL, 0, CUDT::rcvHandler, this, 0, NULL)))
+      DWORD threadID;
+      if (NULL == (m_RcvThread = CreateThread(NULL, 0, CUDT::rcvHandler, this, 0, &threadID)))
          throw CUDTException(3, 1, GetLastError());
    #endif
 
@@ -869,7 +871,8 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
          throw CUDTException(3, 1, errno);
    #else
       m_SndThread = NULL;
-      if (NULL == (m_RcvThread = CreateThread(NULL, 0, CUDT::rcvHandler, this, 0, NULL)))
+      DWORD threadID;
+      if (NULL == (m_RcvThread = CreateThread(NULL, 0, CUDT::rcvHandler, this, 0, &threadID)))
          throw CUDTException(3, 1, GetLastError());
    #endif
 
@@ -1281,11 +1284,10 @@ DWORD WINAPI CUDT::rcvHandler(LPVOID recver)
    #ifdef CUSTOM_CC
       self->m_pTimer->rdtsc(nextccacktime);
       nextccacktime += self->m_pCC->m_iACKPeriod * 1000 * self->m_ullCPUFrequency;
-      if (self->m_pCC->m_iRTO > 0)
-      {
-         self->m_pTimer->rdtsc(nextrto);
-         nextrto += self->m_pCC->m_iRTO * self->m_ullCPUFrequency;
-      }
+      if (!self->m_pCC->m_bUserDefinedRTO)
+         self->m_pCC->m_iRTO = self->m_iRTT + 4 * self->m_iRTTVar;
+      self->m_pTimer->rdtsc(nextrto);
+      nextrto += self->m_pCC->m_iRTO * self->m_ullCPUFrequency;
    #endif
 
    while (!self->m_bClosing)
@@ -1440,7 +1442,7 @@ DWORD WINAPI CUDT::rcvHandler(LPVOID recver)
       }
 
       #ifdef CUSTOM_CC
-         if ((self->m_pCC->m_iRTO > 0) && (currtime > nextrto) && (CSeqNo::incseq(self->m_iSndCurrSeqNo) != self->m_iSndLastAck))
+         if ((currtime > nextrto) && (CSeqNo::incseq(self->m_iSndCurrSeqNo) != self->m_iSndLastAck))
          {
             self->m_pCC->onTimeout();
             nextrto = currtime + self->m_pCC->m_iRTO * self->m_ullCPUFrequency;
@@ -1501,8 +1503,9 @@ DWORD WINAPI CUDT::rcvHandler(LPVOID recver)
 
       #ifdef CUSTOM_CC
          // reset RTO
-         if (self->m_pCC->m_iRTO > 0)
-            nextrto = currtime + self->m_pCC->m_iRTO * self->m_ullCPUFrequency;
+         if (!self->m_pCC->m_bUserDefinedRTO)
+            self->m_pCC->m_iRTO = self->m_iRTT + 4 * self->m_iRTTVar;
+         nextrto = currtime + self->m_pCC->m_iRTO * self->m_ullCPUFrequency;
       #endif
 
       // update time/delay information
@@ -2217,7 +2220,8 @@ int CUDT::send(char* data, const int& len, int* overlapped, const UDT_MEM_ROUTIN
          }
          m_bSndThrStart = true;
       #else
-         if (NULL == (m_SndThread = CreateThread(NULL, 0, CUDT::sndHandler, this, 0, NULL)))
+         DWORD threadID;
+         if (NULL == (m_SndThread = CreateThread(NULL, 0, CUDT::sndHandler, this, 0, &threadID)))
          {
             delete m_pSndTimeWindow;
             m_pSndTimeWindow = NULL;
@@ -2504,7 +2508,8 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
          }
          m_bSndThrStart = true;
       #else
-         if (NULL == (m_SndThread = CreateThread(NULL, 0, CUDT::sndHandler, this, 0, NULL)))
+         DWORD threadID;
+         if (NULL == (m_SndThread = CreateThread(NULL, 0, CUDT::sndHandler, this, 0, &threadID)))
          {
             delete m_pSndTimeWindow;
             m_pSndTimeWindow = NULL;
@@ -2689,7 +2694,8 @@ int64_t CUDT::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size
          }
          m_bSndThrStart = true;
       #else
-         if (NULL == (m_SndThread = CreateThread(NULL, 0, CUDT::sndHandler, this, 0, NULL)))
+         DWORD threadID;
+         if (NULL == (m_SndThread = CreateThread(NULL, 0, CUDT::sndHandler, this, 0, threadID)))
          {
             delete m_pSndTimeWindow;
             m_pSndTimeWindow = NULL;
@@ -2810,6 +2816,7 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
    }
    catch (...)
    {
+      delete [] tempbuf;
       throw CUDTException(4, 3);
    }
 
@@ -2828,6 +2835,7 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
          if (recvsize < unitsize)
          {
             m_bSynRecving = syn;
+            delete [] tempbuf;
             return size - torecv + recvsize;
          }
       }

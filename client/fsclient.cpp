@@ -32,30 +32,28 @@ written by
 using namespace std;
 using namespace cb;
 
-CCBFile* CFSClient::createFileHandle()
+File* Client::createFileHandle()
 {
-   CCBFile *f = NULL;
+   File *f = NULL;
 
    try
    {
-      f = new CCBFile;
+      f = new File;
    }
    catch (...)
    {
       return NULL;
    }
 
-   f->m_pFSClient = this;
-
    return f;
 }
 
-void CFSClient::releaseFileHandle(CCBFile* f)
+void Client::releaseFileHandle(File* f)
 {
    delete f;
 }
 
-int CFSClient::stat(const string& filename, CFileAttr& attr)
+int Client::stat(const string& filename, CFileAttr& attr)
 {
    CCBMsg msg;
    msg.setType(101); // stat
@@ -72,24 +70,23 @@ int CFSClient::stat(const string& filename, CFileAttr& attr)
 }
 
 
-CCBFile::CCBFile():
-m_pFSClient(NULL)
+File::File()
 {
    m_GMP.init(0);
 }
 
-CCBFile::~CCBFile()
+File::~File()
 {
    m_GMP.close();
 }
 
-int CCBFile::open(const string& filename, const int& mode, char* cert)
+int File::open(const string& filename, const int& mode, char* cert)
 {
    m_strFileName = filename;
 
    Node n;
 
-   if (m_pFSClient->lookup(filename, &n) < 0)
+   if (Client::lookup(filename, &n) < 0)
       return -1;
 
    CCBMsg msg;
@@ -129,8 +126,8 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
       if (1 == mode)
          return -1;
 
-      m_strServerIP = m_pFSClient->m_strServerHost;
-      m_iServerPort = m_pFSClient->m_iServerPort;
+      m_strServerIP = Client::m_strServerHost;
+      m_iServerPort = Client::m_iServerPort;
 
       msg.setType(5); // create the file
 
@@ -182,7 +179,7 @@ int CCBFile::open(const string& filename, const int& mode, char* cert)
    bool rendezvous = 1;
    UDT::setsockopt(m_uSock, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
 
-cout << "rendezvous connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;
+   cout << "rendezvous connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;
 
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
@@ -202,7 +199,7 @@ cout << "rendezvous connect " << m_strServerIP << " " << *(int*)(msg.getData()) 
    return 1;
 }
 
-int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
+int File::read(char* buf, const int64_t& offset, const int64_t& size)
 {
    char req[20];
    *(int32_t*)req = 1; // cmd read
@@ -222,7 +219,27 @@ int CCBFile::read(char* buf, const int64_t& offset, const int64_t& size)
    return 1;
 }
 
-int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
+int File::readridx(char* index, const int64_t& offset, const int64_t& rows)
+{
+   char req[20];
+   *(int32_t*)req = 6; // cmd readrows
+   *(int64_t*)(req + 4) = offset;
+   *(int64_t*)(req + 12) = rows;
+   int32_t response = -1;
+
+   if (UDT::send(m_uSock, req, 20, 0) < 0)
+      return -1;
+   if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+      return -1;
+
+   int h;
+   if (UDT::recv(m_uSock, index, (rows + 1) * 8, 0, &h) < 0)
+      return -1;
+
+   return 1;
+}
+
+int File::write(const char* buf, const int64_t& offset, const int64_t& size)
 {
    char req[20];
    *(int32_t*)req = 2; // cmd write
@@ -242,7 +259,7 @@ int CCBFile::write(const char* buf, const int64_t& offset, const int64_t& size)
    return 1;
 }
 
-int CCBFile::download(const char* localpath, const bool& cont)
+int File::download(const char* localpath, const bool& cont)
 {
    int32_t cmd = 3;
    int64_t offset;
@@ -282,7 +299,7 @@ int CCBFile::download(const char* localpath, const bool& cont)
    return 1;
 }
 
-int CCBFile::upload(const char* localpath, const bool& cont)
+int File::upload(const char* localpath, const bool& cont)
 {
    int32_t cmd = 4;
    int64_t size;
@@ -313,7 +330,7 @@ int CCBFile::upload(const char* localpath, const bool& cont)
    return 1;
 }
 
-int CCBFile::close()
+int File::close()
 {
    int32_t cmd = 5;
 

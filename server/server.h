@@ -37,7 +37,6 @@ written by
 #include <conf.h>
 #include <index.h>
 #include <kb.h>
-#include <spe.h>
 
 namespace cb
 {
@@ -86,10 +85,12 @@ private:
    {
       Server* s;
       UDTSOCKET u;
-      string ip;
-      int port;
-      SPE spe;
-      int p;
+      string ip;	// client IP
+      int port;		// client GMP port
+      int id;		// speid
+      string op;	// operator
+      string param;	// SPE parameter
+      int p;		// client UDT port
    };
 
    static void* process(void* s);

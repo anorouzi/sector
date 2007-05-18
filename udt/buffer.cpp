@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 UDP-based Data Transfer Library (UDT) version 3
@@ -34,7 +34,7 @@ The receiving buffer is a logically circular memeory block.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/19/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/14/2007
 *****************************************************************************/
 
 #include <cstring>
@@ -809,7 +809,7 @@ int CRcvBuffer::getPendingQueueSize() const
 
 void CRcvBuffer::initMsgList()
 {
-   // the message list should contain the most possible number of messages: when each packet is a message
+   // the message list should contain the maximum possible number of messages: when each packet is a message
    m_iMsgInfoSize = m_iSize / m_iMSS + 1;
 
    m_pMessageList = new MsgInfo[m_iMsgInfoSize];
@@ -829,7 +829,6 @@ void CRcvBuffer::initMsgList()
       m_pMessageList[i].m_bValid = false;
       m_pMessageList[i].m_bDropped = false;
       m_pMessageList[i].m_bInOrder = false;
-      m_pMessageList[i].m_iMsgNo = -1;
    }
 }
 
@@ -846,13 +845,13 @@ void CRcvBuffer::checkMsg(const int& type, const int32_t& msgno, const int32_t& 
    }
    else
    {
-      pos = m_iPtrFirstMsg + CMsgNo::msgoff(m_pMessageList[m_iPtrFirstMsg].m_iMsgNo, msgno);
+      pos = CMsgNo::msgoff(m_pMessageList[m_iPtrFirstMsg].m_iMsgNo, msgno);
 
-      if (pos >= m_iMsgInfoSize)
-         pos -= m_iMsgInfoSize;
-      else if (pos < 0)
+      if (pos >= 0)
+         pos = (m_iPtrFirstMsg + pos) % m_iMsgInfoSize;
+      else
       {
-         pos += m_iMsgInfoSize;
+         pos = (m_iPtrFirstMsg + pos + m_iMsgInfoSize) % m_iMsgInfoSize;
          m_iPtrFirstMsg = pos;
       }
    }
@@ -863,7 +862,7 @@ void CRcvBuffer::checkMsg(const int& type, const int32_t& msgno, const int32_t& 
 
    switch (type)
    {
-   case 3:
+   case 3: // 11
       // single packet message
       p->m_pcData = (char*)ptr;
       p->m_iStartSeq = p->m_iEndSeq = seqno;
@@ -872,7 +871,7 @@ void CRcvBuffer::checkMsg(const int& type, const int32_t& msgno, const int32_t& 
 
       break;
 
-   case 2:
+   case 2: // 10
       // first packet of the message
       p->m_pcData = (char*)ptr;
       p->m_iStartSeq = seqno;
@@ -880,7 +879,7 @@ void CRcvBuffer::checkMsg(const int& type, const int32_t& msgno, const int32_t& 
 
       break;
 
-   case 1:
+   case 1: // 01
       // last packet of the message
       p->m_iEndSeq = seqno;
       p->m_iSizeDiff = diff;
@@ -1024,7 +1023,10 @@ int CRcvBuffer::readMsg(char* data, const int& len)
          memcpy(data + size - partial, m_pcData, partial);
       }
 
+      // already read, will not be read again
       m_pMessageList[ptr].m_bValid = false;
+      // mark this msg as dropped so that it will not be set to valid again in checkMsg()
+      m_pMessageList[ptr].m_bDropped = true;
 
       -- m_iValidMsgCount;
    }

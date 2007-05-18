@@ -40,38 +40,24 @@ written by
 namespace cb
 {
 
-class CCBFile;
-
-class CFSClient: public Client
+class File
 {
-friend class CCBFile;
-
-public:
-   CCBFile* createFileHandle();
-   void releaseFileHandle(CCBFile* f);
-
-   int stat(const string& filename, CFileAttr& attr);
-};
-
-class CCBFile
-{
-friend class CFSClient;
+friend class Client;
 
 private:
-   CCBFile();
-   virtual ~CCBFile();
+   File();
+   virtual ~File();
 
 public:
    int open(const string& filename, const int& mode = 1, char* cert = NULL);
    int read(char* buf, const int64_t& offset, const int64_t& size);
+   int readridx(char* index, const int64_t& offset, const int64_t& rows);
    int write(const char* buf, const int64_t& offset, const int64_t& size);
    int download(const char* localpath, const bool& cont = false);
    int upload(const char* localpath, const bool& cont = false);
    int close();
 
 private:
-   CFSClient* m_pFSClient;
-
    string m_strServerIP;
    int m_iServerPort;
 

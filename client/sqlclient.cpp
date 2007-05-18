@@ -33,7 +33,7 @@ written by
 using namespace std;
 using namespace cb;
 
-Query* SQLClient::createQueryHandle()
+Query* Client::createQueryHandle()
 {
    Query *q = NULL;
 
@@ -46,17 +46,15 @@ Query* SQLClient::createQueryHandle()
       return NULL;
    }
 
-   q->m_pSQLClient = this;
-
    return q;
 }
 
-void SQLClient::releaseQueryHandle(Query* q)
+void Client::releaseQueryHandle(Query* q)
 {
    delete q;
 }
 
-int SQLClient::getSemantics(const string& name, vector<DataAttr>& attr)
+int Client::getSemantics(const string& name, vector<DataAttr>& attr)
 {
    CCBMsg msg;
    msg.setType(201); // semantics
@@ -76,8 +74,7 @@ cout << "got response\n";
    return msg.getType();
 }
 
-Query::Query():
-m_pSQLClient(NULL)
+Query::Query()
 {
    m_GMP.init(0);
 }
@@ -101,7 +98,7 @@ cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_
    string table = m_SQLExpr.m_vstrTableList[0];
 
    Node n;
-   if (m_pSQLClient->lookup(table, &n) < 0)
+   if (Client::lookup(table, &n) < 0)
       return -1;
 
    CCBMsg msg;

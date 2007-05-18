@@ -29,6 +29,7 @@ written by
 #include <server.h>
 #include <util.h>
 #include <dlfcn.h>
+#include <fsclient.h>
 
 using namespace cb;
 
@@ -39,7 +40,9 @@ void* Server::SPEHandler(void* p)
    string ip = ((Param4*)p)->ip;
    int port = ((Param4*)p)->port;
    int uport = ((Param4*)p)->p;
-   SPE spe = ((Param4*)p)->spe;
+   int speid = ((Param4*)p)->id;
+   string op = ((Param4*)p)->op;
+   string opara = ((Param4*)p)->param;
    delete (Param4*)p;
    CCBMsg msg;
 
@@ -54,146 +57,140 @@ void* Server::SPEHandler(void* p)
    if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
       return NULL;
 
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
+   cout << "locating so " << (self->m_strHomeDir + op + ".so") << endl;
 
-   int size = spe.m_llSize;
-   char* block = new char[size];
-
-   //check if file already exists!
-   if (self->m_LocalFile.lookup(spe.m_strDataFile.c_str(), NULL) > 0)
-   {
-      ifstream ifs;
-      ifs.open((self->m_strHomeDir + spe.m_strDataFile).c_str());
-      ifs.read(block, size);
-      ifs.close();
-
-cout << "read data into block...\n";
-
-   }
-   else
-   {
-      int fid = DHash::hash(spe.m_strDataFile.c_str(), m_iKeySpace);
-      Node n;
-      if (- 1 == self->m_Router.lookup(fid, &n))
-         return NULL;
-
-      msg.setType(1); // locate file
-      msg.setData(0, spe.m_strDataFile.c_str(), spe.m_strDataFile.length() + 1);
-      msg.m_iDataLength = 4 + spe.m_strDataFile.length() + 1;
-
-      if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg) < 0)
-         return NULL;
-
-      string srcip = msg.getData();
-      int srcport = *(int32_t*)(msg.getData() + 64);
-
-      int mode = 1; // READ ONLY
-
-      UDTSOCKET fu = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-      sockaddr_in my_addr;
-      my_addr.sin_family = AF_INET;
-      my_addr.sin_port = 0;
-      my_addr.sin_addr.s_addr = INADDR_ANY;
-      memset(&(my_addr.sin_zero), '\0', 8);
-
-      UDT::bind(fu, (sockaddr*)&my_addr, sizeof(my_addr));
-
-      int size = sizeof(sockaddr_in);
-      UDT::getsockname(u, (sockaddr*)&my_addr, &size);
-
-      msg.setType(2); // open the file
-      msg.setData(0, spe.m_strDataFile.c_str(), spe.m_strDataFile.length() + 1);
-      msg.setData(64, (char*)&mode, 4);
-      msg.setData(68, (char*)&my_addr.sin_port, 4);
-      msg.m_iDataLength = 4 + 64 + 4 + 4;
-
-      if (self->m_GMP.rpc(srcip.c_str(), srcport, &msg, &msg) < 0)
-         return NULL;
-
-      msg.setType(-8);
-      msg.m_iDataLength = 4;
-
-      int rendezvous = 1;
-      UDT::setsockopt(fu, 0, UDT_RENDEZVOUS, &rendezvous, 4);
-
-      sockaddr_in serv_addr;
-      serv_addr.sin_family = AF_INET;
-      serv_addr.sin_port = *(int*)(msg.getData()); // port
-      inet_pton(AF_INET, srcip.c_str(), &serv_addr.sin_addr);
-      memset(&(serv_addr.sin_zero), '\0', 8);
-
-      if (UDT::ERROR == UDT::connect(fu, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-         return NULL;
-
-      int h;
-      if (UDT::ERROR == UDT::recv(fu, block, size, 0, &h))
-         return NULL;
-
-      int32_t cmd = 4;
-      if (UDT::ERROR == UDT::send(fu, (char*)&cmd, 4, 0))
-         return NULL;
-
-      UDT::close(fu);
-   }
-
-
-cout << "locating so " << (self->m_strHomeDir + spe.m_strOperator + ".so") << endl;
-
-   void* handle = dlopen((self->m_strHomeDir + spe.m_strOperator + ".so").c_str(), RTLD_LAZY);
+   void* handle = dlopen((self->m_strHomeDir + op + ".so").c_str(), RTLD_LAZY);
    if (NULL == handle)
       return NULL;
 
-cout << "so found " << "locating process " << spe.m_strOperator << endl;
+   cout << "so found " << "locating process " << op << endl;
 
    int (*process)(const char*, const int&, char*, int&, const char*, const int&);
-   process = (int (*) (const char*, const int&, char*, int&, const char*, const int&) )dlsym(handle, spe.m_strOperator.c_str());
+   process = (int (*) (const char*, const int&, char*, int&, const char*, const int&) )dlsym(handle, op.c_str());
    if (NULL == process)
    {
       cout << dlerror() <<  endl;
       return NULL;
    }
 
-cout << "process found~\n";
+   cout << "process found~\n";
 
-   char* res = new char[size];
+   timeval t1, t2, t3, t4;
+   gettimeofday(&t1, 0);
+
+   string datafile;
+   int64_t offset = 0;
+   int64_t rows = 0;
+   int64_t* index = NULL;
+   int size = 0;
+   char* block = NULL;
+   char* res = NULL;
    int rsize = 0;
-   int rs = size;
-   for (int progress = 0; progress < size; progress += spe.m_iUnitSize)
-   {
-      process(block + progress, spe.m_iUnitSize, res + rsize, rs, spe.m_pcParam, spe.m_iParamSize);
-      rsize += rs;
-      rs = size - rsize;
-   }
-
-   dlclose(handle);
+   int rs;
+   int progress;
 
    msg.setType(1); // success, return result
-   msg.setData(0, (char*)&(spe.m_uiID), 4);
-   msg.setData(4, (char*)&rsize, 4);
-   msg.m_iDataLength = 4 + 8;
-   if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
-      return NULL;
+   msg.setData(0, (char*)&(speid), 4);
 
-cout << "sending data back... " << rsize << endl;
+   // processing...
+   while (true)
+   {
+      char param[80];
+      if (UDT::recv(u, param, 80, 0) < 0)
+         break;
 
-   int h;
-   UDT::send(u, res, size, 0, &h);
+      datafile = param;
+      offset = *(int64_t*)(param + 64);
+      rows = *(int64_t*)(param + 72);
 
+      // read data
+      if (self->m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
+      {
+         index = new int64_t[rows + 1];
+         ifstream idx;
+         idx.open((self->m_strHomeDir + datafile + ".idx").c_str());
+         idx.seekg(offset * 8);
+         idx.read((char*)index, (rows + 1) * 8);
+         idx.close();
+
+         size = index[rows] - index[0];
+         cout << "to read data " << size << endl;
+         block = new char[size];
+         res = new char[size];
+
+         ifstream ifs;
+         ifs.open((self->m_strHomeDir + datafile).c_str());
+         ifs.seekg(index[0]);
+         ifs.read(block, size);
+         ifs.close();
+
+         cout << "read data into block...\n";
+      }
+      else
+      {
+         File* f = Client::createFileHandle();
+         f->open(datafile.c_str());
+         f->readridx((char*)index, offset, rows);
+
+         size = index[rows] - index[0];
+         block = new char[size];
+         res = new char[size];
+
+         f->read(block, index[0], size);
+
+         f->close();
+         Client::releaseFileHandle(f);
+      }
+
+      rsize = 0;
+      gettimeofday(&t3, 0);
+      for (int i = 0; i < rows; ++ i)
+      {
+         cout << "to process " << index[i] - index[0] << " " << index[i + 1] - index[i] << endl;
+         process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, opara.c_str(), opara.length());
+         rsize += rs;
+         rs = size - rsize;
+
+         gettimeofday(&t4, 0);
+         if (t4.tv_sec - t3.tv_sec > 1)
+         {
+            progress = i * 100 / rows;
+            msg.setData(4, (char*)&progress, 4);
+            msg.m_iDataLength = 4 + 8;
+            if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
+               return NULL;
+            t3 = t4;
+         }
+      }
+
+      progress = 100;
+      msg.setData(4, (char*)&progress, 4);
+      msg.setData(8, (char*)&rsize, 4);
+      msg.m_iDataLength = 4 + 12;
+      if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
+         return NULL;
+
+      cout << "sending data back... " << rsize << endl;
+
+      int h;
+      UDT::send(u, res, size, 0, &h);
+
+      delete [] index;
+      delete [] block;
+      delete [] res;
+
+      if (*(int32_t*)msg.getData() == 0)
+         break;
+   }
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
 
+   dlclose(handle);
+
    UDT::close(u);
 
    cout << "comp server closed " << ip << " " << port << " " << duration << endl;
-
-   delete [] block;
-   delete [] res;
-
-   if (NULL != spe.m_pcParam)
-      delete [] spe.m_pcParam;
 
    return NULL;
 }
