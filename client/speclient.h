@@ -23,7 +23,8 @@ public:
    int close();
 
    int run();
-   int read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder);
+   int checkProgress();
+   int read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder = true, const bool& wait = true);
 
 private:
    static void* run(void*);
@@ -41,7 +42,8 @@ private:
 
       int m_iSPEID;
 
-      char* m_pResult;
+      int m_iStatus;		// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
+      char* m_pcResult;
       int m_iResSize;
    };
    vector<DS> m_vDS;
@@ -55,12 +57,14 @@ private:
       DS* m_pDS;
       int m_iStatus;
       int m_iProgress;
+      timeval m_LastUpdateTime;
 
       UDTSOCKET m_DataSock;
    };
    vector<SPE> m_vSPE;
 
    int m_iProgress;
+   int m_iAvailRes;
 
    pthread_mutex_t m_ResLock;
    pthread_cond_t m_ResCond;

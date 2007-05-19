@@ -103,6 +103,8 @@ void* Server::SPEHandler(void* p)
       offset = *(int64_t*)(param + 64);
       rows = *(int64_t*)(param + 72);
 
+      cout << "new job " << datafile << " " << offset << " " << rows << endl;
+
       // read data
       if (self->m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
       {
@@ -146,7 +148,7 @@ void* Server::SPEHandler(void* p)
       gettimeofday(&t3, 0);
       for (int i = 0; i < rows; ++ i)
       {
-         cout << "to process " << index[i] - index[0] << " " << index[i + 1] - index[i] << endl;
+         //cout << "to process " << index[i] - index[0] << " " << index[i + 1] - index[i] << endl;
          process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, opara.c_str(), opara.length());
          rsize += rs;
          rs = size - rsize;
@@ -170,24 +172,26 @@ void* Server::SPEHandler(void* p)
       if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
          return NULL;
 
-      cout << "sending data back... " << rsize << endl;
+      cout << "sending data back... " << rsize << " " << *(int*)res << endl;
 
       int h;
-      UDT::send(u, res, size, 0, &h);
+      if (UDT::ERROR == UDT::send(u, res, rsize, 0, &h))
+      {
+         cout << UDT::getlasterror().getErrorMessage() << endl;
+      }
 
       delete [] index;
       delete [] block;
       delete [] res;
 
-      if (*(int32_t*)msg.getData() == 0)
-         break;
+      //if (*(int32_t*)msg.getData() == 0)
+      //   break;
    }
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
 
    dlclose(handle);
-
    UDT::close(u);
 
    cout << "comp server closed " << ip << " " << port << " " << duration << endl;

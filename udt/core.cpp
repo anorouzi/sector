@@ -942,6 +942,7 @@ void CUDT::close()
       if (m_bListening)
       {
          WaitForSingleObject(m_ListenThread, INFINITE);
+         CloseHandle(m_ListenThread);
          m_bListening = false;
       }
       if (m_bConnected)
@@ -950,9 +951,11 @@ void CUDT::close()
          if (NULL != m_SndThread)
          {
             WaitForSingleObject(m_SndThread, INFINITE);
+            CloseHandle(m_SndThread);
             m_SndThread = NULL;
          }
          WaitForSingleObject(m_RcvThread, INFINITE);
+         CloseHandle(m_RcvThread);
          m_bConnected = false;
       }
    #endif

@@ -11,7 +11,12 @@ int main(int argc, char** argv)
 
    Process* myproc = Sector::createJob();
 
-   myproc->open(s, "myProc");
+   if (myproc->open(s, "myProc") < 0)
+   {
+      cout << "failed to find any computing resources." << endl;
+      return -1;
+   }
+
    myproc->run();
 
    while (true)
@@ -22,8 +27,12 @@ int main(int argc, char** argv)
       int64_t offset;
       int rows;
 
-      if ((-1 == myproc->read(res, size, file, offset, rows, true)) || (0 == size))
-         break;
+      if (-1 == myproc->read(res, size, file, offset, rows, true))
+      {
+         if (myproc->checkProgress() == 100)
+            break;
+         continue;
+      }
 
       cout << "read one block " << size << endl;
 
