@@ -1,13 +1,12 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -25,15 +24,13 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 *****************************************************************************/
 
 /*****************************************************************************
-This file contains the implementation of UDT loss lists and irregular packet
-list management modules.
-
+This file contains the implementation of UDT loss lists;
 All the lists are static linked lists in ascending order of sequence numbers.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/23/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/16/2007
 *****************************************************************************/
 
 #include "list.h"
@@ -441,7 +438,7 @@ m_iSize(size)
    m_iHead = -1;
    m_iTail = -1;
 
-   gettimeofday(&m_TimeStamp, 0);
+   m_TimeStamp = CTimer::getTime();
 }
 
 CRcvLossList::~CRcvLossList()
@@ -454,7 +451,7 @@ CRcvLossList::~CRcvLossList()
 
 void CRcvLossList::insert(const int32_t& seqno1, const int32_t& seqno2)
 {
-   gettimeofday(&m_TimeStamp, 0);
+   m_TimeStamp = CTimer::getTime();
 
    // Data to be inserted must be larger than all those in the list
    // guaranteed by the UDT receiver
@@ -504,7 +501,7 @@ void CRcvLossList::insert(const int32_t& seqno1, const int32_t& seqno2)
 
 bool CRcvLossList::remove(const int32_t& seqno)
 {
-   gettimeofday(&m_TimeStamp, 0);
+   m_TimeStamp = CTimer::getTime();
 
    if (0 == m_iLength)
       return false; 
@@ -687,13 +684,10 @@ int CRcvLossList::getFirstLostSeq() const
 
 void CRcvLossList::getLossArray(int32_t* array, int& len, const int& limit, const int& threshold)
 {
-   timeval currtime;
-   gettimeofday(&currtime, 0);
-
    len = 0;
 
    // do not feedback NAK unless no retransmission is received within a certain interval
-   if ((currtime.tv_sec - m_TimeStamp.tv_sec) * 1000000 + currtime.tv_usec - m_TimeStamp.tv_usec < threshold)
+   if (int(CTimer::getTime() - m_TimeStamp) < threshold)
       return;
 
    int i = m_iHead;
@@ -714,129 +708,5 @@ void CRcvLossList::getLossArray(int32_t* array, int& len, const int& limit, cons
       i = m_piNext[i];
    }
 
-   gettimeofday(&m_TimeStamp, 0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-CIrregularPktList::CIrregularPktList(const int& size):
-m_piData(NULL),
-m_piErrorSize(NULL),
-m_piNext(NULL),
-m_iSize(size)
-{
-   m_piData = new int32_t [m_iSize];
-   m_piErrorSize = new int [m_iSize];
-   m_piNext = new int [m_iSize];
-
-   // -1 means there is no data in the node
-   for (int i = 0; i < size; ++ i)
-      m_piData[i] = -1;
-
-   m_iLength = 0;
-   m_iHead = -1;
-   m_iInsertPos = -1;
-}
-
-CIrregularPktList::~CIrregularPktList()
-{
-   delete [] m_piData;
-   delete [] m_piErrorSize;
-   delete [] m_piNext;
-}
-
-int CIrregularPktList::currErrorSize(const int32_t& seqno) const
-{
-   if (0 == m_iLength)
-      return 0;
-
-   int size = 0;
-   int i = m_iHead;
-
-   // calculate the sum of the size error until the node with a seq. no. not less than "seqno"
-   while ((-1 != i) && (CSeqNo::seqcmp(m_piData[i], seqno) < 0))
-   {
-      size += m_piErrorSize[i];
-      i = m_piNext[i];
-   }
-
-   return size;
-}
-
-void CIrregularPktList::addIrregularPkt(const int32_t& seqno, const int& errsize)
-{
-   if (0 == m_iLength)
-   {
-      // insert into an empty list
-
-      m_iHead = 0;
-      m_piData[m_iHead] = seqno;
-      m_piErrorSize[m_iHead] = errsize;
-      m_piNext[m_iHead] = -1;
-      ++ m_iLength;
-      m_iInsertPos = m_iHead;
-
-      return;
-   }
-
-   // positioning...
-   int offset = CSeqNo::seqoff(m_piData[m_iHead], seqno);
-   int loc = (m_iHead + offset + m_iSize) % m_iSize;
-
-   if (offset < 0)
-   {
-      // insert at head
-
-      m_piData[loc] = seqno;
-      m_piErrorSize[loc] = errsize;
-      m_piNext[loc] = m_iHead;
-      m_iHead = loc;
-      ++ m_iLength;
-   }
-   else if (offset > 0)
-   {
-      // return if it is already there
-      if (seqno == m_piData[loc])
-         return;
-
-      // locate previous node
-      int i;
-
-      if ((-1 != m_iInsertPos) && (CSeqNo::seqcmp(m_piData[m_iInsertPos], seqno) < 0))
-         i = m_iInsertPos;
-      else
-         i = m_iHead;
-
-      while ((-1 != m_piNext[i]) && (CSeqNo::seqcmp(m_piData[m_piNext[i]], seqno) < 0))
-         i = m_piNext[i];
-
-      // insert the node
-      m_piNext[loc] = m_piNext[i];
-      m_piNext[i] = loc;
-
-      m_piData[loc] = seqno;
-      m_piErrorSize[loc] = errsize;
-      ++ m_iLength;
-   }
-
-   m_iInsertPos = loc;
-}
-
-void CIrregularPktList::deleteIrregularPkt(const int32_t& seqno)
-{
-   // remove all node until the one with seq. no. larger than the parameter
-
-   int i = m_iHead;
-   while ((-1 != i) && (CSeqNo::seqcmp(m_piData[i], seqno) <= 0))
-   {
-      m_piData[i] = -1;
-      m_iLength --;
-
-      if (i == m_iInsertPos)
-         m_iInsertPos = -1;
-
-      i = m_piNext[i];
-   }
-
-   m_iHead = i;
+   m_TimeStamp = CTimer::getTime();
 }

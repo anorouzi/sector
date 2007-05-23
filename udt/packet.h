@@ -1,13 +1,12 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of UDT packet structure and operations.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/22/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/17/2007
 *****************************************************************************/
 
 #ifndef __UDT_PACKET_H__
@@ -47,11 +46,14 @@ class CChannel;
 class CPacket
 {
 friend class CChannel;
+friend class CSndQueue;
+friend class CHash;
 
 public:
    int32_t& m_iSeqNo;                   // alias: sequence number
    int32_t& m_iMsgNo;                   // alias: message number
    int32_t& m_iTimeStamp;               // alias: timestamp
+   int32_t& m_iID;			// alias: socket ID
    char*& m_pcData;                     // alias: data/control information
 
    static const int m_iPktHdrSize;	// packet header size
@@ -163,7 +165,7 @@ public:
    int32_t getMsgSeq() const;
 
 protected:
-   uint32_t m_nHeader[3];               // The 96-bit header field
+   uint32_t m_nHeader[4];               // The 128-bit header field
    iovec m_PacketVector[2];             // The 2-demension vector of UDT packet [header, data]
 
    int32_t __pad;
@@ -181,7 +183,7 @@ struct CHandShake
    int32_t m_iMSS;              // maximum segment size
    int32_t m_iFlightFlagSize;   // flow control window size
    int32_t m_iReqType;          // connection request type: -1: response, 1: initial request, 0: rendezvous request
-   int32_t m_iPort;		// new socket port
+   int32_t m_iID;		// socket ID
 };
 
 

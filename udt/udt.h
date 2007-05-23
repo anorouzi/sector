@@ -2,12 +2,11 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -89,7 +88,7 @@ enum UDTOpt
    UDT_SNDSYN,          // if sending is blocking
    UDT_RCVSYN,          // if receiving is blocking
    UDT_CC,              // custom congestion control algorithm
-   UDT_FC,              // deprecated, for compatibility only
+   UDT_FC,		// Flight flag size (window size)
    UDT_SNDBUF,          // maximum buffer in sending queue
    UDT_RCVBUF,          // UDT receiving buffer size
    UDT_LINGER,          // waiting for unsent data when closing
@@ -220,11 +219,9 @@ UDT_API int getsockopt(UDTSOCKET u, int level, SOCKOPT optname, void* optval, in
 
 UDT_API int setsockopt(UDTSOCKET u, int level, SOCKOPT optname, const void* optval, int optlen);
 
-UDT_API int shutdown(UDTSOCKET u, int how);
+UDT_API int send(UDTSOCKET u, const char* buf, int len, int flags);
 
-UDT_API int send(UDTSOCKET u, const char* buf, int len, int flags = 0, int* handle = NULL, UDT_MEM_ROUTINE routine = NULL, void* context = NULL);
-
-UDT_API int recv(UDTSOCKET u, char* buf, int len, int flags = 0, int* handle = NULL, UDT_MEM_ROUTINE routine = NULL, void* context = NULL);
+UDT_API int recv(UDTSOCKET u, char* buf, int len, int flags);
 
 UDT_API int sendmsg(UDTSOCKET u, const char* buf, int len, int ttl = -1, bool inorder = false);
 
@@ -233,8 +230,6 @@ UDT_API int recvmsg(UDTSOCKET u, char* buf, int len);
 UDT_API int64_t sendfile(UDTSOCKET u, std::ifstream& ifs, const int64_t& offset, const int64_t& size, const int& block = 366000);
 
 UDT_API int64_t recvfile(UDTSOCKET u, std::ofstream& ofs, const int64_t& offset, const int64_t& size, const int& block = 7320000);
-
-UDT_API bool getoverlappedresult(UDTSOCKET u, int handle, int& progress, bool wait = false);
 
 UDT_API int select(int nfds, UDSET* readfds, UDSET* writefds, UDSET* exceptfds, const struct timeval* timeout);
 

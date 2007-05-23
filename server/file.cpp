@@ -41,26 +41,20 @@ using namespace cb;
 
 void* Server::fileHandler(void* p)
 {
-   Server* self = ((Param2*)p)->s;
-   string filename = ((Param2*)p)->fn;
-   UDTSOCKET u = ((Param2*)p)->u;
-   string ip = ((Param2*)p)->ip;
-   int port = ((Param2*)p)->p;
-   int mode = ((Param2*)p)->m;
+   Server* self = ((Param2*)p)->serv_instance;
+   string filename = ((Param2*)p)->filename;
+   Transport* datachn = ((Param2*)p)->datachn;
+   string ip = ((Param2*)p)->client_ip;
+   int port = ((Param2*)p)->client_data_port;
+   int mode = ((Param2*)p)->mode;
    delete (Param2*)p;
 
    int32_t cmd;
    bool run = true;
 
-   sockaddr_in cli_addr;
-   cli_addr.sin_family = AF_INET;
-   cli_addr.sin_port = port;
-   inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
-   memset(&(cli_addr.sin_zero), '\0', 8);
-
    cout << "rendezvous connect " << ip << " " << port << endl;
 
-   if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
+   if (datachn->connect(ip.c_str(), port) < 0)
       return NULL;
 
    cout << "client connected " << "MODE " << mode << endl;
@@ -79,7 +73,7 @@ void* Server::fileHandler(void* p)
 
    while (run)
    {
-      if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
+      if (datachn->recv((char*)&cmd, 4) < 0)
          continue;
 
       if (5 != cmd)
@@ -97,7 +91,7 @@ void* Server::fileHandler(void* p)
                response = 0;
          }
 
-         if (UDT::send(u, (char*)&response, 4, 0) < 0)
+         if (datachn->send((char*)&response, 4) < 0)
             continue;
 
          if (-1 == response)
@@ -109,7 +103,7 @@ void* Server::fileHandler(void* p)
       case 1: // read
          {
             int64_t param[2];
-            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            if (datachn->recv((char*)param, 8 * 2) < 0)
             {
                run = false;
                break;
@@ -117,7 +111,7 @@ void* Server::fileHandler(void* p)
 
             ifstream ifs(filename.c_str(), ios::in | ios::binary);
 
-            if (UDT::sendfile(u, ifs, param[0], param[1]) < 0)
+            if (datachn->sendfile(ifs, param[0], param[1]) < 0)
                run = false;
 
             ifs.close();
@@ -128,7 +122,7 @@ void* Server::fileHandler(void* p)
       case 6: // readridx
          {
             int64_t param[2];
-            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            if (datachn->recv((char*)param, 8 * 2) < 0)
             {
                run = false;
                break;
@@ -136,7 +130,7 @@ void* Server::fileHandler(void* p)
 
             ifstream ifs((filename + ".idx").c_str(), ios::in | ios::binary);
 
-            if (UDT::sendfile(u, ifs, param[0] * 8, (param[1] + 1) * 8) < 0)
+            if (datachn->sendfile(ifs, param[0] * 8, (param[1] + 1) * 8) < 0)
                run = false;
 
             ifs.close();
@@ -148,7 +142,7 @@ void* Server::fileHandler(void* p)
          {
             int64_t param[2];
 
-            if (UDT::recv(u, (char*)param, 8 * 2, 0) < 0)
+            if (datachn->recv((char*)param, 8 * 2) < 0)
             {
                run = false;
                break;
@@ -157,7 +151,7 @@ void* Server::fileHandler(void* p)
             ofstream ofs;
             ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
 
-            if (UDT::recvfile(u, ofs, param[0], param[1]) < 0)
+            if (datachn->recvfile(ofs, param[0], param[1]) < 0)
                run = false;
             else
                wb += param[1];
@@ -172,7 +166,7 @@ void* Server::fileHandler(void* p)
             int64_t offset = 0;
             int64_t size = 0;
 
-            if (UDT::recv(u, (char*)&offset, 8, 0) < 0)
+            if (datachn->recv((char*)&offset, 8) < 0)
             {
                run = false;
                break;
@@ -185,14 +179,14 @@ void* Server::fileHandler(void* p)
 
             size -= offset;
 
-            if (UDT::send(u, (char*)&size, 8, 0) < 0)
+            if (datachn->send((char*)&size, 8) < 0)
             {
                run = false;
                ifs.close();
                break;
             }
 
-            if (UDT::sendfile(u, ifs, offset, size) < 0)
+            if (datachn->sendfile(ifs, offset, size) < 0)
                run = false;
             else
                rb += size;
@@ -207,7 +201,7 @@ void* Server::fileHandler(void* p)
             int64_t offset = 0;
             int64_t size = 0;
 
-            if (UDT::recv(u, (char*)&size, 8, 0) < 0)
+            if (datachn->recv((char*)&size, 8) < 0)
             {
                run = false;
                break;
@@ -215,7 +209,7 @@ void* Server::fileHandler(void* p)
 
             ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
 
-            if (UDT::recvfile(u, ofs, offset, size) < 0)
+            if (datachn->recvfile(ofs, offset, size) < 0)
                run = false;
             else
                wb += size;
@@ -246,7 +240,8 @@ void* Server::fileHandler(void* p)
 
    self->m_PerfLog.insert(ip.c_str(), port, filename.c_str(), duration, avgRS, avgWS);
 
-   UDT::close(u);
+   datachn->close();
+   delete datachn;
 
 //   self->m_KBase.m_iNumConn --;
 

@@ -2,12 +2,11 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definitions of common types and utility classes.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/07/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/14/2007
 *****************************************************************************/
 
 #ifndef __UDT_COMMON_H__
@@ -62,8 +61,6 @@ written by
       int iov_len;
       char* iov_base;
    };
-
-   int gettimeofday(timeval *tv, void*);
 #endif
 
 #ifdef UNIX
@@ -76,10 +73,15 @@ written by
    }
 #endif
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class CTimer
 {
+public:
+   CTimer();
+   ~CTimer();
+
 public:
 
       // Functionality:
@@ -109,6 +111,15 @@ public:
 
    void interrupt();
 
+      // Functionality:
+      //    trigger the clock for a tick, for better granuality in no_busy_waiting timer.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    None.
+
+   void tick();
+
 public:
 
       // Functionality:
@@ -129,8 +140,41 @@ public:
 
    static uint64_t getCPUFrequency();
 
+      // Functionality:
+      //    check the current time, 64bit, in microseconds.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    current time in microseconds.
+
+   static uint64_t getTime();
+
+      // Functionality:
+      //    trigger an event such as new connection, close, new data, etc. for "select" call.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    None.
+
+   static void triggerEvent();
+
+      // Functionality:
+      //    wait for an event to br triggered by "triggerEvent".
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    None.
+
+   static void waitForEvent();
+
 private:
    uint64_t m_ullSchedTime;             // next schedulled time
+
+   pthread_cond_t m_TickCond;
+   pthread_mutex_t m_TickLock;
+
+   static pthread_cond_t m_EventCond;
+   static pthread_mutex_t m_EventLock;
 
 private:
    static uint64_t s_ullCPUFrequency;	// CPU frequency : clock cycles per microsecond
@@ -243,5 +287,12 @@ public:
    static const int32_t m_iMaxMsgNo;            // maximum message number used in UDT
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class CIPAddress
+{
+public:
+   static bool ipcmp(const sockaddr* addr1, const sockaddr* addr2, const int& ver = AF_INET);
+};
 
 #endif

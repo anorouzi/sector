@@ -1,13 +1,12 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of List structures used in UDT.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/23/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/16/2007
 *****************************************************************************/
 
 #ifndef __UDT_LIST_H__
@@ -185,54 +184,7 @@ private:
    int m_iLength;                       // loss length
    int m_iSize;                         // size of the static array
 
-   timeval m_TimeStamp;			// last list update time or NAK feedback time
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class CIrregularPktList
-{
-public:
-   CIrregularPktList(const int& size);
-   ~CIrregularPktList();
-
-      // Functionality:
-      //    Read the total size error of all the irregular packets prior to "seqno".
-      // Parameters:
-      //    0) [in] seqno: sequence number.
-      // Returned value:
-      //    the total size error of all the irregular packets prior to (excluding) "seqno".
-
-   int currErrorSize(const int32_t& seqno) const;
-
-      // Functionality:
-      //    Insert an irregular packet into the list.
-      // Parameters:
-      //    0) [in] seqno: sequence number.
-      //    1) [in] errsize: size error of the current packet.
-      // Returned value:
-      //    None
-
-   void addIrregularPkt(const int32_t& seqno, const int& errsize);
-
-      // Functionality:
-      //    Remove ALL the packets prior to "seqno".
-      // Parameters:
-      //    0) [in] seqno: sequence number.
-      // Returned value:
-      //    None
-
-   void deleteIrregularPkt(const int32_t& seqno);
-
-private:
-   int32_t* m_piData;                   // sequence number
-   int* m_piErrorSize;                  // size error of the node
-   int* m_piNext;                       // next node in the list
-
-   int m_iHead;                         // first node in the list
-   int m_iLength;                       // number of irregular packets in the list
-   int m_iSize;                         // size of the static array
-   int m_iInsertPos;                    // last node insert position
+   uint64_t m_TimeStamp;		// last list update time or NAK feedback time
 };
 
 

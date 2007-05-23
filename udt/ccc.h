@@ -2,12 +2,11 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of UDT/CCC base class.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/07/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/16/2007
 *****************************************************************************/
 
 
@@ -187,8 +186,8 @@ private:
 
    int m_iACKPeriod;                    // Periodical timer to send an ACK, in milliseconds
    int m_iACKInterval;                  // How many packets to send one ACK, in packets
+   bool m_bUserDefinedRTO;              // if the RTO value is defined by users
    int m_iRTO;                          // RTO value
-   bool m_bUserDefinedRTO;		// if the RTO value is defined by users
    CPerfMon m_PerfInfo;                 // protocol statistics information
 };
 

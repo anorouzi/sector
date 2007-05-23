@@ -35,38 +35,30 @@ using namespace cb;
 
 void* Server::SPEHandler(void* p)
 {
-   Server* self = ((Param4*)p)->s;
-   UDTSOCKET u = ((Param4*)p)->u;
-   string ip = ((Param4*)p)->ip;
-   int port = ((Param4*)p)->port;
-   int uport = ((Param4*)p)->p;
-   int speid = ((Param4*)p)->id;
-   string op = ((Param4*)p)->op;
-   string opara = ((Param4*)p)->param;
+   Server* self = ((Param4*)p)->serv_instance;
+   Transport* datachn = ((Param4*)p)->datachn;
+   string ip = ((Param4*)p)->client_ip;
+   int ctrlport = ((Param4*)p)->client_ctrl_port;
+   int dataport = ((Param4*)p)->client_data_port;
+   int speid = ((Param4*)p)->speid;
+   string function = ((Param4*)p)->function;
+   string param = ((Param4*)p)->param;
    delete (Param4*)p;
    CCBMsg msg;
 
-   sockaddr_in cli_addr;
-   cli_addr.sin_family = AF_INET;
-   cli_addr.sin_port = uport;
-   inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
-   memset(&(cli_addr.sin_zero), '\0', 8);
-
-   cout << "rendezvous connect " << ip << " " << uport << endl;
-
-   if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
+   cout << "rendezvous connect " << ip << " " << dataport << endl;
+   if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
 
-   cout << "locating so " << (self->m_strHomeDir + op + ".so") << endl;
-
-   void* handle = dlopen((self->m_strHomeDir + op + ".so").c_str(), RTLD_LAZY);
+   cout << "locating so " << (self->m_strHomeDir + function + ".so") << endl;
+   void* handle = dlopen((self->m_strHomeDir + function + ".so").c_str(), RTLD_LAZY);
    if (NULL == handle)
       return NULL;
 
-   cout << "so found " << "locating process " << op << endl;
+   cout << "so found " << "locating process " << function << endl;
 
    int (*process)(const char*, const int&, char*, int&, const char*, const int&);
-   process = (int (*) (const char*, const int&, char*, int&, const char*, const int&) )dlsym(handle, op.c_str());
+   process = (int (*) (const char*, const int&, char*, int&, const char*, const int&) )dlsym(handle, function.c_str());
    if (NULL == process)
    {
       cout << dlerror() <<  endl;
@@ -95,13 +87,13 @@ void* Server::SPEHandler(void* p)
    // processing...
    while (true)
    {
-      char param[80];
-      if (UDT::recv(u, param, 80, 0) < 0)
+      char dataseg[80];
+      if (datachn->recv(dataseg, 80) < 0)
          break;
 
-      datafile = param;
-      offset = *(int64_t*)(param + 64);
-      rows = *(int64_t*)(param + 72);
+      datafile = dataseg;
+      offset = *(int64_t*)(dataseg + 64);
+      rows = *(int64_t*)(dataseg + 72);
 
       cout << "new job " << datafile << " " << offset << " " << rows << endl;
 
@@ -149,7 +141,7 @@ void* Server::SPEHandler(void* p)
       for (int i = 0; i < rows; ++ i)
       {
          //cout << "to process " << index[i] - index[0] << " " << index[i + 1] - index[i] << endl;
-         process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, opara.c_str(), opara.length());
+         process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, param.c_str(), param.length());
          rsize += rs;
          rs = size - rsize;
 
@@ -159,7 +151,7 @@ void* Server::SPEHandler(void* p)
             progress = i * 100 / rows;
             msg.setData(4, (char*)&progress, 4);
             msg.m_iDataLength = 4 + 8;
-            if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
+            if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
                return NULL;
             t3 = t4;
          }
@@ -169,32 +161,26 @@ void* Server::SPEHandler(void* p)
       msg.setData(4, (char*)&progress, 4);
       msg.setData(8, (char*)&rsize, 4);
       msg.m_iDataLength = 4 + 12;
-      if (self->m_GMP.rpc(ip.c_str(), port, &msg, &msg) < 0)
+      if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
          return NULL;
 
       cout << "sending data back... " << rsize << " " << *(int*)res << endl;
 
-      int h;
-      if (UDT::ERROR == UDT::send(u, res, rsize, 0, &h))
-      {
-         cout << UDT::getlasterror().getErrorMessage() << endl;
-      }
+      datachn->send(res, rsize);
 
       delete [] index;
       delete [] block;
       delete [] res;
-
-      //if (*(int32_t*)msg.getData() == 0)
-      //   break;
    }
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
 
    dlclose(handle);
-   UDT::close(u);
+   datachn->close();
+   delete datachn;
 
-   cout << "comp server closed " << ip << " " << port << " " << duration << endl;
+   cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
 
    return NULL;
 }

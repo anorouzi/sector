@@ -34,10 +34,10 @@ written by
 #include <index.h>
 #include <file.h>
 #include <node.h>
+#include <transport.h>
 #include <client.h>
-#include <udt.h>
 
-namespace cb
+namespace cb 
 {
 
 class File
@@ -62,10 +62,9 @@ private:
    int m_iServerPort;
 
    CGMP m_GMP;
+   Transport m_DataChn;
 
    string m_strFileName;
-
-   UDTSOCKET m_uSock;
 };
 
 }; // namespace

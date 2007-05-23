@@ -242,44 +242,25 @@ void* Server::process(void* s)
 
             cout << "===> start file server " << ip << " " << port << endl;
 
-            UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);;
-
-            sockaddr_in my_addr;
-            my_addr.sin_family = AF_INET;
-            my_addr.sin_port = 0;
-            my_addr.sin_addr.s_addr = INADDR_ANY;
-            memset(&(my_addr.sin_zero), '\0', 8);
-
-            if (UDT::ERROR == UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr)))
-            {
-               msg->setType(-msg->getType());
-               msg->m_iDataLength = 4;
-
-               self->m_GMP.sendto(ip, port, id, msg);
-               break;
-            }
-
-            int rendezvous = 1;
-            UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, 4);
+            Transport* datachn = new Transport;
+            int dataport = 0;
+            datachn->open(dataport);
 
             Param2* p = new Param2;
-            p->s = self;
-            p->fn = msg->getData();
-            p->u = u;
-            p->ip = ip;
-            p->p = *(int*)(msg->getData() + 68);
-            p->m = mode;
+            p->serv_instance = self;
+            p->filename = msg->getData();
+            p->datachn = datachn;
+            p->client_ip = ip;
+            p->client_data_port = *(int*)(msg->getData() + 68);
+            p->mode = mode;
 
             pthread_t file_handler;
             pthread_create(&file_handler, NULL, fileHandler, p);
             pthread_detach(file_handler);
 
-            int size = sizeof(sockaddr_in);
-            UDT::getsockname(u, (sockaddr*)&my_addr, &size);
-
-            msg->setData(0, (char*)&my_addr.sin_port, 4);
+            msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = 4 + 4;
-            //cout << "feedback port " << my_addr.sin_port <<endl;
+            //cout << "feedback port " << dataport <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
 
@@ -452,43 +433,25 @@ void* Server::process(void* s)
 
             cout << "===> start SQL server " << endl;
 
-            UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-            sockaddr_in my_addr;
-            my_addr.sin_family = AF_INET;
-            my_addr.sin_port = 0;
-            my_addr.sin_addr.s_addr = INADDR_ANY;
-            memset(&(my_addr.sin_zero), '\0', 8);
-
-            if (UDT::ERROR == UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr)))
-            {
-               msg->setType(-msg->getType());
-               msg->m_iDataLength = 4;
-               self->m_GMP.sendto(ip, port, id, msg);
-               break;
-            }
-
-            int rendezvous = 1;
-            UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, 4);
+            Transport* datachn = new Transport;
+            int dataport = 0;
+            datachn->open(dataport);
 
             Param3* p = new Param3;
-            p->s = self;
-            p->fn = msg->getData() + 4;
-            p->q = msg->getData() + 68;
-            p->u = u;
-            p->ip = ip;
-            p->p = *(int*)(msg->getData());
+            p->serv_instance = self;
+            p->filename = msg->getData() + 4;
+            p->query = msg->getData() + 68;
+            p->datachn = datachn;
+            p->client_ip = ip;
+            p->client_data_port = *(int*)(msg->getData());
 
             pthread_t sql_handler;
             pthread_create(&sql_handler, NULL, SQLHandler, p);
             pthread_detach(sql_handler);
 
-            int size = sizeof(sockaddr_in);
-            UDT::getsockname(u, (sockaddr*)&my_addr, &size);
-
-            msg->setData(0, (char*)&my_addr.sin_port, 4);
+            msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = 4 + 4;
-            //cout << "feedback port " << my_addr.sin_port <<endl;
+            //cout << "feedback port " << dataport <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
 
@@ -500,47 +463,29 @@ void* Server::process(void* s)
 
          case 300: // processing engine
          {
-            UDTSOCKET u = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-            sockaddr_in my_addr;
-            my_addr.sin_family = AF_INET;
-            my_addr.sin_port = 0;
-            my_addr.sin_addr.s_addr = INADDR_ANY;
-            memset(&(my_addr.sin_zero), '\0', 8);
-
-            if (UDT::ERROR == UDT::bind(u, (sockaddr*)&my_addr, sizeof(my_addr)))
-            {
-               msg->setType(-msg->getType());
-               msg->m_iDataLength = 4;
-               self->m_GMP.sendto(ip, port, id, msg);
-               break;
-            }
-
-            int rendezvous = 1;
-            UDT::setsockopt(u, 0, UDT_RENDEZVOUS, &rendezvous, 4);
+            Transport* datachn = new Transport;
+            int dataport = 0;
+            datachn->open(dataport);
 
             Param4* p = new Param4;
-            p->s = self;
-            p->u = u;
-            p->ip = ip;
-            p->port = port;
-            p->id = *(int32_t*)msg->getData();
-            p->op = msg->getData() + 8;
+            p->serv_instance = self;
+            p->datachn = datachn;
+            p->client_ip = ip;
+            p->client_ctrl_port = port;
+            p->speid = *(int32_t*)msg->getData();
+            p->function = msg->getData() + 8;
             p->param = msg->getData() + 72;
-            p->p = *(int32_t*)(msg->getData() + 4);
+            p->client_data_port = *(int32_t*)(msg->getData() + 4);
 
-            cout << "starting SPE ... " << p->id << " " << p->p << " " << p->op << endl;
+            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << endl;
 
             pthread_t spe_handler;
             pthread_create(&spe_handler, NULL, SPEHandler, p);
             pthread_detach(spe_handler);
 
-            int size = sizeof(sockaddr_in);
-            UDT::getsockname(u, (sockaddr*)&my_addr, &size);
-
-            msg->setData(0, (char*)&my_addr.sin_port, 4);
+            msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = 4 + 4;
-            //cout << "feedback port " << my_addr.sin_port <<endl;
+            cout << "feedback port " << dataport <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
 
@@ -553,10 +498,10 @@ void* Server::process(void* s)
          default:
          {
             Param1* p = new Param1;
-            p->s = self;
-            memcpy(p->ip, ip, 64);
-            p->id = id;
-            p->port = port;
+            p->serv_instance = self;
+            p->client_ip = ip;
+            p->msg_id = id;
+            p->client_ctrl_port = port;
             p->msg = new CCBMsg(*msg);
 
             pthread_t ex_thread;
@@ -576,10 +521,10 @@ void* Server::process(void* s)
 
 void* Server::processEx(void* p)
 {
-   Server* self = ((Param1*)p)->s;
-   char* ip = ((Param1*)p)->ip;
-   int port = ((Param1*)p)->port;
-   int32_t id = ((Param1*)p)->id;
+   Server* self = ((Param1*)p)->serv_instance;
+   string ip = ((Param1*)p)->client_ip;
+   int port = ((Param1*)p)->client_ctrl_port;
+   int32_t id = ((Param1*)p)->msg_id;
    CCBMsg* msg = ((Param1*)p)->msg;
 
    //cout << "recv request " << msg->getType() << endl;
@@ -727,7 +672,7 @@ void* Server::processEx(void* p)
          break;
    }
 
-   self->m_GMP.sendto(ip, port, id, msg);
+   self->m_GMP.sendto(ip.c_str(), port, id, msg);
 
    //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 

@@ -2,12 +2,11 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of UDT/CCC base class.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/07/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/17/2007
 *****************************************************************************/
 
 
@@ -43,8 +42,8 @@ m_dPktSndPeriod(1.0),
 m_dCWndSize(16.0),
 m_iACKPeriod(0),
 m_iACKInterval(0),
-m_iRTO(-1),
-m_bUserDefinedRTO(false)
+m_bUserDefinedRTO(false),
+m_iRTO(-1)
 {
 }
 
@@ -60,15 +59,16 @@ void CCC::setACKInterval(const int& pktINT)
 
 void CCC::setRTO(const int& usRTO)
 {
-   m_iRTO = usRTO;
    m_bUserDefinedRTO = true;
+   m_iRTO = usRTO;
 }
 
 void CCC::sendCustomMsg(CPacket& pkt) const
 {
    CUDT* u = CUDT::getUDTHandle(m_UDT);
+
    if (NULL != u)
-      *(u->m_pChannel) << pkt;
+      u->m_pSndQueue->sendto(u->m_pPeerAddr, pkt);
 }
 
 const CPerfMon* CCC::getPerfInfo()

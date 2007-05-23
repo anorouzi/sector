@@ -1,7 +1,7 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lserver -lrouting -lcrypto -lrpc -ludt -lsql -lmeta -lclient -dl
+LDFLAGS += -lserver -lrouting -lcrypto -lrpc -ludt -lsql -lmeta -lclient -lutil -dl
 
 OBJS = server.o file.o sql.o spe.o
 

@@ -32,7 +32,7 @@ written by
 
 #include <routing.h>
 #include <gmp.h>
-#include <udt.h>
+#include <transport.h>
 #include <log.h>
 #include <conf.h>
 #include <index.h>
@@ -54,50 +54,50 @@ public:
 private:
    struct Param1
    {
-      Server* s;
-      char ip[64];
-      int port;
-      int32_t id;
-      CCBMsg* msg;
+      Server* serv_instance;	// self
+      string client_ip;		// client IP
+      int client_ctrl_port;	// client control port
+      int32_t msg_id;		// message ID
+      CCBMsg* msg;		// message
    };
 
    struct Param2
    {
-      Server* s;
-      string fn;	// filename
-      UDTSOCKET u;
-      int m;		// file access mode
-      string ip;	// client IP
-      int p;		// client UDT port
+      Server* serv_instance;	// self
+      string filename;		// filename
+      Transport* datachn;	// data channel
+      int mode;			// file access mode
+      string client_ip;		// client IP
+      int client_data_port;	// client data channel port
    };
 
    struct Param3
    {
-      Server* s;
-      string fn;        // filename
-      string q;		// query
-      UDTSOCKET u;
-      string ip;        // client IP
-      int p;            // client UDT port
+      Server* serv_instance;	// self
+      string filename;        	// filename
+      string query;		// query
+      Transport* datachn;	// data channel
+      string client_ip;	        // client IP
+      int client_data_port;     // client UDT port
    };
 
    struct Param4
    {
-      Server* s;
-      UDTSOCKET u;
-      string ip;	// client IP
-      int port;		// client GMP port
-      int id;		// speid
-      string op;	// operator
-      string param;	// SPE parameter
-      int p;		// client UDT port
+      Server* serv_instance;	// self
+      Transport* datachn;	// data channel
+      string client_ip;		// client IP
+      int client_ctrl_port;	// client GMP port
+      int client_data_port;	// client data port
+      int speid;		// speid
+      string function;		// SPE operator
+      string param;		// SPE parameter
    };
 
    static void* process(void* s);
-   static void* processEx(void* p);
-   static void* fileHandler(void* p);
-   static void* SQLHandler(void* p);
-   static void* SPEHandler(void* p);
+   static void* processEx(void* p1);
+   static void* fileHandler(void* p2);
+   static void* SQLHandler(void* p3);
+   static void* SPEHandler(void* p4);
 
 private:
    void updateOutLink();

@@ -2,12 +2,11 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of structures related to UDT API.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/27/2007
 *****************************************************************************/
 
 #ifndef __UDT_API_H__
@@ -38,8 +37,12 @@ written by
 
 
 #include <map>
+#include <vector>
 #include "udt.h"
 #include "packet.h"
+#include "queue.h"
+
+using namespace std;
 
 
 class CUDT;
@@ -53,7 +56,7 @@ struct CUDTSocket
    enum UDTSTATUS {INIT = 1, OPENED, LISTENING, CONNECTED, CLOSED};
    UDTSTATUS m_Status;                       // current socket state
 
-   timeval m_TimeStamp;                      // time when the socket is closed
+   uint64_t m_TimeStamp;                     // time when the socket is closed
 
    int m_iIPversion;                         // IP version
    sockaddr* m_pSelfAddr;                    // pointer to the local address of the socket
@@ -61,6 +64,9 @@ struct CUDTSocket
 
    UDTSOCKET m_Socket;                       // socket ID
    UDTSOCKET m_ListenSocket;                 // ID of the listener socket; 0 means this is an independent socket
+
+   UDTSOCKET m_PeerID;                       // peer socket ID
+   int32_t m_iISN;                           // initial sequence number, used to tell different connection from same IP:port
 
    CUDT* m_pUDT;                             // pointer to the UDT entity
 
@@ -77,6 +83,8 @@ struct CUDTSocket
 
 class CUDTUnited
 {
+friend class CUDT;
+
 public:
    CUDTUnited();
    ~CUDTUnited();
@@ -155,10 +163,14 @@ private:
 
 private:
    CUDTSocket* locate(const UDTSOCKET u);
-   CUDTSocket* locate(const UDTSOCKET u, const sockaddr* peer);
+   CUDTSocket* locate(const UDTSOCKET u, const sockaddr* peer, const UDTSOCKET& id, const int32_t& isn);
    void checkBrokenSockets();
    void removeSocket(const UDTSOCKET u);
-};
+   void updateMux(CUDT* u, const sockaddr* addr = NULL);
 
+private:
+   vector<CMultiplexer> m_vMultiplexer;              // UDP multiplexer
+   pthread_mutex_t m_MultiplexerLock;
+};
 
 #endif

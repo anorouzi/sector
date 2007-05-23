@@ -1,13 +1,12 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -32,7 +31,7 @@ A UDT packet is a 2-dimension vector of packet header and data.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/23/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/27/2007
 *****************************************************************************/
 
 
@@ -56,6 +55,8 @@ written by
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //   |                          Time Stamp                           |
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |                     Destination Socket ID                     |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //
 //   bit 0:
 //      0: Data Packet
@@ -76,6 +77,8 @@ written by
 //   |                       Additional Info                         |
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //   |                          Time Stamp                           |
+//   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//   |                     Destination Socket ID                     |
 //   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 //
 //   bit 1-15:
@@ -135,7 +138,7 @@ written by
 #include "packet.h"
 
 
-const int CPacket::m_iPktHdrSize = 12;
+const int CPacket::m_iPktHdrSize = 16;
 
 
 // Set up the aliases in the constructure
@@ -143,6 +146,7 @@ CPacket::CPacket():
 m_iSeqNo((int32_t&)(m_nHeader[0])),
 m_iMsgNo((int32_t&)(m_nHeader[1])),
 m_iTimeStamp((int32_t&)(m_nHeader[2])),
+m_iID((int32_t&)(m_nHeader[3])),
 m_pcData((char*&)(m_PacketVector[1].iov_base))
 {
    m_PacketVector[0].iov_base = (char *)m_nHeader;

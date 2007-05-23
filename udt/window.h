@@ -1,13 +1,12 @@
 /*****************************************************************************
-Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
+Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of Window structures used in UDT.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/23/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/17/2007
 *****************************************************************************/
 
 #ifndef __UDT_WINDOW_H__
@@ -74,7 +73,7 @@ public:
 private:
    int32_t* m_piACKSeqNo;       // Seq. No. for the ACK packet
    int32_t* m_piACK;            // Data Seq. No. carried by the ACK packet
-   timeval* m_pTimeStamp;       // The timestamp when the ACK was sent
+   uint64_t* m_pTimeStamp;      // The timestamp when the ACK was sent
 
    int m_iSize;                 // Size of the ACK history window
    int m_iHead;                 // Pointer to the lastest ACK record
@@ -189,9 +188,9 @@ private:
    int m_iLastSentTime;         // last packet sending time
    int m_iMinPktSndInt;         // Minimum packet sending interval
 
-   timeval m_LastArrTime;       // last packet arrival time
-   timeval m_CurrArrTime;       // current packet arrival time
-   timeval m_ProbeTime;         // arrival time of the first probing packet
+   uint64_t m_LastArrTime;      // last packet arrival time
+   uint64_t m_CurrArrTime;      // current packet arrival time
+   uint64_t m_ProbeTime;        // arrival time of the first probing packet
 };
 
 

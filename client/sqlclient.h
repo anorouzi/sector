@@ -34,7 +34,7 @@ written by
 #include <index.h>
 #include <data.h>
 #include <sql.h>
-#include <udt.h>
+#include <transport.h>
 #include <client.h>
 
 namespace cb
@@ -59,11 +59,10 @@ private:
    int m_iServerPort;
 
    CGMP m_GMP;
+   Transport m_DataChn;
 
    string m_strQuery;
    SQLExpr m_SQLExpr;
-
-   UDTSOCKET m_uSock;
 };
 
 }; // namespace

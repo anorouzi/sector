@@ -2,12 +2,11 @@
 Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) version 3
+UDP-based Data Transfer Library (UDT) special version UDT-m
 
-Laboratory for Advanced Computing (LAC)
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
-http://www.lac.uic.edu/
+http://www.ncdm.uic.edu/
 
 This library is free software; you can redistribute it and/or modify it
 under the terms of the GNU Lesser General Public License as published by
@@ -30,7 +29,7 @@ This header file contains the definition of the UDP channel.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2006
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/12/2006
 *****************************************************************************/
 
 #ifndef __UDT_CHANNEL_H__
@@ -58,90 +57,13 @@ public:
    void open(const sockaddr* addr = NULL);
 
       // Functionality:
-      //    Send data through the channel.
-      // Parameters:
-      //    0) [in] buffer: pointer to the data to be sent.
-      //    1) [in] size: size of the buffer.
-      // Returned value:
-      //    Actual size of data sent.
-
-   int send(char* buffer, const int& size) const;
-
-      // Functionality:
-      //    Receive data from the channel.
-      // Parameters:
-      //    0) [out] buffer: received data.
-      //    1) [in] size: size of the expected data received.
-      // Returned value:
-      //    Actual size of data received.
-
-   int recv(char* buffer, const int& size) const;
-
-      // Functionality:
-      //    Read the data from the channel but the data is not removed from UDP buffer.
-      // Parameters:
-      //    0) [out] buffer: previewed received data.
-      //    1) [in] size: size of the expected data received.
-      // Returned value:
-      //    Actual size of data received.
-
-   int peek(char* buffer, const int& size) const;
-
-      // Functionality:
-      //    Send a packet through the channel.
-      // Parameters:
-      //    0) [in] packet: reference to a CPacket entity.
-      // Returned value:
-      //    The channel itself for serial output.
-
-   const CChannel& operator<<(CPacket& packet) const;
-
-      // Functionality:
-      //    Receive a packet from the channel.
-      // Parameters:
-      //    0) [out] packet: reference to a CPacket entity.
-      // Returned value:
-      //    The channel itself for serial input.
-
-   const CChannel& operator>>(CPacket& packet) const;
-
-      // Functionality:
-      //    Send a packet to the given address.
-      // Parameters:
-      //    0) [in] packet: reference to a CPacket entity.
-      //    1) [in] addr: pointer to the destination address.
-      // Returned value:
-      //    Actual size of data sent.
-
-   int sendto(CPacket& packet, const sockaddr* addr) const;
-
-      // Functionality:
-      //    Receive a packet from the channel and record the source address.
-      // Parameters:
-      //    0) [in] packet: reference to a CPacket entity.
-      //    1) [in] addr: pointer to the source address.
-      // Returned value:
-      //    Actual size of data received.
-
-   int recvfrom(CPacket& packet, sockaddr* addr) const;
-
-      // Functionality:
-      //    Connect to the peer side whose address is in the sockaddr structure.
-      // Parameters:
-      //    0) [in] addr: pointer to the peer side address.
-      // Returned value:
-      //    None.
-
-   void connect(const sockaddr* addr);
-
-      // Functionality:
       //    Disconnect and close the UDP entity.
       // Parameters:
       //    None.
       // Returned value:
       //    None.
 
-   void disconnect() const;
+   void close() const;
 
       // Functionality:
       //    Get the UDP sending buffer size.
@@ -197,6 +119,27 @@ public:
 
    void getPeerAddr(sockaddr* addr) const;
 
+      // Functionality:
+      //    Send a packet to the given address.
+      // Parameters:
+      //    0) [in] addr: pointer to the destination address.
+      //    1) [in] packet: reference to a CPacket entity.
+      // Returned value:
+      //    Actual size of data sent.
+
+   int sendto(const sockaddr* addr, CPacket& packet) const;
+
+      // Functionality:
+      //    Receive a packet from the channel and record the source address.
+      // Parameters:
+      //    0) [in] addr: pointer to the source address.
+      //    1) [in] packet: reference to a CPacket entity.
+      // Returned value:
+      //    Actual size of data received.
+
+   int recvfrom(sockaddr* addr, CPacket& packet) const;
+
+
 private:
    int m_iIPversion;                    // IP version
 
@@ -208,11 +151,6 @@ private:
 
    int m_iSndBufSize;                   // UDP sending buffer size
    int m_iRcvBufSize;                   // UDP receiving buffer size
-
-   char* m_pcChannelBuf;                // buffer for temporally storage of in/out data
-
-private:
-   void setChannelOpt();
 };
 
 

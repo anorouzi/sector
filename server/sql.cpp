@@ -34,23 +34,17 @@ using namespace cb;
 
 void* Server::SQLHandler(void* p)
 {
-   Server* self = ((Param3*)p)->s;
-   string filename = self->m_strHomeDir + ((Param3*)p)->fn;
-   string query = ((Param3*)p)->q;
-   UDTSOCKET u = ((Param3*)p)->u;
-   string ip = ((Param3*)p)->ip;
-   int port = ((Param3*)p)->p;
+   Server* self = ((Param3*)p)->serv_instance;
+   string filename = self->m_strHomeDir + ((Param3*)p)->filename;
+   string query = ((Param3*)p)->query;
+   Transport* datachn = ((Param3*)p)->datachn;
+   string ip = ((Param3*)p)->client_ip;
+   int port = ((Param3*)p)->client_data_port;
    delete (Param3*)p;
-
-   sockaddr_in cli_addr;
-   cli_addr.sin_family = AF_INET;
-   cli_addr.sin_port = port;
-   inet_pton(AF_INET, ip.c_str(), &cli_addr.sin_addr);
-   memset(&(cli_addr.sin_zero), '\0', 8);
 
    cout << "rendezvous connect " << ip << " " << port << endl;
 
-   if (UDT::ERROR == UDT::connect(u, (sockaddr*)&cli_addr, sizeof(sockaddr_in)))
+   if (datachn->connect(ip.c_str(), port) < 0)
       return NULL;
 
    cout << "run sql " << query << endl;
@@ -72,7 +66,7 @@ void* Server::SQLHandler(void* p)
 
    while (run)
    {
-      if (UDT::recv(u, (char*)&cmd, 4, 0) < 0)
+      if (datachn->recv((char*)&cmd, 4) < 0)
          continue;
 
       switch (cmd)
@@ -81,7 +75,7 @@ void* Server::SQLHandler(void* p)
          {
             int numOfRows;
 
-            if (UDT::recv(u, (char*)&numOfRows, 4, 0) < 0)
+            if (datachn->recv((char*)&numOfRows, 4) < 0)
                continue;
 
             char* buf = new char[4096 * numOfRows];
@@ -111,20 +105,19 @@ void* Server::SQLHandler(void* p)
                }
             }
 
-            if (UDT::send(u, (char*)&rows, 4, 0) < 0)
+            if (datachn->send((char*)&rows, 4) < 0)
             {
                run = false;
                break;
             }
-            if (UDT::send(u, (char*)&size, 4, 0) < 0)
+            if (datachn->send((char*)&size, 4) < 0)
             {
                run = false;
                break;
             }
 
             cout << "sening out size " << rows << " " << size << endl;
-            int h;
-            if (UDT::send(u, buf, size, 0, &h) < 0)
+            if (datachn->send(buf, size) < 0)
                run = false;
 
             break;
@@ -137,6 +130,9 @@ void* Server::SQLHandler(void* p)
          break;
       }
    }
+
+   datachn->close();
+   delete datachn;
 
    return NULL;
 }

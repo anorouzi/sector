@@ -34,6 +34,7 @@ using namespace cb;
 
 File* Client::createFileHandle()
 {
+   cout << "new file handle\n";
    File *f = NULL;
 
    try
@@ -146,19 +147,10 @@ int File::open(const string& filename, const int& mode, char* cert)
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.setData(64, (char*)&mode, 4);
 
-   m_uSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
+   int port;
+   m_DataChn.open(port);
 
-   sockaddr_in my_addr;
-   my_addr.sin_family = AF_INET;
-   my_addr.sin_port = 0;
-   my_addr.sin_addr.s_addr = INADDR_ANY;
-   memset(&(my_addr.sin_zero), '\0', 8);
-
-   UDT::bind(m_uSock, (sockaddr*)&my_addr, sizeof(my_addr));
-
-   int size = sizeof(sockaddr_in);
-   UDT::getsockname(m_uSock, (sockaddr*)&my_addr, &size);
-   msg.setData(68, (char*)&(my_addr.sin_port), 4);
+   msg.setData(68, (char*)&port, 4);
 
    if (NULL != cert)
    {
@@ -171,32 +163,9 @@ int File::open(const string& filename, const int& mode, char* cert)
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
 
-   #ifdef WIN32
-      int mtu = 1052;
-      UDT::setsockopt(m_uSock, 0, UDT_MSS, &mtu, sizeof(int));
-   #endif
-
-   bool rendezvous = 1;
-   UDT::setsockopt(m_uSock, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
-
    cout << "rendezvous connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;
 
-   sockaddr_in serv_addr;
-   serv_addr.sin_family = AF_INET;
-   serv_addr.sin_port = *(int*)(msg.getData()); // port
-   #ifndef WIN32
-      inet_pton(AF_INET, m_strServerIP.c_str(), &serv_addr.sin_addr);
-   #else
-      serv_addr.sin_addr.s_addr = inet_addr(m_strServerIP.c_str());
-   #endif
-      memset(&(serv_addr.sin_zero), '\0', 8);
-
-   if (UDT::ERROR == UDT::connect(m_uSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-      return -1;
-
-   //cout << "connect to UDT port " << *(int*)(msg.getData()) << endl;
-
-   return 1;
+   return m_DataChn.connect(m_strServerIP.c_str(), *(int*)(msg.getData()));
 }
 
 int File::read(char* buf, const int64_t& offset, const int64_t& size)
@@ -207,13 +176,12 @@ int File::read(char* buf, const int64_t& offset, const int64_t& size)
    *(int64_t*)(req + 12) = size;
    int32_t response = -1;
 
-   if (UDT::send(m_uSock, req, 20, 0) < 0)
+   if (m_DataChn.send(req, 20) < 0)
       return -1;
-   if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+   if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   int h;
-   if (UDT::recv(m_uSock, buf, size, 0, &h) < 0)
+   if (m_DataChn.recv(buf, size) < 0)
       return -1;
 
    return 1;
@@ -227,13 +195,12 @@ int File::readridx(char* index, const int64_t& offset, const int64_t& rows)
    *(int64_t*)(req + 12) = rows;
    int32_t response = -1;
 
-   if (UDT::send(m_uSock, req, 20, 0) < 0)
+   if (m_DataChn.send(req, 20) < 0)
       return -1;
-   if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+   if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   int h;
-   if (UDT::recv(m_uSock, index, (rows + 1) * 8, 0, &h) < 0)
+   if (m_DataChn.recv(index, (rows + 1) * 8) < 0)
       return -1;
 
    return 1;
@@ -247,13 +214,12 @@ int File::write(const char* buf, const int64_t& offset, const int64_t& size)
    *(int64_t*)(req + 12) = size;
    int32_t response = -1;
 
-   if (UDT::send(m_uSock, req, 20, 0) < 0)
+   if (m_DataChn.send(req, 20) < 0)
       return -1;
-   if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+   if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   int h;
-   if (UDT::send(m_uSock, buf, size, 0, &h) < 0)
+   if (m_DataChn.send(buf, size) < 0)
       return -1;
 
    return 1;
@@ -284,14 +250,14 @@ int File::download(const char* localpath, const bool& cont)
    *(int32_t*)req = cmd;
    *(int64_t*)(req + 4) = offset;
 
-   if (UDT::send(m_uSock, req, 12, 0) < 0)
+   if (m_DataChn.send(req, 12) < 0)
       return -1;
-   if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+   if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
-   if (UDT::recv(m_uSock, (char*)&size, 8, 0) < 0)
+   if (m_DataChn.recv((char*)&size, 8) < 0)
       return -1;
 
-   if (UDT::recvfile(m_uSock, ofs, offset, size) < 0)
+   if (m_DataChn.recvfile(ofs, offset, size) < 0)
       return -1;
 
    ofs.close();
@@ -316,13 +282,13 @@ int File::upload(const char* localpath, const bool& cont)
    *(int32_t*)req = cmd;
    *(int64_t*)(req + 4) = size;
 
-   if (UDT::send(m_uSock, req, 12, 0) < 0)
+   if (m_DataChn.send(req, 12) < 0)
       return -1;
 
-   if ((UDT::recv(m_uSock, (char*)&response, 4, 0) < 0) || (-1 == response))
+   if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   if (UDT::sendfile(m_uSock, ifs, 0, size) < 0)
+   if (m_DataChn.sendfile(ifs, 0, size) < 0)
       return -1;
 
    ifs.close();
@@ -334,10 +300,10 @@ int File::close()
 {
    int32_t cmd = 5;
 
-   if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
+   if (m_DataChn.send((char*)&cmd, 4) < 0)
       return -1;
 
-   UDT::close(m_uSock);
+   m_DataChn.close();
 
    return 1;
 }

@@ -1,3 +1,31 @@
+/*****************************************************************************
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, write to the Free Software Foundation, Inc.,
+59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/22/2007
+*****************************************************************************/
+
 #include "speclient.h"
 #include "fsclient.h"
 
@@ -138,22 +166,12 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       spe.m_strIP = spenodes + i * 68;
       spe.m_iPort = *(int32_t*)(spenodes + i * 68 + 64);
 
-      spe.m_DataSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-      sockaddr_in my_addr;
-      my_addr.sin_family = AF_INET;
-      my_addr.sin_port = 0;
-      my_addr.sin_addr.s_addr = INADDR_ANY;
-      memset(&(my_addr.sin_zero), '\0', 8);
-
-      UDT::bind(spe.m_DataSock, (sockaddr*)&my_addr, sizeof(my_addr));
-
-      int size = sizeof(sockaddr_in);
-      UDT::getsockname(spe.m_DataSock, (sockaddr*)&my_addr, &size);
+      int port = 0;
+      spe.m_DataChn.open(port);
 
       msg.setType(300); // start processing engine
       msg.setData(0, (char*)&(spe.m_uiID), 4);
-      msg.setData(4, (char*)&(my_addr.sin_port), 4);
+      msg.setData(4, (char*)&port, 4);
       msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
       msg.setData(72, m_strParam.c_str(), m_strParam.length() + 1);
       msg.m_iDataLength = 4 + 72 + m_strParam.length() + 1;
@@ -161,24 +179,13 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
       {
          cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
-         UDT::close(spe.m_DataSock);
+         spe.m_DataChn.close();
          continue;
       }
 
-      sockaddr_in serv_addr;
-      serv_addr.sin_family = AF_INET;
-      serv_addr.sin_port = *(int*)(msg.getData()); // port
-      inet_pton(AF_INET, spe.m_strIP.c_str(), &serv_addr.sin_addr);
-      memset(&(serv_addr.sin_zero), '\0', 8);
-
-      cout << "UDT connecting " <<  spe.m_strIP << " " << *(int*)(msg.getData()) << endl;
-
-      int rendezvous = 1;
-      UDT::setsockopt(spe.m_DataSock, 0, UDT_RENDEZVOUS, &rendezvous, 4);
-
-      if (UDT::ERROR == UDT::connect(spe.m_DataSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
+      if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
       {
-         UDT::close(spe.m_DataSock);
+         spe.m_DataChn.close();
          continue;
       }
 
@@ -199,9 +206,7 @@ int Process::open(vector<string> stream, string op, const char* param, const int
 int Process::close()
 {
    for (vector<SPE>::iterator i = m_vSPE.begin(); i != m_vSPE.end(); ++ i)
-   {
-      UDT::close(i->m_DataSock);
-   }
+      i->m_DataChn.close();
 
    m_vSPE.clear();
    m_vDS.clear();
@@ -228,12 +233,12 @@ void* Process::run(void* param)
    {
       self->m_vSPE[i].m_pDS = &self->m_vDS[i];
 
-      char param[80];
-      strcpy(param, self->m_vSPE[i].m_pDS->m_strDataFile.c_str());
-      *(int64_t*)(param + 64) = self->m_vSPE[i].m_pDS->m_llOffset;
-      *(int64_t*)(param + 72) = self->m_vSPE[i].m_pDS->m_llSize;
+      char dataseg[80];
+      strcpy(dataseg, self->m_vSPE[i].m_pDS->m_strDataFile.c_str());
+      *(int64_t*)(dataseg + 64) = self->m_vSPE[i].m_pDS->m_llOffset;
+      *(int64_t*)(dataseg + 72) = self->m_vSPE[i].m_pDS->m_llSize;
 
-      if (UDT::send(self->m_vSPE[i].m_DataSock, param, 80, 0) > 0)
+      if (self->m_vSPE[i].m_DataChn.send(dataseg, 80) > 0)
       {
          self->m_vDS[i].m_iSPEID = self->m_vSPE[i].m_uiID;
          self->m_vDS[i].m_iStatus = 1;
@@ -279,10 +284,8 @@ void* Process::run(void* param)
       s->m_pDS->m_iResSize = *(int32_t*)(msg.getData() + 8);
       s->m_pDS->m_pcResult = new char[s->m_pDS->m_iResSize];
 
-      int h;
-      if (UDT::ERROR == UDT::recv(s->m_DataSock, s->m_pDS->m_pcResult, s->m_pDS->m_iResSize, 0, &h))
+      if (s->m_DataChn.recv(s->m_pDS->m_pcResult, s->m_pDS->m_iResSize) < 0)
       {
-         cout << UDT::getlasterror().getErrorMessage() << endl;
          s->m_iStatus = -1;
          continue;
       }
@@ -307,12 +310,12 @@ void* Process::run(void* param)
             {
                s->m_pDS = &(*i);
 
-               char param[80];
-               strcpy(param, s->m_pDS->m_strDataFile.c_str());
-               *(int64_t*)(param + 64) = s->m_pDS->m_llOffset;
-               *(int64_t*)(param + 72) = s->m_pDS->m_llSize;
+               char dataseg[80];
+               strcpy(dataseg, s->m_pDS->m_strDataFile.c_str());
+               *(int64_t*)(dataseg + 64) = s->m_pDS->m_llOffset;
+               *(int64_t*)(dataseg + 72) = s->m_pDS->m_llSize;
 
-               if (UDT::send(s->m_DataSock, param, 80, 0) > 0)
+               if (s->m_DataChn.send(dataseg, 80) > 0)
                {
                   i->m_iSPEID = s->m_uiID;
                   i->m_iStatus = 1;

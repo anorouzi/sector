@@ -61,12 +61,12 @@ int Client::getSemantics(const string& name, vector<DataAttr>& attr)
    msg.setData(0, name.c_str(), name.length() + 1);
    msg.m_iDataLength = 4 + name.length() + 1;
 
-cout << m_strServerHost.c_str() << " " << m_iServerPort << endl;
+   cout << m_strServerHost.c_str() << " " << m_iServerPort << endl;
 
    if (m_pGMP->rpc(m_strServerHost.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
 
-cout << "got response\n";
+   cout << "got response\n";
 
    if (msg.getType() > 0)
       Semantics::deserialize(msg.getData(), attr);
@@ -89,7 +89,7 @@ int Query::open(const string& query)
    if (0 != SQLParser::parse(query, m_SQLExpr))
       return -1;
 
-cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_vstrTableList.size() << endl;
+   cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_vstrTableList.size() << endl;
 
    // currently we can only deal with single table
    if (m_SQLExpr.m_vstrTableList.size() != 1)
@@ -137,62 +137,29 @@ cout << "parsing .. " << m_SQLExpr.m_vstrFieldList.size() << " " << m_SQLExpr.m_
       return -1;
    }
 
+   m_strQuery = query;
 
-   m_uSock = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-   sockaddr_in my_addr;
-   my_addr.sin_family = AF_INET;
-   my_addr.sin_port = 0;
-   my_addr.sin_addr.s_addr = INADDR_ANY;
-   memset(&(my_addr.sin_zero), '\0', 8);
-   UDT::bind(m_uSock, (sockaddr*)&my_addr, sizeof(my_addr));
-   int size = sizeof(sockaddr_in);
-   UDT::getsockname(m_uSock, (sockaddr*)&my_addr, &size);
+   int port;
+   m_DataChn.open(port);
 
    msg.setType(200); // submit sql request
-   msg.setData(0, (char*)&(my_addr.sin_port), 4);
+   msg.setData(0, (char*)&port, 4);
    msg.setData(4, table.c_str(), table.length() + 1);
    msg.setData(68, query.c_str(), query.length() + 1);
    msg.m_iDataLength = 4 + 4 + 64 + query.length() + 1;
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
 
-   #ifdef WIN32
-      int mtu = 1052;
-      UDT::setsockopt(m_uSock, 0, UDT_MSS, &mtu, sizeof(int));
-   #endif
-
-   int rendezvous = 1;
-   UDT::setsockopt(m_uSock, 0, UDT_RENDEZVOUS, &rendezvous, 4);
-
-   sockaddr_in serv_addr;
-   serv_addr.sin_family = AF_INET;
-   serv_addr.sin_port = *(int*)(msg.getData()); // port
-   #ifndef WIN32
-      inet_pton(AF_INET, m_strServerIP.c_str(), &serv_addr.sin_addr);
-   #else
-      serv_addr.sin_addr.s_addr = inet_addr(m_strServerIP.c_str());
-   #endif
-      memset(&(serv_addr.sin_zero), '\0', 8);
-
-   cout << "connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;
-
-   if (UDT::ERROR == UDT::connect(m_uSock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-      return -1;
-
-   m_strQuery = query;
-
-   return 0;
+   return m_DataChn.connect(m_strServerIP.c_str(), *(int*)(msg.getData()));
 }
 
 int Query::close()
 {
    int32_t cmd = 2; // close
 
-   if (UDT::send(m_uSock, (char*)&cmd, 4, 0) < 0)
-      return -1;
+   m_DataChn.send((char*)&cmd, 4);
 
-   UDT::close(m_uSock);
+   m_DataChn.close();
 
    return 1;
 }
@@ -203,16 +170,15 @@ int Query::fetch(char* res, int& rows, int& size)
    *(int32_t*)req = 1; // fetch (more) records
    *(int32_t*)(req + 4) = rows;
 
-   if (UDT::send(m_uSock, req, 8, 0) < 0)
+   if (m_DataChn.send(req, 8) < 0)
       return -1;
-   if ((UDT::recv(m_uSock, (char*)&rows, 4, 0) < 0) || (-1 == rows))
+   if ((m_DataChn.recv((char*)&rows, 4) < 0) || (-1 == rows))
       return -1;
-   if ((UDT::recv(m_uSock, (char*)&size, 4, 0) < 0) || (-1 == size))
+   if ((m_DataChn.recv((char*)&size, 4) < 0) || (-1 == size))
       return -1;
 
-   int h;
    cout << "to recv " << rows << " " << size << endl;
-   if (UDT::recv(m_uSock, res, size, 0, &h) < 0)
+   if (m_DataChn.recv(res, size) < 0)
       return -1;
 
    return size;
