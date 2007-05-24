@@ -29,6 +29,12 @@ int main(int argc, char** argv)
 
       if (-1 == myproc->read(res, size, file, offset, rows, true))
       {
+         if (myproc->checkProgress() == -1)
+         {
+            cerr << "all SPEs failed\n";
+            break;
+         }
+
          if (myproc->checkProgress() == 100)
             break;
          continue;

@@ -55,9 +55,6 @@ public:
    int read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder = true, const bool& wait = true);
 
 private:
-   static void* run(void*);
-
-private:
    string m_strOperator;
    string m_strParam;
    vector<string> m_vstrStream;
@@ -83,7 +80,7 @@ private:
       int m_iPort;
 
       DS* m_pDS;
-      int m_iStatus;
+      int m_iStatus;		// -1: bad; 0: ready; 1; running
       int m_iProgress;
 
       timeval m_StartTime;
@@ -96,6 +93,7 @@ private:
    int m_iProgress;
    int m_iAvgRunTime;
    int m_iTotalDS;
+   int m_iTotalSPE;
    int m_iAvailRes;
 
    pthread_mutex_t m_ResLock;
@@ -105,6 +103,12 @@ private:
    int m_iMaxUnitSize;
 
    CGMP m_GMP;
+
+private:
+   static void* run(void*);
+
+   int checkSPE();
+   int startSPE(SPE& s);
 };
 
 }; // namespace cb
