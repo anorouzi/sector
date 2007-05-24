@@ -1,7 +1,7 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lmeta -lsql
+LDFLAGS += -lmeta -lsql -ludt
 
 OBJS = sql.o table.o
 

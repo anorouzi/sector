@@ -111,8 +111,6 @@ int32_t CGMPMessage::initSession()
 
 CGMP::CGMP()
 {
-   cout << "new GMP||||||||||||||||||||||||||||||||\n";
-
    Sync::initMutex(m_SndQueueLock);
    Sync::initCond(m_SndQueueCond);
    Sync::initMutex(m_RcvQueueLock);

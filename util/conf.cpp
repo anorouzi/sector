@@ -168,7 +168,7 @@ int SECTORParam::init(const string& path)
          for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
             m_IPSec.addIP(*i);
       }
-      else if ("MAXSPEMEM" == param.m_strName)
+      else if ("MAX_SPE_MEM" == param.m_strName)
          m_iMaxSPEMem = atoi(param.m_vstrValue[0].c_str());
       else
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;

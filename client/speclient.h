@@ -85,6 +85,8 @@ private:
       DS* m_pDS;
       int m_iStatus;
       int m_iProgress;
+
+      timeval m_StartTime;
       timeval m_LastUpdateTime;
 
       Transport m_DataChn;
@@ -92,6 +94,8 @@ private:
    vector<SPE> m_vSPE;
 
    int m_iProgress;
+   int m_iAvgRunTime;
+   int m_iTotalDS;
    int m_iAvailRes;
 
    pthread_mutex_t m_ResLock;

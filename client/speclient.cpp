@@ -83,8 +83,8 @@ int Process::open(vector<string> stream, string op, const char* param, const int
    uint64_t totalSize = 0;
    uint64_t totalRec = 0;
 
-   int* asize = new int[stream.size()];
-   int* arec = new int[stream.size()];
+   int64_t* asize = new int64_t[stream.size()];
+   int64_t* arec = new int64_t[stream.size()];
 
    int c = 0;
    for (vector<string>::iterator i = stream.begin(); i != stream.end(); ++ i)
@@ -193,6 +193,8 @@ int Process::open(vector<string> stream, string op, const char* param, const int
    }
 
    m_iProgress = 0;
+   m_iAvgRunTime = -1;
+   m_iTotalDS = m_vDS.size();
    m_iAvailRes = 0;
    delete [] asize;
    delete [] arec;
@@ -244,6 +246,7 @@ void* Process::run(void* param)
          self->m_vDS[i].m_iStatus = 1;
          self->m_vSPE[i].m_iStatus = 1;
          self->m_vSPE[i].m_iProgress = 0;
+         gettimeofday(&self->m_vSPE[i].m_StartTime, 0);
       }
    }
 
@@ -268,14 +271,10 @@ void* Process::run(void* param)
             break;
 
       int progress = *(int32_t*)(msg.getData() + 4);
-
+      gettimeofday(&s->m_LastUpdateTime, 0);
       if (progress <= s->m_iProgress)
          continue;
-
-      cout << s->m_uiID << " " << speid << " " << progress << endl;
-
       s->m_iProgress = progress;
-
       if (progress < 100)
          continue;
 
@@ -302,8 +301,29 @@ void* Process::run(void* param)
       pthread_cond_signal(&self->m_ResCond);
       pthread_mutex_unlock(&self->m_ResLock);
 
-      if ((unsigned int)self->m_iProgress < self->m_vDS.size())
+      // one SPE completes!
+      timeval t;
+      gettimeofday(&t, 0);
+      if (self->m_iAvgRunTime == -1)
+         self->m_iAvgRunTime = (t.tv_sec - s->m_StartTime.tv_sec) * 1000000 + t.tv_usec - s->m_StartTime.tv_usec;
+      else
+         self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec) * 1000000 + t.tv_usec - s->m_StartTime.tv_usec) / 8;
+
+      // check SPE progress
+      for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
       {
+         int rtime = (t.tv_sec - i->m_StartTime.tv_sec) * 1000000 + t.tv_usec - i->m_StartTime.tv_usec;
+         int utime = (t.tv_sec - i->m_LastUpdateTime.tv_sec) * 1000000 + t.tv_usec - i->m_LastUpdateTime.tv_usec;
+
+         // dismiss this SPE and release its job
+         if ((rtime > 8 * self->m_iAvgRunTime) && (utime > 8000000))
+            i->m_pDS->m_iSPEID = -1;
+      }
+
+      // check uncompleted data segment
+      if (self->m_iProgress < self->m_iTotalDS)
+      {
+         pthread_mutex_lock(&self->m_ResLock);
          for (vector<DS>::iterator i = self->m_vDS.begin(); i != self->m_vDS.end(); ++ i)
          {
             if (-1 == i->m_iSPEID)
@@ -321,9 +341,13 @@ void* Process::run(void* param)
                   i->m_iStatus = 1;
                   s->m_iStatus = 1;
                   s->m_iProgress = 0;
+                  gettimeofday(&s->m_StartTime, 0);
                }
+
+               break;
             }
          }
+         pthread_mutex_unlock(&self->m_ResLock);
       }
       else
          break;
@@ -334,14 +358,14 @@ void* Process::run(void* param)
 
 int Process::checkProgress()
 {
-   return m_iProgress * 100 / m_vDS.size();
+   return m_iProgress * 100 / m_iTotalDS;
 }
 
 int Process::read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder, const bool& wait)
 {
    if (0 == m_iAvailRes)
    {
-      if (!wait || ((unsigned int)m_iProgress == m_vDS.size()))
+      if (!wait || (m_iProgress == m_iTotalDS))
          return -1;
 
       pthread_mutex_lock(&m_ResLock);
@@ -366,6 +390,11 @@ int Process::read(char*& data, int& size, string& file, int64_t& offset, int& ro
          i->m_iResSize = 0;
          i->m_iStatus = 3;
          -- m_iAvailRes;
+
+         pthread_mutex_lock(&m_ResLock);
+         m_vDS.erase(i);
+         pthread_mutex_unlock(&m_ResLock);
+
          return size;
 
       case 3:
