@@ -42,7 +42,8 @@ void* Server::SPEHandler(void* p)
    int dataport = ((Param4*)p)->client_data_port;
    int speid = ((Param4*)p)->speid;
    string function = ((Param4*)p)->function;
-   string param = ((Param4*)p)->param;
+   char* param = ((Param4*)p)->param;
+   int psize = ((Param4*)p)->psize;
    delete (Param4*)p;
    CCBMsg msg;
 
@@ -141,7 +142,7 @@ void* Server::SPEHandler(void* p)
       for (int i = 0; i < rows; ++ i)
       {
          //cout << "to process " << index[i] - index[0] << " " << index[i + 1] - index[i] << endl;
-         process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, param.c_str(), param.length());
+         process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, param, psize);
          rsize += rs;
          rs = size - rsize;
 

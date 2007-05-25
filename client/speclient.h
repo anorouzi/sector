@@ -56,7 +56,8 @@ public:
 
 private:
    string m_strOperator;
-   string m_strParam;
+   char* m_pcParam;
+   int m_iParamSize;
    vector<string> m_vstrStream;
 
    struct DS

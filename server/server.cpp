@@ -32,6 +32,7 @@ written by
 #include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <errno.h>
 #include <sys/sendfile.h>
 #include <server.h>
 #include <assert.h>
@@ -474,7 +475,9 @@ void* Server::process(void* s)
             p->client_ctrl_port = port;
             p->speid = *(int32_t*)msg->getData();
             p->function = msg->getData() + 8;
-            p->param = msg->getData() + 72;
+            p->psize = msg->m_iDataLength - 72;
+            p->param = new char[p->psize];
+            memcpy(p->param, msg->getData() + 72, p->psize);
             p->client_data_port = *(int32_t*)(msg->getData() + 4);
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << endl;

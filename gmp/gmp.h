@@ -138,7 +138,7 @@ public:
 
 public:
    int sendto(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable = true);
-   int recvfrom(char* ip, int& port, int32_t& id, char* data, int& len);
+   int recvfrom(char* ip, int& port, int32_t& id, char* data, int& len, const bool& block = true);
    int recv(const int32_t& id, char* data, int& len);
 
 private:
@@ -147,7 +147,7 @@ private:
 
 public:
    int sendto(const char* ip, const int& port, int32_t& id, const CUserMessage* msg);
-   int recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg);
+   int recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg, const bool& block = true);
    int recv(const int32_t& id, CUserMessage* msg);
    int rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* res);
 

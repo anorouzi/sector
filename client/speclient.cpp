@@ -49,7 +49,8 @@ m_iMinUnitSize(80),
 m_iMaxUnitSize(128000000)
 {
    m_strOperator = "";
-   m_strParam = "";
+   m_pcParam = NULL;
+   m_iParamSize = 0;
    m_vstrStream.clear();
 
    m_GMP.init(0);
@@ -73,11 +74,9 @@ Process::~Process()
 int Process::open(vector<string> stream, string op, const char* param, const int& size)
 {
    m_strOperator = op;
-   char* temp = new char[size + 1];
-   memcpy(temp, param, size);
-   temp[size] = '\0';
-   m_strParam = temp;
-   delete [] temp;
+   m_pcParam = new char[size];
+   memcpy(m_pcParam, param, size);
+   m_iParamSize = size;
    m_vstrStream = stream;
 
    uint64_t totalSize = 0;
@@ -173,8 +172,8 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       msg.setData(0, (char*)&(spe.m_uiID), 4);
       msg.setData(4, (char*)&port, 4);
       msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
-      msg.setData(72, m_strParam.c_str(), m_strParam.length() + 1);
-      msg.m_iDataLength = 4 + 72 + m_strParam.length() + 1;
+      msg.setData(72, m_pcParam, m_iParamSize);
+      msg.m_iDataLength = 4 + 72 + m_iParamSize;
 
       if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
       {
@@ -261,7 +260,7 @@ void* Process::run(void* param)
       int port;
       int id;
       CCBMsg msg;
-      if (self->m_GMP.recvfrom(ip, port, id, &msg) < 0)
+      if (self->m_GMP.recvfrom(ip, port, id, &msg, false) < 0)
          continue;
 
       msg.m_iDataLength = 4;
@@ -336,6 +335,9 @@ int Process::checkSPE()
 
    for (vector<SPE>::iterator i = m_vSPE.begin(); i != m_vSPE.end(); ++ i)
    {
+      if (-1 == i->m_iStatus)
+         continue;
+
       int rtime = (t.tv_sec - i->m_StartTime.tv_sec) * 1000000 + t.tv_usec - i->m_StartTime.tv_usec;
       int utime = (t.tv_sec - i->m_LastUpdateTime.tv_sec) * 1000000 + t.tv_usec - i->m_LastUpdateTime.tv_usec;
 
@@ -395,6 +397,9 @@ int Process::startSPE(SPE& s)
 
 int Process::checkProgress()
 {
+   if (0 == m_iTotalSPE)
+      return -1;
+
    return m_iProgress * 100 / m_iTotalDS;
 }
 

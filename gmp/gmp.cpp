@@ -390,24 +390,44 @@ int CGMP::TCPsend(const char* ip, const int& port, int32_t& id, const char* data
    return 1;
 }
 
-int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len)
+int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len, const bool& block)
 {
+   bool timeout = false;
+
    Sync::enterCS(m_RcvQueueLock);
 
-   while (!m_bClosed && m_qRcvQueue.empty())
+   while (!m_bClosed && m_qRcvQueue.empty() && !timeout)
    {
       #ifndef WIN32
-         pthread_cond_wait(&m_RcvQueueCond, &m_RcvQueueLock);
+         if (block)
+            pthread_cond_wait(&m_RcvQueueCond, &m_RcvQueueLock);
+         else
+         {
+            timeval now;
+            timespec expiretime;
+            gettimeofday(&now, 0);
+            expiretime.tv_sec = now.tv_sec + 1;
+            expiretime.tv_nsec = now.tv_usec * 1000;
+            if (pthread_cond_timedwait(&m_RcvQueueCond, &m_RcvQueueLock, &expiretime) != 0)
+               timeout = true;
+         }
       #else
          ReleaseMutex(m_RcvQueueLock);
-         WaitForSingleObject(m_RcvQueueCond, INFINITE);
+         if (block)
+            WaitForSingleObject(m_RcvQueueCond, INFINITE);
+         else
+         {
+            if (WaitForSingleObject(m_RcvQueueCond, 1000) == WAIT_TIMEOUT)
+               timeout = true;
+         }
          WaitForSingleObject(m_RcvQueueLock, INFINITE);
       #endif
    }
 
-   if (m_bClosed)
+   if (m_bClosed || timeout)
    {
       Sync::leaveCS(m_RcvQueueLock);
+      len = 0;
       return -1;
    }
 
@@ -979,15 +999,16 @@ int CGMP::sendto(const char* ip, const int& port, int32_t& id, const CUserMessag
    return sendto(ip, port, id, msg->m_pcBuffer, msg->m_iDataLength);
 }
 
-int CGMP::recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg)
+int CGMP::recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg, const bool& block)
 {
    int rsize = msg->m_iBufLength;
-   recvfrom(ip, port, id, msg->m_pcBuffer, rsize);
-
-   if (rsize > 0)
-      msg->m_iDataLength = rsize;
-   else
+   if (recvfrom(ip, port, id, msg->m_pcBuffer, rsize, block) < 0)
+   {
       msg->m_iDataLength = 0;
+      return -1;
+   }
+
+   msg->m_iDataLength = rsize;
 
    return rsize;
 }

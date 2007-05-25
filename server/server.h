@@ -90,7 +90,8 @@ private:
       int client_data_port;	// client data port
       int speid;		// speid
       string function;		// SPE operator
-      string param;		// SPE parameter
+      char* param;		// SPE parameter
+      int psize;		// parameter size
    };
 
    static void* process(void* s);
