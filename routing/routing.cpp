@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/01/2007
 *****************************************************************************/
 
 
@@ -105,15 +105,7 @@ int CRouting::join(const char* ip, const char* peer_ip, const int& port, const i
       n.m_iPort = m_iRouterPort;
    n.m_uiID = hash(n.m_pcIP, n.m_iPort);
 
-   CRTMsg msg;
-   msg.setType(3); // find_successor
-   msg.setData(0, (char*)&(m_vFingerTable[0].m_uiStart), 4);
-   msg.m_iDataLength = 4 + 4;
-
-   if (m_pGMP->rpc(n.m_pcIP, n.m_iPort, &msg, &msg) < 0)
-      return -1;
-
-   m_Successor = m_vFingerTable[0].m_Node = *(Node*)(msg.getData());
+   init_finger_table(&n);
 
    pthread_t stabilizer;
    pthread_create(&stabilizer, NULL, stabilize, this);
@@ -198,13 +190,14 @@ void CRouting::closest_preceding_finger(const unsigned int& id, Node* n)
    n->m_iAppPort = m_iAppPort;
 }
 
-void CRouting::init_finger_table()
+void CRouting::init_finger_table(const Node* n)
 {
+   // a standing along node
    for (int i = 0; i < m_iKeySpace; ++ i)
    {
       FTItem f;
 
-      f.m_uiStart = (m_uiID + int(pow(2.0, double(i)))) % int(pow(2.0, double(m_iKeySpace)));
+      f.m_uiStart = (uint32_t)(((m_uiID + (1LL << i)) % (1LL << m_iKeySpace)));
       f.m_Node.m_uiID = m_uiID;
       memcpy(f.m_Node.m_pcIP, m_pcIP, 64);
       f.m_Node.m_iPort = m_iPort;
@@ -218,6 +211,34 @@ void CRouting::init_finger_table()
    // NULL predecessor
    m_Predecessor.m_pcIP[0] = '\0';
    m_Predecessor.m_iPort = 0;
+
+   if (NULL == n)
+      return;
+
+   // joining the existing network
+   for (int i = 0; i < m_iKeySpace; ++ i)
+   {
+      m_vFingerTable[i].m_uiStart = (uint32_t)(((m_uiID + (1LL << i)) % (1LL << m_iKeySpace)));
+
+      CRTMsg msg;
+      msg.setType(3); // find_successor
+      msg.setData(0, (char*)&(m_vFingerTable[i].m_uiStart), 4);
+      msg.m_iDataLength = 4 + 4;
+
+      if (m_pGMP->rpc(n->m_pcIP, n->m_iPort, &msg, &msg) < 0)
+         break;
+
+      m_vFingerTable[i].m_Node = *(Node*)(msg.getData());
+   }
+
+   m_Successor = m_vFingerTable[0].m_Node;
+
+   CRTMsg msg;
+   msg.setType(2); // get predecessor
+   msg.m_iDataLength = 4;
+
+   if (m_pGMP->rpc(m_Successor.m_pcIP, m_Successor.m_iPort, &msg, &msg) > 0)
+      m_Predecessor = *(Node*)(msg.getData());
 }
 
 void CRouting::print_finger_table()
@@ -225,7 +246,7 @@ void CRouting::print_finger_table()
    cout << "----------------- " << m_uiID << " -----------------\n";
    for (int i = 0; i < m_iKeySpace; ++ i)
    {
-      cout << m_vFingerTable[i].m_uiStart << " " << m_vFingerTable[i].m_Node.m_uiID << " " << m_vFingerTable[i].m_Node.m_pcIP << endl;
+      cout << m_vFingerTable[i].m_uiStart << " " << m_vFingerTable[i].m_Node.m_uiID << " " << m_vFingerTable[i].m_Node.m_pcIP << ":" << m_vFingerTable[i].m_Node.m_iPort << endl;
    }
    cout << endl;
    cout << m_Successor.m_uiID << " " << m_Predecessor.m_uiID << endl;
@@ -284,17 +305,10 @@ void CRouting::notify(Node* n)
    }
 }
 
-void CRouting::fix_fingers(int& next)
+void CRouting::fix_fingers()
 {
-   if (find_successor(m_vFingerTable[next].m_uiStart, &(m_vFingerTable[next].m_Node)) >= 0)
-   {
-      if (0 == next)
-         m_Successor = m_vFingerTable[0].m_Node;
-   }
-
-   ++ next;
-   if (next == m_iKeySpace)
-      next = 0;
+   for (int i = 0; i < m_iKeySpace; ++ i)
+      find_successor(m_vFingerTable[i].m_uiStart, &(m_vFingerTable[i].m_Node));
 }
 
 void CRouting::check_predecessor()
@@ -317,77 +331,72 @@ void CRouting::check_predecessor()
    }
 }
 
-void CRouting::check_successor(int& next)
+void CRouting::check_successor()
 {
-   CRTMsg msg;
+   char* ip = m_Successor.m_pcIP;
+   int port = m_Successor.m_iPort;
 
-   msg.setType(1); // get successor
-   msg.m_iDataLength = 4;
-
-   char* ip;
-   int port;
-
-   if (0 == next)
+   for (int i = 0; i < m_iKeySpace;)
    {
-      ip = m_Successor.m_pcIP;
-      port = m_Successor.m_iPort;
-   }
-   else
-   {
-      ip = m_vBackupSuccessors[next - 1].m_pcIP;
-      port = m_vBackupSuccessors[next - 1].m_iPort;
-   }
+      CRTMsg msg;
+      msg.setType(1); // get successor
+      msg.m_iDataLength = 4;
+      int res = m_pGMP->rpc(ip, port, &msg, &msg);
 
-   int res = m_pGMP->rpc(ip, port, &msg, &msg);
-
-   if ((res < 0) || (msg.getType() < 0))
-   {
-      if (0 == next)
+      if ((res < 0) || (msg.getType() < 0))
       {
-         if (m_vBackupSuccessors.size() > 0)
+         if (0 == i)
          {
-            m_Successor = m_vFingerTable[0].m_Node = m_vBackupSuccessors[0];
-            m_vBackupSuccessors.erase(m_vBackupSuccessors.begin());
+            // successor is lost, get the first from the backup list
+            if (m_vBackupSuccessors.size() > 0)
+            {
+               m_Successor = m_vFingerTable[0].m_Node = m_vBackupSuccessors[0];
+               m_vBackupSuccessors.erase(m_vBackupSuccessors.begin());
+               ip = m_Successor.m_pcIP;
+               port = m_Successor.m_iPort;
+            }
+            else
+            {
+               // no successor found, isolated
+               memcpy(m_Successor.m_pcIP, m_pcIP, 64);
+               m_Successor.m_iPort = m_iPort;
+               m_Successor.m_iAppPort = m_iAppPort;
+               m_Successor.m_uiID = m_uiID;
+               m_vFingerTable[0].m_Node = m_Successor;
+               break;
+            }
          }
          else
          {
-            // no successor found, isolated
-            memcpy(m_Successor.m_pcIP, m_pcIP, 64);
-            m_Successor.m_iPort = m_iPort;
-            m_Successor.m_iAppPort = m_iAppPort;
-            m_Successor.m_uiID = m_uiID;
-            m_vFingerTable[0].m_Node = m_Successor;
+            // bad node, remove it
+            m_vBackupSuccessors.erase(m_vBackupSuccessors.begin() + i - 1);
+            break;
          }
       }
       else
       {
-         // bad node, remove it
-         m_vBackupSuccessors.erase(m_vBackupSuccessors.begin() + next - 1);
+         if (m_uiID == ((Node*)(msg.getData()))->m_uiID)
+         {
+            // loop back, remove all additional (already gone) successors
+            m_vBackupSuccessors.erase(m_vBackupSuccessors.begin() + i, m_vBackupSuccessors.end());
 
-         next --;
-         if (next < 0)
-            next = 0;
-      }
-   }
-   else
-   {
-      if (m_uiID == ((Node*)(msg.getData()))->m_uiID)
-      {
-         // loop back, remove all additional (already gone) successors
-         if (next < int(m_vBackupSuccessors.size()))
-            m_vBackupSuccessors.erase(m_vBackupSuccessors.begin() + next, m_vBackupSuccessors.end());
-
-          next = 0;
-      }
-      else
-      {
-         // everything is OK, update next successor
-         if (next < int(m_vBackupSuccessors.size()))
-            m_vBackupSuccessors[next] = *(Node*)(msg.getData());
+            break;
+         }
          else
-            m_vBackupSuccessors.insert(m_vBackupSuccessors.end(), *(Node*)(msg.getData()));
+         {
+            // everything is OK, update next successor
+            if (i < int(m_vBackupSuccessors.size()))
+            {
+               if (m_vBackupSuccessors[i].m_uiID != ((Node*)(msg.getData()))->m_uiID)
+                  m_vBackupSuccessors[i] = *(Node*)(msg.getData());
+            }
+            else
+               m_vBackupSuccessors.insert(m_vBackupSuccessors.end(), *(Node*)(msg.getData()));
 
-         next = (next + 1) % m_iKeySpace;
+            ip = m_vBackupSuccessors[i].m_pcIP;
+            port = m_vBackupSuccessors[i].m_iPort;
+            ++ i;
+         }
       }
    }
 }
@@ -500,29 +509,26 @@ void* CRouting::stabilize(void* r)
 {
    CRouting* self = (CRouting*)r;
 
-   int nextf = 0;
-   int nexts = 0;
-
    while (true)
    {
-      sleep(10);
+      sleep(1);
       //cout << "stabilizing...\n";
       self->stabilize();
       //cout << "stabilized\n";
 
-      sleep(10);
+      sleep(1);
       //cout << "fixing fingers " << nextf << endl;
-      self->fix_fingers(nextf);
+      self->fix_fingers();
       //cout << "fixed fingers " << nextf << endl;
 
-      sleep(10);
+      sleep(1);
       //cout << "checking predecessors " << endl;
       self->check_predecessor();
       //cout << "checked predecessors " << endl;
 
-      sleep(10);
+      sleep(1);
       //cout << "checking successor " << nexts << endl;
-      self->check_successor(nexts);
+      self->check_successor();
       //cout << "checked successor " << nexts << endl;
 
       //self->print_finger_table();

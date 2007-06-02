@@ -74,14 +74,14 @@ private:
    void closest_preceding_finger(const unsigned int& id, Node* n);
 
 private:
-   void init_finger_table();
+   void init_finger_table(const Node* n = NULL);
    void print_finger_table();
 
    void stabilize();
    void notify(Node* n);
-   void fix_fingers(int& next);
+   void fix_fingers();
    void check_predecessor();
-   void check_successor(int& next);
+   void check_successor();
 
    uint32_t hash(const char* ip, const int& port);
 

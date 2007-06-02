@@ -141,7 +141,7 @@ int Process::open(vector<string> stream, string op, const char* param, const int
          DS ds;
          ds.m_strDataFile = stream[i];
          ds.m_llOffset = off;
-         ds.m_llSize = (arec[i] - off > unitsize) ? unitsize : (arec[i] - off);
+         ds.m_llSize = (arec[i] - off > unitsize + 1) ? unitsize : (arec[i] - off);
          ds.m_iSPEID = -1;
          ds.m_iStatus = 0;
          ds.m_pcResult = NULL;
