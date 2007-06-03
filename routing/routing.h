@@ -100,25 +100,27 @@ private:
    static void* stabilize(void* r);
 
 private:
-   char m_pcIP[64];
-   int m_iPort;
-   uint32_t m_uiID;
-
-   int m_iAppPort;
-
-   int m_iKeySpace;
+   char m_pcIP[64];			// IP address
+   int m_iPort;				// port
+   uint32_t m_uiID;			// DHash ID
+   int m_iAppPort;			// Application port
+   int m_iKeySpace;			// DHash key space
 
 private:
-   vector<FTItem> m_vFingerTable;
-   Node m_Successor;
-   Node m_Predecessor;
-   vector<Node> m_vBackupSuccessors;
+   vector<FTItem> m_vFingerTable;	// route table
+   Node m_Successor;			// successor
+   Node m_Predecessor;			// predecessor
+   vector<Node> m_vBackupSuccessors;	// backup successor
 
 private:
-   CGMP* m_pGMP;
+   CGMP* m_pGMP;			// GMP messenger
+
+private:
+   pthread_mutex_t m_PKeyLock;		// synchronize predecessor access
+   pthread_mutex_t m_SKeyLock;		// synchronize successor access
 
 public:
-   static const int m_iRouterPort;
+   static const int m_iRouterPort;	// default router port
 };
 
 }; // namespace

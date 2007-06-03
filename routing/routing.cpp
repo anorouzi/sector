@@ -45,13 +45,18 @@ m_iKeySpace(32)
    m_vFingerTable.resize(m_iKeySpace);
 
    m_vBackupSuccessors.clear();
+
+   pthread_mutex_init(&m_PKeyLock, NULL);
+   pthread_mutex_init(&m_SKeyLock, NULL);
 }
 
 CRouting::~CRouting()
 {
    m_pGMP->close();
-
    delete m_pGMP;
+
+   pthread_mutex_destroy(&m_PKeyLock);
+   pthread_mutex_destroy(&m_SKeyLock);
 }
 
 int CRouting::start(const char* ip, const int& port)
@@ -121,14 +126,22 @@ void CRouting::setAppPort(const int& port)
 
 bool CRouting::has(const unsigned int& id)
 {
-   if (0 == strlen(m_Predecessor.m_pcIP))
+   char pred_port;
+   uint32_t pred_id;
+
+   pthread_mutex_lock(&m_PKeyLock);
+   pred_port = m_Predecessor.m_iPort;
+   pred_id = m_Predecessor.m_uiID;
+   pthread_mutex_unlock(&m_PKeyLock);
+
+   if (0 == pred_port)
       return true;
 
-   if (m_Predecessor.m_uiID < m_uiID)
-      return ((m_Predecessor.m_uiID < id) && (id <= m_uiID));
+   if (pred_id < m_uiID)
+      return ((pred_id < id) && (id <= m_uiID));
 
-   if (m_Predecessor.m_uiID > m_uiID)
-      return ((m_Predecessor.m_uiID < id) || (id <= m_uiID));
+   if (pred_id > m_uiID)
+      return ((pred_id < id) || (id <= m_uiID));
 
    return (id == m_uiID);
 }
@@ -149,15 +162,20 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
       return 0;
    }
 
+   pthread_mutex_lock(&m_SKeyLock);
+
    if (((m_uiID < m_Successor.m_uiID) && (m_uiID < id) && (id <= m_Successor.m_uiID)) ||
        ((m_uiID >= m_Successor.m_uiID) && ((m_uiID < id) || (id <= m_Successor.m_uiID))))
    {
       *n = m_Successor;
+      pthread_mutex_unlock(&m_SKeyLock);
       return 0;
    }
 
    Node c;
    closest_preceding_finger(id, &c);
+
+   pthread_mutex_unlock(&m_SKeyLock);
 
    CRTMsg msg;
    msg.setType(3); // find successor
@@ -167,7 +185,11 @@ int CRouting::find_successor(const unsigned int& id, Node* n)
    int res = m_pGMP->rpc(c.m_pcIP, c.m_iPort, &msg, &msg);
 
    if (res >= 0)
+   {
+      pthread_mutex_lock(&m_SKeyLock);
       *n = *(Node*)(msg.getData());
+      pthread_mutex_unlock(&m_SKeyLock);
+   }
 
    return res;
 }
@@ -273,7 +295,9 @@ void CRouting::stabilize()
       if (((m_uiID < m_Successor.m_uiID) && (m_uiID < pred) && (pred < m_Successor.m_uiID)) ||
           ((m_uiID >= m_Successor.m_uiID) && ((m_uiID < pred) || (pred < m_Successor.m_uiID))))
       {
+         pthread_mutex_lock(&m_SKeyLock);
          m_Successor = m_vFingerTable[0].m_Node = *(Node*)(msg.getData());
+         pthread_mutex_unlock(&m_SKeyLock);
       }
    }
 
@@ -292,29 +316,36 @@ void CRouting::stabilize()
 
 void CRouting::notify(Node* n)
 {
-   if (m_Predecessor.m_iPort == 0)
+   pthread_mutex_lock(&m_PKeyLock);
+
+   if ((m_Predecessor.m_iPort == 0) ||
+       ((m_Predecessor.m_uiID < m_uiID) && (m_Predecessor.m_uiID < n->m_uiID) && (n->m_uiID < m_uiID)) ||
+       ((m_Predecessor.m_uiID >= m_uiID) && ((m_Predecessor.m_uiID < n->m_uiID) || (n->m_uiID < m_uiID))))
    {
       m_Predecessor = *n;
-      return;
    }
 
-   if (((m_Predecessor.m_uiID < m_uiID) && (m_Predecessor.m_uiID < n->m_uiID) && (n->m_uiID < m_uiID)) ||
-        ((m_Predecessor.m_uiID >= m_uiID) && ((m_Predecessor.m_uiID < n->m_uiID) || (n->m_uiID < m_uiID))))
-   {
-      m_Predecessor = *n;
-   }
+   pthread_mutex_unlock(&m_PKeyLock);
 }
 
 void CRouting::fix_fingers()
 {
-   for (int i = 0; i < m_iKeySpace; ++ i)
+   for (int i = 1; i < m_iKeySpace; ++ i)
       find_successor(m_vFingerTable[i].m_uiStart, &(m_vFingerTable[i].m_Node));
 }
 
 void CRouting::check_predecessor()
 {
+   char pred_ip[64];
+   int pred_port;
+
+   pthread_mutex_lock(&m_PKeyLock);
+   strcpy(pred_ip, m_Predecessor.m_pcIP);
+   pred_port = m_Predecessor.m_iPort;
+   pthread_mutex_unlock(&m_PKeyLock);
+
    // if there is no predecessor, return;
-   if (m_Predecessor.m_iPort == 0)
+   if (0 == pred_port)
       return;
 
    CRTMsg msg;
@@ -322,18 +353,21 @@ void CRouting::check_predecessor()
    msg.setType(6); // check predecessor
    msg.m_iDataLength = 4;
 
-   int res = m_pGMP->rpc(m_Predecessor.m_pcIP, m_Predecessor.m_iPort, &msg, &msg);
+   int res = m_pGMP->rpc(pred_ip, pred_port, &msg, &msg);
 
    if ((res < 0) || (msg.getType() < 0))
    {
+      pthread_mutex_lock(&m_PKeyLock);
       m_Predecessor.m_pcIP[0] = '\0';
       m_Predecessor.m_iPort = 0;
+      pthread_mutex_unlock(&m_PKeyLock);
    }
 }
 
 void CRouting::check_successor()
 {
-   char* ip = m_Successor.m_pcIP;
+   char ip[64];
+   strcpy(ip, m_Successor.m_pcIP);
    int port = m_Successor.m_iPort;
 
    for (int i = 0; i < m_iKeySpace;)
@@ -350,26 +384,33 @@ void CRouting::check_successor()
             // successor is lost, get the first from the backup list
             if (m_vBackupSuccessors.size() > 0)
             {
+               pthread_mutex_lock(&m_SKeyLock);
                m_Successor = m_vFingerTable[0].m_Node = m_vBackupSuccessors[0];
                m_vBackupSuccessors.erase(m_vBackupSuccessors.begin());
-               ip = m_Successor.m_pcIP;
+               pthread_mutex_unlock(&m_SKeyLock);
+
+               strcpy(ip, m_Successor.m_pcIP);
                port = m_Successor.m_iPort;
             }
             else
             {
                // no successor found, isolated
+               pthread_mutex_lock(&m_SKeyLock);
                memcpy(m_Successor.m_pcIP, m_pcIP, 64);
                m_Successor.m_iPort = m_iPort;
                m_Successor.m_iAppPort = m_iAppPort;
                m_Successor.m_uiID = m_uiID;
                m_vFingerTable[0].m_Node = m_Successor;
+               pthread_mutex_unlock(&m_SKeyLock);
                break;
             }
          }
          else
          {
             // bad node, remove it
+            pthread_mutex_lock(&m_SKeyLock);
             m_vBackupSuccessors.erase(m_vBackupSuccessors.begin() + i - 1);
+            pthread_mutex_unlock(&m_SKeyLock);
             break;
          }
       }
@@ -378,13 +419,15 @@ void CRouting::check_successor()
          if (m_uiID == ((Node*)(msg.getData()))->m_uiID)
          {
             // loop back, remove all additional (already gone) successors
+            pthread_mutex_lock(&m_SKeyLock);
             m_vBackupSuccessors.erase(m_vBackupSuccessors.begin() + i, m_vBackupSuccessors.end());
-
+            pthread_mutex_unlock(&m_SKeyLock);
             break;
          }
          else
          {
             // everything is OK, update next successor
+            pthread_mutex_lock(&m_SKeyLock);
             if (i < int(m_vBackupSuccessors.size()))
             {
                if (m_vBackupSuccessors[i].m_uiID != ((Node*)(msg.getData()))->m_uiID)
@@ -392,9 +435,10 @@ void CRouting::check_successor()
             }
             else
                m_vBackupSuccessors.insert(m_vBackupSuccessors.end(), *(Node*)(msg.getData()));
+            pthread_mutex_unlock(&m_SKeyLock);
 
-            ip = m_vBackupSuccessors[i].m_pcIP;
-            port = m_vBackupSuccessors[i].m_iPort;
+            strcpy(ip, ((Node*)(msg.getData()))->m_pcIP);
+            port = ((Node*)(msg.getData()))->m_iPort;
             ++ i;
          }
       }
@@ -419,13 +463,17 @@ void* CRouting::run(void* r)
       switch(msg->getType())
       {
       case 1: // get Successor
+         pthread_mutex_lock(&self->m_SKeyLock);
          msg->setData(0, (char*)&self->m_Successor, sizeof(Node));
+         pthread_mutex_unlock(&self->m_SKeyLock);
          msg->m_iDataLength = 4 + sizeof(Node);
          self->m_pGMP->sendto(ip, port, id, msg);
          break;
 
       case 2: // get Predecessor
+         pthread_mutex_lock(&self->m_PKeyLock);
          msg->setData(0, (char*)&self->m_Predecessor, sizeof(Node));
+         pthread_mutex_unlock(&self->m_PKeyLock);
          msg->m_iDataLength = 4 + sizeof(Node);
          self->m_pGMP->sendto(ip, port, id, msg);
          break;
@@ -439,7 +487,9 @@ void* CRouting::run(void* r)
       case 5: // closest_preceding_node
          {
          int id = *(int*)(msg->getData());
+         pthread_mutex_lock(&self->m_SKeyLock);
          self->closest_preceding_finger(id, (Node*)(msg->getData()));
+         pthread_mutex_unlock(&self->m_SKeyLock);
          msg->m_iDataLength = 4 + sizeof(Node);
          self->m_pGMP->sendto(ip, port, id, msg);
          break;
@@ -512,24 +562,16 @@ void* CRouting::stabilize(void* r)
    while (true)
    {
       sleep(1);
-      //cout << "stabilizing...\n";
       self->stabilize();
-      //cout << "stabilized\n";
 
       sleep(1);
-      //cout << "fixing fingers " << nextf << endl;
       self->fix_fingers();
-      //cout << "fixed fingers " << nextf << endl;
 
       sleep(1);
-      //cout << "checking predecessors " << endl;
       self->check_predecessor();
-      //cout << "checked predecessors " << endl;
 
       sleep(1);
-      //cout << "checking successor " << nexts << endl;
       self->check_successor();
-      //cout << "checked successor " << nexts << endl;
 
       //self->print_finger_table();
    }

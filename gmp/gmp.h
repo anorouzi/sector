@@ -71,6 +71,7 @@ class CGMPMessage
 {
 public:
    CGMPMessage();
+   CGMPMessage(const CGMPMessage& msg);
    ~CGMPMessage();
 
    int32_t& m_iType;		// 0 Data; 1 ACK
@@ -143,7 +144,9 @@ public:
 
 private:
    int UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable = true);
+   int UDPsend(const char* ip, const int& port, CGMPMessage* msg);
    int TCPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len);
+   int TCPsend(const char* ip, const int& port, CGMPMessage* msg);
 
 public:
    int sendto(const char* ip, const int& port, int32_t& id, const CUserMessage* msg);

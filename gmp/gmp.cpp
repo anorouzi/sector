@@ -25,7 +25,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/07/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/02/2007
 *****************************************************************************/
 
 
@@ -69,6 +69,22 @@ m_iLength(0)
       g_iID = 1;
 
    Sync::leaveCS(g_IDLock);
+}
+
+CGMPMessage::CGMPMessage(const CGMPMessage& msg):
+m_iType(m_piHeader[0]),
+m_iSession(m_piHeader[1]),
+m_iID(m_piHeader[2]),
+m_iInfo(m_piHeader[3]),
+m_pcData(NULL),
+m_iLength(0)
+{
+   memcpy((char*)m_piHeader, (char*)msg.m_piHeader, 16);
+   if (m_iLength > 0)
+   {
+      m_pcData = new char[m_iLength];
+      memcpy(m_pcData, msg.m_pcData, m_iLength);
+   }
 }
 
 CGMPMessage::~CGMPMessage()
@@ -251,21 +267,13 @@ int CGMP::sendto(const char* ip, const int& port, int32_t& id, const char* data,
 
 int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
 {
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(port);
-   #ifndef WIN32
-      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) <= 0)
-         return -1;
-   #else
-      if (INADDR_NONE == (addr.sin_addr.s_addr = inet_addr(ip)))
-         return -1;
-   #endif
-   memset(&(addr.sin_zero), '\0', 8);
-
    CGMPMessage* msg = new CGMPMessage;
    msg->pack(data, len, id);
    id = msg->m_iID;
+
+   int res = UDPsend(ip, port, msg);
+   if (res < 0)
+      return -1;
 
    if (reliable)
    {
@@ -279,44 +287,72 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
       m_lSndQueue.push_back(rec);
       Sync::leaveCS(m_SndQueueLock);
    }
-
-#ifndef WIN32
-   iovec vec[2];
-   vec[0].iov_base = msg->m_piHeader;
-   vec[0].iov_len = 16;
-   vec[1].iov_base = msg->m_pcData;
-   vec[1].iov_len = msg->m_iLength;
-
-   msghdr mh;
-   mh.msg_name = &addr;
-   mh.msg_namelen = sizeof(sockaddr_in);
-   mh.msg_iov = vec;
-   mh.msg_iovlen = 2;
-   mh.msg_control = NULL;
-   mh.msg_controllen = 0;
-   mh.msg_flags = 0;
-
-   sendmsg(m_UDPSocket, &mh, 0);
-#else
-   WSABUF vec[2];
-   vec[0].buf = (char*)msg->m_piHeader;
-   vec[0].len = 16;
-   vec[1].buf = msg->m_pcData;
-   vec[1].len = msg->m_iLength;
-
-   DWORD ssize;
-   WSASendTo(m_UDPSocket, vec, 2, &ssize, 0, (sockaddr*)&addr, sizeof(sockaddr_in), NULL, NULL);
-#endif
-
-//   cout << "send to " << ip << " " << port << " " << msg->m_iSession << " " << msg->m_iID << " " << msg->m_iInfo << " " << msg->m_iLength << endl;
-
-   if (!reliable)
+   else
+   {
       delete msg;
+   }
 
-   return 1;
+   return res;
+}
+
+int CGMP::UDPsend(const char* ip, const int& port, CGMPMessage* msg)
+{
+   sockaddr_in addr;
+   addr.sin_family = AF_INET;
+   addr.sin_port = htons(port);
+   #ifndef WIN32
+      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) <= 0)
+         return -1;
+   #else
+      if (INADDR_NONE == (addr.sin_addr.s_addr = inet_addr(ip)))
+         return -1;
+   #endif
+   memset(&(addr.sin_zero), '\0', 8);
+
+   #ifndef WIN32
+      iovec vec[2];
+      vec[0].iov_base = msg->m_piHeader;
+      vec[0].iov_len = 16;
+      vec[1].iov_base = msg->m_pcData;
+      vec[1].iov_len = msg->m_iLength;
+
+      msghdr mh;
+      mh.msg_name = &addr;
+      mh.msg_namelen = sizeof(sockaddr_in);
+      mh.msg_iov = vec;
+      mh.msg_iovlen = 2;
+      mh.msg_control = NULL;
+      mh.msg_controllen = 0;
+      mh.msg_flags = 0;
+
+      sendmsg(m_UDPSocket, &mh, 0);
+   #else
+      WSABUF vec[2];
+      vec[0].buf = (char*)msg->m_piHeader;
+      vec[0].len = 16;
+      vec[1].buf = msg->m_pcData;
+      vec[1].len = msg->m_iLength;
+
+      DWORD ssize;
+      WSASendTo(m_UDPSocket, vec, 2, &ssize, 0, (sockaddr*)&addr, sizeof(sockaddr_in), NULL, NULL);
+   #endif
+
+   return 16 + msg->m_iLength;
 }
 
 int CGMP::TCPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len)
+{
+   CGMPMessage* msg = new CGMPMessage;
+   msg->pack(data, len, id);
+   id = msg->m_iID;
+
+   int res = TCPsend(ip, port, msg);
+
+   delete msg;
+   return res;
+}
+
+int CGMP::TCPsend(const char* ip, const int& port, CGMPMessage* msg)
 {
    #ifndef WIN32
       int sock;
@@ -334,7 +370,7 @@ int CGMP::TCPsend(const char* ip, const int& port, int32_t& id, const char* data
       if (INADDR_NONE == (serv_addr.sin_addr.s_addr = inet_addr(ip)))
    #endif
    {
-      //cout << "incorrect network address:" << ip << endl;
+      closesocket(sock);
       return -1;
    }
    memset(&(serv_addr.sin_zero), '\0', 8);
@@ -342,52 +378,43 @@ int CGMP::TCPsend(const char* ip, const int& port, int32_t& id, const char* data
    // connect to the server, implict bind
    if (-1 == ::connect(sock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
    {
-      //cout << "why TCP c f " << ip << " " << port << endl;
-
-      perror("TCP connect");
+      closesocket(sock);
       return -1;
    }
 
-   CGMPMessage* msg = new CGMPMessage;
-   msg->pack(data, len, id);
-   id = msg->m_iID;
-
-   //cout << "TCP PORT sent " << m_iPort << endl; 
+   //cout << "TCP PORT sent " << m_iPort << endl;
    if (0 > ::send(sock, (char*)(&m_iPort), 4, 0))
    {
-      perror("send");
-      return -1;
-   }
-   
-   if (0 > ::send(sock, (char*)(msg->m_piHeader), 16, 0))
-   {
-      perror("send");
+      closesocket(sock);
       return -1;
    }
 
-   if (0 > ::send(sock, (char*)&len, 4, 0))
+   if (0 > ::send(sock, (char*)(msg->m_piHeader), 16, 0))
    {
-      perror("send");
+      closesocket(sock);
+      return -1;
+   }
+
+   if (0 > ::send(sock, (char*)&(msg->m_iLength), 4, 0))
+   {
+      closesocket(sock);
       return -1;
    }
 
    int ssize = 0;
-   while (ssize < len)
+   while (ssize < msg->m_iLength)
    {
       int s;
-      if (0 > (s = ::send(sock, data + ssize, len - ssize, 0)))
+      if (0 > (s = ::send(sock, msg->m_pcData + ssize, msg->m_iLength - ssize, 0)))
       {
-         perror("send");
+         closesocket(sock);
          return -1;
       }
       ssize += s;
    }
 
-   //cout << "sent by TCP " << ip << " " << port << " " << msg->m_iSession << " " << msg->m_iID << " " << msg->m_iInfo << " " <<m_lSndQueue.size() << endl;
-
    closesocket(sock);
-   delete msg;
-   return 1;
+   return 16 + msg->m_iLength;
 }
 
 int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len, const bool& block)
@@ -506,119 +533,56 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
 
    while (!self->m_bClosed)
    {
-      Sync::enterCS(self->m_SndQueueLock);
-
       #ifndef WIN32
          timespec timeout;
          timeval now;
          gettimeofday(&now, 0);
          timeout.tv_sec = now.tv_sec + 1;
          timeout.tv_nsec = now.tv_usec * 1000;
+         pthread_mutex_lock(&self->m_SndQueueLock);
          pthread_cond_timedwait(&self->m_SndQueueCond, &self->m_SndQueueLock, &timeout);
+         pthread_mutex_unlock(&self->m_SndQueueLock);
       #else
-         ReleaseMutex(self->m_SndQueueLock);
          WaitForSingleObject(self->m_SndQueueCond, 1000);
-         WaitForSingleObject(self->m_SndQueueLock, INFINITE);
       #endif
 
+      vector<CMsgRecord> tcpsend;
+      tcpsend.clear();
+
+      Sync::enterCS(self->m_SndQueueLock);
       for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end();)
       {
          if (Time::getTime() - (*i)->m_llTimeStamp > 10 * 1000000)
          {
             // timeout, send with TCP...
-
             list<CMsgRecord*>::iterator j = i;
             i ++;
 
-            #ifndef WIN32
-               int sock;
-            #else
-               SOCKET sock;
-            #endif
-            sock = socket(AF_INET, SOCK_STREAM, 0);
+            CMsgRecord rec;
+            strcpy(rec.m_pcIP, (*j)->m_pcIP);
+            rec.m_iPort = (*j)->m_iPort;
+            rec.m_pMsg = new CGMPMessage(*((*j)->m_pMsg));
+            tcpsend.insert(tcpsend.end(), rec);
 
-            if (-1 == sock)
-               goto UDP_END;
-
-            sockaddr_in serv_addr;
-            serv_addr.sin_family = AF_INET;
-            serv_addr.sin_port = htons((*j)->m_iPort);
-            #ifndef WIN32
-               inet_pton(AF_INET, (*j)->m_pcIP, &serv_addr.sin_addr);
-            #else
-               serv_addr.sin_addr.s_addr = inet_addr((*j)->m_pcIP);
-            #endif
-            memset(&(serv_addr.sin_zero), '\0', 8);
-
-            if (-1 == ::connect(sock, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-               goto UDP_END;
-
-            if ((-1 == ::send(sock, (char*)(&(self->m_iPort)), 4, 0)) ||
-                (-1 == ::send(sock, (char*)((*j)->m_pMsg->m_piHeader), 16, 0)) ||
-                (-1 == ::send(sock, (char*)&((*j)->m_pMsg->m_iLength), 4, 0)))
-            {
-               goto UDP_END;
-            }
-
-            for (int ssize = 0; ssize < (*j)->m_pMsg->m_iLength;)
-            {
-               int s;
-               if (0 > (s = ::send(sock, (*j)->m_pMsg->m_pcData + ssize, (*j)->m_pMsg->m_iLength - ssize, 0)))
-                  goto UDP_END;
-               ssize += s;
-            }
-
-            UDP_END:
             delete (*j)->m_pMsg;
             delete (*j);
             self->m_lSndQueue.erase(j);
-            closesocket(sock);
             continue;
          }
 
-         sockaddr_in addr;
-         addr.sin_family = AF_INET;
-         addr.sin_port = htons((*i)->m_iPort);
-         #ifndef WIN32
-            inet_pton(AF_INET, (*i)->m_pcIP, &(addr.sin_addr));
-         #else
-            addr.sin_addr.s_addr = inet_addr((*i)->m_pcIP);
-         #endif
-         memset(&(addr.sin_zero), '\0', 8);
-
-#ifndef WIN32
-         iovec vec[2];
-         vec[0].iov_base = (*i)->m_pMsg->m_piHeader;
-         vec[0].iov_len = 16;
-         vec[1].iov_base = (*i)->m_pMsg->m_pcData;
-         vec[1].iov_len = (*i)->m_pMsg->m_iLength;
-
-         msghdr mh;
-         mh.msg_name = &addr;
-         mh.msg_namelen = sizeof(sockaddr_in);
-         mh.msg_iov = vec;
-         mh.msg_iovlen = 2;
-         mh.msg_control = NULL;
-         mh.msg_controllen = 0;
-         mh.msg_flags = 0;
-
-         sendmsg(self->m_UDPSocket, &mh, 0);
-#else
-         WSABUF vec[2];
-         vec[0].buf = (char*)(*i)->m_pMsg->m_piHeader;
-         vec[0].len = 16;
-         vec[1].buf = (*i)->m_pMsg->m_pcData;
-         vec[1].len = (*i)->m_pMsg->m_iLength;
-
-         DWORD ssize;
-         WSASendTo(self->m_UDPSocket, vec, 2, &ssize, 0, (sockaddr*)&addr, sizeof(sockaddr_in), NULL, NULL);
-#endif
+         self->UDPsend((*i)->m_pcIP, (*i)->m_iPort, (*i)->m_pMsg);
 
          // check next msg
          ++ i;
       }
-
       Sync::leaveCS(self->m_SndQueueLock);
+
+      for (vector<CMsgRecord>::iterator i = tcpsend.begin(); i != tcpsend.end(); ++ i)
+      {
+         self->TCPsend(i->m_pcIP, i->m_iPort, i->m_pMsg);
+         delete i->m_pMsg;
+      }
+      tcpsend.clear();
    }
 
    return NULL;
@@ -1034,9 +998,17 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
    if (sendto(ip, port, id, req) < 0)
       return -1;
 
+   timeval t1, t2;
+   gettimeofday(&t1, 0);
+
    while (recv(id, res) < 0)
    {
       if (rtt(ip, port, true) < 0)
+         return -1;
+
+      // 30 seconds maximum waiting time
+      gettimeofday(&t2, 0);
+      if (t2.tv_sec - t1.tv_sec > 30)
          return -1;
    }
 
@@ -1054,20 +1026,14 @@ int CGMP::rtt(const char* ip, const int& port, const bool& clear)
    else
       m_PeerHistory.clearRTT(ip);
 
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(port);
-   #ifndef WIN32
-      if (inet_pton(AF_INET, ip, &(addr.sin_addr)) <= 0)
-         return -1;
-   #else
-      if (INADDR_NONE == (addr.sin_addr.s_addr = inet_addr(ip)))
-         return -1;
-   #endif
-   memset(&(addr.sin_zero), '\0', 8);
-
    CGMPMessage* msg = new CGMPMessage;
    msg->pack(2, 0);
+
+   if (UDPsend(ip, port, msg) < 0)
+   {
+      delete msg;
+      return -1;
+   }
 
    CMsgRecord* rec = new CMsgRecord;
    strcpy(rec->m_pcIP, ip);
@@ -1079,44 +1045,18 @@ int CGMP::rtt(const char* ip, const int& port, const bool& clear)
    m_lSndQueue.push_back(rec);
    Sync::leaveCS(m_SndQueueLock);
 
-#ifndef WIN32
-   iovec vec[2];
-   vec[0].iov_base = msg->m_piHeader;
-   vec[0].iov_len = 16;
-   vec[1].iov_base = msg->m_pcData;
-   vec[1].iov_len = msg->m_iLength;
-
-   msghdr mh;
-   mh.msg_name = &addr;
-   mh.msg_namelen = sizeof(sockaddr_in);
-   mh.msg_iov = vec;
-   mh.msg_iovlen = 2;
-   mh.msg_control = NULL;
-   mh.msg_controllen = 0;
-   mh.msg_flags = 0;
-
-   sendmsg(m_UDPSocket, &mh, 0);
-
-   timeval now;
-   timespec timeout;
-   gettimeofday(&now, 0);
-   timeout.tv_sec = now.tv_sec + 1;
-   timeout.tv_nsec = now.tv_usec * 1000;
-   pthread_mutex_lock(&m_RTTLock);
-   pthread_cond_timedwait(&m_RTTCond, &m_RTTLock, &timeout);
-   pthread_mutex_unlock(&m_RTTLock);
-#else
-   WSABUF vec[2];
-   vec[0].buf = (char*)msg->m_piHeader;
-   vec[0].len = 16;
-   vec[1].buf = msg->m_pcData;
-   vec[1].len = msg->m_iLength;
-
-   DWORD ssize;
-   WSASendTo(m_UDPSocket, vec, 2, &ssize, 0, (sockaddr*)&addr, sizeof(sockaddr_in), NULL, NULL);
-
-   WaitForSingleObject(m_RTTCond, 1000);
-#endif
+   #ifndef WIN32
+      timeval now;
+      timespec timeout;
+      gettimeofday(&now, 0);
+      timeout.tv_sec = now.tv_sec + 1;
+      timeout.tv_nsec = now.tv_usec * 1000;
+      pthread_mutex_lock(&m_RTTLock);
+      pthread_cond_timedwait(&m_RTTCond, &m_RTTLock, &timeout);
+      pthread_mutex_unlock(&m_RTTLock);
+   #else
+      WaitForSingleObject(m_RTTCond, 1000);
+   #endif
 
    return m_PeerHistory.getRTT(ip);
 }
