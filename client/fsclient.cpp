@@ -81,36 +81,41 @@ File::~File()
    m_GMP.close();
 }
 
-int File::open(const string& filename, const int& mode, char* cert)
+int File::open(const string& filename, const int& mode, char* cert, char* nl, int nlsize)
 {
    m_strFileName = filename;
 
-   Node n;
-
-   if (Client::lookup(filename, &n) < 0)
-      return -1;
-
-   CCBMsg msg;
-   msg.setType(1); // locate file
-   msg.setData(0, filename.c_str(), filename.length() + 1);
-   msg.m_iDataLength = 4 + filename.length() + 1;
-
-   if (m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg) < 0)
-      return -1;
-
-   if (msg.getType() > 0)
+   while (NULL == nl)
    {
-      int num = (msg.m_iDataLength - 4) / 68;
+      Node n;
+      if (Client::lookup(filename, &n) < 0)
+         break;
 
-      cout << num << " copies found!" << endl;
+      CCBMsg msg;
+      msg.setType(1); // locate file
+      msg.setData(0, filename.c_str(), filename.length() + 1);
+      msg.m_iDataLength = 4 + filename.length() + 1;
+
+      if (m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg) < 0)
+         break;
+
+      nl = msg.getData();
+      nlsize = (msg.m_iDataLength - 4) / 68;
+
+      break;
+   };
+
+   bool serv_found = false;
+   if (NULL != nl)
+   {
+      cout << nlsize << " copies found!" << endl;
 
       // choose closest server
-      int c = 0;
+      int c = -1;
       int rtt = 100000000;
-      for (int i = 0; i < num; ++ i)
+      for (int i = 0; i < nlsize; ++ i)
       {
-         //cout << "RTT: " << msg.getData() + i * 68 << " " << *(int*)(msg.getData() + i * 68 + 64) << " " << m_GMP.rtt(msg.getData() + i * 68, *(int32_t*)(msg.getData() + i * 68 + 64)) << endl;
-         int r = m_GMP.rtt(msg.getData() + i * 68, *(int32_t*)(msg.getData() + i * 68 + 64));
+         int r = m_GMP.rtt(nl + i * 68, *(int32_t*)(nl + i * 68 + 64));
          if (r < rtt)
          {
             rtt = r;
@@ -118,10 +123,15 @@ int File::open(const string& filename, const int& mode, char* cert)
          }
       }
 
-      m_strServerIP = msg.getData() + c * 68;
-      m_iServerPort = *(int32_t*)(msg.getData() + c * 68 + 64);
+      if (-1 != c)
+      {
+         serv_found = true;
+         m_strServerIP = nl + c * 68;
+         m_iServerPort = *(int32_t*)(nl + c * 68 + 64);
+      }
    }
-   else
+
+   if (!serv_found)
    {
       // file does not exist
       if (1 == mode)
@@ -130,6 +140,7 @@ int File::open(const string& filename, const int& mode, char* cert)
       m_strServerIP = Client::m_strServerHost;
       m_iServerPort = Client::m_iServerPort;
 
+      CCBMsg msg;
       msg.setType(5); // create the file
 
       msg.setData(0, filename.c_str(), filename.length() + 1);
@@ -143,6 +154,7 @@ int File::open(const string& filename, const int& mode, char* cert)
          strcpy(cert, msg.getData());
    }
 
+   CCBMsg msg;
    msg.setType(2); // open the file
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.setData(64, (char*)&mode, 4);

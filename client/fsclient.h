@@ -49,7 +49,7 @@ private:
    virtual ~File();
 
 public:
-   int open(const string& filename, const int& mode = 1, char* cert = NULL);
+   int open(const string& filename, const int& mode = 1, char* cert = NULL, char* nl = NULL, int nlsize = 0);
    int read(char* buf, const int64_t& offset, const int64_t& size);
    int readridx(char* index, const int64_t& offset, const int64_t& rows);
    int write(const char* buf, const int64_t& offset, const int64_t& size);
