@@ -85,7 +85,7 @@ void* Server::fileHandler(void* p)
             if (0 != (mode & 2))
                response = 0;
          }
-         else if ((1 == cmd) || (3 == cmd))
+         else if ((1 == cmd) || (3 == cmd) || (6 == cmd))
          {
             if (0 != (mode & 1))
                response = 0;

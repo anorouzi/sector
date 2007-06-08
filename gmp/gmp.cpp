@@ -179,6 +179,27 @@ int CGMP::init(const int& port)
    addr.sin_addr.s_addr = INADDR_ANY;
    memset(&(addr.sin_zero), '\0', 8);
 
+   if (-1 == bind(m_TCPSocket, (sockaddr*)&addr, sizeof(addr)))
+   {
+      perror("bind");
+      return -1;
+   }
+
+   socklen_t socklen = sizeof(sockaddr_in);
+   if (-1 == getsockname(m_TCPSocket, (sockaddr *)&addr, &socklen))
+   {
+      perror("getsockname");
+      return -1;
+   }
+   m_iPort = ntohs(addr.sin_port);
+
+
+   if (-1 == listen(m_TCPSocket, 10))
+   {
+      perror("listen");
+      return -1;
+   }
+
    if (0 != ::bind(m_UDPSocket, (sockaddr *)&addr, sizeof(sockaddr_in)))
    {
       perror("bind");
@@ -190,27 +211,6 @@ int CGMP::init(const int& port)
    tv.tv_usec = 0;
 
    setsockopt(m_UDPSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(timeval));
-
-   socklen_t socklen = sizeof(sockaddr_in);
-   if (-1 == getsockname(m_UDPSocket, (sockaddr *)&addr, &socklen))
-   {
-      perror("getsockname");
-      return -1;
-   }
-
-   m_iPort = ntohs(addr.sin_port);
-
-   if (-1 == bind(m_TCPSocket, (sockaddr*)&addr, sizeof(addr)))
-   {
-      perror("bind");
-      return -1;
-   }
-
-   if (-1 == listen(m_TCPSocket, 10))
-   {
-      perror("listen");
-      return -1;
-   }
 
    #ifndef WIN32
       pthread_create(&m_SndThread, NULL, sndHandler, this);

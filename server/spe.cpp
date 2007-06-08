@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/24/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/07/2007
 *****************************************************************************/
 
 #include <server.h>
@@ -95,13 +95,13 @@ void* Server::SPEHandler(void* p)
       datafile = dataseg;
       offset = *(int64_t*)(dataseg + 64);
       rows = *(int64_t*)(dataseg + 72);
+      index = new int64_t[rows + 1];
 
       cout << "new job " << datafile << " " << offset << " " << rows << endl;
 
       // read data
       if (self->m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
       {
-         index = new int64_t[rows + 1];
          ifstream idx;
          idx.open((self->m_strHomeDir + datafile + ".idx").c_str());
          idx.seekg(offset * 8);
@@ -124,14 +124,17 @@ void* Server::SPEHandler(void* p)
       else
       {
          File* f = Client::createFileHandle();
-         f->open(datafile.c_str());
-         f->readridx((char*)index, offset, rows);
+         if (f->open(datafile.c_str()) < 0)
+            return NULL;
+         if (f->readridx((char*)index, offset, rows) < 0)
+            return NULL;
 
          size = index[rows] - index[0];
          block = new char[size];
          res = new char[size];
 
-         f->read(block, index[0], size);
+         if (f->read(block, index[0], size) < 0)
+            return NULL;
 
          f->close();
          Client::releaseFileHandle(f);
