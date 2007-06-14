@@ -2,7 +2,7 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
@@ -33,13 +33,14 @@ The receiving buffer is a logically circular memeory block.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/08/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/07/2007
 *****************************************************************************/
 
 #include <cstring>
 #include <cmath>
 #include "buffer.h"
 
+using namespace std;
 
 CSndBuffer::CSndBuffer(const int& mss):
 m_pBlock(NULL),
@@ -276,7 +277,8 @@ m_iSize(65536),
 m_pUnitQueue(queue),
 m_iStartPos(0),
 m_iLastAckPos(0),
-m_iMaxPos(0)
+m_iMaxPos(0),
+m_iNotch(0)
 {
    m_pUnit = new CUnit* [m_iSize];
 }
@@ -330,68 +332,74 @@ int CRcvBuffer::addData(CUnit* unit, int offset)
 
 int CRcvBuffer::readBuffer(char* data, const int& len)
 {
-   // empty buffer
-   if (m_iStartPos == m_iLastAckPos)
-      return 0;
-
    int p = m_iStartPos;
    int lastack = m_iLastAckPos;
    int rs = len;
 
-   int unitsize = m_pUnit[p]->m_Packet.getLength() - m_iNotch;
-   if (rs >= unitsize)
+   while ((p != lastack) && (rs > 0))
    {
+      int unitsize = m_pUnit[p]->m_Packet.getLength() - m_iNotch;
+      if (unitsize > rs)
+         unitsize = rs;
+
       memcpy(data, m_pUnit[p]->m_Packet.m_pcData + m_iNotch, unitsize);
       data += unitsize;
 
-      CUnit* tmp = m_pUnit[p];
-      m_pUnit[p] = NULL;
-      tmp->m_bValid = false;
-      -- m_pUnitQueue->m_iCount;
-
-      m_iNotch = 0;
-      rs -= unitsize;
-
-      if (++ p == m_iSize)
-         p = 0;
-   }
-   else
-   {
-      memcpy(data, m_pUnit[p]->m_Packet.m_pcData + m_iNotch, rs);
-      m_iNotch += rs;
-
-      return rs;
-   }
-
-   while ((p != lastack) && (rs > 0))
-   {
-      unitsize = m_pUnit[p]->m_Packet.getLength();
-      if (rs >= unitsize)
+      if ((rs > unitsize) || (rs == m_pUnit[p]->m_Packet.getLength() - m_iNotch))
       {
-         memcpy(data, m_pUnit[p]->m_Packet.m_pcData, unitsize);
-         data += unitsize;
-
          CUnit* tmp = m_pUnit[p];
          m_pUnit[p] = NULL;
          tmp->m_bValid = false;
          -- m_pUnitQueue->m_iCount;
 
-         rs -= unitsize;
-
          if (++ p == m_iSize)
             p = 0;
+
+         m_iNotch = 0;
       }
       else
-      {
-         memcpy(data, m_pUnit[p]->m_Packet.m_pcData, rs);
-         m_iNotch = rs;
+         m_iNotch += rs;
 
-         rs = 0;
-      }
+      rs -= unitsize;
    }
 
    m_iStartPos = p;
+   return len - rs;
+}
 
+int CRcvBuffer::readBufferToFile(ofstream& file, const int& len)
+{
+   int p = m_iStartPos;
+   int lastack = m_iLastAckPos;
+   int rs = len;
+
+   while ((p != lastack) && (rs > 0))
+   {
+      int unitsize = m_pUnit[p]->m_Packet.getLength() - m_iNotch;
+      if (unitsize > rs)
+         unitsize = rs;
+
+      file.write(m_pUnit[p]->m_Packet.m_pcData + m_iNotch, unitsize);
+
+      if ((rs > unitsize) || (rs == m_pUnit[p]->m_Packet.getLength() - m_iNotch))
+      {
+         CUnit* tmp = m_pUnit[p];
+         m_pUnit[p] = NULL;
+         tmp->m_bValid = false;
+         -- m_pUnitQueue->m_iCount;
+
+         if (++ p == m_iSize)
+            p = 0;
+
+         m_iNotch = 0;
+      }
+      else
+         m_iNotch += rs;
+
+      rs -= unitsize;
+   }
+
+   m_iStartPos = p;
    return len - rs;
 }
 
@@ -436,40 +444,51 @@ int CRcvBuffer::readMsg(char* data, const int& len)
    if (m_iStartPos == m_iLastAckPos)
       return 0;
 
-   int p = m_iStartPos;
-   int q = -1;
-   int lastack = m_iLastAckPos;
-   bool sfound = false;
-   while ((p != lastack) && (-1 == q))
+   int p = -1;			// message head
+   int q = m_iStartPos;		// message tail
+   bool found = false;
+
+   // looking for the first message
+   while (q != m_iLastAckPos)
    {
-      if (NULL != m_pUnit[p])
+      if (NULL != m_pUnit[q])
       {
-         switch (m_pUnit[p]->m_Packet.getMsgBoundary())
+         switch (m_pUnit[q]->m_Packet.getMsgBoundary())
          {
          case 3: // 11
-            q = p;
+            p = q;
+            found = true;
             break;
 
          case 2: // 10
-            sfound = true;
+            p = q;
             break;
 
          case 1: // 01
-            if (sfound) q = p;
+            if (p != -1)
+               found = true;
          }
       }
       else
       {
-         if (sfound) sfound = false;
+         // a hole in this message, not valid, restart search
+         p = -1;
       }
 
-      if (++ p == m_iSize)
-         p = 0;
+      if (found)
+         break;
+
+      if (++ q == m_iSize)
+         q = 0;
    }
 
    // no msg found
-   if (-1 == q)
-      return 0;
+   if (!found)
+   {
+      // if the message is larger than the receiver buffer, return part of the message
+      if ((p == -1) || ((q + 1) % m_iSize != p))
+         return 0;
+   }
 
    int rs = len;
 

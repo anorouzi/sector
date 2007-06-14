@@ -2,7 +2,7 @@
 Copyright © 2001 - 2006, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago

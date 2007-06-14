@@ -23,105 +23,274 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2007
 *****************************************************************************/
 
 
 #include <index.h>
 #include <util.h>
-
+#include <iostream>
 using namespace std;
 using namespace cb;
 
-CIndex::CIndex()
+
+LocalFileIndex::LocalFileIndex()
 {
    Sync::initMutex(m_IndexLock);
 }
 
-CIndex::~CIndex()
+LocalFileIndex::~LocalFileIndex()
 {
    Sync::releaseMutex(m_IndexLock);
 }
 
-int CIndex::lookup(const string& filename, set<CFileAttr, CAttrComp>* filelist)
-{
-   int res = -1;
-
-   Sync::enterCS(m_IndexLock);
-
-   map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(filename);
-
-   if (i !=  m_mFileList.end())
-   {
-      if (NULL != filelist)
-         *filelist = i->second;
-      res =  1;
-   }
-
-   Sync::leaveCS(m_IndexLock);
-
-   return res;
-}
-
-int CIndex::insert(const CFileAttr& attr)
+int LocalFileIndex::lookup(const string& filename, CFileAttr* attr)
 {
    Sync::enterCS(m_IndexLock);
 
-   map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(attr.m_pcName);
+   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
 
-   if (i == m_mFileList.end())
+   if (i == m_mNameIndex.end())
    {
-      set<CFileAttr, CAttrComp> sa;
-      m_mFileList[attr.m_pcName] = sa;
+      Sync::leaveCS(m_IndexLock);
+      return -1;
    }
 
-   m_mFileList[attr.m_pcName].insert(attr);
+   if (NULL != attr)
+      *attr = i->second;
 
    Sync::leaveCS(m_IndexLock);
 
    return 1;
 }
-   
-int CIndex::remove(const string& filename)
+
+int LocalFileIndex::insert(const CFileAttr& attr, const Node* n)
 {
    Sync::enterCS(m_IndexLock);
-   m_mFileList.erase(filename);
+
+   m_mNameIndex[attr.m_pcName] = attr;
+
+   Node tmp;
+   Node* node = (Node*)n;
+   if (NULL == n)
+   {
+      strcpy(tmp.m_pcIP, "");
+      tmp.m_iAppPort = 0;
+      node = &tmp;
+   }
+
+   map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.find(*node);
+   if (i == m_mLocIndex.end())
+   {
+      set<string> fl;
+      i = m_mLocIndex.insert(m_mLocIndex.begin(), pair<Node, set<string> >(*node, fl));
+   }
+   i->second.insert(attr.m_pcName);
+   m_mLocInfo[attr.m_pcName] = *node;
+
+   Sync::leaveCS(m_IndexLock);
+
+   return 1;  
+}
+
+void LocalFileIndex::remove(const string& filename)
+{
+   Sync::enterCS(m_IndexLock);
+
+   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+
+   if (i == m_mNameIndex.end())
+   {
+      Sync::leaveCS(m_IndexLock);
+      return;
+   }
+
+   m_mNameIndex.erase(i);
+
+   Node& n = m_mLocInfo[filename];
+   m_mLocIndex[n].erase(filename);
+   if (m_mLocIndex[n].empty())
+      m_mLocIndex.erase(n);
+
+   m_mLocInfo.erase(filename);
+
+   Sync::leaveCS(m_IndexLock);
+}
+
+void LocalFileIndex::updateNameServer(const string& filename, const Node& loc)
+{
+   Sync::enterCS(m_IndexLock);
+
+   map<string, Node>::iterator i = m_mLocInfo.find(filename);
+
+   if (i == m_mLocInfo.end())
+   {
+      Sync::leaveCS(m_IndexLock);
+      return;
+   }
+
+   Node& tmp = m_mLocInfo[filename];
+   m_mLocIndex[tmp].erase(filename);
+
+   m_mLocInfo[filename] = loc;
+   m_mLocIndex[loc].insert(filename);
+
+   Sync::leaveCS(m_IndexLock);
+}
+
+int LocalFileIndex::getLocIndex(map<Node, set<string>, NodeComp>& li)
+{
+   Sync::enterCS(m_IndexLock);
+
+   li.clear();
+   for (map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.begin(); i != m_mLocIndex.end(); ++ i)
+   {
+      set<string> tmp;
+      map<Node, set<string>, NodeComp>::iterator j = li.insert(li.end(), pair<Node, set<string> >(i->first, tmp));
+      for (set<string>::iterator k = i->second.begin(); k != i->second.end(); ++ k)
+         j->second.insert(*k);
+   }
+
+   Sync::leaveCS(m_IndexLock);
+
+   return li.size();
+}
+
+
+RemoteFileIndex::RemoteFileIndex()
+{
+   Sync::initMutex(m_IndexLock);
+}
+
+RemoteFileIndex::~RemoteFileIndex()
+{
+   Sync::releaseMutex(m_IndexLock);
+}
+
+int RemoteFileIndex::lookup(const string& filename, CFileAttr* attr, set<Node, NodeComp>* nl)
+{
+   Sync::enterCS(m_IndexLock);
+
+   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+
+   if (i == m_mNameIndex.end())
+   {
+      Sync::leaveCS(m_IndexLock);
+      return -1;
+   }
+
+   if (NULL != attr)
+      *attr = i->second;
+
+   if (NULL != nl)
+   {
+      nl->clear();
+      for (set<Node, NodeComp>::iterator j = m_mLocInfo[filename].begin(); j != m_mLocInfo[filename].end(); ++ j)
+         nl->insert(*j);
+   }
+
+   Sync::leaveCS(m_IndexLock);
+
+   return m_mLocInfo[filename].size();
+}
+
+int RemoteFileIndex::insert(const CFileAttr& attr, const Node& n)
+{
+   Sync::enterCS(m_IndexLock);
+
+   map<string, CFileAttr>::iterator i = m_mNameIndex.find(attr.m_pcName);
+
+   if (i == m_mNameIndex.end())
+      m_mNameIndex[attr.m_pcName] = attr;
+
+   m_mLocInfo[attr.m_pcName].insert(n);
+   m_mLocIndex[n].insert(attr.m_pcName);
+
    Sync::leaveCS(m_IndexLock);
 
    return 1;
 }
 
-void CIndex::updateNameServer(const string& filename, const Node& loc)
+void RemoteFileIndex::remove(const string& filename)
 {
    Sync::enterCS(m_IndexLock);
-   strcpy((char*)m_mFileList[filename].begin()->m_pcNameHost, loc.m_pcIP);
-   const_cast<int&>(m_mFileList[filename].begin()->m_iNamePort) = loc.m_iAppPort;
+
+   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+
+   if (i != m_mNameIndex.end())
+      m_mNameIndex.erase(i);
+
+   for (set<Node, NodeComp>::iterator j = m_mLocInfo[filename].begin(); j != m_mLocInfo[filename].end(); ++ j)
+   {
+      m_mLocIndex[*j].erase(filename);
+      if (m_mLocIndex[*j].empty())
+         m_mLocIndex.erase(*j);
+   }
+
+   m_mLocInfo.erase(filename);
+
    Sync::leaveCS(m_IndexLock);
 }
 
-void CIndex::removeCopy(const CFileAttr& attr)
+void RemoteFileIndex::remove(const Node& n)
 {
    Sync::enterCS(m_IndexLock);
 
-   map<string, set<CFileAttr, CAttrComp> >::iterator i = m_mFileList.find(attr.m_pcName);
-   if (i != m_mFileList.end())
-   {
-      i->second.erase(attr);
+   map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.find(n);
 
-      if (0 == i->second.size())
-         m_mFileList.erase(i);
+   if (i == m_mLocIndex.end())
+   {
+      Sync::leaveCS(m_IndexLock);
+      return;
+   }
+
+   for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
+   {
+      m_mLocInfo[*f].erase(n);
+      if (m_mLocInfo[*f].empty())
+      {
+         m_mLocInfo.erase(*f);
+         m_mNameIndex.erase(*f);
+      }
+   }
+
+   m_mLocIndex.erase(i);
+
+   Sync::leaveCS(m_IndexLock);
+}
+
+void RemoteFileIndex::removeCopy(const string& filename, const Node& n)
+{
+   Sync::enterCS(m_IndexLock);
+
+   m_mLocIndex[n].erase(filename);
+   if (m_mLocIndex[n].empty())
+      m_mLocIndex.erase(n);
+
+   m_mLocInfo[filename].erase(n);
+   if (m_mLocInfo[filename].empty())
+      m_mLocInfo.erase(filename);
+
+   if (m_mLocInfo.find(filename) == m_mLocInfo.end())
+      m_mNameIndex.erase(filename);
+
+   Sync::leaveCS(m_IndexLock);
+}
+
+int RemoteFileIndex::getLocIndex(map<Node, set<string>, NodeComp>& li)
+{
+   Sync::enterCS(m_IndexLock);
+
+   li.clear();
+   for (map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.begin(); i != m_mLocIndex.end(); ++ i)
+   {
+      set<string> tmp;
+      map<Node, set<string>, NodeComp>::iterator j = li.insert(li.end(), pair<Node, set<string> >(i->first, tmp));
+      for (set<string>::iterator k = i->second.begin(); k != i->second.end(); ++ k)
+         j->second.insert(*k);
    }
 
    Sync::leaveCS(m_IndexLock);
-}
 
-int CIndex::getFileList(map<string, set<CFileAttr, CAttrComp> >& list)
-{
-   list.clear();
-
-   Sync::enterCS(m_IndexLock);
-   list = m_mFileList;
-   Sync::leaveCS(m_IndexLock);
-
-   return list.size();
+   return li.size();
 }

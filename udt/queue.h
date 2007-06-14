@@ -2,7 +2,7 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
@@ -29,7 +29,7 @@ This header file contains the definition of UDT multiplexer.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2007
 *****************************************************************************/
 
 
@@ -41,15 +41,11 @@ written by
 #include "channel.h"
 #include <vector>
 
-using namespace std;
-
 class CUDT;
 
 struct CUnit
 {
-   sockaddr* m_pAddr;		// source address
    CPacket m_Packet;		// packet
-
    bool m_bValid;		// if this is a valid entry
 };
 
@@ -103,19 +99,25 @@ public:
    CUnit* getNextAvailUnit();
 
 private:
-   vector<CUnit*> m_vpUnit;	// unit queue
-   vector<char*> m_vpBuffer;	// data buffer
-   vector<char*> m_vpAddrBuf;	// addr information
-   vector<int> m_viSize;	// size of each queue
+   struct CQEntry
+   {
+      CUnit* m_pUnit;		// unit queue
+      char* m_pBuffer;		// data buffer
+      int m_iSize;		// size of each queue
+
+      CQEntry* m_pNext;
+   }
+   *m_pQEntry,			// pointer to the first unit queue
+   *m_pCurrQueue,		// pointer to the current available queue
+   *m_pLastQueue;		// pointer to the last unit queue
+
+   CUnit* m_pAvailUnit;         // recent available unit
 
    int m_iSize;			// total size of the unit queue, in number of packets
    int m_iCount;		// total number of valid packets in the queue
 
    int m_iMSS;			// unit buffer size
    int m_iIPversion;		// IP version
-
-   CUnit* m_pAvailUnit;		// recent available unit
-   int m_iVQ;			// recent available quque
 };
 
 
@@ -262,7 +264,7 @@ public:
 private:
    CUDTList* m_pLast;		// the last node
 
-   vector<CUDT*> m_vNewEntry;	// newly added entries, to be inserted
+   std::vector<CUDT*> m_vNewEntry;	// newly added entries, to be inserted
    pthread_mutex_t m_ListLock;
 };
 
@@ -364,7 +366,7 @@ private:
       int m_iIPversion;
       sockaddr* m_pPeerAddr;
    };
-   vector<CRL> m_vRendezvousID;         // The sockets currently in rendezvous mode
+   std::vector<CRL> m_vRendezvousID;         // The sockets currently in rendezvous mode
 
    pthread_mutex_t m_RIDVectorLock;
 };
@@ -449,13 +451,12 @@ public:
       // Functionality:
       //    Read a packet for a specific UDT socket id.
       // Parameters:
-      //    1) [out] addr: source address of the packet
+      //    1) [in] id: Socket ID
       //    2) [out] packet: received packet
-      //    3) [in] id: Socket ID
       // Returned value:
       //    Data size of the packet
 
-   int recvfrom(sockaddr* addr, CPacket& packet, const int32_t& id);
+   int recvfrom(const int32_t& id, CPacket& packet);
 
 private:
 #ifndef WIN32

@@ -43,29 +43,49 @@ using namespace std;
 namespace cb
 {
 
-class CIndex
+class LocalFileIndex
 {
 public:
-   CIndex();
-   ~CIndex();
+   LocalFileIndex();
+   ~LocalFileIndex();
 
 public:
-   int lookup(const string& filename, set<CFileAttr, CAttrComp>* attr = NULL);
-   int insert(const CFileAttr& attr);
-   int remove(const string& filename);
+   int lookup(const string& filename, CFileAttr* attr = NULL);
+   int insert(const CFileAttr& attr, const Node* n = NULL);
+   void remove(const string& filename);
    void updateNameServer(const string& filename, const Node& loc);
-   void removeCopy(const CFileAttr& attr);
+   int getLocIndex(map<Node, set<string>, NodeComp>& li);
+
+private:
+   map<string, CFileAttr> m_mNameIndex;
+   map<string, Node> m_mLocInfo;
+   map<Node, set<string>, NodeComp> m_mLocIndex;
+
+private:
+   pthread_mutex_t m_IndexLock;
+};
+
+class RemoteFileIndex
+{
+public:
+   RemoteFileIndex();
+   ~RemoteFileIndex();
 
 public:
-   int getFileList(map<string, set<CFileAttr, CAttrComp> >& list);
+   int lookup(const string& filename, CFileAttr* attr = NULL, set<Node, NodeComp>* nl = NULL);
+   int insert(const CFileAttr& attr, const Node& n);
+   void remove(const string& filename);
+   void remove(const Node& n);
+   void removeCopy(const string& filename, const Node& n);
+   int getLocIndex(map<Node, set<string>, NodeComp>& li);
 
 private:
-   map<string, set<CFileAttr, CAttrComp> > m_mFileList;
+   map<string, CFileAttr> m_mNameIndex;
+   map<string, set<Node, NodeComp> > m_mLocInfo;
+   map<Node, set<string>, NodeComp> m_mLocIndex;
 
+private:
    pthread_mutex_t m_IndexLock;
-
-private:
-   int64_t m_llTotalSize;
 };
 
 }; // namespace

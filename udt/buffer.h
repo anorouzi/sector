@@ -2,7 +2,7 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
@@ -39,6 +39,7 @@ written by
 #include "udt.h"
 #include "list.h"
 #include "queue.h"
+#include <fstream>
 
 class CSndBuffer
 {
@@ -162,6 +163,16 @@ public:
       //    size of data read.
 
    int readBuffer(char* data, const int& len);
+
+      // Functionality:
+      //    Read data directly into file.
+      // Parameters:
+      //    0) [in] file: C++ file stream.
+      //    1) [in] len: expected length of data to write into the file.
+      // Returned value:
+      //    size of data read.
+
+   int readBufferToFile(std::ofstream& file, const int& len);
 
       // Functionality:
       //    Update the ACK point of the buffer.

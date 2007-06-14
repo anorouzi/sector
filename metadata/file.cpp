@@ -40,10 +40,6 @@ CFileAttr::CFileAttr()
    m_iAttr = 0;
    m_iType = 0;
    m_llSize = 0;
-   m_pcHost[0] = '\0';
-   m_iPort = 0;
-   m_pcNameHost[0] = '\0';
-   m_iNamePort = 0;
 }
 
 CFileAttr::~CFileAttr()
@@ -58,10 +54,6 @@ CFileAttr& CFileAttr::operator=(const CFileAttr& f)
    m_iAttr = f.m_iAttr;
    m_iType = f.m_iType;
    m_llSize = f.m_llSize;
-   strcpy(m_pcHost, f.m_pcHost);
-   m_iPort = f.m_iPort;
-   strcpy(m_pcNameHost, f.m_pcNameHost);
-   m_iNamePort = f.m_iNamePort;
 
    return *this;
 }
@@ -72,12 +64,10 @@ void CFileAttr::serialize(char* attr, int& len) const
 
    memcpy(p, m_pcName, 64);
    p += 64;
-   memcpy(p, m_pcHost, 64);
-   p += 64;
 
-   sprintf(p, "%d %lld %d %lld %d \n", m_uiID, m_llTimeStamp, m_iType, m_llSize, m_iPort);
+   sprintf(p, "%d %lld %d %lld\n", m_uiID, m_llTimeStamp, m_iType, m_llSize);
 
-   len = 64 * 2 + strlen(p) + 1;
+   len = 64 + strlen(p) + 1;
 }
 
 void CFileAttr::deserialize(const char* attr, const int& len)
@@ -86,8 +76,6 @@ void CFileAttr::deserialize(const char* attr, const int& len)
 
    memcpy(m_pcName, p, 64);
    p += 64;
-   memcpy(m_pcHost, p, 64);
-   p += 64;
 
-   sscanf(p, "%d %lld %d %lld %d", &m_uiID, &m_llTimeStamp, &m_iType, &m_llSize, &m_iPort);
+   sscanf(p, "%d %lld %d %lld", &m_uiID, &m_llTimeStamp, &m_iType, &m_llSize);
 }

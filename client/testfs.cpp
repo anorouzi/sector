@@ -42,10 +42,10 @@ int main(int argc, char** argv)
 
    CFileAttr attr;
    Sector::stat("test.txt", attr);
-   cout << attr.m_pcName << " " << attr.m_pcHost << " " << attr.m_iPort << " " << attr.m_llSize << endl;
+   cout << attr.m_pcName << " " << attr.m_llSize << endl;
 
    Sector::stat("rate.txt", attr);
-   cout << attr.m_pcName << " " << attr.m_pcHost << " " << attr.m_iPort << " " << attr.m_llSize << endl;
+   cout << attr.m_pcName << " " << attr.m_llSize << endl;
 
    Sector::close();
 

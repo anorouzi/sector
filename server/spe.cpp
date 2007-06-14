@@ -111,7 +111,6 @@ void* Server::SPEHandler(void* p)
          size = index[rows] - index[0];
          cout << "to read data " << size << endl;
          block = new char[size];
-         res = new char[size];
 
          ifstream ifs;
          ifs.open((self->m_strHomeDir + datafile).c_str());
@@ -125,21 +124,31 @@ void* Server::SPEHandler(void* p)
       {
          File* f = Client::createFileHandle();
          if (f->open(datafile.c_str()) < 0)
+         {
+            delete [] index;
             return NULL;
+         }
          if (f->readridx((char*)index, offset, rows) < 0)
+         {
+            delete [] index;
             return NULL;
+         }
 
          size = index[rows] - index[0];
          block = new char[size];
-         res = new char[size];
 
          if (f->read(block, index[0], size) < 0)
+         {
+            delete [] index;
+            delete [] block;
             return NULL;
+         }
 
          f->close();
          Client::releaseFileHandle(f);
       }
 
+      res = new char[size];
       rsize = 0;
       gettimeofday(&t3, 0);
       for (int i = 0; i < rows; ++ i)
@@ -175,6 +184,9 @@ void* Server::SPEHandler(void* p)
       delete [] index;
       delete [] block;
       delete [] res;
+      index = NULL;
+      block = NULL;
+      res = NULL;
    }
 
    gettimeofday(&t2, 0);

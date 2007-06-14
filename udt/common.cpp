@@ -2,7 +2,7 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
@@ -30,7 +30,7 @@ mutex facility, and exception processing.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/16/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/07/2007
 *****************************************************************************/
 
 
@@ -83,28 +83,18 @@ void CTimer::rdtsc(uint64_t &x)
       if (!QueryPerformanceCounter((LARGE_INTEGER *)&x))
          x = getTime();
    #elif IA32
-      // read CPU clock with RDTSC instruction on IA32 acrh
-      __asm__ volatile (".byte 0x0f, 0x31" : "=A" (x));
-
-      // on Windows
-      /*
-         unsigned int a, b;
-         __asm 
-         {
-            __emit 0x0f
-            __emit 0x31
-            mov a, eax
-            mov b, ebx
-         }
-         x = b;
-         x = (x << 32) + a;
-      */
-
+      uint32_t lval, hval;
+      //asm volatile ("push %eax; push %ebx; push %ecx; push %edx");
+      //asm volatile ("xor %eax, %eax; cpuid");
+      asm volatile ("rdtsc" : "=a" (lval), "=d" (hval));
+      //asm volatile ("pop %edx; pop %ecx; pop %ebx; pop %eax");
+      x = hval;
+      x = (x << 32) | lval;
    #elif IA64
-      __asm__ volatile ("mov %0=ar.itc" : "=r"(x) :: "memory");
+      asm ("mov %0=ar.itc" : "=r"(x) :: "memory");
    #elif AMD64
-      unsigned int lval, hval;
-      __asm__ volatile ("rdtsc" : "=a" (lval), "=d" (hval));
+      uint32_t lval, hval;
+      asm ("rdtsc" : "=a" (lval), "=d" (hval));
       x = hval;
       x = (x << 32) | lval;
    #else
@@ -124,8 +114,6 @@ uint64_t CTimer::readCPUFrequency()
       else
          return 1;
    #elif IA32 || IA64 || AMD64
-      // alternative: read /proc/cpuinfo
-
       uint64_t t1, t2;
 
       rdtsc(t1);
@@ -165,7 +153,6 @@ void CTimer::sleepto(const uint64_t& nexttime)
    {
       #ifndef NO_BUSY_WAITING
          #ifdef IA32
-            //__asm__ volatile ("nop; nop; nop; nop; nop;");
             __asm__ volatile ("pause; rep; nop; nop; nop; nop; nop;");
          #elif IA64
             __asm__ volatile ("nop 0; nop 0; nop 0; nop 0; nop 0;");
@@ -567,6 +554,39 @@ const int CUDTException::getErrorCode() const
 {
    return m_iMajor * 1000 + m_iMinor;
 }
+
+const int CUDTException::SUCCESS = 0;
+const int CUDTException::ECONNSETUP = 1000;
+const int CUDTException::ENOSERVER = 1001;
+const int CUDTException::ECONNREJ = 1002;
+const int CUDTException::ESOCKFAIL = 1003;
+const int CUDTException::ESECFAIL = 1004;
+const int CUDTException::ECONNFAIL = 2000;
+const int CUDTException::ECONNLOST = 2001;
+const int CUDTException::ENOCONN = 2002;
+const int CUDTException::ERESOURCE = 3000;
+const int CUDTException::ETHREAD = 3001;
+const int CUDTException::ENOBUF = 3002;
+const int CUDTException::EFILE = 4000;
+const int CUDTException::EINVRDOFF = 4001;
+const int CUDTException::ERDPERM = 4002;
+const int CUDTException::EINVWROFF = 4003;
+const int CUDTException::EWRPERM = 4004;
+const int CUDTException::EINVOP = 5000;
+const int CUDTException::EBOUNDSOCK = 5001;
+const int CUDTException::ECONNSOCK = 5002;
+const int CUDTException::EINVPARAM = 5002;
+const int CUDTException::EINVSOCK = 5003;
+const int CUDTException::EUNBOUNDSOCK = 5004;
+const int CUDTException::ENOLISTEN = 5005;
+const int CUDTException::ERDVNOSERV = 5006;
+const int CUDTException::ERDVUNBOUND = 5007;
+const int CUDTException::ESTREAMILL = 5008;
+const int CUDTException::EDGRAMILL = 5009;
+const int CUDTException::EASYNCFAIL = 6000;
+const int CUDTException::EASYNCSND = 6001;
+const int CUDTException::EASYNCRCV = 6002;
+const int CUDTException::EUNKNOWN = -1;
 
 
 //

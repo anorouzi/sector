@@ -2,7 +2,7 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
@@ -34,7 +34,7 @@ UDT protocol specification (draft-gg-udt-xx.txt)
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/07/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -52,6 +52,7 @@ written by
 #include "queue.h"
 #include "core.h"
 
+using namespace std;
 
 CUDTUnited CUDT::s_UDTUnited;
 
@@ -612,7 +613,7 @@ void CUDT::connect(const sockaddr* serv_addr)
       m_pSndQueue->sendto(serv_addr, request);
 
       response.setLength(m_iPayloadSize);
-      if (m_pRcvQueue->recvfrom(NULL, response, m_SocketID) > 0)
+      if (m_pRcvQueue->recvfrom(m_SocketID, response) > 0)
       {
          if ((1 != response.getFlag()) || (0 != response.getType()))
             response.setLength(-1);
@@ -1562,12 +1563,30 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
          // wait here during a blocking sending
          #ifndef WIN32
             pthread_mutex_lock(&m_SendBlockLock);
-            while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
-               pthread_cond_wait(&m_SendBlockCond, &m_SendBlockLock);
+            if (m_iSndTimeOut < 0)
+            {
+               while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+                  pthread_cond_wait(&m_SendBlockCond, &m_SendBlockLock);
+            }
+            else
+            {
+               uint64_t exptime = CTimer::getTime() + m_iSndTimeOut * 1000ULL;
+               timespec locktime;
+
+               locktime.tv_sec = exptime / 1000000;
+               locktime.tv_nsec = (exptime % 1000000) * 1000;
+
+               pthread_cond_timedwait(&m_SendBlockCond, &m_SendBlockLock, &locktime);
+            }
             pthread_mutex_unlock(&m_SendBlockLock);
          #else
-            while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
-               WaitForSingleObject(m_SendBlockCond, INFINITE);
+            if (m_iSndTimeOut < 0)
+            {
+               while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+                  WaitForSingleObject(m_SendBlockCond, INFINITE);
+            }
+            else
+               WaitForSingleObject(m_SendBlockCond, DWORD(m_iSndTimeOut));
          #endif
 
          // check the connection status
@@ -1575,6 +1594,9 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
             throw CUDTException(2, 1, 0);
       }
    }
+
+   if ((m_iSndTimeOut >= 0) && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+      return 0;
 
    char* buf = new char[len];
    memcpy(buf, data, len);
@@ -1621,15 +1643,40 @@ int CUDT::recvmsg(char* data, const int& len)
    }
 
    int res = m_pRcvBuffer->readMsg(data, len);
+   bool timeout = false;
 
-   while (0 == res)
+   while ((0 == res) && !timeout)
    {
       #ifndef WIN32
          pthread_mutex_lock(&m_RecvDataLock);
-         pthread_cond_wait(&m_RecvDataCond, &m_RecvDataLock);
+         if (m_iRcvTimeOut < 0)
+         {
+            while (!m_bBroken && (0 == m_pRcvBuffer->getRcvDataSize()))
+               pthread_cond_wait(&m_RecvDataCond, &m_RecvDataLock);
+         }
+         else
+         {
+            uint64_t exptime = CTimer::getTime() + m_iRcvTimeOut * 1000ULL;
+            timespec locktime;
+
+            locktime.tv_sec = exptime / 1000000;
+            locktime.tv_nsec = (exptime % 1000000) * 1000;
+
+            if (pthread_cond_timedwait(&m_RecvDataCond, &m_RecvDataLock, &locktime) == ETIMEDOUT)
+               timeout = true;
+         }
          pthread_mutex_unlock(&m_RecvDataLock);
       #else
-         WaitForSingleObject(m_RecvDataCond, INFINITE);
+         if (m_iRcvTimeOut < 0)
+         {
+            while (!m_bBroken && (0 == m_pRcvBuffer->getRcvDataSize()))
+               WaitForSingleObject(m_RecvDataCond, INFINITE);
+         }
+         else
+         {
+            if (WaitForSingleObject(m_RecvDataCond, DWORD(m_iRcvTimeOut)) == WAIT_TIMEOUT)
+               timeout = true;
+         }
       #endif
 
       if (m_bBroken)
@@ -1735,6 +1782,8 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
    if (SOCK_DGRAM == m_iSockType)
       throw CUDTException(5, 10, 0);
 
+   CGuard recvguard(m_RecvLock);
+
    if ((m_bBroken) && (0 == m_pRcvBuffer->getRcvDataSize()))
       throw CUDTException(2, 1, 0);
    else if (!m_bConnected)
@@ -1743,23 +1792,9 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
    if (size <= 0)
       return 0;
 
-   char* tempbuf = NULL;
    int64_t torecv = size;
    int unitsize = block;
    int recvsize;
-
-   try
-   {
-      tempbuf = new char[unitsize];
-   }
-   catch (...)
-   {
-      throw CUDTException(3, 2, 0);
-   }
-
-   // "recvfile" is always blocking.   
-   bool syn = m_bSynRecving;
-   m_bSynRecving = true;
 
    // positioning...
    try
@@ -1768,47 +1803,27 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
    }
    catch (...)
    {
-      delete [] tempbuf;
       throw CUDTException(4, 3);
    }
 
-   // receiving...
+   // receiving... "recvfile" is always blocking
    while (torecv > 0)
    {
+      pthread_mutex_lock(&m_RecvDataLock);
+      while (!m_bBroken && (0 == m_pRcvBuffer->getRcvDataSize()))
+         pthread_cond_wait(&m_RecvDataCond, &m_RecvDataLock);
+      pthread_mutex_unlock(&m_RecvDataLock);
+
+      if (m_bBroken && (0 == m_pRcvBuffer->getRcvDataSize()))
+         throw CUDTException(2, 1, 0);
+
       unitsize = int((torecv >= block) ? block : torecv);
-
-      try
-      {
-         recvsize = recv(tempbuf, unitsize);
-         ofs.write(tempbuf, recvsize);
-
-         if (recvsize <= 0)
-         {
-             m_bSynRecving = syn;
-             delete [] tempbuf;
-             return size - torecv + recvsize;
-         }
-      }
-      catch (CUDTException e)
-      {
-         delete [] tempbuf;
-         throw e;
-      }
-      catch (...)
-      {
-         delete [] tempbuf;
-         throw CUDTException(4, 4);
-      }
+      recvsize = m_pRcvBuffer->readBufferToFile(ofs, unitsize);
 
       torecv -= recvsize;
    }
 
-   // recover the original receiving mode
-   m_bSynRecving = syn;
-
-   delete [] tempbuf;
-
-   return size;
+   return size - torecv;
 }
 
 void CUDT::sample(CPerfMon* perf, bool clear)

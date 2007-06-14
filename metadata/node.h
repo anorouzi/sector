@@ -41,6 +41,18 @@ struct Node
    int32_t m_iAppPort;
 };
 
+struct NodeComp
+{
+   bool operator()(const Node& n1, const Node& n2) const
+   {
+      int nc = strcmp(n1.m_pcIP, n2.m_pcIP);
+      if (nc != 0)
+         return (nc > 0);
+
+      return (n1.m_iAppPort > n2.m_iAppPort);
+   }
+};
+
 struct NodeInfo
 {
    int32_t m_iStatus;		// good, bad

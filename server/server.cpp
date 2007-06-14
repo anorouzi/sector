@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/24/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2007
 *****************************************************************************/
 
 
@@ -55,7 +55,6 @@ Server::Server(const string& ip)
 Server::~Server()
 {
    m_GMP.close();
-
    Client::close();
 }
 
@@ -144,10 +143,9 @@ void* Server::process(void* s)
          case 1: // locate file
          {
             string filename = msg->getData();
+            set<Node, NodeComp> nl;
 
-            set<CFileAttr, CAttrComp> filelist;
-
-            if (self->m_RemoteFile.lookup(filename, &filelist) < 0)
+            if (self->m_RemoteFile.lookup(filename, NULL, &nl) < 0)
             {
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;
@@ -156,10 +154,10 @@ void* Server::process(void* s)
             {
                // feedback all copies of the requested file
                int num = 0;
-               for (set<CFileAttr, CAttrComp>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+               for (set<Node, NodeComp>::iterator i = nl.begin(); i != nl.end(); ++ i)
                {
-                  msg->setData(num * 68, i->m_pcHost, strlen(i->m_pcHost) + 1);
-                  msg->setData(num * 68 + 64, (char*)(&i->m_iPort), 4);
+                  msg->setData(num * 68, i->m_pcIP, strlen(i->m_pcIP) + 1);
+                  msg->setData(num * 68 + 64, (char*)(&i->m_iAppPort), 4);
                   ++ num;
 
                   // only a limited number of nodes to be sent back
@@ -177,7 +175,7 @@ void* Server::process(void* s)
          {
             char* filename = msg->getData();
 
-            if (self->m_LocalFile.lookup(filename, NULL) < 0)
+            if (self->m_LocalFile.lookup(filename) < 0)
             {
                // no file exist
                msg->setType(-msg->getType());
@@ -274,8 +272,11 @@ void* Server::process(void* s)
          {
             CFileAttr attr;
             attr.deserialize(msg->getData(), msg->m_iDataLength - 4);
+            Node n;
+            strcpy(n.m_pcIP, ip);
+            n.m_iAppPort = port;
 
-            if (self->m_RemoteFile.insert(attr) < 0)
+            if (self->m_RemoteFile.insert(attr, n) < 0)
                msg->setType(-msg->getType());
 
             msg->m_iDataLength = 4;
@@ -288,7 +289,6 @@ void* Server::process(void* s)
          {
             string filename = msg->getData();
             int fid = DHash::hash(filename.c_str(), m_iKeySpace);
-
             int r = self->m_Router.lookup(fid, (Node*)msg->getData());
 
             if (-1 == r)
@@ -327,8 +327,6 @@ void* Server::process(void* s)
 
             CFileAttr attr;
             strcpy(attr.m_pcName, filename.c_str());
-            strcpy(attr.m_pcHost, self->m_strLocalHost.c_str());
-            attr.m_iPort = self->m_iLocalPort;
             attr.m_llTimeStamp = Time::getTime();
 
             self->m_LocalFile.insert(attr);
@@ -372,12 +370,21 @@ void* Server::process(void* s)
 
          case 6: // probe the existence of a file
          {
-            string filename = msg->getData();
+            char* fl = new char [msg->m_iDataLength - 4];
+            memcpy(fl, msg->getData(), msg->m_iDataLength - 4);
 
-            if (self->m_LocalFile.lookup(filename) <= 0)
-               msg->setType(-msg->getType());
+            int c = 0;
+            for (int i ; i < (msg->m_iDataLength - 4) / 64; ++ i)
+            {
+               if (self->m_LocalFile.lookup(fl + i * 64) < 0)
+               {
+                  msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
+                  ++ c;
+               }
+            }
+            delete [] fl;
 
-            msg->m_iDataLength = 4;
+            msg->m_iDataLength = 4 + c * 64;
 
             self->m_GMP.sendto(ip, port, id, msg);
             break;
@@ -385,11 +392,22 @@ void* Server::process(void* s)
 
          case 7: // check query from RemoteFileIndex
          {
-            if (!self->m_Router.has(DHash::hash(msg->getData(), m_iKeySpace)))
+            char* fl = new char [msg->m_iDataLength - 4];
+            memcpy(fl, msg->getData(), msg->m_iDataLength - 4);
+
+            int c = 0;
+            for (int i ; i < msg->m_iDataLength - 4 / 64; ++ i)
             {
-               self->m_RemoteFile.remove(msg->getData());
-               msg->setType(- msg->getType());
+               if (!self->m_Router.has(DHash::hash(msg->getData(), m_iKeySpace)))
+               {
+                  self->m_RemoteFile.remove(msg->getData());
+                  msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
+                  ++ c;
+               }
             }
+            delete [] fl;
+
+            msg->m_iDataLength = 4 + c * 64;
 
             msg->m_iDataLength = 4;
             self->m_GMP.sendto(ip, port, id, msg);
@@ -421,8 +439,7 @@ void* Server::process(void* s)
          {
             char* filename = msg->getData() + 4;
 
-            set<CFileAttr, CAttrComp> filelist;
-            if (self->m_LocalFile.lookup(filename, &filelist) < 0)
+            if (self->m_LocalFile.lookup(filename) < 0)
             {
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;
@@ -461,7 +478,6 @@ void* Server::process(void* s)
             break; 
          }
 
-
          case 300: // processing engine
          {
             Transport* datachn = new Transport;
@@ -496,7 +512,6 @@ void* Server::process(void* s)
 
             break;
          }
-
 
          default:
          {
@@ -539,7 +554,7 @@ void* Server::processEx(void* p)
          string filename = msg->getData() + 8;
 
          //check if file already exists!
-         if (self->m_LocalFile.lookup(filename, NULL) > 0)
+         if (self->m_LocalFile.lookup(filename) > 0)
          {
             msg->setType(-msg->getType());
             msg->m_iDataLength = 4;
@@ -584,19 +599,19 @@ void* Server::processEx(void* p)
          {
             if ((self->m_strLocalHost == n.m_pcIP) && (self->m_iLocalPort == n.m_iAppPort))
             {
-               set<CFileAttr, CAttrComp> sa;
-               if (self->m_RemoteFile.lookup(filename, &sa) < 0)
+               CFileAttr attr;
+               if (self->m_RemoteFile.lookup(filename, &attr) < 0)
                {
                   msg->setType(-msg->getType());
                   msg->m_iDataLength = 4;
                }
                else
                {
-                  sa.begin()->serialize(msg->getData(), msg->m_iDataLength);
+                  attr.serialize(msg->getData(), msg->m_iDataLength);
                   msg->m_iDataLength += 4;
                }
 
-               cout << "syn " << filename << " " << msg->getType() << " " << msg->m_iDataLength - 4 << " " << sa.begin()->m_llSize << endl;
+               cout << "syn " << filename << " " << msg->getType() << " " << msg->m_iDataLength - 4 << " " << attr.m_llSize << endl;
             }
             else
             {
@@ -616,9 +631,8 @@ void* Server::processEx(void* p)
          string filename = msg->getData();
          int fid = DHash::hash(filename.c_str(), m_iKeySpace);
          Node n;
-         set<CFileAttr, CAttrComp> sa;
 
-         if (self->m_LocalFile.lookup(filename, &sa) >= 0)
+         if (self->m_LocalFile.lookup(filename) >= 0)
          {
             vector<DataAttr> attr;
             string tmp;
@@ -641,15 +655,15 @@ void* Server::processEx(void* p)
          {
             if (self->m_strLocalHost == n.m_pcIP)
             {
-               set<CFileAttr, CAttrComp> sa;
-               if (self->m_RemoteFile.lookup(filename, &sa) < 0)
+               set<Node, NodeComp> nl;
+               if (self->m_RemoteFile.lookup(filename, NULL, &nl) < 0)
                {
                   msg->setType(-msg->getType());
                   msg->m_iDataLength = 4;
                }
                else
                {
-                  if (self->m_GMP.rpc(sa.begin()->m_pcHost, sa.begin()->m_iPort, msg, msg) < 0)
+                  if (self->m_GMP.rpc(nl.begin()->m_pcIP, nl.begin()->m_iAppPort, msg, msg) < 0)
                   {
                      msg->setType(-msg->getType());
                      msg->m_iDataLength = 4;
@@ -687,93 +701,91 @@ void* Server::processEx(void* p)
 
 void Server::updateOutLink()
 {
-   map<string, set<CFileAttr, CAttrComp> > filelist;
-   m_LocalFile.getFileList(filelist);
+   map<Node, set<string>, NodeComp> li;
+   m_LocalFile.getLocIndex(li);
 
    CCBMsg msg;
-   //msg.resize(65536);
+   msg.resize(65536);
 
-   Node loc;
-
-   for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   for (map<Node, set<string>, NodeComp>::iterator i = li.begin(); i != li.end(); ++ i)
    {
-      usleep(100);
+      usleep(1000);
 
-      // ask remote if it is the right node to hold the metadata for this file
+      // ask remote if it is the right node to hold the metadata for these files
       msg.setType(7);
-      strcpy(msg.getData(), i->first.c_str());
-      msg.m_iDataLength = 4 + strlen(i->first.c_str()) + 1;
 
-//cout << "checking "<< i->first << " " << i->second.begin()->m_pcNameHost << " " << i->second.begin()->m_iNamePort << endl;
+      int c = 0;
+      for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
+      {
+         cout << "checking outlink " << f->c_str() << endl;
+         msg.setData(c * 64, f->c_str(), f->length() + 1);
+         ++ c;
+      }
+      msg.m_iDataLength = 4 + c * 64;
 
-      if ((m_GMP.rpc(i->second.begin()->m_pcNameHost, i->second.begin()->m_iNamePort, &msg, &msg) >= 0) && (msg.getType() > 0))
-         continue;
+      if (m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg) >= 0)
+         c = (msg.m_iDataLength - 4) / 64;
+      
+      for (int m = 0; m < c; ++ m)
+      {
+         char* filename = msg.getData() + m * 64;
+         Node loc;
+         int fid = DHash::hash(filename, m_iKeySpace);
+         if (-1 == m_Router.lookup(fid, &loc))
+            continue;
 
-//cout << "wrong node??? " << i->first << " " << i->second.begin()->m_pcNameHost << " " << i->second.begin()->m_iNamePort << endl;
+         m_LocalFile.updateNameServer(filename, loc);
+         //cout << "update name server " << filename << " " << loc.m_pcIP << " " << loc.m_iAppPort << endl;
 
-      int fid = DHash::hash(i->first.c_str(), m_iKeySpace);
-      if (-1 == m_Router.lookup(fid, &loc))
-         continue;
-
-//cout << "new loc " << loc.m_pcIP << " " << loc.m_iAppPort << endl;
-
-      m_LocalFile.updateNameServer(i->first, loc);
-
-      // send metadata to a new node
-      msg.setType(3);
-      i->second.begin()->serialize(msg.getData(), msg.m_iDataLength);
-      msg.m_iDataLength += 4;
-      m_GMP.rpc(loc.m_pcIP, loc.m_iAppPort, &msg, &msg);
+         // send metadata to a new node
+         CCBMsg msg3;
+         msg3.setType(3);
+         CFileAttr attr;
+         m_LocalFile.lookup(filename, &attr);
+         attr.serialize(msg3.getData(), msg3.m_iDataLength);
+         msg3.m_iDataLength += 4;
+         m_GMP.rpc(loc.m_pcIP, loc.m_iAppPort, &msg3, &msg3);
+      }
    }
 }
 
 void Server::updateInLink()
 {
-   map<string, set<CFileAttr, CAttrComp> > filelist;
-   m_RemoteFile.getFileList(filelist);
+   map<Node, set<string>, NodeComp> li;
+   m_RemoteFile.getLocIndex(li);
 
    CCBMsg msg;
    msg.resize(65536);
 
    //Node loc;
 
-   for (map<string, set<CFileAttr, CAttrComp> >::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   for (map<Node, set<string>, NodeComp>::iterator i = li.begin(); i != li.end(); ++ i)
    {
-      usleep(100);
+      usleep(1000);
 
       // check if the original file still exists
-      for (set<CFileAttr, CAttrComp>::iterator j = i->second.begin(); j != i->second.end(); ++ j)
+      int c = 0;
+      for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
       {
-         msg.setType(6);
-         msg.setData(0, j->m_pcName, strlen(j->m_pcName) + 1);
-         msg.m_iDataLength = 4 + strlen(j->m_pcName) + 1;
-
-         int r = m_GMP.rpc(j->m_pcHost, j->m_iPort, &msg, &msg);
-
-         if ((r <= 0) || (msg.getType() < 0))
-            m_RemoteFile.removeCopy(*j);
+         msg.setData(c * 64, f->c_str(), f->length() + 1);
+         ++ c;
       }
 
-      if (i->second.size() == 0)
+      msg.setType(6);
+      msg.m_iDataLength = 4 + c * 64;
+
+      int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
+
+      if (r < 0)
          m_RemoteFile.remove(i->first);
-      else if ((i->second.size() < 2) && (i->second.begin()->m_iType != 3))
+      else
       {
-         // less than 2 copies in the system, create a new one
-         // TODO: start a timeout before making a copy
-         /*
-         int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
-         Node n;
-         if (m_Router.lookup(seed, &n) < 0)
-            continue;
-
-         msg.setType(11);
-         msg.setData(0, (char*)&(i->second.begin()->m_llSize), 8);
-         msg.setData(8, i->second.begin()->m_pcName, strlen(i->second.begin()->m_pcName) + 1);
-         msg.m_iDataLength = 4 + 8 + strlen(i->second.begin()->m_pcName) + 1;
-
-         m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg);
-         */
+         for (c = 0; c < (msg.m_iDataLength - 4) / 64; ++ c)
+            m_RemoteFile.removeCopy(msg.getData() + c * 64, i->first);
       }
+
+      // less than 2 copies in the system, create a new one
+      // TODO: start a timeout before making a copy
    }
 }
 
@@ -809,10 +821,6 @@ int Server::initLocalFile()
             ifs.close();
 
             strcpy(attr.m_pcName, namelist[i]->d_name);
-            strcpy(attr.m_pcHost, m_strLocalHost.c_str());
-            attr.m_iPort = m_iLocalPort;
-            strcpy(attr.m_pcNameHost, "");
-            attr.m_iNamePort = 0;
             // original file is read only
             attr.m_iAttr = 1;
             attr.m_llSize = size;

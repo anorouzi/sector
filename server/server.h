@@ -112,8 +112,8 @@ private:
 
    CGMP m_GMP;
 
-   CIndex m_LocalFile;
-   CIndex m_RemoteFile;
+   LocalFileIndex m_LocalFile;
+   RemoteFileIndex m_RemoteFile;
 
    string m_strLocalHost;
    int m_iLocalPort;

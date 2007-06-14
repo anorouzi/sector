@@ -2,7 +2,7 @@
 Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-UDP-based Data Transfer Library (UDT) special version UDT-m
+UDP-based Data Transfer Library (UDT) version 4
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
@@ -29,7 +29,7 @@ This file contains the implementation of UDT multiplexer.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/06/2007
 *****************************************************************************/
 
 #ifdef WIN32
@@ -41,51 +41,52 @@ written by
 #include "queue.h"
 #include "core.h"
 
+using namespace std;
 
 CUnitQueue::CUnitQueue():
+m_pQEntry(NULL),
+m_pCurrQueue(NULL),
+m_pLastQueue(NULL),
 m_iSize(0),
 m_iCount(0)
 {
-   m_vpUnit.clear();
-   m_vpBuffer.clear();
-   m_vpAddrBuf.clear();
-   m_viSize.clear();
 }
 
 CUnitQueue::~CUnitQueue()
 {
-   for (vector<CUnit*>::iterator i = m_vpUnit.begin(); i != m_vpUnit.end(); ++ i)
-      delete [] *i;
-   m_vpUnit.clear();
+   CQEntry* p = m_pQEntry;
 
-   for (vector<char*>::iterator j = m_vpBuffer.begin(); j != m_vpBuffer.end(); ++ j)
-      delete [] *j;
-   m_vpBuffer.clear();
+   while (p != NULL)
+   {
+      delete [] p->m_pUnit;
+      delete [] p->m_pBuffer;
 
-   for (vector<char*>::iterator k = m_vpAddrBuf.begin(); k != m_vpAddrBuf.end(); ++ k)
-      delete [] *k;
-   m_vpAddrBuf.clear();
-
-   m_viSize.clear();
+      CQEntry* q = p;
+      if (p == m_pLastQueue)
+         p = NULL;
+      else
+         p = p->m_pNext;
+      delete q;
+   }
 }
 
 int CUnitQueue::init(const int& size, const int& mss, const int& version)
 {
+   CQEntry* tempq = NULL;
    CUnit* tempu = NULL;
    char* tempb = NULL;
-   char* tempa = NULL;
 
    try
    {
+      tempq = new CQEntry;
       tempu = new CUnit [size];
       tempb = new char [size * mss];
-      tempa = (AF_INET == version) ? (char*) new sockaddr_in [size] : (char*) new sockaddr_in6 [size];
    }
    catch (...)
    {
+      delete tempq;
       delete [] tempu;
       delete [] tempb;
-      delete [] tempa;
 
       return -1;
    }
@@ -93,21 +94,20 @@ int CUnitQueue::init(const int& size, const int& mss, const int& version)
    for (int i = 0; i < size; ++ i)
    {
       tempu[i].m_bValid = false;
-      tempu[i].m_pAddr = (AF_INET == version) ? (sockaddr*)((sockaddr_in*)tempa + i) : (sockaddr*)((sockaddr_in6*)tempa + i);
       tempu[i].m_Packet.m_pcData = tempb + i * mss;
    }
+   tempq->m_pUnit = tempu;
+   tempq->m_pBuffer = tempb;
+   tempq->m_iSize = size;
 
-   m_vpUnit.insert(m_vpUnit.end(), tempu);
-   m_vpBuffer.insert(m_vpBuffer.end(), tempb);
-   m_vpAddrBuf.insert(m_vpAddrBuf.end(), tempa);
-   m_viSize.insert(m_viSize.end(), size);
+   m_pQEntry = m_pCurrQueue = m_pLastQueue = tempq;
+   m_pQEntry->m_pNext = m_pQEntry;
+
+   m_pAvailUnit = m_pCurrQueue->m_pUnit;
 
    m_iSize = size;
    m_iMSS = mss;
    m_iIPversion = version;
-
-   m_pAvailUnit = m_vpUnit[0];
-   m_iVQ = 0;
 
    return 0;
 }
@@ -116,49 +116,60 @@ int CUnitQueue::increase()
 {
    // adjust/correct m_iCount
    int real_count = 0;
-   for (unsigned int i = 0; i < m_vpUnit.size(); ++ i)
+   CQEntry* p = m_pQEntry;
+   while (p != NULL)
    {
-      CUnit* p = m_vpUnit[i];
-      for (CUnit* end = p + m_viSize[i] - 1; p != end; ++ p)
-         if (p->m_bValid)
+      CUnit* u = p->m_pUnit;
+      for (CUnit* end = u + p->m_iSize - 1; u != end; ++ u)
+         if (u->m_bValid)
             ++ real_count;
+
+      if (p == m_pLastQueue)
+         p = NULL;
+      else
+         p = p->m_pNext;
    }
    m_iCount = real_count;
    if (double(m_iCount) / m_iSize < 0.9)
       return -1;
 
+   CQEntry* tempq = NULL;
    CUnit* tempu = NULL;
    char* tempb = NULL;
-   char* tempa = NULL;
+
+   // all queues have the same size
+   int size = m_pQEntry->m_iSize;
 
    try
    {
-      tempu = new CUnit [m_iSize];
-      tempb = new char [m_iSize * m_iMSS];
-      tempa = (AF_INET == m_iIPversion) ? (char*) new sockaddr_in [m_iSize] : (char*) new sockaddr_in6 [m_iSize];;
+      tempq = new CQEntry;
+      tempu = new CUnit [size];
+      tempb = new char [size * m_iMSS];
    }
    catch (...)
    {
+      delete tempq;
       delete [] tempu;
       delete [] tempb;
-      delete [] tempa;
 
       return -1;
    }
 
-   for (int i = 0; i < m_iSize; ++ i)
+   for (int i = 0; i < size; ++ i)
    {
       tempu[i].m_bValid = false;
-      tempu[i].m_pAddr = (AF_INET == m_iIPversion) ? (sockaddr*)((sockaddr_in*)tempa + i) : (sockaddr*)((sockaddr_in6*)tempa + i);
       tempu[i].m_Packet.m_pcData = tempb + i * m_iMSS;
    }
+   tempq->m_pUnit = tempu;
+   tempq->m_pBuffer = tempb;
+   tempq->m_iSize = size;
 
-   m_vpUnit.insert(m_vpUnit.end(), tempu);
-   m_vpBuffer.insert(m_vpBuffer.end(), tempb);
-   m_vpAddrBuf.insert(m_vpAddrBuf.end(), tempa);
-   m_viSize.insert(m_viSize.end(), m_iSize);
+   m_pLastQueue->m_pNext = tempq;
+   m_pLastQueue = tempq;
+   m_pLastQueue->m_pNext = m_pQEntry;
 
-   m_iSize *= 2;
+   m_iSize += size;
+
    return 0;
 }
 
@@ -173,21 +184,30 @@ CUnit* CUnitQueue::getNextAvailUnit()
    if (double(m_iCount) / m_iSize > 0.9)
       increase();
 
-   if (m_iCount == m_iSize)
+   if (m_iCount >= m_iSize)
       return NULL;
+
+   CQEntry* entrance = m_pCurrQueue;
 
    while (true)
    {
-      for (CUnit* sentinel = m_vpUnit[m_iVQ] + m_viSize[m_iVQ] - 1; m_pAvailUnit != sentinel; ++ m_pAvailUnit)
+      for (CUnit* sentinel = m_pCurrQueue->m_pUnit + m_pCurrQueue->m_iSize - 1; m_pAvailUnit != sentinel; ++ m_pAvailUnit)
          if (!m_pAvailUnit->m_bValid)
             return m_pAvailUnit;
 
-      if (m_iVQ != int(m_vpUnit.size() - 1))
-         ++ m_iVQ;
+      if (!m_pCurrQueue->m_pUnit->m_bValid)
+      {
+         m_pAvailUnit = m_pCurrQueue->m_pUnit;
+         return m_pAvailUnit;
+      }
       else
-         m_iVQ = 0;
+      {
+         m_pCurrQueue = m_pCurrQueue->m_pNext;
+         m_pAvailUnit = m_pCurrQueue->m_pUnit;
 
-      m_pAvailUnit = m_vpUnit[m_iVQ];
+         if (m_pCurrQueue == entrance)
+            return NULL;
+      }
    }
 
    return NULL;
@@ -978,6 +998,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
 
    CUnit temp;
    temp.m_Packet.m_pcData = new char[self->m_iPayloadSize];
+   sockaddr* addr = (AF_INET == self->m_UnitQueue.m_iIPversion) ? (sockaddr*) new sockaddr_in : (sockaddr*) new sockaddr_in6;
    CUnit* unit;
 
    while (!self->m_bClosing)
@@ -997,7 +1018,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
       int32_t id;
 
       // reading next incoming packet
-      if (self->m_pChannel->recvfrom(unit->m_pAddr, unit->m_Packet) <= 0)
+      if (self->m_pChannel->recvfrom(addr, unit->m_Packet) <= 0)
          goto TIMER_CHECK;
       if (unit == &temp)
          goto TIMER_CHECK;
@@ -1010,7 +1031,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
          if (-1 != self->m_ListenerID)
             id = self->m_ListenerID;
          else
-            self->m_pRendezvousQueue->retrieve(unit->m_pAddr, id, ((CHandShake*)unit->m_Packet.m_pcData)->m_iID);
+            self->m_pRendezvousQueue->retrieve(addr, id, ((CHandShake*)unit->m_Packet.m_pcData)->m_iID);
       }
 
       u = self->m_pHash->lookup(id);
@@ -1035,7 +1056,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
                u->checkTimers();
             }
             else if (u->m_bListening)
-               u->listen(unit->m_pAddr, unit->m_Packet);
+               u->listen(addr, unit->m_Packet);
             else
             {
                self->m_pHash->setUnit(id, unit);
@@ -1080,7 +1101,6 @@ TIMER_CHECK:
          if (u->m_bConnected && !u->m_bBroken)
          {
             u->checkTimers();
-
             self->m_pRcvUList->update(id);
          }
          else
@@ -1093,13 +1113,16 @@ TIMER_CHECK:
       }
    }
 
-
    delete [] temp.m_Packet.m_pcData;
+   if (AF_INET == self->m_UnitQueue.m_iIPversion)
+      delete (sockaddr_in*)addr;
+   else
+      delete (sockaddr_in6*)addr;
 
    return NULL;
 }
 
-int CRcvQueue::recvfrom(sockaddr* , CPacket& packet, const int32_t& id)
+int CRcvQueue::recvfrom(const int32_t& id, CPacket& packet)
 {
    int res;
 
