@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
 *****************************************************************************/
 
 
@@ -55,6 +55,7 @@ public:
    void remove(const string& filename);
    void updateNameServer(const string& filename, const Node& loc);
    int getLocIndex(map<Node, set<string>, NodeComp>& li);
+   int getFileList(set<string>& fl);
 
 private:
    map<string, CFileAttr> m_mNameIndex;

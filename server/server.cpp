@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
 *****************************************************************************/
 
 
@@ -85,8 +85,12 @@ int Server::init(char* ip, int port)
    if (res < 0)
       return -1;
 
-   if (initLocalFile() < 0)
+   if (scanLocalFile() < 0)
       return -1;
+
+   struct stat s;
+   stat(m_strHomeDir.c_str(), &s);
+   m_HomeDirMTime = s.st_mtime;
 
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
@@ -701,6 +705,14 @@ void* Server::processEx(void* p)
 
 void Server::updateOutLink()
 {
+   struct stat s;
+   stat(m_strHomeDir.c_str(), &s);
+   if (m_HomeDirMTime != s.st_mtime)
+   {
+      scanLocalFile();
+      m_HomeDirMTime = s.st_mtime;
+   }
+
    map<Node, set<string>, NodeComp> li;
    m_LocalFile.getLocIndex(li);
 
@@ -717,7 +729,7 @@ void Server::updateOutLink()
       int c = 0;
       for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
       {
-         cout << "checking outlink " << f->c_str() << endl;
+         //cout << "checking outlink " << f->c_str() << endl;
          msg.setData(c * 64, f->c_str(), f->length() + 1);
          ++ c;
       }
@@ -789,17 +801,19 @@ void Server::updateInLink()
    }
 }
 
-int Server::initLocalFile()
+int Server::scanLocalFile()
 {
    m_strHomeDir = m_SysConfig.m_strDataDir;
-
-   cout << "Home Dir " << m_strHomeDir << endl;
+   //cout << "Home Dir " << m_strHomeDir << endl;
 
    CFileAttr attr;
 
    // initialize all files in the home directory, excluding "." and ".."
    dirent **namelist;
    int n = scandir(m_strHomeDir.c_str(), &namelist, 0, alphasort);
+
+   set<string> localfiles;
+   localfiles.clear();
 
    if (n < 0)
       perror("scandir");
@@ -814,26 +828,48 @@ int Server::initLocalFile()
          stat((m_strHomeDir + namelist[i]->d_name).c_str(), &s);
 
          if ((namelist[i]->d_name[0] != '.') && (!S_ISDIR(s.st_mode)))
-         {
-            ifstream ifs((m_strHomeDir + namelist[i]->d_name).c_str());
-            ifs.seekg(0, ios::end);
-            int64_t size = ifs.tellg();
-            ifs.close();
-
-            strcpy(attr.m_pcName, namelist[i]->d_name);
-            // original file is read only
-            attr.m_iAttr = 1;
-            attr.m_llSize = size;
-            attr.m_llTimeStamp = (int64_t)s.st_mtime * 1000000;
-
-            m_LocalFile.insert(attr);
-
-            cout << "init local file... " << namelist[i]->d_name << " " << size << endl;
-         }
+            localfiles.insert(localfiles.end(), namelist[i]->d_name);
 
          free(namelist[i]);
       }
       free(namelist);
+   }
+
+   // check deleted files
+   set<string> fl;
+   m_LocalFile.getFileList(fl);
+   for (set<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
+   {
+      if (localfiles.find(*i) == localfiles.end())
+      {
+         m_LocalFile.remove(*i);
+         cout << "remove local file " << *i << endl;
+      }
+   }
+
+   // check new files on disk
+   for (set<string>::iterator i = localfiles.begin(); i != localfiles.end(); ++ i)
+   {
+      if (m_LocalFile.lookup(*i) < 0)
+      {
+         ifstream ifs((m_strHomeDir + *i).c_str());
+         ifs.seekg(0, ios::end);
+         int64_t size = ifs.tellg();
+         ifs.close();
+
+         strcpy(attr.m_pcName, i->c_str());
+         // original file is read only
+         attr.m_iAttr = 1;
+         attr.m_llSize = size;
+
+         struct stat s;
+         stat((m_strHomeDir + *i).c_str(), &s);
+         attr.m_llTimeStamp = (int64_t)s.st_mtime * 1000000;
+
+         m_LocalFile.insert(attr);
+
+         cout << "add local file... " << *i << " " << size << endl;
+      }
    }
 
    return 1;

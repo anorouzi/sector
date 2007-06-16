@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
 *****************************************************************************/
 
 
@@ -104,8 +104,7 @@ private:
    void updateOutLink();
    void updateInLink();
 
-   int initLocalFile();
-   void updateLocalFile();
+   int scanLocalFile();
 
 private:
    CRouting m_Router;
@@ -121,6 +120,7 @@ private:
    static const int m_iKeySpace = 32;
 
    string m_strHomeDir;
+   time_t m_HomeDirMTime;
 
    CAccessLog m_AccessLog;
    CPerfLog m_PerfLog;

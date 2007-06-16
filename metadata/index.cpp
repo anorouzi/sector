@@ -23,7 +23,7 @@ along with this library; if not, write to the Free Software Foundation, Inc.,
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
 *****************************************************************************/
 
 
@@ -156,6 +156,18 @@ int LocalFileIndex::getLocIndex(map<Node, set<string>, NodeComp>& li)
    return li.size();
 }
 
+int LocalFileIndex::getFileList(set<string>& fl)
+{
+   Sync::enterCS(m_IndexLock);
+
+   fl.clear();
+   for (map<string, CFileAttr>::iterator i = m_mNameIndex.begin(); i != m_mNameIndex.end(); ++ i)
+      fl.insert(fl.end(), i->first);
+
+   Sync::leaveCS(m_IndexLock);
+
+   return fl.size();
+}
 
 RemoteFileIndex::RemoteFileIndex()
 {
