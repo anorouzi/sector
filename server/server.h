@@ -23,7 +23,7 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
 *****************************************************************************/
 
 
@@ -92,6 +92,19 @@ private:
       string function;		// SPE operator
       char* param;		// SPE parameter
       int psize;		// parameter size
+      int rows;			// number of rows per processing: -1 means all in the block
+      int buckets;		// number of output buckets. 0: nothing, result sent back to client, -1: dump to local, n: sent to n buckets
+      char* locations;		// locations of buckets
+   };
+
+   struct Param5
+   {
+      Server* serv_instance;    // self
+      string client_ip;         // client IP
+      int client_ctrl_port;     // client GMP port
+      string filename;		// SPE output file name
+      int dsnum;		// number of data segments (results to expect)
+      CGMP* gmp;		// GMP
    };
 
    static void* process(void* s);
@@ -99,6 +112,7 @@ private:
    static void* fileHandler(void* p2);
    static void* SQLHandler(void* p3);
    static void* SPEHandler(void* p4);
+   static void* SPEShuffler(void* p5);
 
 private:
    void updateOutLink();
@@ -128,6 +142,27 @@ private:
    SECTORParam m_SysConfig;
 
    KnowledgeBase m_KBase;
+};
+
+class SPEResult
+{
+friend class Server;
+
+public:
+   ~SPEResult();
+
+public:
+   void init(const int& n, const int& size);
+   void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
+
+private:
+   int m_iBucketNum;
+   int m_iSize;
+
+   vector<int32_t> m_vIndexLen;
+   vector<int64_t*> m_vIndex;
+   vector<int32_t> m_vDataLen;
+   vector<char*> m_vData;
 };
 
 }; //namespace

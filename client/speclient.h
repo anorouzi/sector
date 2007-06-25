@@ -23,7 +23,7 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/22/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
 *****************************************************************************/
 
 #ifndef __SECTOR_H__
@@ -39,6 +39,54 @@ using namespace std;
 namespace cb
 {
 
+class Process;
+
+class Stream
+{
+public:
+   Stream();
+   ~Stream();
+
+public:
+   int init(const vector<string>& files);
+   int init(const int& num);
+   void setName(const string& name);
+   int setSeg(const int64_t& start, const int64_t& end);
+   int getSeg(int64_t& start, int64_t& end);
+   int getSize(int64_t& size);
+
+public:
+   string m_strName;
+
+   vector<string> m_vFiles;	// list of files
+   vector<int64_t> m_vSize;	// size per file
+   vector<int64_t> m_vRecNum;	// number of record per file
+
+   vector< set<Node, NodeComp> > m_vLocation;            // locations for each bucket
+
+   int m_iFileNum;		// number of files
+   int64_t m_llSize;		// total data size
+   int64_t m_llRecNum;		// total number of records
+   int64_t m_llStart;		// start point (record)
+   int64_t m_llEnd;		// end point (record), -1 means the last record
+
+   int m_iStatus;		// 0: uninitialized, 1: initialized, -1: bad
+};
+
+struct Result
+{
+   int m_iResID;
+
+   char* m_pcData;
+   int m_iDataLen;
+   int64_t* m_pllIndex;
+   int m_iIndexLen;
+
+   string m_strOrigFile;
+   int64_t m_llOrigStartRec;
+   int64_t m_llOrigEndRec;
+};
+
 class Process
 {
 friend class Client;
@@ -47,21 +95,22 @@ public:
    Process();
    ~Process();
 
-   int open(vector<string> stream, string op, const char* param = NULL, const int& size = 0);
-   int close();
-
-   int run();
+   int run(const Stream& input, Stream& output, string op, const int& rows, const char* param = NULL, const int& size = 0);
+   int read(Result*& res, const bool& inorder = true, const bool& wait = true);
    int checkProgress();
-   int read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder = true, const bool& wait = true);
+   int close();
 
 private:
    string m_strOperator;
    char* m_pcParam;
    int m_iParamSize;
-   vector<string> m_vstrStream;
+   Stream* m_pOutput;
+   int m_iOutputType;
 
    struct DS
    {
+      int m_iID;
+
       string m_strDataFile;
       int64_t m_llOffset;
       int64_t m_llSize;
@@ -69,8 +118,8 @@ private:
       int m_iSPEID;
 
       int m_iStatus;		// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
-      char* m_pcResult;
-      int m_iResSize;
+
+      Result* m_pResult;
    };
    vector<DS> m_vDS;
 
@@ -106,8 +155,8 @@ private:
    CGMP m_GMP;
 
 private:
+   int prepareSPE();
    static void* run(void*);
-
    int checkSPE();
    int startSPE(SPE& s);
 };

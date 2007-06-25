@@ -23,7 +23,7 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
 *****************************************************************************/
 
 
@@ -494,11 +494,32 @@ void* Server::process(void* s)
             p->client_ip = ip;
             p->client_ctrl_port = port;
             p->speid = *(int32_t*)msg->getData();
-            p->function = msg->getData() + 8;
-            p->psize = msg->m_iDataLength - 72;
-            p->param = new char[p->psize];
-            memcpy(p->param, msg->getData() + 72, p->psize);
             p->client_data_port = *(int32_t*)(msg->getData() + 4);
+            p->function = msg->getData() + 8;
+            p->rows = *(int32_t*)(msg->getData() + 72);
+            p->buckets = *(int32_t*)(msg->getData() + 76);
+            p->param = NULL;
+            if (p->buckets > 0)
+            {
+               p->locations = new char[p->buckets * 72];
+               memcpy(p->locations, msg->getData() + 80, p->buckets * 72);
+               p->psize = msg->m_iDataLength - 80 - p->buckets * 72;
+               if (p->psize > 0)
+               {
+                  p->param = new char[p->psize];
+                  memcpy(p->param, msg->getData() + 80 + p->buckets * 72, p->psize);
+               }
+            }
+            else
+            {
+               p->locations = NULL;
+               p->psize = msg->m_iDataLength - 80;
+               if (p->psize > 0)
+               {
+                  p->param = new char[p->psize];
+                  memcpy(p->param, msg->getData() + 80, p->psize);
+               }
+            }
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << endl;
 
@@ -508,11 +529,32 @@ void* Server::process(void* s)
 
             msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = 4 + 4;
-            cout << "feedback port " << dataport <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
+            break;
+         }
+
+         case 301: // accept SPE buckets
+         {
+            CGMP* gmp = new CGMP;
+            gmp->init();
+
+            Param5* p = new Param5;
+            p->serv_instance = self;
+            p->client_ip = ip;
+            p->client_ctrl_port = port;
+            p->dsnum = *(int32_t*)msg->getData();
+            p->filename = msg->getData() + 4;
+            p->gmp = gmp;
+
+            pthread_t spe_shuffler;
+            pthread_create(&spe_shuffler, NULL, SPEShuffler, p);
+            pthread_detach(spe_shuffler);
+
+            *(int32_t*)msg->getData() = gmp->getPort();
+            msg->m_iDataLength = 4 + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
 
             break;
          }

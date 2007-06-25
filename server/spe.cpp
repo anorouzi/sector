@@ -23,7 +23,7 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/07/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
 *****************************************************************************/
 
 #include <server.h>
@@ -32,6 +32,57 @@ written by
 #include <fsclient.h>
 
 using namespace cb;
+
+SPEResult::~SPEResult()
+{
+   for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
+      delete [] *i;
+   for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
+      delete [] *i;
+}
+
+void SPEResult::init(const int& n, const int& size)
+{
+   if (n < 1)
+     m_iBucketNum = 1;
+   else
+     m_iBucketNum = n;
+
+   m_iSize = size;
+
+   m_vIndex.resize(m_iBucketNum);
+   m_vIndexLen.resize(m_iBucketNum);
+   m_vData.resize(m_iBucketNum);
+   m_vDataLen.resize(m_iBucketNum);
+
+   for (vector<int32_t>::iterator i = m_vIndexLen.begin(); i != m_vIndexLen.end(); ++ i)
+     *i = 1;
+   for (vector<int32_t>::iterator i = m_vDataLen.begin(); i != m_vDataLen.end(); ++ i)
+     *i = 0;
+   for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
+   {
+     *i = new int64_t[m_iSize];
+     (*i)[0] = 0;
+   }
+   for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
+     *i = new char[m_iSize];
+}
+
+void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
+{
+   if ((bucketid >= m_iBucketNum) || (bucketid < 0))
+      return;
+
+   int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid];
+   int64_t start = *p;
+   for (int i = 1; i <= ilen; ++ i)
+      *(++ p) = index[i] + start;
+
+   m_vIndexLen[bucketid] += ilen;
+
+   memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
+   m_vDataLen[bucketid] += dlen;
+}
 
 void* Server::SPEHandler(void* p)
 {
@@ -42,6 +93,9 @@ void* Server::SPEHandler(void* p)
    int dataport = ((Param4*)p)->client_data_port;
    int speid = ((Param4*)p)->speid;
    string function = ((Param4*)p)->function;
+   int rows = ((Param4*)p)->rows;
+   int buckets = ((Param4*)p)->buckets;
+   char* locations = ((Param4*)p)->locations;
    char* param = ((Param4*)p)->param;
    int psize = ((Param4*)p)->psize;
    delete (Param4*)p;
@@ -58,8 +112,8 @@ void* Server::SPEHandler(void* p)
 
    cout << "so found " << "locating process " << function << endl;
 
-   int (*process)(const char*, const int&, char*, int&, const char*, const int&);
-   process = (int (*) (const char*, const int&, char*, int&, const char*, const int&) )dlsym(handle, function.c_str());
+   int (*process)(const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&);
+   process = (int (*) (const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&) )dlsym(handle, function.c_str());
    if (NULL == process)
    {
       cout << dlerror() <<  endl;
@@ -71,17 +125,6 @@ void* Server::SPEHandler(void* p)
    timeval t1, t2, t3, t4;
    gettimeofday(&t1, 0);
 
-   string datafile;
-   int64_t offset = 0;
-   int64_t rows = 0;
-   int64_t* index = NULL;
-   int size = 0;
-   char* block = NULL;
-   char* res = NULL;
-   int rsize = 0;
-   int rs;
-   int progress;
-
    msg.setType(1); // success, return result
    msg.setData(0, (char*)&(speid), 4);
 
@@ -92,12 +135,15 @@ void* Server::SPEHandler(void* p)
       if (datachn->recv(dataseg, 80) < 0)
          break;
 
-      datafile = dataseg;
-      offset = *(int64_t*)(dataseg + 64);
-      rows = *(int64_t*)(dataseg + 72);
-      index = new int64_t[rows + 1];
+      string datafile = dataseg;
+      int64_t offset = *(int64_t*)(dataseg + 64);
+      int64_t totalrows = *(int64_t*)(dataseg + 72);
+      int64_t* index = new int64_t[totalrows + 1];
 
-      cout << "new job " << datafile << " " << offset << " " << rows << endl;
+      int size = 0;
+      char* block = NULL;
+
+      cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
 
       // read data
       if (self->m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
@@ -105,10 +151,10 @@ void* Server::SPEHandler(void* p)
          ifstream idx;
          idx.open((self->m_strHomeDir + datafile + ".idx").c_str());
          idx.seekg(offset * 8);
-         idx.read((char*)index, (rows + 1) * 8);
+         idx.read((char*)index, (totalrows + 1) * 8);
          idx.close();
 
-         size = index[rows] - index[0];
+         size = index[totalrows] - index[0];
          cout << "to read data " << size << endl;
          block = new char[size];
 
@@ -128,13 +174,13 @@ void* Server::SPEHandler(void* p)
             delete [] index;
             return NULL;
          }
-         if (f->readridx((char*)index, offset, rows) < 0)
+         if (f->readridx((char*)index, offset, totalrows) < 0)
          {
             delete [] index;
             return NULL;
          }
 
-         size = index[rows] - index[0];
+         size = index[totalrows] - index[0];
          block = new char[size];
 
          if (f->read(block, index[0], size) < 0)
@@ -148,20 +194,35 @@ void* Server::SPEHandler(void* p)
          Client::releaseFileHandle(f);
       }
 
-      res = new char[size];
-      rsize = 0;
+      // -1 means all in once
+      if (-1 == rows)
+         rows = totalrows;
+
+      char* rdata = new char[size];
+      int dlen = 0;
+      int64_t* rindex = new int64_t[size];
+      int ilen = 0;
+      int bid;
+      int progress = 0;
+
+      SPEResult result;
+      result.init(buckets, size);
+
       gettimeofday(&t3, 0);
-      for (int i = 0; i < rows; ++ i)
+      for (int i = 0; i < totalrows; i += rows)
       {
-         //cout << "to process " << index[i] - index[0] << " " << index[i + 1] - index[i] << endl;
-         process(block + index[i] - index[0], index[i + 1] - index[i], res + rsize, rs, param, psize);
-         rsize += rs;
-         rs = size - rsize;
+         if (rows > totalrows - i)
+            rows = totalrows - i;
+
+         process(block + index[i] - index[0], rows, index + i, rdata, dlen, ilen, rindex, bid, param, psize);
+         if (buckets <= 0)
+            bid = 0;
+         result.addData(bid, rindex, ilen, rdata, dlen);
 
          gettimeofday(&t4, 0);
          if (t4.tv_sec - t3.tv_sec > 1)
          {
-            progress = i * 100 / rows;
+            progress = i * 100 / totalrows;
             msg.setData(4, (char*)&progress, 4);
             msg.m_iDataLength = 4 + 8;
             if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
@@ -172,21 +233,94 @@ void* Server::SPEHandler(void* p)
 
       progress = 100;
       msg.setData(4, (char*)&progress, 4);
-      msg.setData(8, (char*)&rsize, 4);
-      msg.m_iDataLength = 4 + 12;
+      msg.m_iDataLength = 4 + 8;
       if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
          return NULL;
 
-      cout << "sending data back... " << rsize << " " << *(int*)res << endl;
+      cout << "sending data back... " << endl;
 
-      datachn->send(res, rsize);
+      if (buckets == -1)
+      {
+         char localfile[64];
+         sprintf(localfile, "%s.%s.%d", datafile.c_str(), function.c_str(), 1);
+         ofstream ofs;
+         ofs.open((self->m_strHomeDir + localfile).c_str());
+         ofs.write(result.m_vData[0], result.m_vDataLen[0]);
+         ofs.close();
+         ofs.open((self->m_strHomeDir + localfile + ".idx").c_str());
+         ofs.write((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
+         ofs.close();
+
+         int32_t sizeparam = strlen(localfile) + 1;
+         datachn->send((char*)&sizeparam, 4);
+         datachn->send(localfile, sizeparam);
+      }
+      else if (buckets == 0)
+      {
+         int32_t size = result.m_vDataLen[0];
+         datachn->send((char*)&size, 4);
+         datachn->send(result.m_vData[0], result.m_vDataLen[0]);
+         size = result.m_vIndexLen[0];
+         datachn->send((char*)&size, 4);
+         datachn->send((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
+      }
+      else
+      {
+         for (int i = 0; i < buckets; ++ i)
+         {
+            char* dstip = locations + i * 72;
+            int dstport = *(int32_t*)(locations + i * 72 + 64);
+            int32_t pass;
+
+            if ((self->m_strLocalHost == dstip) && (self->m_iLocalPort == dstport))
+            {
+               pass = 1;
+               msg.setData(0, (char*)&pass, 4);
+               int size = result.m_vDataLen[i];
+               msg.setData(4, (char*)&size, 4);
+               int pos = (long)result.m_vData[i];
+               msg.setData(8, (char*)&pos, 4);
+               size = result.m_vIndexLen[i];
+               msg.setData(12, (char*)&size, 4);
+               pos = (long)result.m_vIndex[i];
+               msg.setData(16, (char*)&pos, 4);
+
+               msg.m_iDataLength = 4 + 20;
+
+               self->m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+            }
+            else
+            {
+               Transport t;
+               int dataport = 0;
+               t.open(dataport);
+
+               pass =2;
+               msg.setData(0, (char*)&pass, 4);
+               msg.setData(4, (char*)&dataport, 4);
+               msg.m_iDataLength = 4 + 8;
+               //cout << "send data " << locations + i * 72 << " " << *(int32_t*)(locations + i * 72 + 68) << " " << dataport << endl;
+
+               self->m_GMP.rpc(locations + i * 72, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+
+               t.connect(locations + i * 72, *(int32_t*)msg.getData());
+               int32_t size = result.m_vDataLen[i];
+               t.send((char*)&size, 4);
+               t.send(result.m_vData[i], size);
+               size = result.m_vIndexLen[i];
+               t.send((char*)&size, 4);
+               t.send((char*)result.m_vIndex[i], result.m_vIndexLen[i] * 8);
+               t.close();
+
+               //cout << "send buckets " << result.m_vDataLen[i] << " " << result.m_vIndexLen[i] << endl;
+            }
+         }
+      }
 
       delete [] index;
       delete [] block;
-      delete [] res;
       index = NULL;
       block = NULL;
-      res = NULL;
    }
 
    gettimeofday(&t2, 0);
@@ -197,6 +331,77 @@ void* Server::SPEHandler(void* p)
    delete datachn;
 
    cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
+
+   delete [] param;
+   delete [] locations;
+
+   return NULL;
+}
+
+void* Server::SPEShuffler(void* p)
+{
+   Server* self = ((Param5*)p)->serv_instance;
+   string ip = ((Param5*)p)->client_ip;
+   //int port = ((Param5*)p)->client_ctrl_port;
+   string localfile = ((Param5*)p)->filename;
+   int dsnum = ((Param5*)p)->dsnum;
+   CGMP* gmp = ((Param5*)p)->gmp;
+   delete (Param5*)p;
+
+   cout << "SPE shuffler open " << dsnum << " " << localfile << endl;
+
+   ofstream datafile((self->m_strHomeDir + localfile).c_str());
+   ofstream indexfile((self->m_strHomeDir + localfile + ".idx").c_str());
+
+   for (int i = 0; i < dsnum; ++ i)
+   {
+      char speip[64];
+      int speport;
+      CCBMsg msg;
+      int msgid;
+      gmp->recvfrom(speip, speport, msgid, &msg);
+
+      if (*(int32_t*)msg.getData() == 1)
+      {
+         cout << "writing from local " << *(int32_t*)(msg.getData() + 4) << " " << *(int32_t*)(msg.getData() + 12) << endl;
+         datafile.write((char*)*(int32_t*)(msg.getData() + 8), *(int32_t*)(msg.getData() + 4));
+         indexfile.write((char*)*(int32_t*)(msg.getData() + 16), *(int32_t*)(msg.getData() + 12) * 8);
+
+         msg.m_iDataLength = 4;
+         gmp->sendto(speip, speport, msgid, &msg);
+      }
+      else
+      {
+         cout << "prepare to recv data " << speip << " " << speport << " " << *(int32_t*)msg.getData() << endl;
+
+         Transport t;
+         int dataport = 0;
+         t.open(dataport);
+         t.connect(speip, *(int32_t*)(msg.getData() + 4));
+
+         *(int32_t*)msg.getData() = dataport;
+         msg.m_iDataLength = 4 + 4;
+
+         gmp->sendto(speip, speport, msgid, &msg);
+
+         int32_t len;
+         t.recv((char*)&len, 4);
+         char* data = new char[len];
+         t.recv(data, len);
+         datafile.write(data, len);
+         t.recv((char*)&len, 4);
+         int64_t* index = new int64_t[len];
+         t.recv((char*)index, len * 8);
+         indexfile.write((char*)index, len * 8);
+         t.close();
+      }
+   }
+
+   datafile.close();
+   indexfile.close();
+
+   gmp->close();
+   delete gmp;
 
    return NULL;
 }

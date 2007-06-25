@@ -59,10 +59,9 @@ public:
    uint32_t m_uiID;	        // id
    int64_t m_llTimeStamp;       // time stamp
    int32_t m_iAttr;	        // 01: READ	10: WRITE	11: READ&WRITE
-
    int32_t m_iType;		// 0: normal	1: cache	2: semantics	3: operator	4: record index
-
    int64_t m_llSize;		// size
+   char m_pcChecksum[20];	// SHA digest, checksum
 };
 
 struct CAttrComp

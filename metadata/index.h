@@ -56,11 +56,13 @@ public:
    void updateNameServer(const string& filename, const Node& loc);
    int getLocIndex(map<Node, set<string>, NodeComp>& li);
    int getFileList(set<string>& fl);
+   int updateFileLock(const string& filename, const int& iotype) {return 0;}
 
 private:
    map<string, CFileAttr> m_mNameIndex;
    map<string, Node> m_mLocInfo;
    map<Node, set<string>, NodeComp> m_mLocIndex;
+   map<string, int> m_mFileLock;		// 0: available; 1: read locked, 2: write locked
 
 private:
    pthread_mutex_t m_IndexLock;

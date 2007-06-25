@@ -136,6 +136,7 @@ public:
 public:
    int init(const int& port = 0);
    int close();
+   int getPort();
 
 public:
    int sendto(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable = true);

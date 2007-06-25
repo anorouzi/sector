@@ -257,6 +257,11 @@ int CGMP::close()
    return 1;
 }
 
+int CGMP::getPort()
+{
+   return m_iPort;
+}
+
 int CGMP::sendto(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
 {
    if (len <= m_iMaxUDPMsgSize)

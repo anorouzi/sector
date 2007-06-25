@@ -23,12 +23,13 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/22/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
 *****************************************************************************/
 
 #include "speclient.h"
 #include "fsclient.h"
-
+#include <algorithm>
+using namespace std;
 using namespace cb;
 
 Process* Client::createJob()
@@ -44,6 +45,119 @@ int Client::releaseJob(Process* process)
    return 0;
 }
 
+
+Stream::Stream():
+m_iFileNum(0),
+m_llSize(0),
+m_llRecNum(0),
+m_llStart(0),
+m_llEnd(-1),
+m_iStatus(0)
+{
+   m_vFiles.clear();
+   m_vRecNum.clear();
+   m_vSize.clear();
+   m_vLocation.clear();
+}
+
+Stream::~Stream()
+{
+
+}
+
+int Stream::init(const vector<string>& files)
+{
+   m_iFileNum = files.size();
+   if (0 == m_iFileNum)
+      return 0;
+
+   m_iStatus = -1;
+
+   m_vFiles.resize(m_iFileNum);
+   copy(files.begin(), files.end(), m_vFiles.begin());
+
+   m_vSize.resize(m_iFileNum);
+   m_vRecNum.resize(m_iFileNum);
+   vector<int64_t>::iterator s = m_vSize.begin();
+   vector<int64_t>::iterator r = m_vRecNum.begin();
+
+   for (vector<string>::iterator i = m_vFiles.begin(); i != m_vFiles.end(); ++ i)
+   {
+      CFileAttr fattr, iattr;
+      if (Client::stat(*i, fattr) < 0)
+         return -1;
+      if (Client::stat(*i + ".idx", iattr) < 0)
+         return -1;
+
+      *s = fattr.m_llSize;
+      *r = iattr.m_llSize / 8 - 1;
+
+      m_llSize += *s;
+      m_llRecNum += *r;
+
+      s ++;
+      r ++;
+   }
+
+   m_llEnd = m_llRecNum;
+
+   m_iStatus = 1;
+   return m_iFileNum;
+}
+
+int Stream::init(const int& num)
+{
+   m_iFileNum = num;
+
+   if (num <= 0)
+   {
+      m_iStatus = 1;
+      return 0;
+   }
+
+   m_vLocation.resize(num);
+   m_vFiles.resize(num);
+   m_vSize.resize(num);
+   m_vRecNum.resize(num);
+
+   for (vector<string>::iterator i = m_vFiles.begin(); i != m_vFiles.end(); ++ i)
+      *i = "";
+   for (vector<int64_t>::iterator i = m_vSize.begin(); i != m_vSize.end(); ++ i)
+      *i = 0;
+   for (vector<int64_t>::iterator i = m_vRecNum.begin(); i != m_vRecNum.end(); ++ i)
+      *i = 0;
+
+   return num;
+}
+
+void Stream::setName(const string& name)
+{
+   m_strName = name;
+}
+
+int Stream::setSeg(const int64_t& start, const int64_t& end)
+{
+   m_llStart = start;
+   m_llEnd = end;
+
+   return 0;
+}
+
+int Stream::getSeg(int64_t& start, int64_t& end)
+{
+   start = m_llStart;
+   end = m_llEnd;
+
+   return m_iStatus;
+}
+
+int Stream::getSize(int64_t& size)
+{
+   size = m_llSize;
+
+   return m_iStatus;
+}
+
 Process::Process():
 m_iMinUnitSize(80),
 m_iMaxUnitSize(128000000)
@@ -51,7 +165,8 @@ m_iMaxUnitSize(128000000)
    m_strOperator = "";
    m_pcParam = NULL;
    m_iParamSize = 0;
-   m_vstrStream.clear();
+   m_pOutput = NULL;
+   m_iOutputType = 0;
 
    m_GMP.init(0);
 
@@ -71,40 +186,20 @@ Process::~Process()
    pthread_cond_destroy(&m_ResCond);
 }
 
-int Process::open(vector<string> stream, string op, const char* param, const int& size)
+
+int Process::run(const Stream& input, Stream& output, string op, const int& rows, const char* param, const int& size)
 {
    m_strOperator = op;
    m_pcParam = new char[size];
    memcpy(m_pcParam, param, size);
    m_iParamSize = size;
-   m_vstrStream = stream;
+   m_pOutput = &output;
+   m_iOutputType = m_pOutput->m_iFileNum;
 
-   uint64_t totalSize = 0;
-   uint64_t totalRec = 0;
+   cout << "JOB " << input.m_llSize << " " << input.m_llRecNum << endl;
 
-   int64_t* asize = new int64_t[stream.size()];
-   int64_t* arec = new int64_t[stream.size()];
 
-   int c = 0;
-   for (vector<string>::iterator i = stream.begin(); i != stream.end(); ++ i)
-   {
-      CFileAttr fattr, iattr;
-      if (Client::stat(*i, fattr) < 0)
-         return -1;
-      if (Client::stat(*i + ".idx", iattr) < 0)
-         return -1;
-
-      asize[c] = fattr.m_llSize;
-      arec[c] = iattr.m_llSize / 8 - 1;
-
-      totalSize += asize[c];
-      totalRec += arec[c];
-
-      ++ c;
-   }
-
-   cout << "JOB " << totalSize << " " << totalRec << endl;
-
+   // locate operators
    Node no;
    if (Client::lookup(op + ".so", &no) < 0)
       return -1;
@@ -123,35 +218,76 @@ int Process::open(vector<string> stream, string op, const char* param, const int
    if (0 == n)
       return -1;
 
-   int64_t avg = totalSize / n;
+
+   int64_t avg = input.m_llSize / n;
    int64_t unitsize;
    if (avg > m_iMaxUnitSize)
-      unitsize = m_iMaxUnitSize * totalRec / totalSize;
+      unitsize = m_iMaxUnitSize * input.m_llRecNum / input.m_llSize;
    else if (avg < m_iMinUnitSize)
-      unitsize = m_iMinUnitSize * totalRec / totalSize;
+      unitsize = m_iMinUnitSize * input.m_llRecNum / input.m_llSize;
    else
-      unitsize = totalRec / n;
+      unitsize = input.m_llRecNum / n;
 
    // data segment
-   for (unsigned int i = 0; i < stream.size(); ++ i)
+   int seq = 0;
+   for (int i = 0; i < input.m_iFileNum; ++ i)
    {
       int64_t off = 0;
-      while (off < arec[i])
+      while (off < input.m_vRecNum[i])
       {
          DS ds;
-         ds.m_strDataFile = stream[i];
+         ds.m_iID = seq ++;
+         ds.m_strDataFile = input.m_vFiles[i];
          ds.m_llOffset = off;
-         ds.m_llSize = (arec[i] - off > unitsize + 1) ? unitsize : (arec[i] - off);
+         ds.m_llSize = (input.m_vRecNum[i] - off > unitsize + 1) ? unitsize : (input.m_vRecNum[i] - off);
          ds.m_iSPEID = -1;
          ds.m_iStatus = 0;
-         ds.m_pcResult = NULL;
-         ds.m_iResSize = 0;
+         ds.m_pResult = new Result;
 
          m_vDS.insert(m_vDS.end(), ds);
 
          off += ds.m_llSize;
       }
    }
+
+   if (m_iOutputType == -1)
+      m_pOutput->init(m_vDS.size());
+
+
+   // prepare output stream locations
+   char* outputloc = NULL;
+   if (m_iOutputType > 0)
+   {
+      timeval t;
+      gettimeofday(&t, 0);
+      srand(t.tv_usec);
+      int randname = rand();
+
+      outputloc = new char[output.m_iFileNum * 72];
+      for (int i = 0, j = 0; i < output.m_iFileNum; ++ i)
+      {
+         Node loc;
+         strcpy(loc.m_pcIP, spenodes + j * 68);
+         loc.m_iAppPort = *(int32_t*)(spenodes + j * 68 + 64);
+         output.m_vLocation[i].insert(loc);
+
+         *(int32_t*)msg.getData() = m_vDS.size();
+         sprintf(msg.getData() + 4, "%s.%d.%d", m_pOutput->m_strName.c_str(), randname, i);
+         output.m_vFiles[i] = msg.getData() + 4;
+
+         msg.setType(301);
+         msg.m_iDataLength = 4 + 4 + strlen(msg.getData() + 4) + 1;
+         m_GMP.rpc(m_pOutput->m_vLocation[i].begin()->m_pcIP, m_pOutput->m_vLocation[i].begin()->m_iAppPort, &msg, &msg);
+
+         memcpy(outputloc + i * 72, spenodes + j * 64, 64);
+         *(int32_t*)(outputloc + i * 72 + 64) = loc.m_iAppPort;
+         *(int32_t*)(outputloc + i * 72 + 68) = *(int32_t*)msg.getData();
+
+         if (++ j == n)
+            j = 0;
+      }
+   }
+
 
    // prepare SPEs
    for (int i = 0; i < n; ++ i)
@@ -172,8 +308,20 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       msg.setData(0, (char*)&(spe.m_uiID), 4);
       msg.setData(4, (char*)&port, 4);
       msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
-      msg.setData(72, m_pcParam, m_iParamSize);
-      msg.m_iDataLength = 4 + 72 + m_iParamSize;
+      msg.setData(72, (char*)&rows, 4);
+      msg.setData(76, (char*)&(m_iOutputType), 4);
+
+      if (m_iOutputType > 0)
+      {
+         msg.setData(80, outputloc, output.m_iFileNum * 72);
+         msg.setData(80 + output.m_iFileNum * 72, m_pcParam, m_iParamSize);
+         msg.m_iDataLength = 4 + 80 + output.m_iFileNum * 72 + m_iParamSize;
+      }
+      else
+      {
+         msg.setData(80, m_pcParam, m_iParamSize);
+         msg.m_iDataLength = 4 + 80 + m_iParamSize;
+      }
 
       if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
       {
@@ -191,16 +339,22 @@ int Process::open(vector<string> stream, string op, const char* param, const int
       m_vSPE.insert(m_vSPE.end(), spe);
    }
 
+
    m_iProgress = 0;
    m_iAvgRunTime = -1;
    m_iTotalDS = m_vDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
-   delete [] asize;
-   delete [] arec;
    delete [] spenodes;
+   delete [] outputloc;
 
    cout << m_vSPE.size() << " spes found! " << m_vDS.size() << " data seg total." << endl;
+
+
+   // starting...
+   pthread_t reduce;
+   pthread_create(&reduce, NULL, run, this);
+   pthread_detach(reduce);
 
    return 0;
 }
@@ -212,15 +366,6 @@ int Process::close()
 
    m_vSPE.clear();
    m_vDS.clear();
-
-   return 0;
-}
-
-int Process::run()
-{
-   pthread_t reduce;
-   pthread_create(&reduce, NULL, run, this);
-   pthread_detach(reduce);
 
    return 0;
 }
@@ -285,22 +430,32 @@ void* Process::run(void* param)
       if (progress < 100)
          continue;
 
-      cout << "result is back!!! " << *(int32_t*)(msg.getData() + 8) << endl;
+      cout << "result is back!!! " << endl;
 
-      s->m_pDS->m_iResSize = *(int32_t*)(msg.getData() + 8);
-      s->m_pDS->m_pcResult = new char[s->m_pDS->m_iResSize];
-
-      if (s->m_DataChn.recv(s->m_pDS->m_pcResult, s->m_pDS->m_iResSize) < 0)
+      if (self->m_iOutputType == 0)
       {
-         s->m_pDS->m_iSPEID = -1;
-         s->m_iStatus = -1;
-         s->m_DataChn.close();
-         continue;
+         s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iDataLen, 4);
+         s->m_pDS->m_pResult->m_pcData = new char[s->m_pDS->m_pResult->m_iDataLen];
+         s->m_DataChn.recv(s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
+         s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iIndexLen, 4);
+         s->m_pDS->m_pResult->m_pllIndex = new int64_t[s->m_pDS->m_pResult->m_iIndexLen];
+         s->m_DataChn.recv((char*)s->m_pDS->m_pResult->m_pllIndex, s->m_pDS->m_pResult->m_iIndexLen * 8);
+      }
+      else if (self->m_iOutputType == -1)
+      {
+         int size;
+         s->m_DataChn.recv((char*)&size, 4);
+         char* filename = new char[size];
+         s->m_DataChn.recv(filename, size);
+         self->m_pOutput->m_vFiles[s->m_pDS->m_iID] = filename;
+         delete [] filename;
+      }
+      else
+      {
+
       }
 
       cout << "got it " << speid << endl;
-      if (s->m_pDS->m_iResSize == 4)
-         cout << "LAST BLOCK " << *(int*)s->m_pDS->m_pcResult << endl;
 
       s->m_pDS->m_iStatus = 2;
       s->m_iStatus = 0;
@@ -403,7 +558,7 @@ int Process::checkProgress()
    return m_iProgress * 100 / m_iTotalDS;
 }
 
-int Process::read(char*& data, int& size, string& file, int64_t& offset, int& rows, const bool& inorder, const bool& wait)
+int Process::read(Result*& res, const bool& inorder, const bool& wait)
 {
    if (0 == m_iAvailRes)
    {
@@ -426,18 +581,13 @@ int Process::read(char*& data, int& size, string& file, int64_t& offset, int& ro
          break;
 
       case 2:
-         data = i->m_pcResult;
-         size = i->m_iResSize;
-         i->m_pcResult = NULL;
-         i->m_iResSize = 0;
-         i->m_iStatus = 3;
-         -- m_iAvailRes;
+         res = i->m_pResult;
 
          pthread_mutex_lock(&m_ResLock);
          m_vDS.erase(i);
          pthread_mutex_unlock(&m_ResLock);
 
-         return size;
+         return 1;
 
       case 3:
          break;

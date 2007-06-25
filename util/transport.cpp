@@ -70,7 +70,7 @@ int Transport::open(int& port)
    return 1;
 }
 
-int Transport::connect(const char* ip, const int& port)
+int Transport::connect(const char* ip, int port)
 {
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
@@ -88,7 +88,7 @@ int Transport::connect(const char* ip, const int& port)
    return 1;
 }
 
-int Transport::send(const char* buf, const int& size)
+int Transport::send(const char* buf, int size)
 {
    int ssize = 0;
    while (ssize < size)
@@ -103,7 +103,7 @@ int Transport::send(const char* buf, const int& size)
    return ssize;
 }
 
-int Transport::recv(char* buf, const int& size)
+int Transport::recv(char* buf, int size)
 {
    int rsize = 0;
    while (rsize < size)
@@ -118,12 +118,12 @@ int Transport::recv(char* buf, const int& size)
    return rsize;
 }
 
-int Transport::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size)
+int Transport::sendfile(ifstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::sendfile(m_Socket, ifs, offset, size);
 }
 
-int Transport::recvfile(ofstream& ifs, const int64_t& offset, const int64_t& size)
+int Transport::recvfile(ofstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::recvfile(m_Socket, ifs, offset, size);
 }
