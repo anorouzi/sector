@@ -99,7 +99,9 @@ void* Server::SPEHandler(void* p)
    char* param = ((Param4*)p)->param;
    int psize = ((Param4*)p)->psize;
    delete (Param4*)p;
+
    CCBMsg msg;
+   msg.resize(65536);
 
    cout << "rendezvous connect " << ip << " " << dataport << endl;
    if (datachn->connect(ip.c_str(), dataport) < 0)
@@ -272,7 +274,15 @@ void* Server::SPEHandler(void* p)
             int dstport = *(int32_t*)(locations + i * 72 + 64);
             int32_t pass;
 
-            if ((self->m_strLocalHost == dstip) && (self->m_iLocalPort == dstport))
+            //cout << "*********** " << "spe send data " << dstip << " " << dstport << " " << *(int32_t*)(locations + i * 72 + 68) << endl;
+            if (result.m_vDataLen[i] == 0)
+            {
+               pass = 0;
+               msg.setData(0, (char*)&pass, 4);
+               msg.m_iDataLength = 4 + 4;
+               self->m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+            }
+            else if ((self->m_strLocalHost == dstip) && (self->m_iLocalPort == dstport))
             {
                pass = 1;
                msg.setData(0, (char*)&pass, 4);
@@ -295,15 +305,15 @@ void* Server::SPEHandler(void* p)
                int dataport = 0;
                t.open(dataport);
 
-               pass =2;
+               pass = 2;
                msg.setData(0, (char*)&pass, 4);
                msg.setData(4, (char*)&dataport, 4);
                msg.m_iDataLength = 4 + 8;
-               //cout << "send data " << locations + i * 72 << " " << *(int32_t*)(locations + i * 72 + 68) << " " << dataport << endl;
 
                self->m_GMP.rpc(locations + i * 72, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
 
                t.connect(locations + i * 72, *(int32_t*)msg.getData());
+
                int32_t size = result.m_vDataLen[i];
                t.send((char*)&size, 4);
                t.send(result.m_vData[i], size);
@@ -311,8 +321,6 @@ void* Server::SPEHandler(void* p)
                t.send((char*)&size, 4);
                t.send((char*)result.m_vIndex[i], result.m_vIndexLen[i] * 8);
                t.close();
-
-               //cout << "send buckets " << result.m_vDataLen[i] << " " << result.m_vIndexLen[i] << endl;
             }
          }
       }
@@ -348,10 +356,11 @@ void* Server::SPEShuffler(void* p)
    CGMP* gmp = ((Param5*)p)->gmp;
    delete (Param5*)p;
 
-   cout << "SPE shuffler open " << dsnum << " " << localfile << endl;
-
    ofstream datafile((self->m_strHomeDir + localfile).c_str());
    ofstream indexfile((self->m_strHomeDir + localfile + ".idx").c_str());
+
+   int64_t start = 0;
+   indexfile.write((char*)&start, 8);
 
    for (int i = 0; i < dsnum; ++ i)
    {
@@ -361,28 +370,36 @@ void* Server::SPEShuffler(void* p)
       int msgid;
       gmp->recvfrom(speip, speport, msgid, &msg);
 
-      if (*(int32_t*)msg.getData() == 1)
+      if (*(int32_t*)msg.getData() == 0)
       {
-         cout << "writing from local " << *(int32_t*)(msg.getData() + 4) << " " << *(int32_t*)(msg.getData() + 12) << endl;
+         gmp->sendto(speip, speport, msgid, &msg);
+      }
+      else if (*(int32_t*)msg.getData() == 1)
+      {
          datafile.write((char*)*(int32_t*)(msg.getData() + 8), *(int32_t*)(msg.getData() + 4));
-         indexfile.write((char*)*(int32_t*)(msg.getData() + 16), *(int32_t*)(msg.getData() + 12) * 8);
+
+         int64_t* p = (int64_t*)*(int32_t*)(msg.getData() + 16);
+         int len = *(int32_t*)(msg.getData() + 12) - 1;
+         for (int i = 0; i < len; ++ i)
+            *(++ p) += start;
+         start = *p;
+         indexfile.write((char*)(p - len + 1), len * 8);
 
          msg.m_iDataLength = 4;
          gmp->sendto(speip, speport, msgid, &msg);
       }
       else
       {
-         cout << "prepare to recv data " << speip << " " << speport << " " << *(int32_t*)msg.getData() << endl;
-
          Transport t;
          int dataport = 0;
+         int remoteport = *(int32_t*)(msg.getData() + 4);
          t.open(dataport);
-         t.connect(speip, *(int32_t*)(msg.getData() + 4));
 
          *(int32_t*)msg.getData() = dataport;
          msg.m_iDataLength = 4 + 4;
-
          gmp->sendto(speip, speport, msgid, &msg);
+
+         t.connect(speip, remoteport);
 
          int32_t len;
          t.recv((char*)&len, 4);
@@ -392,7 +409,10 @@ void* Server::SPEShuffler(void* p)
          t.recv((char*)&len, 4);
          int64_t* index = new int64_t[len];
          t.recv((char*)index, len * 8);
-         indexfile.write((char*)index, len * 8);
+         for (int i = 1; i < len; ++ i)
+            index[i] += start;
+         start = index[len - 1];
+         indexfile.write((char*)(index + 1), (len - 1) * 8);
          t.close();
       }
    }

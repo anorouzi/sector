@@ -96,9 +96,7 @@ private:
 
    static int32_t g_iID;
    static pthread_mutex_t g_IDLock;
-
    static const int32_t g_iMaxID = 0xFFFFFFF;
-
    static const int m_iHdrSize = 16;
 };
 

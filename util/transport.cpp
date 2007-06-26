@@ -47,6 +47,9 @@ int Transport::open(int& port)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
+   bool reuseaddr = false;
+   UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
+
    sockaddr_in my_addr;
    my_addr.sin_family = AF_INET;
    my_addr.sin_port = 0;
@@ -64,7 +67,7 @@ int Transport::open(int& port)
       UDT::setsockopt(m_Socket, 0, UDT_MSS, &mtu, sizeof(int));
    #endif
 
-   bool rendezvous = 1;
+   bool rendezvous = true;
    UDT::setsockopt(m_Socket, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
 
    return 1;

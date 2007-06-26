@@ -31,7 +31,7 @@ reference: UDT programming manual and socket programming reference
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/06/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -750,9 +750,10 @@ int CUDTUnited::select(ud_set* readfds, ud_set* writefds, ud_set* exceptfds, con
             if (NULL == (s = locate(*i)))
                throw CUDTException(5, 4, 0);
 
-            if ((s->m_pUDT->m_bConnected && (s->m_pUDT->m_pRcvBuffer->getRcvDataSize() > 0))
+            if ((s->m_pUDT->m_pRcvBuffer->getRcvDataSize() > 0)
                || (!s->m_pUDT->m_bListening && (s->m_pUDT->m_bBroken || !s->m_pUDT->m_bConnected))
-               || (s->m_pUDT->m_bListening && (s->m_pQueuedSockets->size() > 0)))
+               || (s->m_pUDT->m_bListening && (s->m_pQueuedSockets->size() > 0))
+               || (s->m_Status == CUDTSocket::CLOSED))
             {
                rs.insert(*i);
                ++ count;
@@ -766,7 +767,8 @@ int CUDTUnited::select(ud_set* readfds, ud_set* writefds, ud_set* exceptfds, con
             if (NULL == (s = locate(*i)))
                throw CUDTException(5, 4, 0);
 
-            if (s->m_pUDT->m_bConnected && (s->m_pUDT->m_pSndBuffer->getCurrBufSize() < s->m_pUDT->m_iSndQueueLimit))
+            if ((s->m_pUDT->m_pSndBuffer->getCurrBufSize() < s->m_pUDT->m_iSndQueueLimit)
+               || (s->m_pUDT->m_bBroken || !s->m_pUDT->m_bConnected))
             {
                ws.insert(*i);
                ++ count;
@@ -979,22 +981,26 @@ void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr)
 {
    CGuard cg(m_ControlLock);
 
-   for (vector<CMultiplexer>::iterator i = m_vMultiplexer.begin(); i != m_vMultiplexer.end(); ++ i)
+   if (u->m_bReuseAddr)
    {
-      if ((i->m_iIPversion == u->m_iIPversion) && (i->m_iMTU == u->m_iMSS))
+      // find a reusable address
+      for (vector<CMultiplexer>::iterator i = m_vMultiplexer.begin(); i != m_vMultiplexer.end(); ++ i)
       {
-         int port = 0;
-         if (NULL != addr)
-            port = (AF_INET == i->m_iIPversion) ? ntohs(((sockaddr_in*)addr)->sin_port) : ntohs(((sockaddr_in6*)addr)->sin6_port);
-
-         if ((0 == port) || (i->m_iPort == port))
+         if ((i->m_iIPversion == u->m_iIPversion) && (i->m_iMTU == u->m_iMSS) && i->m_bReusable)
          {
-            // reuse the existing multiplexer
-            ++ i->m_iRefCount;
-            u->m_pSndQueue = i->m_pSndQueue;
-            u->m_pRcvQueue = i->m_pRcvQueue;
-            u->m_pRcvQueue->m_pHash->insert(u->m_SocketID, u);
-            return;
+            int port = 0;
+            if (NULL != addr)
+               port = (AF_INET == i->m_iIPversion) ? ntohs(((sockaddr_in*)addr)->sin_port) : ntohs(((sockaddr_in6*)addr)->sin6_port);
+
+            if ((0 == port) || (i->m_iPort == port))
+            {
+               // reuse the existing multiplexer
+               ++ i->m_iRefCount;
+               u->m_pSndQueue = i->m_pSndQueue;
+               u->m_pRcvQueue = i->m_pRcvQueue;
+               u->m_pRcvQueue->m_pHash->insert(u->m_SocketID, u);
+               return;
+            }
          }
       }
    }
@@ -1004,6 +1010,7 @@ void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr)
    m.m_iMTU = u->m_iMSS;
    m.m_iIPversion = u->m_iIPversion;
    m.m_iRefCount = 1;
+   m.m_bReusable = u->m_bReuseAddr;
 
    m.m_pChannel = new CChannel(u->m_iIPversion);
    m.m_pChannel->setSndBufSize(u->m_iUDPSndBufSize);
@@ -1525,12 +1532,12 @@ int recvmsg(UDTSOCKET u, char* buf, int len)
    return CUDT::recvmsg(u, buf, len);
 }
 
-int64_t sendfile(UDTSOCKET u, ifstream& ifs, const int64_t& offset, const int64_t& size, const int& block)
+int64_t sendfile(UDTSOCKET u, ifstream& ifs, int64_t offset, int64_t size, int block)
 {
    return CUDT::sendfile(u, ifs, offset, size, block);
 }
 
-int64_t recvfile(UDTSOCKET u, ofstream& ofs, const int64_t& offset, const int64_t& size, const int& block)
+int64_t recvfile(UDTSOCKET u, ofstream& ofs, int64_t offset, int64_t size, int block)
 {
    return CUDT::recvfile(u, ofs, offset, size, block);
 }

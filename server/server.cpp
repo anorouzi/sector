@@ -263,11 +263,8 @@ void* Server::process(void* s)
 
             msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = 4 + 4;
-            //cout << "feedback port " << dataport <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
-
-            //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
             break;
          }
@@ -400,11 +397,11 @@ void* Server::process(void* s)
             memcpy(fl, msg->getData(), msg->m_iDataLength - 4);
 
             int c = 0;
-            for (int i ; i < msg->m_iDataLength - 4 / 64; ++ i)
+            for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
             {
-               if (!self->m_Router.has(DHash::hash(msg->getData(), m_iKeySpace)))
+               if (!self->m_Router.has(DHash::hash(fl + i * 64, m_iKeySpace)))
                {
-                  self->m_RemoteFile.remove(msg->getData());
+                  self->m_RemoteFile.remove(fl + i * 64);
                   msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
                   ++ c;
                }
@@ -412,8 +409,6 @@ void* Server::process(void* s)
             delete [] fl;
 
             msg->m_iDataLength = 4 + c * 64;
-
-            msg->m_iDataLength = 4;
             self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
@@ -473,11 +468,8 @@ void* Server::process(void* s)
 
             msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = 4 + 4;
-            //cout << "feedback port " << dataport <<endl;
 
             self->m_GMP.sendto(ip, port, id, msg);
-
-            cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
             break; 
          }
@@ -771,7 +763,6 @@ void Server::updateOutLink()
       int c = 0;
       for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
       {
-         //cout << "checking outlink " << f->c_str() << endl;
          msg.setData(c * 64, f->c_str(), f->length() + 1);
          ++ c;
       }
@@ -789,7 +780,6 @@ void Server::updateOutLink()
             continue;
 
          m_LocalFile.updateNameServer(filename, loc);
-         //cout << "update name server " << filename << " " << loc.m_pcIP << " " << loc.m_iAppPort << endl;
 
          // send metadata to a new node
          CCBMsg msg3;
@@ -885,7 +875,7 @@ int Server::scanLocalFile()
       if (localfiles.find(*i) == localfiles.end())
       {
          m_LocalFile.remove(*i);
-         cout << "remove local file " << *i << endl;
+         //cout << "remove local file " << *i << endl;
       }
    }
 
@@ -910,7 +900,7 @@ int Server::scanLocalFile()
 
          m_LocalFile.insert(attr);
 
-         cout << "add local file... " << *i << " " << size << endl;
+         //cout << "add local file... " << *i << " " << size << endl;
       }
    }
 

@@ -25,7 +25,7 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/02/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2007
 *****************************************************************************/
 
 
@@ -33,6 +33,7 @@ written by
    #include <unistd.h>
    #include <stdio.h>
    #include <errno.h>
+   #include <assert.h>
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
@@ -241,10 +242,12 @@ int CGMP::close()
 
       pthread_join(m_SndThread, NULL);
       pthread_join(m_RcvThread, NULL);
+      pthread_join(m_TCPRcvThread, NULL);
    #else
       SetEvent(m_SndQueueCond);
       WaitForSingleObject(m_SndThread, INFINITE);
       WaitForSingleObject(m_RcvThread, INFINITE);
+      WaitForSingleObject(m_TCPRcvThread, INFINITE);
    #endif
 
    closesocket(m_UDPSocket);
@@ -264,6 +267,9 @@ int CGMP::getPort()
 
 int CGMP::sendto(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
 {
+   assert(len < 65536);
+   assert(strlen(ip) < 64);
+
    if (len <= m_iMaxUDPMsgSize)
       return UDPsend(ip, port, id, data, len, reliable);
    else
@@ -387,7 +393,6 @@ int CGMP::TCPsend(const char* ip, const int& port, CGMPMessage* msg)
       return -1;
    }
 
-   //cout << "TCP PORT sent " << m_iPort << endl;
    if (0 > ::send(sock, (char*)(&m_iPort), 4, 0))
    {
       closesocket(sock);
@@ -694,8 +699,6 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             break;
 
          case 2: // RTT probe
-            //cout << "RECV RTT PROBE\n";
-
             ack[2] = id;
             ack[3] = 0;
             ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
@@ -831,6 +834,22 @@ DWORD WINAPI CGMP::tcpRcvHandler(LPVOID s)
 
    while (!self->m_bClosed)
    {
+      fd_set rfds;
+      timeval tv;
+
+      FD_ZERO(&rfds);
+      FD_SET(self->m_TCPSocket, &rfds);
+      tv.tv_sec = 0;
+      tv.tv_usec = 10000;
+
+      if (select(1, &rfds, NULL, NULL, &tv) <= 0)
+      {
+         //perror("select()");
+         continue;
+      }
+
+      assert(FD_ISSET(self->m_TCPSocket, &rfds));
+
       sock = ::accept(self->m_TCPSocket, (sockaddr*)&addr, &namelen);
       #ifndef WIN32
          if (-1 == sock)

@@ -205,6 +205,8 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
       return -1;
 
    CCBMsg msg;
+   msg.resize(65536);
+
    msg.setType(1); // locate file
    msg.setData(0, (op + ".so").c_str(), (op + ".so").length() + 1);
    msg.m_iDataLength = 4 + (op + ".so").length() + 1;
@@ -279,7 +281,7 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
          msg.m_iDataLength = 4 + 4 + strlen(msg.getData() + 4) + 1;
          m_GMP.rpc(m_pOutput->m_vLocation[i].begin()->m_pcIP, m_pOutput->m_vLocation[i].begin()->m_iAppPort, &msg, &msg);
 
-         memcpy(outputloc + i * 72, spenodes + j * 64, 64);
+         memcpy(outputloc + i * 72, spenodes + j * 68, 64);
          *(int32_t*)(outputloc + i * 72 + 64) = loc.m_iAppPort;
          *(int32_t*)(outputloc + i * 72 + 68) = *(int32_t*)msg.getData();
 
