@@ -15,8 +15,11 @@ int main()
 
 //   char ip[64];
 //   int port;
-   char* data = "hello world! hello, hello!";
+//   char* data = "hello world! hello, hello!";
 //   int len = 1024;
+
+   char* data  = new char[2000];
+
    int32_t id;
    char res[1024];
    int reslen;
@@ -24,7 +27,7 @@ int main()
    while (true)
    {
       id = 0;
-      gmp.sendto("127.0.0.1", 6000, id, data, strlen(data) + 1);
+      gmp.sendto("127.0.0.1", 6000, id, data, 20);
 
       gmp.recv(id, res, reslen);
 

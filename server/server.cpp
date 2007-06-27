@@ -815,7 +815,10 @@ void Server::updateInLink()
       int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
 
       if (r < 0)
+      {
+         cout << "RPC FAIL " << i->first.m_pcIP << endl;
          m_RemoteFile.remove(i->first);
+      }
       else
       {
          for (c = 0; c < (msg.m_iDataLength - 4) / 64; ++ c)

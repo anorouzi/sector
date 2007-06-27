@@ -31,7 +31,7 @@ reference: UDT programming manual and socket programming reference
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/27/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -321,7 +321,7 @@ int CUDTUnited::newConnection(const UDTSOCKET listen, const sockaddr* peer, CHan
    {
       // bind to the same addr of listening socket
       ns->m_pUDT->open();
-      updateMux(ns->m_pUDT, ls->m_pSelfAddr);
+      updateMux(ns->m_pUDT, ls);
       ns->m_pUDT->connect(peer, hs);
    }
    catch (...)
@@ -768,7 +768,7 @@ int CUDTUnited::select(ud_set* readfds, ud_set* writefds, ud_set* exceptfds, con
                throw CUDTException(5, 4, 0);
 
             if ((s->m_pUDT->m_bConnected && (s->m_pUDT->m_pSndBuffer->getCurrBufSize() < s->m_pUDT->m_iSndQueueLimit))
-               || (s->m_pUDT->m_bBroken || !s->m_pUDT->m_bConnected || (s->m_Status == CUDTSocket::CLOSED)))
+               || s->m_pUDT->m_bBroken || !s->m_pUDT->m_bConnected || (s->m_Status == CUDTSocket::CLOSED))
             {
                ws.insert(*i);
                ++ count;
@@ -983,15 +983,15 @@ void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr)
 
    if (u->m_bReuseAddr)
    {
+      int port = 0;
+      if (NULL != addr)
+         port = (AF_INET == u->m_iIPversion) ? ntohs(((sockaddr_in*)addr)->sin_port) : ntohs(((sockaddr_in6*)addr)->sin6_port);
+
       // find a reusable address
       for (vector<CMultiplexer>::iterator i = m_vMultiplexer.begin(); i != m_vMultiplexer.end(); ++ i)
       {
          if ((i->m_iIPversion == u->m_iIPversion) && (i->m_iMTU == u->m_iMSS) && i->m_bReusable)
          {
-            int port = 0;
-            if (NULL != addr)
-               port = (AF_INET == i->m_iIPversion) ? ntohs(((sockaddr_in*)addr)->sin_port) : ntohs(((sockaddr_in6*)addr)->sin6_port);
-
             if ((0 == port) || (i->m_iPort == port))
             {
                // reuse the existing multiplexer
@@ -1044,6 +1044,27 @@ void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr)
    u->m_pSndQueue = m.m_pSndQueue;
    u->m_pRcvQueue = m.m_pRcvQueue;
    u->m_pRcvQueue->m_pHash->insert(u->m_SocketID, u);
+}
+
+void CUDTUnited::updateMux(CUDT* u, const CUDTSocket* ls)
+{
+   CGuard cg(m_ControlLock);
+
+   int port = (AF_INET == ls->m_iIPversion) ? ntohs(((sockaddr_in*)ls->m_pSelfAddr)->sin_port) : ntohs(((sockaddr_in6*)ls->m_pSelfAddr)->sin6_port);
+
+   // find the listener's address
+   for (vector<CMultiplexer>::iterator i = m_vMultiplexer.begin(); i != m_vMultiplexer.end(); ++ i)
+   {
+      if (i->m_iPort == port)
+      {
+         // reuse the existing multiplexer
+         ++ i->m_iRefCount;
+         u->m_pSndQueue = i->m_pSndQueue;
+         u->m_pRcvQueue = i->m_pRcvQueue;
+         u->m_pRcvQueue->m_pHash->insert(u->m_SocketID, u);
+         return;
+      }
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

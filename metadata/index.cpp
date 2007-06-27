@@ -131,6 +131,8 @@ void LocalFileIndex::updateNameServer(const string& filename, const Node& loc)
 
    Node& tmp = m_mLocInfo[filename];
    m_mLocIndex[tmp].erase(filename);
+   if (m_mLocIndex[tmp].empty())
+      m_mLocIndex.erase(tmp);
 
    m_mLocInfo[filename] = loc;
    m_mLocIndex[loc].insert(filename);
@@ -246,6 +248,8 @@ void RemoteFileIndex::remove(const string& filename)
 
 void RemoteFileIndex::remove(const Node& n)
 {
+   cout << "remove IP index " << n.m_pcIP << endl;
+
    Sync::enterCS(m_IndexLock);
 
    map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.find(n);
