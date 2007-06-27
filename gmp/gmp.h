@@ -53,6 +53,7 @@ written by
 #endif
 
 #include <util.h>
+#include <transport.h>
 #include <message.h>
 #include <prec.h>
 
@@ -144,8 +145,8 @@ public:
 private:
    int UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable = true);
    int UDPsend(const char* ip, const int& port, CGMPMessage* msg);
-   int TCPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len);
-   int TCPsend(const char* ip, const int& port, CGMPMessage* msg);
+   int UDTsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len);
+   int UDTsend(const char* ip, const int& port, CGMPMessage* msg);
 
 public:
    int sendto(const char* ip, const int& port, int32_t& id, const CUserMessage* msg);
@@ -158,15 +159,15 @@ public:
 private:
    pthread_t m_SndThread;
    pthread_t m_RcvThread;
-   pthread_t m_TCPRcvThread;
+   pthread_t m_UDTRcvThread;
 #ifndef WIN32
    static void* sndHandler(void*);
    static void* rcvHandler(void*);
-   static void* tcpRcvHandler(void*);
+   static void* udtRcvHandler(void*);
 #else
    static DWORD WINAPI sndHandler(LPVOID);
    static DWORD WINAPI rcvHandler(LPVOID);
-   static DWORD WINAPI tcpRcvHandler(LPVOID);
+   static DWORD WINAPI udtRcvHandler(LPVOID);
 #endif
 
    pthread_mutex_t m_SndQueueLock;
@@ -183,11 +184,11 @@ private:
 
    #ifndef WIN32
       int m_UDPSocket;
-      int m_TCPSocket;
    #else
       SOCKET m_UDPSocket;
-      SOCKET m_TCPSocket;
    #endif
+
+   Transport m_UDTSocket;
 
    list<CMsgRecord*> m_lSndQueue;
    queue<CMsgRecord*> m_qRcvQueue;

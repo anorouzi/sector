@@ -187,8 +187,8 @@ IPSec::IPSec()
 int IPSec::addIP(const string& ip)
 {
    char buf[64];
-   int i = 0;
-   for (int n = ip.length(); i < n; ++ i)
+   unsigned int i = 0;
+   for (unsigned int n = ip.length(); i < n; ++ i)
    {
       if ('/' == ip.c_str()[i])
          break;
@@ -217,7 +217,7 @@ int IPSec::addIP(const string& ip)
 
    bool format = false;
    int j = 0;
-   for (int n = ip.length(); i < n; ++ i, ++ j)
+   for (unsigned int n = ip.length(); i < n; ++ i, ++ j)
    {
       if ('.' == ip.c_str()[i])
          format = true;

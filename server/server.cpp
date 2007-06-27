@@ -132,10 +132,6 @@ void* Server::process(void* s)
    CCBMsg* msg = new CCBMsg;
    msg->resize(65536);
 
-   timeval t;
-   gettimeofday(&t, 0);
-   srand(t.tv_sec);
-
    while (true)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
@@ -567,8 +563,6 @@ void* Server::process(void* s)
             break;
          }
       }
-
-      //cout << "respond CB " << msg->getType() << endl;
    }
 
    delete msg;

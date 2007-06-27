@@ -31,7 +31,7 @@ written by
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-
+#include <iostream>
 using namespace std;
 using namespace cb;
 
@@ -43,7 +43,7 @@ Transport::~Transport()
 {
 }
 
-int Transport::open(int& port)
+int Transport::open(int& port, bool rendezvous)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
@@ -52,32 +52,56 @@ int Transport::open(int& port)
 
    sockaddr_in my_addr;
    my_addr.sin_family = AF_INET;
-   my_addr.sin_port = 0;
+   my_addr.sin_port = htons(port);
    my_addr.sin_addr.s_addr = INADDR_ANY;
    memset(&(my_addr.sin_zero), '\0', 8);
 
    UDT::bind(m_Socket, (sockaddr*)&my_addr, sizeof(my_addr));
- 
+
    int size = sizeof(sockaddr_in);
    UDT::getsockname(m_Socket, (sockaddr*)&my_addr, &size);
-   port = my_addr.sin_port;
+   port = ntohs(my_addr.sin_port);
 
    #ifdef WIN32
       int mtu = 1052;
       UDT::setsockopt(m_Socket, 0, UDT_MSS, &mtu, sizeof(int));
    #endif
 
-   bool rendezvous = true;
    UDT::setsockopt(m_Socket, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
 
    return 1;
+}
+
+int Transport::listen()
+{
+   return UDT::listen(m_Socket, 10);
+}
+
+int Transport::accept(Transport& t, sockaddr* addr, int* addrlen)
+{
+   timeval tv;
+   UDT::UDSET readfds;
+
+   tv.tv_sec = 0;
+   tv.tv_usec = 10000;
+
+   UD_ZERO(&readfds);
+   UD_SET(m_Socket, &readfds);
+
+   int res = UDT::select(1, &readfds, NULL, NULL, &tv);
+
+   if ((res == UDT::ERROR) || (!UD_ISSET(m_Socket, &readfds)))
+      return -1;
+
+   t.m_Socket = UDT::accept(m_Socket, addr, addrlen);
+   return 0;
 }
 
 int Transport::connect(const char* ip, int port)
 {
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
-   serv_addr.sin_port = port;
+   serv_addr.sin_port = htons(port);
    #ifndef WIN32
       inet_pton(AF_INET, ip, &serv_addr.sin_addr);
    #else
