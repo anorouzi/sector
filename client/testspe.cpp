@@ -12,13 +12,13 @@ int main(int argc, char** argv)
    Stream s;
    s.init(files);
 
-   Stream output;
-   output.m_strName = "stream_sort_bucket";
-   output.init(4);
+   Stream temp;
+   temp.m_strName = "stream_sort_bucket";
+   temp.init(4);
 
    Process* myproc = Sector::createJob();
 
-   if (myproc->run(s, output, "sorthash", 1) < 0)
+   if (myproc->run(s, temp, "sorthash", 1) < 0)
    {
       cout << "failed to find any computing resources." << endl;
       return -1;
@@ -40,11 +40,34 @@ int main(int argc, char** argv)
             break;
          continue;
       }
+   }
 
-//      cout << "read one block " << res->m_iDataLen << endl;
+   Stream output;
+   output.m_strName = "stream_sort_result";
+   output.init(-1);
 
-//      for (int i = 0; i < res->m_iDataLen; i += 4)
-//         cout << *(int*)(res->m_pcData + i) << endl;
+   if (myproc->run(temp, output, "sort", -1) < 0)
+   {
+      cout << "failed to find any computing resources." << endl;
+      return -1;
+   }
+
+   while (true)
+   {
+      Result* res;
+
+      if (-1 == myproc->read(res, true))
+      {
+         if (myproc->checkProgress() == -1)
+         {
+            cerr << "all SPEs failed\n";
+            break;
+         }
+
+         if (myproc->checkProgress() == 100)
+            break;
+         continue;
+      }
    }
 
    cout << "SPE COMPLETED " << output.m_iFileNum << " " << output.m_vFiles[0] << endl;

@@ -897,7 +897,7 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
    int32_t id = 0;
    if (sendto(ip, port, id, req) < 0)
    {
-      cout << "RPC SND FAIL " << ip << " " << port << " " << req->m_iDataLength << *(int*)req->m_pcBuffer << " " << *(int*)(req->m_pcBuffer + 4) << endl;
+      //cout << "RPC SND FAIL " << ip << " " << port << " " << req->m_iDataLength << *(int*)req->m_pcBuffer << " " << *(int*)(req->m_pcBuffer + 4) << endl;
       return -1;
    }
 
@@ -908,7 +908,7 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
    {
       if (rtt(ip, port, true) < 0)
       {
-         cout << "RPC RTT FAIL\n";
+         //cout << "RPC RTT FAIL\n";
          return -1;
       }
 
@@ -916,7 +916,7 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
       gettimeofday(&t2, 0);
       if (t2.tv_sec - t1.tv_sec > 30)
       {
-         cout << "RPC TIMEOUT \n";
+         //cout << "RPC TIMEOUT \n";
          return -1;
       }
    }

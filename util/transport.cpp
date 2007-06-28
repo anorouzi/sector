@@ -111,7 +111,7 @@ int Transport::connect(const char* ip, int port)
 
    if (UDT::ERROR == UDT::connect(m_Socket, (sockaddr*)&serv_addr, sizeof(serv_addr)))
    {
-      cout << "udt connect fail " << UDT::getlasterror().getErrorMessage() << endl;
+      //cout << "udt connect fail " << UDT::getlasterror().getErrorMessage() << endl;
       return -1;
    }
 

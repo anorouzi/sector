@@ -73,7 +73,7 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
    if ((bucketid >= m_iBucketNum) || (bucketid < 0))
       return;
 
-   int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid];
+   int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid] - 1;
    int64_t start = *p;
    for (int i = 1; i <= ilen; ++ i)
       *(++ p) = index[i] + start;
@@ -219,6 +219,7 @@ void* Server::SPEHandler(void* p)
          process(block + index[i] - index[0], rows, index + i, rdata, dlen, ilen, rindex, bid, param, psize);
          if (buckets <= 0)
             bid = 0;
+
          result.addData(bid, rindex, ilen, rdata, dlen);
 
          gettimeofday(&t4, 0);
@@ -239,7 +240,7 @@ void* Server::SPEHandler(void* p)
       if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
          return NULL;
 
-      cout << "sending data back... " << endl;
+      cout << "sending data back... " << buckets << endl;
 
       if (buckets == -1)
       {
@@ -253,9 +254,15 @@ void* Server::SPEHandler(void* p)
          ofs.write((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
          ofs.close();
 
-         int32_t sizeparam = strlen(localfile) + 1;
-         datachn->send((char*)&sizeparam, 4);
-         datachn->send(localfile, sizeparam);
+         self->scanLocalFile();
+
+         int32_t size = strlen(localfile) + 1;
+         datachn->send((char*)&size, 4);
+         datachn->send(localfile, size);
+         size = result.m_vDataLen[0];
+         datachn->send((char*)&size, 4);
+         size = result.m_vIndexLen[0];
+         datachn->send((char*)&size, 4);
       }
       else if (buckets == 0)
       {
@@ -268,13 +275,16 @@ void* Server::SPEHandler(void* p)
       }
       else
       {
+         int* sarray = new int[buckets];
+         int* rarray = new int[buckets];
+
          for (int i = 0; i < buckets; ++ i)
          {
             char* dstip = locations + i * 72;
             int dstport = *(int32_t*)(locations + i * 72 + 64);
             int32_t pass;
 
-            //cout << "*********** " << "spe send data " << dstip << " " << dstport << " " << *(int32_t*)(locations + i * 72 + 68) << endl;
+            cout << "*********** " << "spe send data " << dstip << " " << dstport << " " << *(int32_t*)(locations + i * 72 + 68) << endl;
             if (result.m_vDataLen[i] == 0)
             {
                pass = 0;
@@ -322,7 +332,17 @@ void* Server::SPEHandler(void* p)
                t.send((char*)result.m_vIndex[i], result.m_vIndexLen[i] * 8);
                t.close();
             }
+
+            sarray[i] = result.m_vDataLen[i];
+            rarray[i] = result.m_vIndexLen[i] - 1;
          }
+
+         cout << "sending back size/rec info!!! \n";
+         // send back size and recnum information
+         datachn->send((char*)sarray, buckets * 4);
+         datachn->send((char*)rarray, buckets * 4);
+         delete [] sarray;
+         delete [] rarray;
       }
 
       delete [] index;
@@ -409,9 +429,9 @@ void* Server::SPEShuffler(void* p)
          t.recv((char*)&len, 4);
          int64_t* index = new int64_t[len];
          t.recv((char*)index, len * 8);
-         for (int i = 1; i < len; ++ i)
+         for (int i = 1; i <= len; ++ i)
             index[i] += start;
-         start = index[len - 1];
+         start = index[len];
          indexfile.write((char*)(index + 1), (len - 1) * 8);
          t.close();
       }
@@ -422,6 +442,8 @@ void* Server::SPEShuffler(void* p)
 
    gmp->close();
    delete gmp;
+
+   self->scanLocalFile();
 
    return NULL;
 }

@@ -104,6 +104,7 @@ private:
    string m_strOperator;
    char* m_pcParam;
    int m_iParamSize;
+   Stream* m_pInput;
    Stream* m_pOutput;
    int m_iOutputType;
 
@@ -157,8 +158,8 @@ private:
 private:
    int prepareSPE();
    static void* run(void*);
-   int checkSPE();
-   int startSPE(SPE& s);
+   int checkSPE(bool locsense, map<string, Node>& datalocmap);
+   int startSPE(SPE& s, bool locsense, map<string, Node>& datalocmap);
 };
 
 }; // namespace cb
