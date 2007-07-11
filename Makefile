@@ -1,4 +1,4 @@
-SUBDIRS = udt util gmp routing metadata sql client server
+SUBDIRS = udt util gmp routing metadata client server
 TARGETS = clean all install
 
 subdirs:

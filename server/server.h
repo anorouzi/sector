@@ -110,7 +110,6 @@ private:
    static void* process(void* s);
    static void* processEx(void* p1);
    static void* fileHandler(void* p2);
-   static void* SQLHandler(void* p3);
    static void* SPEHandler(void* p4);
    static void* SPEShuffler(void* p5);
 

@@ -25,8 +25,9 @@ For more servers:
 ./cbfs <LOCAL IP ADDRESS> <REMOTE IP ADDRESS> <REMOTE PORT>
 
 For example,
-If you are start the first server on 10.0.0.1 at port 2237, run ./cbfs 10.0.0.1
-Then if you are start the second server on 10.0.0.2, run ./cbfs 10.0.0.2 10.0.0.1 2237
+If you start the first server on 10.0.0.1 at port 2237, run ./cbfs 10.0.0.1. The port number "2237"
+is specified in configuration file sector.conf.
+Then if you start the second server on 10.0.0.2, run ./cbfs 10.0.0.2 10.0.0.1 2237
 
 
 IV. Client
@@ -51,3 +52,8 @@ unique file name. In addition, the client cannot modify or overwrite a file unle
 originally uploaded by the same client.
 
 The SECTOR client also works on Windows system.
+
+
+V. Need help?
+SECTOR is really new, the document is far from complete, and it could be buggy. Please feel free to
+contact Yunhong Gu <gu at lac dot uic dot edu>. Thanks!

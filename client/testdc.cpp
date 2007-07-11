@@ -1,4 +1,4 @@
-#include "speclient.h"
+#include "dcclient.h"
 
 using namespace cb;
 

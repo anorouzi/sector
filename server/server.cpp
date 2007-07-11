@@ -39,9 +39,6 @@ written by
 #include <sstream>
 #include <signal.h>
 #include <util.h>
-#include <data.h>
-#include <sql.h>
-#include <table.h>
 #include <fsclient.h>
 
 using namespace std;
@@ -430,46 +427,6 @@ void* Server::process(void* s)
             break;
          }
 
-         case 200: // open a SQL connection
-         {
-            char* filename = msg->getData() + 4;
-
-            if (self->m_LocalFile.lookup(filename) < 0)
-            {
-               msg->setType(-msg->getType());
-               msg->m_iDataLength = 4;
-               self->m_GMP.sendto(ip, port, id, msg);
-               break;
-            }
-
-            self->m_AccessLog.insert(ip, port, msg->getData());
-
-            cout << "===> start SQL server " << endl;
-
-            Transport* datachn = new Transport;
-            int dataport = 0;
-            datachn->open(dataport);
-
-            Param3* p = new Param3;
-            p->serv_instance = self;
-            p->filename = msg->getData() + 4;
-            p->query = msg->getData() + 68;
-            p->datachn = datachn;
-            p->client_ip = ip;
-            p->client_data_port = *(int*)(msg->getData());
-
-            pthread_t sql_handler;
-            pthread_create(&sql_handler, NULL, SQLHandler, p);
-            pthread_detach(sql_handler);
-
-            msg->setData(0, (char*)&dataport, 4);
-            msg->m_iDataLength = 4 + 4;
-
-            self->m_GMP.sendto(ip, port, id, msg);
-
-            break; 
-         }
-
          case 300: // processing engine
          {
             Transport* datachn = new Transport;
@@ -644,63 +601,6 @@ void* Server::processEx(void* p)
                }
 
                cout << "syn " << filename << " " << msg->getType() << " " << msg->m_iDataLength - 4 << " " << attr.m_llSize << endl;
-            }
-            else
-            {
-               if (self->m_GMP.rpc(n.m_pcIP, n.m_iAppPort, msg, msg) < 0)
-               {
-                  msg->setType(-msg->getType());
-                  msg->m_iDataLength = 4;
-               }
-            }
-         }
-
-         break;
-      }
-
-      case 201: //semantics
-      {
-         string filename = msg->getData();
-         int fid = DHash::hash(filename.c_str(), m_iKeySpace);
-         Node n;
-
-         if (self->m_LocalFile.lookup(filename) >= 0)
-         {
-            vector<DataAttr> attr;
-            string tmp;
-            Semantics::loadSemantics(self->m_strHomeDir + filename + ".sem", attr);
-            Semantics::serialize(tmp, attr);
-            memcpy(msg->getData(), tmp.c_str(), tmp.length());
-            msg->m_iDataLength = 4 + tmp.length();
-
-            break;
-         }
-
-         int r = self->m_Router.lookup(fid, &n);
-
-         if (-1 == r)
-         {
-            msg->setType(-msg->getType());
-            msg->m_iDataLength = 4;
-         }
-         else
-         {
-            if (self->m_strLocalHost == n.m_pcIP)
-            {
-               set<Node, NodeComp> nl;
-               if (self->m_RemoteFile.lookup(filename, NULL, &nl) < 0)
-               {
-                  msg->setType(-msg->getType());
-                  msg->m_iDataLength = 4;
-               }
-               else
-               {
-                  if (self->m_GMP.rpc(nl.begin()->m_pcIP, nl.begin()->m_iAppPort, msg, msg) < 0)
-                  {
-                     msg->setType(-msg->getType());
-                     msg->m_iDataLength = 4;
-                  }
-               }
             }
             else
             {

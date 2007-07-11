@@ -33,7 +33,6 @@ written by
 #include <gmp.h>
 #include <node.h>
 #include <file.h>
-#include <data.h>
 
 namespace cb
 {
@@ -57,10 +56,6 @@ public:
    static File* createFileHandle();
    static void releaseFileHandle(File* f);
    static int stat(const string& filename, CFileAttr& attr);
-
-   static Query* createQueryHandle();
-   static void releaseQueryHandle(Query* q);
-   static int getSemantics(const string& name, vector<DataAttr>& attr);
 
    static Process* createJob();
    static int releaseJob(Process* proc);
