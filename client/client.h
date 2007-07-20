@@ -37,10 +37,12 @@ written by
 namespace cb
 {
 
+class File;
+class Process;
+
 class Client
 {
 friend class File;
-friend class Query;
 friend class Process;
 
 private:
