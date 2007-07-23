@@ -30,7 +30,6 @@ written by
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/sendfile.h>
 #include <server.h>
 #include <assert.h>
 #include <sstream>

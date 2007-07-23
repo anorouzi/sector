@@ -159,7 +159,7 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.setData(64, (char*)&mode, 4);
 
-   int port;
+   int port = 0;
    m_DataChn.open(port);
 
    msg.setData(68, (char*)&port, 4);

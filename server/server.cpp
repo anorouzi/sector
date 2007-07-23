@@ -33,7 +33,6 @@ written by
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sys/sendfile.h>
 #include <server.h>
 #include <assert.h>
 #include <sstream>
@@ -57,6 +56,8 @@ Server::~Server()
 
 int Server::init(char* ip, int port)
 {
+   cout << "SECTOR server built 07112007.\n";
+
    m_SysConfig.init("sector.conf");
 
    m_iLocalPort = m_SysConfig.m_iSECTORPort;
