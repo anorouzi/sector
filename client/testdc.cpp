@@ -83,6 +83,6 @@ int main(int argc, char** argv)
 
 // user defined process
 
-//int myProc(const char* unit, const int& rows, const int64_t& index, char* result, int& rsize, int& rrows, int64_t* rindex, int& bid, const char* param, const int& psize)
+//int myProc(const char* unit, const int& rows, const int64_t* index, char* result, int& rsize, int& rrows, int64_t* rindex, int& bid, const char* param, const int& psize)
 //{
 //}

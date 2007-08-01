@@ -83,12 +83,13 @@ int Server::init(char* ip, int port)
    if (res < 0)
       return -1;
 
+
+   m_strHomeDir = m_SysConfig.m_strDataDir;
+   //cout << "Home Dir " << m_strHomeDir << endl;
+   m_HomeDirMTime = -1;
+
    if (scanLocalFile() < 0)
       return -1;
-
-   struct stat s;
-   stat(m_strHomeDir.c_str(), &s);
-   m_HomeDirMTime = s.st_mtime;
 
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
@@ -173,6 +174,8 @@ void* Server::process(void* s)
          {
             char* filename = msg->getData();
 
+            if (self->m_LocalFile.lookup(filename) < 0)
+               self->scanLocalFile();
             if (self->m_LocalFile.lookup(filename) < 0)
             {
                // no file exist
@@ -634,13 +637,7 @@ void* Server::processEx(void* p)
 
 void Server::updateOutLink()
 {
-   struct stat s;
-   stat(m_strHomeDir.c_str(), &s);
-   if (m_HomeDirMTime != s.st_mtime)
-   {
-      scanLocalFile();
-      m_HomeDirMTime = s.st_mtime;
-   }
+   scanLocalFile();
 
    map<Node, set<string>, NodeComp> li;
    m_LocalFile.getLocIndex(li);
@@ -733,6 +730,13 @@ void Server::updateInLink()
 
 int Server::scanLocalFile()
 {
+   struct stat s;
+   stat(m_strHomeDir.c_str(), &s);
+   if (m_HomeDirMTime != s.st_mtime)
+      m_HomeDirMTime = s.st_mtime;
+   else
+      return 0;
+
    m_strHomeDir = m_SysConfig.m_strDataDir;
    //cout << "Home Dir " << m_strHomeDir << endl;
 

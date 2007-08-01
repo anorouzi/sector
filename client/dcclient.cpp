@@ -86,14 +86,21 @@ int Stream::init(const vector<string>& files)
       CFileAttr fattr, iattr;
       if (Client::stat(*i, fattr) < 0)
          return -1;
-      if (Client::stat(*i + ".idx", iattr) < 0)
-         return -1;
 
       *s = fattr.m_llSize;
-      *r = iattr.m_llSize / 8 - 1;
-
       m_llSize += *s;
-      m_llRecNum += *r;
+
+      if (Client::stat(*i + ".idx", iattr) < 0)
+      {
+          // no record index found
+          *r = -1;
+          m_llRecNum = -1;
+      }
+      else
+      {
+         *r = iattr.m_llSize / 8 - 1;
+         m_llRecNum += *r;
+      }
 
       s ++;
       r ++;
@@ -228,39 +235,64 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
       return -1;
 
 
-   int64_t avg = input.m_llSize / n;
-   int64_t unitsize;
-   if (avg > m_iMaxUnitSize)
-      unitsize = m_iMaxUnitSize * input.m_llRecNum / input.m_llSize;
-   else if (avg < m_iMinUnitSize)
-      unitsize = m_iMinUnitSize * input.m_llRecNum / input.m_llSize;
-   else
-      unitsize = input.m_llRecNum / n;
-
-   cout << "unitsize " << unitsize << " " << m_vDS.size() << endl;
-
-   // data segment
-   int seq = 0;
-   for (int i = 0; i < input.m_iFileNum; ++ i)
+   // data segementation
+   if (0 == rows)
    {
-      int64_t off = 0;
-      while (off < input.m_vRecNum[i])
+      int seq = 0;
+      for (int i = 0; i < input.m_iFileNum; ++ i)
       {
-         cout << "_++++ " << off << " " << input.m_vRecNum[i] << endl;
-
          DS ds;
          ds.m_iID = seq ++;
          ds.m_strDataFile = input.m_vFiles[i];
-         ds.m_llOffset = off;
-         ds.m_llSize = (input.m_vRecNum[i] - off > unitsize + 1) ? unitsize : (input.m_vRecNum[i] - off);
+         ds.m_llOffset = 0;
+         ds.m_llSize = input.m_vRecNum[i];
          ds.m_iSPEID = -1;
          ds.m_iStatus = 0;
          ds.m_pResult = new Result;
 
          m_vDS.insert(m_vDS.end(), ds);
-
-         off += ds.m_llSize;
       }
+   }
+   else if (input.m_llRecNum != -1)
+   {
+      int64_t avg = input.m_llSize / n;
+      int64_t unitsize;
+      if (avg > m_iMaxUnitSize)
+         unitsize = m_iMaxUnitSize * input.m_llRecNum / input.m_llSize;
+      else if (avg < m_iMinUnitSize)
+         unitsize = m_iMinUnitSize * input.m_llRecNum / input.m_llSize;
+      else
+         unitsize = input.m_llRecNum / n;
+
+      cout << "unitsize " << unitsize << " " << m_vDS.size() << endl;
+
+      int seq = 0;
+      for (int i = 0; i < input.m_iFileNum; ++ i)
+      {
+         int64_t off = 0;
+         while (off < input.m_vRecNum[i])
+         {
+            cout << "_++++ " << off << " " << input.m_vRecNum[i] << endl;
+
+            DS ds;
+            ds.m_iID = seq ++;
+            ds.m_strDataFile = input.m_vFiles[i];
+            ds.m_llOffset = off;
+            ds.m_llSize = (input.m_vRecNum[i] - off > unitsize + 1) ? unitsize : (input.m_vRecNum[i] - off);
+            ds.m_iSPEID = -1;
+            ds.m_iStatus = 0;
+            ds.m_pResult = new Result;
+
+            m_vDS.insert(m_vDS.end(), ds);
+
+            off += ds.m_llSize;
+         }
+      }
+   }
+   else
+   {
+      // data segementation error
+      return -1;
    }
 
    if (m_iOutputType == -1)
@@ -356,7 +388,7 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
 
 
    m_iProgress = 0;
-   m_iAvgRunTime = -1;
+   m_iAvgRunTime = 60;
    m_iTotalDS = m_vDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
@@ -460,7 +492,7 @@ void* Process::run(void* param)
       msg.m_iDataLength = 4;
       self->m_GMP.sendto(ip, port, id, &msg);
 
-      //cout << "recv CB " << msg.getType() << " " << ip << " " << port << endl;
+      cout << "recv CB " << msg.getType() << " " << ip << " " << port << endl;
 
       uint32_t speid = *(uint32_t*)(msg.getData());
       vector<SPE>::iterator s = self->m_vSPE.begin();
@@ -480,6 +512,12 @@ void* Process::run(void* param)
          continue;
 
       cout << "result is back!!! " << endl;
+
+
+      s->m_pDS->m_pResult->m_strOrigFile = s->m_pDS->m_strDataFile;
+      s->m_pDS->m_pResult->m_strIP = s->m_strIP;
+      s->m_pDS->m_pResult->m_iPort = s->m_iPort;
+
 
       if (self->m_iOutputType == 0)
       {
@@ -545,10 +583,7 @@ void* Process::run(void* param)
       // one SPE completes!
       timeval t;
       gettimeofday(&t, 0);
-      if (self->m_iAvgRunTime == -1)
-         self->m_iAvgRunTime = (t.tv_sec - s->m_StartTime.tv_sec) * 1000000 + t.tv_usec - s->m_StartTime.tv_usec;
-      else
-         self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec) * 1000000 + t.tv_usec - s->m_StartTime.tv_usec) / 8;
+      self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec)) / 8;
 
       // check uncompleted data segment
       if (self->m_iProgress < self->m_iTotalDS)
@@ -574,10 +609,10 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
       if (-1 == i->m_iStatus)
          continue;
 
-      int rtime = (t.tv_sec - i->m_StartTime.tv_sec) * 1000000 + t.tv_usec - i->m_StartTime.tv_usec;
-      int utime = (t.tv_sec - i->m_LastUpdateTime.tv_sec) * 1000000 + t.tv_usec - i->m_LastUpdateTime.tv_usec;
+      int rtime = t.tv_sec - i->m_StartTime.tv_sec;
+      int utime = t.tv_sec - i->m_LastUpdateTime.tv_sec;
 
-      if ((rtime > 8 * m_iAvgRunTime) && (utime > 8000000))
+      if ((rtime > 8 * m_iAvgRunTime) && (utime > 30))
       {
          // dismiss this SPE and release its job
          i->m_pDS->m_iSPEID = -1;
@@ -585,6 +620,8 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
          i->m_DataChn.close();
 
          m_iTotalSPE --;
+
+         cout << "TIMEOUT!!!?\n";
       }
       else if (0 == i->m_iStatus)
       {
@@ -667,6 +704,7 @@ int Process::read(Result*& res, const bool& inorder, const bool& wait)
 
       case 2:
          res = i->m_pResult;
+         res->m_strOrigFile = i->m_strDataFile;
 
          pthread_mutex_lock(&m_ResLock);
          m_vDS.erase(i);

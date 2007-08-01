@@ -5,7 +5,7 @@ LDFLAGS += -lclient -lrpc -ludt -lmeta
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload 
+all: libclient.so libclient.a testfs testdc download upload anglec
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -27,6 +27,9 @@ download: download.cpp
 
 upload: upload.cpp
 	$(C++) upload.cpp -o upload $(CCFLAGS) $(LDFLAGS)
+
+anglec: anglec.cpp
+	$(C++) anglec.cpp -o anglec $(CCFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f *.o *.so *.a testfs testdc download upload

@@ -114,6 +114,9 @@ private:
    static void* SPEShuffler(void* p5);
 
 private:
+   int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
+
+private:
    void updateOutLink();
    void updateInLink();
 

@@ -85,6 +85,9 @@ struct Result
    string m_strOrigFile;
    int64_t m_llOrigStartRec;
    int64_t m_llOrigEndRec;
+
+   string m_strIP;
+   int m_iPort;
 };
 
 class Process
@@ -96,6 +99,12 @@ public:
    ~Process();
 
    int run(const Stream& input, Stream& output, string op, const int& rows, const char* param = NULL, const int& size = 0);
+
+   // rows:
+   // 	n (n > 0): n rows per time
+   //	0: no rows, one file per time
+   //	-1: all rows
+
    int read(Result*& res, const bool& inorder = true, const bool& wait = true);
    int checkProgress();
    int close();
@@ -141,8 +150,8 @@ private:
    };
    vector<SPE> m_vSPE;
 
-   int m_iProgress;
-   int m_iAvgRunTime;
+   int m_iProgress;		// progress, 0..100
+   int m_iAvgRunTime;		// average running time, in seconds
    int m_iTotalDS;
    int m_iTotalSPE;
    int m_iAvailRes;

@@ -148,64 +148,38 @@ void* Server::SPEHandler(void* p)
       cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
 
       // read data
-      if (self->m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
+      if (0 != rows)
       {
-         ifstream idx;
-         idx.open((self->m_strHomeDir + datafile + ".idx").c_str());
-         idx.seekg(offset * 8);
-         idx.read((char*)index, (totalrows + 1) * 8);
-         idx.close();
-
-         size = index[totalrows] - index[0];
-         cout << "to read data " << size << endl;
-         block = new char[size];
-
-         ifstream ifs;
-         ifs.open((self->m_strHomeDir + datafile).c_str());
-         ifs.seekg(index[0]);
-         ifs.read(block, size);
-         ifs.close();
-
-         cout << "read data into block...\n";
-      }
-      else
-      {
-         File* f = Client::createFileHandle();
-         if (f->open(datafile.c_str()) < 0)
-         {
-            delete [] index;
-            return NULL;
-         }
-         if (f->readridx((char*)index, offset, totalrows) < 0)
-         {
-            delete [] index;
-            return NULL;
-         }
-
-         size = index[totalrows] - index[0];
-         block = new char[size];
-
-         if (f->read(block, index[0], size) < 0)
+         if (self->SPEReadData(datafile, offset, size, index, totalrows, block) <= 0)
          {
             delete [] index;
             delete [] block;
-            return NULL;
+            // acknowlege error here...
+            continue;
          }
-
-         f->close();
-         Client::releaseFileHandle(f);
+      }
+      else if (-1 == rows)
+      {
+         rows = totalrows;
+      }
+      else
+      {
+         // store file name in "process" parameter
+         block = new char[1024];
+         strcpy(block, datafile.c_str());
+         size = datafile.length() + 1;
       }
 
-      // -1 means all in once
-      if (-1 == rows)
-         rows = totalrows;
-
-      char* rdata = new char[size];
+      // TODO: use dynamic size at run time!
+      char* rdata = new char[1024 * 1024];
       int dlen = 0;
       int64_t* rindex = new int64_t[size];
       int ilen = 0;
       int bid;
       int progress = 0;
+
+      // rdata initially contains home data directory
+      strcpy(rdata, self->m_strHomeDir.c_str());
 
       SPEResult result;
       result.init(buckets, size);
@@ -233,6 +207,13 @@ void* Server::SPEHandler(void* p)
             t3 = t4;
          }
       }
+
+      if (0 == rows)
+      {
+         process(block, 0, NULL, rdata, dlen, ilen, rindex, bid, param, psize);
+      }
+
+      cout << "completed 100 " << ip << " " << ctrlport << endl;
 
       progress = 100;
       msg.setData(4, (char*)&progress, 4);
@@ -446,4 +427,52 @@ void* Server::SPEShuffler(void* p)
    self->scanLocalFile();
 
    return NULL;
+}
+
+int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block)
+{
+   if (m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
+   {
+      ifstream idx;
+      idx.open((m_strHomeDir + datafile + ".idx").c_str());
+      idx.seekg(offset * 8);
+      idx.read((char*)index, (totalrows + 1) * 8);
+      idx.close();
+
+      size = index[totalrows] - index[0];
+      cout << "to read data " << size << endl;
+      block = new char[size];
+
+      ifstream ifs;
+      ifs.open((m_strHomeDir + datafile).c_str());
+      ifs.seekg(index[0]);
+      ifs.read(block, size);
+      ifs.close();
+
+      cout << "read data into block...\n";
+
+      return totalrows;
+   }
+   else
+   {
+      File* f = Client::createFileHandle();
+      if (f->open(datafile.c_str()) < 0)
+         return -1;
+
+      if (f->readridx((char*)index, offset, totalrows) < 0)
+         return -1;
+
+      size = index[totalrows] - index[0];
+      block = new char[size];
+
+      if (f->read(block, index[0], size) < 0)
+         return -1;
+
+      f->close();
+      Client::releaseFileHandle(f);
+
+      return totalrows;
+   }
+
+   return 0;
 }
