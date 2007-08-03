@@ -8,19 +8,18 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version.
+UDT is free software; you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option)
+any later version.
 
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+UDT is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this library; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -29,7 +28,7 @@ This is the (only) header file of the UDT API, needed for programming with UDT.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2007
 *****************************************************************************/
 
 #ifndef _UDT_H_
@@ -66,13 +65,12 @@ written by
    #else
       #define UDT_API __declspec(dllimport)
    #endif
-
-   #define NO_BUSY_WAITING
 #else
    #define UDT_API
 #endif
 
-typedef void (*UDT_MEM_ROUTINE)(char*, int, void*);
+#define NO_BUSY_WAITING
+
 
 typedef int UDTSOCKET;
 
@@ -171,6 +169,15 @@ public:
 
    virtual const int getErrorCode() const;
 
+      // Functionality:
+      //    Clear the error code.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    None.
+
+   virtual void clear();
+
 private:
    int m_iMajor;        // major exception categories
 
@@ -268,7 +275,7 @@ UDT_API int64_t recvfile(UDTSOCKET u, std::ofstream& ofs, int64_t offset, int64_
 
 UDT_API int select(int nfds, UDSET* readfds, UDSET* writefds, UDSET* exceptfds, const struct timeval* timeout);
 
-UDT_API ERRORINFO getlasterror();
+UDT_API ERRORINFO& getlasterror();
 
 UDT_API int perfmon(UDTSOCKET u, TRACEINFO* perf, bool clear = true);
 }

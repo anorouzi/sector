@@ -8,19 +8,18 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version.
+UDT is free software; you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option)
+any later version.
 
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+UDT is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this library; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -29,7 +28,7 @@ This header file contains the definition of UDT multiplexer.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2007
 *****************************************************************************/
 
 
@@ -46,7 +45,7 @@ class CUDT;
 struct CUnit
 {
    CPacket m_Packet;		// packet
-   bool m_bValid;		// if this is a valid entry
+   int m_iFlag;			// 0: free, 1: occupied, 2: msg read but not freed (out-of-order), 3: msg dropped
 };
 
 class CUnitQueue
@@ -498,7 +497,6 @@ public:
    int m_iPort;			// The UDP port number of this multiplexer
    int m_iIPversion;		// IP version
    int m_iMTU;			// MTU
-   int m_iSockType;		// Socket Type
    int m_iRefCount;		// number of UDT instances that are associated with this multiplexer
    bool m_bReusable;		// if this one can be shared with others
 };

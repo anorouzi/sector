@@ -1,8 +1,10 @@
 #include <gmp.h>
+#include <message.h>
 #include <unistd.h>
 #include <iostream>
 
 using namespace std;
+using namespace cb;
 
 int main()
 {
@@ -13,25 +15,19 @@ int main()
 
    cout << "TEST " << gmp.rtt("127.0.0.1", 6000) << endl;
 
-//   char ip[64];
-//   int port;
-//   char* data = "hello world! hello, hello!";
-//   int len = 1024;
 
-   char* data  = new char[2000];
-
+   CUserMessage req, res;
+   req.m_iDataLength = 2000;
    int32_t id;
-   char res[1024];
-   int reslen;
 
    while (true)
    {
       id = 0;
-      gmp.sendto("127.0.0.1", 6000, id, data, 20);
+      gmp.sendto("127.0.0.1", 6000, id, &req);
 
-      gmp.recv(id, res, reslen);
+      gmp.recv(id, &res);
 
-      cout << "response: " << id << " " << res << " " << reslen << " " << gmp.rtt("127.0.0.1", 6000) << endl;
+      cout << "response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
 
       sleep(1);
 

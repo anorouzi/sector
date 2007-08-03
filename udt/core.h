@@ -8,19 +8,18 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version.
+UDT is free software; you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option)
+any later version.
 
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+UDT is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this library; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -29,7 +28,7 @@ This header file contains the definition of UDT core structure and operations.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2007
 *****************************************************************************/
 
 #ifndef __UDT_CORE_H__
@@ -45,6 +44,7 @@ written by
 #include "channel.h"
 #include "api.h"
 #include "ccc.h"
+#include "control.h"
 #include "queue.h"
 
 class UDT_API CUDT
@@ -52,8 +52,12 @@ class UDT_API CUDT
 friend struct CUDTSocket;
 friend class CUDTUnited;
 friend class CCC;
+friend class CUDTComp;
+friend class CControl;
 friend class CSndQueue;
 friend class CRcvQueue;
+friend class CSndUList;
+friend class CRcvUList;
 
 private: // constructor and desctructor
    CUDT();
@@ -241,7 +245,7 @@ private: // Identification
    UDTSOCKET m_SocketID;                        // UDT socket number
    int m_iSockType;                             // Type of the UDT connection (SOCK_STREAM or SOCK_DGRAM)
    UDTSOCKET m_PeerID;				// peer id, for multiplexer
-   const int m_iVersion;                        // UDT version, for compatibility use
+   static const int m_iVersion;                 // UDT version, for compatibility use
 
 private: // Packet size and sequence number attributes
    int m_iPktSize;                              // Maximum/regular packet size, in bytes
@@ -262,11 +266,11 @@ private: // Options
    int m_iSndTimeOut;                           // sending timeout in milliseconds
    int m_iRcvTimeOut;                           // receiving timeout in milliseconds
    bool m_bReuseAddr;				// reuse an exiting port or not, for UDP multiplexer
-   const int m_iQuickStartPkts;                 // Number of packets to be sent as a quick start
 
-private: // CCC
+private: // congestion control
    CCCVirtualFactory* m_pCCFactory;             // Factory class to create a specific CC instance
-   CCC* m_pCC;                                  // custom congestion control class
+   CCC* m_pCC;                                  // congestion control class
+   CControl* m_pController;			// congestion control manager
 
 private: // Status
    volatile bool m_bListening;                  // If the UDT entit is listening to connection
@@ -275,11 +279,11 @@ private: // Status
    volatile bool m_bShutdown;                   // If the peer side has shutdown the connection
    volatile bool m_bBroken;                     // If the connection has been broken
    bool m_bOpened;                              // If the UDT entity has been opened
-   bool m_bSndSlowStart;                        // If UDT is during slow start phase (snd side flag)
-   bool m_bRcvSlowStart;                        // If UDT is during slow start phase (rcv side flag)
-   bool m_bFreeze;                              // freeze the data sending
+
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth
+   int m_iRTT;                                  // RTT
+   int m_iRTTVar;                               // RTT varianc
 
 private: // Sending related data
    CSndBuffer* m_pSndBuffer;                    // Sender buffer
@@ -287,20 +291,10 @@ private: // Sending related data
    CPktTimeWindow* m_pSndTimeWindow;            // Packet sending time window
 
    volatile uint64_t m_ullInterval;             // Inter-packet time, in CPU clock cycles
-   uint64_t m_ullLastDecRate;                   // inter-packet time when last decrease occurs
    uint64_t m_ullTimeDiff;                      // aggregate difference in inter-packet time
 
    volatile int m_iFlowWindowSize;              // Flow control window size
-   int m_iMaxFlowWindowSize;                    // Maximum flow window size = flight flag size of the peer side
    volatile double m_dCongestionWindow;         // congestion window size
-
-   int m_iNAKCount;                             // NAK counter
-   int m_iDecRandom;                            // random threshold on decrease by number of loss events
-   int m_iAvgNAKNum;                            // average number of NAKs per congestion
-   int m_iDecCount;				// number of decreases in a congestion epoch
-
-   uint64_t m_LastSYNTime;                      // the timestamp when last rate control occured
-   bool m_bLoss;                                // if there is any loss during last RC period
 
    volatile int32_t m_iSndLastAck;              // Last ACK received
    int32_t m_iSndLastDataAck;                   // The real last ACK that updates the sender buffer and loss list
@@ -315,9 +309,6 @@ private: // Receiving related data
    CACKWindow* m_pACKWindow;                    // ACK history window
    CPktTimeWindow* m_pRcvTimeWindow;            // Packet arrival time window
 
-   int m_iRTT;                                  // RTT
-   int m_iRTTVar;                               // RTT variance
-
    int32_t m_iRcvLastAck;                       // Last sent ACK
    uint64_t m_ullLastAckTime;                   // Timestamp of last ACK
    int32_t m_iRcvLastAckAck;                    // Last sent ACK that has been acknowledged
@@ -327,8 +318,6 @@ private: // Receiving related data
    uint64_t m_ullLastWarningTime;               // Last time that a warning message is sent
 
    int32_t m_iPeerISN;                          // Initial Sequence Number of the peer side
-
-   int m_iFlowControlWindow;                    // flow control window size to be advertised
 
 private: // synchronization: mutexes and conditions
    pthread_mutex_t m_ConnectionLock;            // used to synchronize connection operation
@@ -348,17 +337,12 @@ private: // synchronization: mutexes and conditions
    void destroySynch();
    void releaseSynch();
 
-private: // congestion control
-   void rateControl();
-   void flowControl(const int& recvrate);
-
 private: // Generation and processing of packets
    void sendCtrl(const int& pkttype, void* lparam = NULL, void* rparam = NULL, const int& size = 0);
    void processCtrl(CPacket& ctrlpkt);
    int packData(CPacket& packet, uint64_t& ts);
    int processData(CUnit* unit);
    int listen(sockaddr* addr, CPacket& packet);
-   void checkTimers();
 
 private: // Trace
    uint64_t m_StartTime;                        // timestamp when the UDT entity is started
@@ -386,27 +370,26 @@ private: // Trace
 private: // Timers
    uint64_t m_ullCPUFrequency;                  // CPU clock frequency, used for Timer
 
-   const int m_iSYNInterval;                    // Periodical Rate Control Interval, 10 microseconds
-   const int m_iSelfClockInterval;              // ACK interval for self-clocking
+   static const int m_iSYNInterval;             // Periodical Rate Control Interval, 10 microseconds
+   static const int m_iSelfClockInterval;       // ACK interval for self-clocking
 
    uint64_t m_ullNextACKTime;			// Next ACK time, in CPU clock cycles
    uint64_t m_ullNextNAKTime;			// Next NAK time
    uint64_t m_ullNextEXPTime;			// Next timeout
-   #ifdef CUSTOM_CC
-      uint64_t m_ullNextCCACKTime;		// Next ACK time for custom control
-      uint64_t m_ullNextRTO;			// Next RTO
-   #endif
 
    volatile uint64_t m_ullSYNInt;		// SYN interval
    volatile uint64_t m_ullACKInt;		// ACK interval
    volatile uint64_t m_ullNAKInt;		// NAK interval
    volatile uint64_t m_ullEXPInt;		// EXP interval
 
-   int m_iPktCount;				// packet counter
+   int m_iPktCount;				// packet counter for ACK
+   int m_iLightACKCount;			// light ACK counter
 
    uint64_t m_ullTargetTime;			// target time of next packet sending
 
-public: // for UDP multiplexer
+   void checkTimers();
+
+private: // for UDP multiplexer
    CSndQueue* m_pSndQueue;			// packet sending queue
    CRcvQueue* m_pRcvQueue;			// packet receivinf queue
    sockaddr* m_pPeerAddr;			// peer address

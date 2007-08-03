@@ -8,19 +8,18 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version.
+UDT is free software; you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option)
+any later version.
 
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+UDT is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this library; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -29,7 +28,7 @@ This header file contains the definition of UDT buffer structure and operations.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/08/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/28/2007
 *****************************************************************************/
 
 #ifndef __UDT_BUFFER_H__
@@ -219,6 +218,18 @@ public:
       //    actuall size of data read.
 
    int readMsg(char* data, const int& len);
+
+      // Functionality:
+      //    Query how many messages are available now.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    number of messages available for recvmsg.
+
+   int getRcvMsgNum();
+
+private:
+   bool scanMsg(int& start, int& end, bool& passack);
 
 private:
    CUnit** m_pUnit;                     // pointer to the protocol buffer

@@ -8,24 +8,22 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This program is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License as published by the Free
-Software Foundation; either version 2 of the License, or (at your option)
+GMP is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
 any later version.
 
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
-more details.
+GMP is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
-You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 51
-Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
+You should have received a copy of the GNU General Public License along
+with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/02/2007
 *****************************************************************************/
 
 
@@ -233,15 +231,12 @@ int CGMP::getPort()
    return m_iPort;
 }
 
-int CGMP::sendto(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
+int CGMP::sendto(const char* ip, const int& port, int32_t& id, const CUserMessage* msg)
 {
-   assert(len < 65536);
-   assert(strlen(ip) < 64);
-
-   if (len <= m_iMaxUDPMsgSize)
-      return UDPsend(ip, port, id, data, len, reliable);
+   if (msg->m_iDataLength <= m_iMaxUDPMsgSize)
+      return UDPsend(ip, port, id, msg->m_pcBuffer, msg->m_iDataLength, true);
    else
-      return UDTsend(ip, port - 1, id, data, len);
+      return UDTsend(ip, port - 1, id, msg->m_pcBuffer, msg->m_iDataLength);
 }
 
 int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
@@ -361,7 +356,7 @@ int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
    return 16 + msg->m_iLength;
 }
 
-int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len, const bool& block)
+int CGMP::recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg, const bool& block)
 {
    bool timeout = false;
 
@@ -398,7 +393,6 @@ int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len, const
    if (m_bClosed || timeout)
    {
       Sync::leaveCS(m_RcvQueueLock);
-      len = 0;
       return -1;
    }
 
@@ -411,17 +405,19 @@ int CGMP::recvfrom(char* ip, int& port, int32_t& id, char* data, int& len, const
    port = rec->m_iPort;
    id = rec->m_pMsg->m_iID;
 
-   if (len > rec->m_pMsg->m_iLength)
-      len = rec->m_pMsg->m_iLength;
-   memcpy(data, rec->m_pMsg->m_pcData, len);
+   if (msg->m_iBufLength < rec->m_pMsg->m_iLength)
+      msg->resize(rec->m_pMsg->m_iLength);
+   msg->m_iBufLength = rec->m_pMsg->m_iLength;
+
+   memcpy(msg->m_pcBuffer, rec->m_pMsg->m_pcData, msg->m_iBufLength);
 
    delete rec->m_pMsg;
    delete rec;
 
-   return len;
+   return msg->m_iBufLength;
 }
 
-int CGMP::recv(const int32_t& id, char* data, int& len)
+int CGMP::recv(const int32_t& id, CUserMessage* msg)
 {
    Sync::enterCS(m_ResQueueLock);
 
@@ -446,12 +442,16 @@ int CGMP::recv(const int32_t& id, char* data, int& len)
    }
 
    bool found = false;
+
    if (m != m_mResQueue.end())
    {
-      if (len > m->second->m_pMsg->m_iLength)
-         len = m->second->m_pMsg->m_iLength;
-      if (len > 0)
-         memcpy(data, m->second->m_pMsg->m_pcData, len);
+      if (msg->m_iBufLength < m->second->m_pMsg->m_iLength)
+         msg->resize(m->second->m_pMsg->m_iLength);
+      msg->m_iBufLength = m->second->m_pMsg->m_iLength;
+
+      if (msg->m_iBufLength > 0)
+         memcpy(msg->m_pcBuffer, m->second->m_pMsg->m_pcData, msg->m_iBufLength);
+
       delete m->second->m_pMsg;
       delete m->second;
       m_mResQueue.erase(m);
@@ -464,7 +464,7 @@ int CGMP::recv(const int32_t& id, char* data, int& len)
    if (!found)
       return -1;
 
-   return len;
+   return msg->m_iBufLength;
 }
 
 #ifndef WIN32
@@ -856,40 +856,6 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
    #endif
 
    return NULL;
-}
-
-int CGMP::sendto(const char* ip, const int& port, int32_t& id, const CUserMessage* msg)
-{
-   return sendto(ip, port, id, msg->m_pcBuffer, msg->m_iDataLength);
-}
-
-int CGMP::recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg, const bool& block)
-{
-   int rsize = msg->m_iBufLength;
-   if (recvfrom(ip, port, id, msg->m_pcBuffer, rsize, block) < 0)
-   {
-      msg->m_iDataLength = 0;
-      return -1;
-   }
-
-   msg->m_iDataLength = rsize;
-
-   return rsize;
-}
-
-int CGMP::recv(const int32_t& id, CUserMessage* msg)
-{
-   int rsize = msg->m_iBufLength;
-
-   if (recv(id, msg->m_pcBuffer, rsize) < 0)
-      return -1;
-
-   if (rsize > 0)
-      msg->m_iDataLength = rsize;
-   else
-      msg->m_iDataLength = 0;
-
-   return rsize;
 }
 
 int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* res)

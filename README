@@ -1,19 +1,43 @@
+Copyright © 2006 - 2007, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+
+SECTOR: A Distributed Storage and Computing Infrastructure
+
+National Center for Data Mining (NCDM)
+University of Illinois at Chicago
+http://www.ncdm.uic.edu/
+
+Sector is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option)
+any later version.
+
+Sector is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+==================================================================================
+
 I. Installation
 
-SECTOR Servers currently only works on Linux system. Simple use "make" to compile the source 
-code and the generated executables can be found in ./server and ./client respectively.
+SECTOR Servers currently only works on Linux system. Simple use "make" to compile 
+the source code and the generated executables can be found in ./server and ./client 
+respectively.
 
 SECTOR uses dynamic libraries, which can be found in ./lib directory.
 
 Note:
-1. Do NOT use GCC version 3.3. If you have multiple versions of GCC in your system, change 
-Makefile.common and ./udt/Makefile to use the proper version.
+1. Do NOT use GCC version 3.3. If you have multiple versions of GCC in your system, 
+change Makefile.common and ./udt/Makefile to use the proper version.
 2. SECTOR requres libssl-dev to compile.
 
 
 II. Configuration
-The only configuration file is ./server/sector.conf. You may need to edit this file to assign
-a specific location for file storage and port numbers.
+The only configuration file is ./server/sector.conf. You may need to edit this file 
+to assign a specific location for file storage and port numbers.
 
 
 III. Server
@@ -25,15 +49,15 @@ For more servers:
 ./cbfs <LOCAL IP ADDRESS> <REMOTE IP ADDRESS> <REMOTE PORT>
 
 For example,
-If you start the first server on 10.0.0.1 at port 2237, run ./cbfs 10.0.0.1. The port number "2237"
-is specified in configuration file sector.conf.
+If you start the first server on 10.0.0.1 at port 2237, run ./cbfs 10.0.0.1. The port 
+number "2237" is specified in configuration file sector.conf.
 Then if you start the second server on 10.0.0.2, run ./cbfs 10.0.0.2 10.0.0.1 2237
 
 
 IV. Client
 
-The client programs are located at ./client directory. There are two applications. "download"
-is used to download files to a local disk.
+The client programs are located at ./client directory. There are two applications. 
+"download" is used to download files to a local disk.
 
 ./download <IP> <PORT> <FILE LIST> <LOCAL DIRECTORY>
 
@@ -43,17 +67,17 @@ In particular, the <FILE LIST> is an ASCII file with a list of file names, one p
 
 ./upload <IP> <PORT> <SRC FILE> [DST FILE]
 
-The above command uploads a local file <SRC FILE> to the server <IP:PORT> with the destination
-name of [DST FILE]. The destination name is optional. If it is not used, the file on the server will
-have the same name as <SRC FILE>.
+The above command uploads a local file <SRC FILE> to the server <IP:PORT> with the 
+destination name of [DST FILE]. The destination name is optional. If it is not used, 
+the file on the server will have the same name as <SRC FILE>.
 
-Note that SECTOR is a flat file system. There is no directory structure, so every file must have a 
-unique file name. In addition, the client cannot modify or overwrite a file unless the file is 
-originally uploaded by the same client.
+Note that SECTOR is a flat file system. There is no directory structure, so every file 
+must have a unique file name. In addition, the client cannot modify or overwrite a file 
+unless the file is originally uploaded by the same client.
 
 The SECTOR client also works on Windows system.
 
 
 V. Need help?
-SECTOR is really new, the document is far from complete, and it could be buggy. Please feel free to
-contact Yunhong Gu <gu at lac dot uic dot edu>. Thanks!
+SECTOR is really new, the document is far from complete, and it could be buggy. Please 
+feel free to contact Yunhong Gu <gu at lac dot uic dot edu>. Thanks!

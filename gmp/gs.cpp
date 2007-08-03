@@ -1,7 +1,9 @@
 #include <gmp.h>
+#include <message.h>
 #include <iostream>
 
 using namespace std;
+using namespace cb;
 
 int main()
 {
@@ -11,19 +13,23 @@ int main()
 
    char ip[64];
    int port;
-   char data[1024];
-   int len = 1024;
+
+   CUserMessage msg;
    int32_t id;
 
    char* res = "got it.";
+   strcpy(msg.m_pcBuffer, res);
+   msg.m_iDataLength = strlen(res) + 1;
 
    while (true)
    {
-      gmp.recvfrom(ip, port, id, data, len);
+      gmp.recvfrom(ip, port, id, &msg);
 
-      cout << "RECV " << ip << " " << port << " " << id << " " << data << " " << len << endl;
+      cout << "RECV " << ip << " " << port << " " << id << " " << msg.m_pcBuffer << " " << msg.m_iDataLength << endl;
 
-      gmp.sendto(ip, port, id, res, strlen(res) + 1);
+      strcpy(msg.m_pcBuffer, res);
+      msg.m_iDataLength = strlen(res) + 1;
+      gmp.sendto(ip, port, id, &msg);
 
       cout << endl << endl;
    }

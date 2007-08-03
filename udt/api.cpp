@@ -8,19 +8,18 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version.
+UDT is free software; you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option)
+any later version.
 
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+UDT is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this library; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -31,7 +30,7 @@ reference: UDT programming manual and socket programming reference
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/27/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/28/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -127,6 +126,7 @@ CUDTUnited::CUDTUnited()
    #endif
 
    m_vMultiplexer.clear();
+   m_pController = new CControl;
 }
 
 CUDTUnited::~CUDTUnited()
@@ -146,6 +146,7 @@ CUDTUnited::~CUDTUnited()
    #endif
 
    m_vMultiplexer.clear();
+   delete m_pController;
 
    // Global destruction code
    #ifdef WIN32
@@ -195,6 +196,7 @@ UDTSOCKET CUDTUnited::newSocket(const int& af, const int& type)
    ns->m_pUDT->m_SocketID = ns->m_Socket;
    ns->m_pUDT->m_iSockType = type;
    ns->m_pUDT->m_iIPversion = ns->m_iIPversion = af;
+   ns->m_pUDT->m_pController = m_pController;
 
    // protect the m_Sockets structure.
    #ifndef WIN32
@@ -750,7 +752,7 @@ int CUDTUnited::select(ud_set* readfds, ud_set* writefds, ud_set* exceptfds, con
             if (NULL == (s = locate(*i)))
                throw CUDTException(5, 4, 0);
 
-            if ((s->m_pUDT->m_bConnected && (s->m_pUDT->m_pRcvBuffer->getRcvDataSize() > 0))
+            if ((s->m_pUDT->m_bConnected && (s->m_pUDT->m_pRcvBuffer->getRcvDataSize() > 0) && ((s->m_pUDT->m_iSockType == SOCK_STREAM) || (s->m_pUDT->m_pRcvBuffer->getRcvMsgNum() > 0)))
                || (!s->m_pUDT->m_bListening && (s->m_pUDT->m_bBroken || !s->m_pUDT->m_bConnected))
                || (s->m_pUDT->m_bListening && (s->m_pQueuedSockets->size() > 0))
                || (s->m_Status == CUDTSocket::CLOSED))
@@ -1568,7 +1570,7 @@ int select(int nfds, UDSET* readfds, UDSET* writefds, UDSET* exceptfds, const st
    return CUDT::select(nfds, readfds, writefds, exceptfds, timeout);
 }
 
-ERRORINFO getlasterror()
+ERRORINFO& getlasterror()
 {
    return CUDT::getlasterror();
 }

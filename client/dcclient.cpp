@@ -23,19 +23,20 @@ Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/02/2007
 *****************************************************************************/
 
 #include "dcclient.h"
 #include "fsclient.h"
 #include <algorithm>
+
 using namespace std;
 using namespace cb;
+
 
 Process* Client::createJob()
 {
    Process* process = new Process;
-
    return process;
 }
 

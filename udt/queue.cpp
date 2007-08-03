@@ -8,19 +8,18 @@ National Center for Data Mining (NCDM)
 University of Illinois at Chicago
 http://www.ncdm.uic.edu/
 
-This library is free software; you can redistribute it and/or modify it
-under the terms of the GNU Lesser General Public License as published by
-the Free Software Foundation; either version 2.1 of the License, or (at
-your option) any later version.
+UDT is free software; you can redistribute it and/or modify it under the
+terms of the GNU Lesser General Public License as published by the Free
+Software Foundation; either version 3 of the License, or (at your option)
+any later version.
 
-This library is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
-General Public License for more details.
+UDT is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this library; if not, write to the Free Software Foundation, Inc.,
-59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -29,7 +28,7 @@ This file contains the implementation of UDT multiplexer.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/06/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2007
 *****************************************************************************/
 
 #ifdef WIN32
@@ -93,7 +92,7 @@ int CUnitQueue::init(const int& size, const int& mss, const int& version)
 
    for (int i = 0; i < size; ++ i)
    {
-      tempu[i].m_bValid = false;
+      tempu[i].m_iFlag = 0;
       tempu[i].m_Packet.m_pcData = tempb + i * mss;
    }
    tempq->m_pUnit = tempu;
@@ -121,7 +120,7 @@ int CUnitQueue::increase()
    {
       CUnit* u = p->m_pUnit;
       for (CUnit* end = u + p->m_iSize - 1; u != end; ++ u)
-         if (u->m_bValid)
+         if (u->m_iFlag != 0)
             ++ real_count;
 
       if (p == m_pLastQueue)
@@ -157,7 +156,7 @@ int CUnitQueue::increase()
 
    for (int i = 0; i < size; ++ i)
    {
-      tempu[i].m_bValid = false;
+      tempu[i].m_iFlag = 0;
       tempu[i].m_Packet.m_pcData = tempb + i * m_iMSS;
    }
    tempq->m_pUnit = tempu;
@@ -192,10 +191,10 @@ CUnit* CUnitQueue::getNextAvailUnit()
    while (true)
    {
       for (CUnit* sentinel = m_pCurrQueue->m_pUnit + m_pCurrQueue->m_iSize - 1; m_pAvailUnit != sentinel; ++ m_pAvailUnit)
-         if (!m_pAvailUnit->m_bValid)
+         if (m_pAvailUnit->m_iFlag == 0)
             return m_pAvailUnit;
 
-      if (!m_pCurrQueue->m_pUnit->m_bValid)
+      if (m_pCurrQueue->m_pUnit->m_iFlag == 0)
       {
          m_pAvailUnit = m_pCurrQueue->m_pUnit;
          return m_pAvailUnit;
@@ -762,7 +761,6 @@ int CHash::retrieve(const int32_t& id, CPacket& packet)
 
          packet.setLength(b->m_pUnit->m_Packet.getLength());
 
-         //b->m_pUnit->m_bValid = false;
          delete [] b->m_pUnit->m_Packet.m_pcData;
          delete b->m_pUnit;
          b->m_pUnit = NULL;
