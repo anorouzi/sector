@@ -2,7 +2,7 @@
 Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
-SECTOR: A Distributed Storage and Computing Infrastructure
+Sector: A Distributed Storage and Computing Infrastructure
 
 National Center for Data Mining (NCDM)
 University of Illinois at Chicago
