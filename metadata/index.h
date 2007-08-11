@@ -50,8 +50,8 @@ public:
    ~LocalFileIndex();
 
 public:
-   int lookup(const string& filename, CFileAttr* attr = NULL);
-   int insert(const CFileAttr& attr, const Node* n = NULL);
+   int lookup(const string& filename, string& dir, CFileAttr* attr = NULL);
+   int insert(const CFileAttr& attr, const string& dir, const Node* n = NULL);
    void remove(const string& filename);
    void updateNameServer(const string& filename, const Node& loc);
    int getLocIndex(map<Node, set<string>, NodeComp>& li);
@@ -59,10 +59,11 @@ public:
    int updateFileLock(const string& filename, const int& iotype) {return 0;}
 
 private:
-   map<string, CFileAttr> m_mNameIndex;
-   map<string, Node> m_mLocInfo;
-   map<Node, set<string>, NodeComp> m_mLocIndex;
-   map<string, int> m_mFileLock;		// 0: available; 1: read locked, 2: write locked
+   map<string, CFileAttr> m_mNameIndex;			// name index
+   map<string, Node> m_mLocInfo;			// remote metadata location
+   map<Node, set<string>, NodeComp> m_mLocIndex;	// remote metadata location ordered by node
+   map<string, int> m_mFileLock;			// 0: available; 1: read locked, 2: write locked
+   map<string, string> m_mDir;				// local directory
 
 private:
    pthread_mutex_t m_IndexLock;

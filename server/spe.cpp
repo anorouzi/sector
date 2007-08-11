@@ -107,8 +107,11 @@ void* Server::SPEHandler(void* p)
    if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
 
-   cout << "locating so " << (self->m_strHomeDir + function + ".so") << endl;
-   void* handle = dlopen((self->m_strHomeDir + function + ".so").c_str(), RTLD_LAZY);
+   string dir;
+   self->m_LocalFile.lookup(function + ".so", dir);
+
+   cout << "locating so " << (self->m_strHomeDir + dir + function + ".so") << endl;
+   void* handle = dlopen((self->m_strHomeDir + dir + function + ".so").c_str(), RTLD_LAZY);
    if (NULL == handle)
       return NULL;
 
@@ -431,10 +434,12 @@ void* Server::SPEShuffler(void* p)
 
 int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block)
 {
-   if (m_LocalFile.lookup(datafile.c_str(), NULL) > 0)
+   string dir;
+
+   if (m_LocalFile.lookup(datafile.c_str(), dir) > 0)
    {
       ifstream idx;
-      idx.open((m_strHomeDir + datafile + ".idx").c_str());
+      idx.open((m_strHomeDir + dir + datafile + ".idx").c_str());
       idx.seekg(offset * 8);
       idx.read((char*)index, (totalrows + 1) * 8);
       idx.close();
@@ -444,7 +449,7 @@ int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size
       block = new char[size];
 
       ifstream ifs;
-      ifs.open((m_strHomeDir + datafile).c_str());
+      ifs.open((m_strHomeDir + dir + datafile).c_str());
       ifs.seekg(index[0]);
       ifs.read(block, size);
       ifs.close();

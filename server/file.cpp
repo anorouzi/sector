@@ -60,7 +60,9 @@ void* Server::fileHandler(void* p)
 
 //   self->m_KBase.m_iNumConn ++;
 
-   filename = self->m_strHomeDir + filename;
+   string dir;
+   self->m_LocalFile.lookup(filename, dir);
+   filename = self->m_strHomeDir + dir + filename;
 
    timeval t1, t2;
    gettimeofday(&t1, 0);

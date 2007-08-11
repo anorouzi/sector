@@ -30,7 +30,7 @@ ifeq ($(arch), AMD64)
    CCFLAGS += -DAMD64
 endif
 
-OBJS = common.o window.o list.o buffer.o packet.o channel.o queue.o core.o api.o ccc.o
+OBJS = common.o window.o list.o buffer.o packet.o channel.o queue.o core.o control.o api.o ccc.o
 DIR = $(shell pwd)
 
 all: libudt.so libudt.a udt

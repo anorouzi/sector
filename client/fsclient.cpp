@@ -34,7 +34,6 @@ using namespace cb;
 
 File* Client::createFileHandle()
 {
-   cout << "new file handle\n";
    File *f = NULL;
 
    try
@@ -85,13 +84,14 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
 {
    m_strFileName = filename;
 
+   CCBMsg msg;
+
    while (NULL == nl)
    {
       Node n;
       if (Client::lookup(filename, &n) < 0)
          break;
 
-      CCBMsg msg;
       msg.setType(1); // locate file
       msg.setData(0, filename.c_str(), filename.length() + 1);
       msg.m_iDataLength = 4 + filename.length() + 1;
@@ -101,7 +101,7 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
 
       nl = msg.getData();
       nlsize = (msg.m_iDataLength - 4) / 68;
-
+cout << "GOT IT " << nl << endl;
       break;
    };
 
@@ -122,6 +122,8 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
             c = i;
          }
       }
+
+      cout << "RTT " << nl << " " << *(int32_t*)(nl + 64) << " " << c << endl;
 
       if (-1 != c)
       {
@@ -154,7 +156,6 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
          strcpy(cert, msg.getData());
    }
 
-   CCBMsg msg;
    msg.setType(2); // open the file
    msg.setData(0, filename.c_str(), filename.length() + 1);
    msg.setData(64, (char*)&mode, 4);

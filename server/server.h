@@ -37,6 +37,7 @@ written by
 #include <conf.h>
 #include <index.h>
 #include <kb.h>
+#include <fs.h>
 
 namespace cb
 {
@@ -142,6 +143,8 @@ private:
    CPerfLog m_PerfLog;
 
    SECTORParam m_SysConfig;
+
+   SectorFS m_SectorFS;
 
    KnowledgeBase m_KBase;
 };

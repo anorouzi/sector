@@ -44,7 +44,7 @@ LocalFileIndex::~LocalFileIndex()
    Sync::releaseMutex(m_IndexLock);
 }
 
-int LocalFileIndex::lookup(const string& filename, CFileAttr* attr)
+int LocalFileIndex::lookup(const string& filename, string& dir, CFileAttr* attr)
 {
    Sync::enterCS(m_IndexLock);
 
@@ -56,6 +56,8 @@ int LocalFileIndex::lookup(const string& filename, CFileAttr* attr)
       return -1;
    }
 
+   dir = m_mDir[filename];
+
    if (NULL != attr)
       *attr = i->second;
 
@@ -64,7 +66,7 @@ int LocalFileIndex::lookup(const string& filename, CFileAttr* attr)
    return 1;
 }
 
-int LocalFileIndex::insert(const CFileAttr& attr, const Node* n)
+int LocalFileIndex::insert(const CFileAttr& attr, const string& dir, const Node* n)
 {
    Sync::enterCS(m_IndexLock);
 
@@ -87,6 +89,7 @@ int LocalFileIndex::insert(const CFileAttr& attr, const Node* n)
    }
    i->second.insert(attr.m_pcName);
    m_mLocInfo[attr.m_pcName] = *node;
+   m_mDir[attr.m_pcName] = dir;
 
    Sync::leaveCS(m_IndexLock);
 
@@ -113,6 +116,7 @@ void LocalFileIndex::remove(const string& filename)
       m_mLocIndex.erase(n);
 
    m_mLocInfo.erase(filename);
+   m_mDir.erase(filename);
 
    Sync::leaveCS(m_IndexLock);
 }

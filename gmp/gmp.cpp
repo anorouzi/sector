@@ -407,14 +407,14 @@ int CGMP::recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg, const bo
 
    if (msg->m_iBufLength < rec->m_pMsg->m_iLength)
       msg->resize(rec->m_pMsg->m_iLength);
-   msg->m_iBufLength = rec->m_pMsg->m_iLength;
+   msg->m_iDataLength = rec->m_pMsg->m_iLength;
 
-   memcpy(msg->m_pcBuffer, rec->m_pMsg->m_pcData, msg->m_iBufLength);
+   memcpy(msg->m_pcBuffer, rec->m_pMsg->m_pcData, msg->m_iDataLength);
 
    delete rec->m_pMsg;
    delete rec;
 
-   return msg->m_iBufLength;
+   return msg->m_iDataLength;
 }
 
 int CGMP::recv(const int32_t& id, CUserMessage* msg)
@@ -447,10 +447,10 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg)
    {
       if (msg->m_iBufLength < m->second->m_pMsg->m_iLength)
          msg->resize(m->second->m_pMsg->m_iLength);
-      msg->m_iBufLength = m->second->m_pMsg->m_iLength;
+      msg->m_iDataLength = m->second->m_pMsg->m_iLength;
 
-      if (msg->m_iBufLength > 0)
-         memcpy(msg->m_pcBuffer, m->second->m_pMsg->m_pcData, msg->m_iBufLength);
+      if (msg->m_iDataLength > 0)
+         memcpy(msg->m_pcBuffer, m->second->m_pMsg->m_pcData, msg->m_iDataLength);
 
       delete m->second->m_pMsg;
       delete m->second;
@@ -464,7 +464,7 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg)
    if (!found)
       return -1;
 
-   return msg->m_iBufLength;
+   return msg->m_iDataLength;
 }
 
 #ifndef WIN32

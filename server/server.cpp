@@ -56,7 +56,7 @@ Server::~Server()
 
 int Server::init(char* ip, int port)
 {
-   cout << "SECTOR server built 07112007.\n";
+   cout << "SECTOR server built 08102007.\n";
 
    m_SysConfig.init("sector.conf");
 
@@ -86,6 +86,7 @@ int Server::init(char* ip, int port)
 
    m_strHomeDir = m_SysConfig.m_strDataDir;
    //cout << "Home Dir " << m_strHomeDir << endl;
+   m_SectorFS.init(m_strHomeDir);
    m_HomeDirMTime = -1;
 
    if (scanLocalFile() < 0)
@@ -155,6 +156,8 @@ void* Server::process(void* s)
                int num = 0;
                for (set<Node, NodeComp>::iterator i = nl.begin(); i != nl.end(); ++ i)
                {
+                  cout << "OUFND " << i->m_pcIP << " " << i->m_iAppPort << endl;
+
                   msg->setData(num * 68, i->m_pcIP, strlen(i->m_pcIP) + 1);
                   msg->setData(num * 68 + 64, (char*)(&i->m_iAppPort), 4);
                   ++ num;
@@ -164,6 +167,8 @@ void* Server::process(void* s)
                      break;
                }
                msg->m_iDataLength = 4 + num * (64 + 4);
+
+               cout << "TEST " << msg->getData() << " " << msg->m_iDataLength << endl;
             }
 
             self->m_GMP.sendto(ip, port, id, msg);
@@ -173,11 +178,16 @@ void* Server::process(void* s)
          case 2: // open file
          {
             char* filename = msg->getData();
+            string dir;
 
-            if (self->m_LocalFile.lookup(filename) < 0)
+            cout << "open file " << filename << endl;
+
+            if (self->m_LocalFile.lookup(filename, dir) < 0)
                self->scanLocalFile();
-            if (self->m_LocalFile.lookup(filename) < 0)
+            if (self->m_LocalFile.lookup(filename, dir) < 0)
             {
+               cout << "cannot locate remote index\n";
+
                // no file exist
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;
@@ -306,8 +316,9 @@ void* Server::process(void* s)
          case 5: // create a local file
          {
             string filename = msg->getData();
+            string dir;
 
-            if ((self->m_LocalFile.lookup(filename) > 0) || (!self->m_SysConfig.m_IPSec.checkIP(ip)))
+            if ((self->m_LocalFile.lookup(filename, dir) > 0) || (!self->m_SysConfig.m_IPSec.checkIP(ip)))
             {
                // file already exist, or not from an allowed IP
                msg->setType(-msg->getType());
@@ -317,17 +328,13 @@ void* Server::process(void* s)
                break;
             }
 
-            string file = self->m_strHomeDir + filename;
-
-            ofstream fs;
-            fs.open(file.c_str());
-            fs.close();
-
             CFileAttr attr;
             strcpy(attr.m_pcName, filename.c_str());
             attr.m_llTimeStamp = Time::getTime();
+            attr.m_uiID = DHash::hash(attr.m_pcName, m_iKeySpace);
 
-            self->m_LocalFile.insert(attr);
+            self->m_SectorFS.create(attr.m_pcName, attr.m_uiID, dir);
+            self->m_LocalFile.insert(attr, dir);
 
             // generate certificate for the file owner
             char cert[1024];
@@ -372,9 +379,10 @@ void* Server::process(void* s)
             memcpy(fl, msg->getData(), msg->m_iDataLength - 4);
 
             int c = 0;
+            string dir;
             for (int i ; i < (msg->m_iDataLength - 4) / 64; ++ i)
             {
-               if (self->m_LocalFile.lookup(fl + i * 64) < 0)
+               if (self->m_LocalFile.lookup(fl + i * 64, dir) < 0)
                {
                   msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
                   ++ c;
@@ -545,9 +553,10 @@ void* Server::processEx(void* p)
       case 11:
       {
          string filename = msg->getData() + 8;
+         string dir;
 
          //check if file already exists!
-         if (self->m_LocalFile.lookup(filename) > 0)
+         if (self->m_LocalFile.lookup(filename, dir) > 0)
          {
             msg->setType(-msg->getType());
             msg->m_iDataLength = 4;
@@ -662,7 +671,7 @@ void Server::updateOutLink()
 
       if (m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg) >= 0)
          c = (msg.m_iDataLength - 4) / 64;
-      
+
       for (int m = 0; m < c; ++ m)
       {
          char* filename = msg.getData() + m * 64;
@@ -677,7 +686,8 @@ void Server::updateOutLink()
          CCBMsg msg3;
          msg3.setType(3);
          CFileAttr attr;
-         m_LocalFile.lookup(filename, &attr);
+         string dir;
+         m_LocalFile.lookup(filename, dir, &attr);
          attr.serialize(msg3.getData(), msg3.m_iDataLength);
          msg3.m_iDataLength += 4;
          m_GMP.rpc(loc.m_pcIP, loc.m_iAppPort, &msg3, &msg3);
@@ -737,44 +747,19 @@ int Server::scanLocalFile()
    else
       return 0;
 
-   m_strHomeDir = m_SysConfig.m_strDataDir;
-   //cout << "Home Dir " << m_strHomeDir << endl;
-
-   CFileAttr attr;
-
-   // initialize all files in the home directory, excluding "." and ".."
-   dirent **namelist;
-   int n = scandir(m_strHomeDir.c_str(), &namelist, 0, alphasort);
-
-   set<string> localfiles;
-   localfiles.clear();
-
-   if (n < 0)
-      perror("scandir");
-   else 
-   {
-      for (int i = 0; i < n; ++ i) 
-      {
-         // skip ".", "..", and other reserved directory starting by '.'
-         // skip directory
-
-         struct stat s;
-         stat((m_strHomeDir + namelist[i]->d_name).c_str(), &s);
-
-         if ((namelist[i]->d_name[0] != '.') && (!S_ISDIR(s.st_mode)))
-            localfiles.insert(localfiles.end(), namelist[i]->d_name);
-
-         free(namelist[i]);
-      }
-      free(namelist);
-   }
+   vector<string> filelist;
+   vector<string> dirs;
+   m_SectorFS.scan(filelist, dirs, "");
 
    // check deleted files
-   set<string> fl;
-   m_LocalFile.getFileList(fl);
-   for (set<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
+   set<string> lfindex;
+   m_LocalFile.getFileList(lfindex);
+   set<string> sortlist;
+   for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+      sortlist.insert(*i);
+   for (set<string>::iterator i = lfindex.begin(); i != lfindex.end(); ++ i)
    {
-      if (localfiles.find(*i) == localfiles.end())
+      if (sortlist.find(*i) == sortlist.end())
       {
          m_LocalFile.remove(*i);
          //cout << "remove local file " << *i << endl;
@@ -782,27 +767,29 @@ int Server::scanLocalFile()
    }
 
    // check new files on disk
-   for (set<string>::iterator i = localfiles.begin(); i != localfiles.end(); ++ i)
+   for (unsigned int i = 0; i < filelist.size(); ++ i)
    {
-      if (m_LocalFile.lookup(*i) < 0)
+      string dir;
+      if (m_LocalFile.lookup(filelist[i], dir) < 0)
       {
-         ifstream ifs((m_strHomeDir + *i).c_str());
+         ifstream ifs((m_strHomeDir + dirs[i] + filelist[i]).c_str());
          ifs.seekg(0, ios::end);
          int64_t size = ifs.tellg();
          ifs.close();
 
-         strcpy(attr.m_pcName, i->c_str());
+         CFileAttr attr;
+         strcpy(attr.m_pcName, filelist[i].c_str());
          // original file is read only
          attr.m_iAttr = 1;
          attr.m_llSize = size;
 
          struct stat s;
-         stat((m_strHomeDir + *i).c_str(), &s);
+         stat((m_strHomeDir + dir[i] + filelist[i]).c_str(), &s);
          attr.m_llTimeStamp = (int64_t)s.st_mtime * 1000000;
 
-         m_LocalFile.insert(attr);
+         m_LocalFile.insert(attr, dirs[i]);
 
-         //cout << "add local file... " << *i << " " << size << endl;
+         cout << "add local file... " << dirs[i] << " " << filelist[i] << " " << size << endl;
       }
    }
 
