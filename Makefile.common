@@ -2,9 +2,8 @@ C++ = g++
 
 DEBUG = 1
 STATIC = 0
-EFENCE = 0
 
-CCFLAGS = -I./ -I../util -I../gmp -I../routing -I../udt -I../metadata -I../client
+CCFLAGS = -I./ -I../util -I../udt -I../gmp -I../routing -I../client -I../server
 LDFLAGS = -lstdc++ -lpthread -L. -L../lib -lutil
 
 ifeq ($(DEBUG), 1)
@@ -13,8 +12,4 @@ endif
 
 ifeq ($(STATIC), 1)
    LDFLAGS += -static
-endif
-
-ifeq ($(EFENCE), 1)
-   LDFLAGS += ../libefence.a -u malloc
 endif

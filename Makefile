@@ -1,4 +1,4 @@
-SUBDIRS = udt util gmp routing metadata client server
+SUBDIRS = util udt gmp routing client server
 TARGETS = clean all install
 
 subdirs:

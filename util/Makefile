@@ -2,7 +2,7 @@ include ../Makefile.common
 
 CCFLAGS += 
 
-OBJS = util.o conf.o log.o transport.o
+OBJS = util.o
 
 all: libutil.so libutil.a
 

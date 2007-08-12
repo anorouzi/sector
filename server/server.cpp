@@ -156,8 +156,6 @@ void* Server::process(void* s)
                int num = 0;
                for (set<Node, NodeComp>::iterator i = nl.begin(); i != nl.end(); ++ i)
                {
-                  cout << "OUFND " << i->m_pcIP << " " << i->m_iAppPort << endl;
-
                   msg->setData(num * 68, i->m_pcIP, strlen(i->m_pcIP) + 1);
                   msg->setData(num * 68 + 64, (char*)(&i->m_iAppPort), 4);
                   ++ num;
@@ -167,8 +165,6 @@ void* Server::process(void* s)
                      break;
                }
                msg->m_iDataLength = 4 + num * (64 + 4);
-
-               cout << "TEST " << msg->getData() << " " << msg->m_iDataLength << endl;
             }
 
             self->m_GMP.sendto(ip, port, id, msg);
@@ -180,14 +176,10 @@ void* Server::process(void* s)
             char* filename = msg->getData();
             string dir;
 
-            cout << "open file " << filename << endl;
-
             if (self->m_LocalFile.lookup(filename, dir) < 0)
                self->scanLocalFile();
             if (self->m_LocalFile.lookup(filename, dir) < 0)
             {
-               cout << "cannot locate remote index\n";
-
                // no file exist
                msg->setType(-msg->getType());
                msg->m_iDataLength = 4;

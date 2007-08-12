@@ -101,15 +101,13 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
 
       nl = msg.getData();
       nlsize = (msg.m_iDataLength - 4) / 68;
-cout << "GOT IT " << nl << endl;
+
       break;
    };
 
    bool serv_found = false;
    if (NULL != nl)
    {
-      cout << nlsize << " copies found!" << endl;
-
       // choose closest server
       int c = -1;
       int rtt = 100000000;
@@ -122,8 +120,6 @@ cout << "GOT IT " << nl << endl;
             c = i;
          }
       }
-
-      cout << "RTT " << nl << " " << *(int32_t*)(nl + 64) << " " << c << endl;
 
       if (-1 != c)
       {
