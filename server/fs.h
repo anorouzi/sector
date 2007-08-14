@@ -38,10 +38,7 @@ public:
 
 public:
    int init(const string dir);
-
-   int locate(const string& filename, const uint32_t& key, string& loc);
    int create(const string& filename, const uint32_t& key, string& loc);
-
    int scan(vector<string>& filelist, vector<string>& dirs, const string& currdir);
 
 private:

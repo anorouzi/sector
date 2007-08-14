@@ -3,7 +3,6 @@
 #else
    #include <unistd.h>
    #include <sys/ioctl.h>
-   #include <termios.h>
 #endif
 
 #include <fstream>
@@ -40,9 +39,6 @@ int download(const char* file, const char* dest)
    long long int size = attr.m_llSize;
    cout << "downloading " << file << " of " << size << " bytes" << endl;
 
-   //CProgressBar bar;
-   //bar.init(size);
-
    File* fh = Sector::createFileHandle();
    if (NULL == fh)
       return -1;
@@ -73,8 +69,6 @@ int download(const char* file, const char* dest)
       #else
          float throughput = size * 8.0 / 1000000.0 / ((GetTickCount() - t1) / 1000.0);
       #endif
-
-      //bar.update(size, throughput);
 
       cout << "Downloading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 

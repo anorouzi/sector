@@ -23,17 +23,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/24/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/12/2007
 *****************************************************************************/
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
+
 #include <server.h>
 #include <assert.h>
-#include <sstream>
-#include <signal.h>
 #include <util.h>
 
 using namespace cb;
@@ -63,6 +58,8 @@ void* Server::fileHandler(void* p)
    string dir;
    self->m_LocalFile.lookup(filename, dir);
    filename = self->m_strHomeDir + dir + filename;
+
+   cout << "processing " << filename << endl;
 
    timeval t1, t2;
    gettimeofday(&t1, 0);

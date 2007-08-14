@@ -53,7 +53,8 @@ m_llSize(0),
 m_llRecNum(0),
 m_llStart(0),
 m_llEnd(-1),
-m_iStatus(0)
+m_iStatus(0),
+m_bPermanent(false)
 {
    m_vFiles.clear();
    m_vRecNum.clear();
@@ -112,6 +113,7 @@ int Stream::init(const vector<string>& files)
    m_vLocation.resize(m_iFileNum);
 
    m_iStatus = 1;
+   m_bPermanent = true;
    return m_iFileNum;
 }
 
@@ -147,6 +149,11 @@ void Stream::setName(const string& name)
    m_strName = name;
 }
 
+void Stream::setPermanent(const bool& perm)
+{
+   m_bPermanent = perm;
+}
+
 int Stream::setSeg(const int64_t& start, const int64_t& end)
 {
    m_llStart = start;
@@ -170,6 +177,7 @@ int Stream::getSize(int64_t& size)
    return m_iStatus;
 }
 
+//
 Process::Process():
 m_iMinUnitSize(80),
 m_iMaxUnitSize(128000000)
@@ -179,6 +187,8 @@ m_iMaxUnitSize(128000000)
    m_iParamSize = 0;
    m_pOutput = NULL;
    m_iOutputType = 0;
+   m_pOutputLoc = NULL;
+   m_pSPENodes = NULL;
 
    m_GMP.init(0);
 
@@ -191,12 +201,14 @@ m_iMaxUnitSize(128000000)
 
 Process::~Process()
 {
+   delete [] m_pOutputLoc;
+   delete [] m_pSPENodes;
+
    m_GMP.close();
 
    pthread_mutex_destroy(&m_ResLock);
    pthread_cond_destroy(&m_ResCond);
 }
-
 
 int Process::run(const Stream& input, Stream& output, string op, const int& rows, const char* param, const int& size)
 {
@@ -206,13 +218,13 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
    m_iParamSize = size;
    m_pInput = (Stream*)&input;
    m_pOutput = &output;
+   m_iRows = rows;
    m_iOutputType = m_pOutput->m_iFileNum;
 
    m_vDS.clear();
    m_vSPE.clear();
 
    cout << "JOB " << input.m_llSize << " " << input.m_llRecNum << endl;
-
 
    // locate operators
    Node no;
@@ -229,175 +241,28 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
    if ((m_GMP.rpc(no.m_pcIP, no.m_iAppPort, &msg, &msg) < 0) || (msg.getType() < 0))
       return -1;
 
-   char* spenodes = new char[msg.m_iDataLength - 4];
-   memcpy(spenodes, msg.getData(), msg.m_iDataLength - 4);
-   int n = (msg.m_iDataLength - 4) / 68;
-   if (0 == n)
+   m_iSPENum = (msg.m_iDataLength - 4) / 68;
+   if (0 == m_iSPENum)
       return -1;
+   m_pSPENodes = new char[msg.m_iDataLength - 4];
+   memcpy(m_pSPENodes, msg.getData(), msg.m_iDataLength - 4);
 
-
-   // data segementation
-   if (0 == rows)
-   {
-      int seq = 0;
-      for (int i = 0; i < input.m_iFileNum; ++ i)
-      {
-         DS ds;
-         ds.m_iID = seq ++;
-         ds.m_strDataFile = input.m_vFiles[i];
-         ds.m_llOffset = 0;
-         ds.m_llSize = input.m_vRecNum[i];
-         ds.m_iSPEID = -1;
-         ds.m_iStatus = 0;
-         ds.m_pResult = new Result;
-
-         m_vDS.insert(m_vDS.end(), ds);
-      }
-   }
-   else if (input.m_llRecNum != -1)
-   {
-      int64_t avg = input.m_llSize / n;
-      int64_t unitsize;
-      if (avg > m_iMaxUnitSize)
-         unitsize = m_iMaxUnitSize * input.m_llRecNum / input.m_llSize;
-      else if (avg < m_iMinUnitSize)
-         unitsize = m_iMinUnitSize * input.m_llRecNum / input.m_llSize;
-      else
-         unitsize = input.m_llRecNum / n;
-
-      cout << "unitsize " << unitsize << " " << m_vDS.size() << endl;
-
-      int seq = 0;
-      for (int i = 0; i < input.m_iFileNum; ++ i)
-      {
-         int64_t off = 0;
-         while (off < input.m_vRecNum[i])
-         {
-            cout << "_++++ " << off << " " << input.m_vRecNum[i] << endl;
-
-            DS ds;
-            ds.m_iID = seq ++;
-            ds.m_strDataFile = input.m_vFiles[i];
-            ds.m_llOffset = off;
-            ds.m_llSize = (input.m_vRecNum[i] - off > unitsize + 1) ? unitsize : (input.m_vRecNum[i] - off);
-            ds.m_iSPEID = -1;
-            ds.m_iStatus = 0;
-            ds.m_pResult = new Result;
-
-            m_vDS.insert(m_vDS.end(), ds);
-
-            off += ds.m_llSize;
-         }
-      }
-   }
-   else
-   {
-      // data segementation error
+   if (segmentData() < 0)
       return -1;
-   }
 
    if (m_iOutputType == -1)
       m_pOutput->init(m_vDS.size());
 
-
-   // prepare output stream locations
-   char* outputloc = NULL;
-   if (m_iOutputType > 0)
-   {
-      timeval t;
-      gettimeofday(&t, 0);
-      srand(t.tv_usec);
-      int randname = rand();
-
-      outputloc = new char[output.m_iFileNum * 72];
-      for (int i = 0, j = 0; i < output.m_iFileNum; ++ i)
-      {
-         Node loc;
-         strcpy(loc.m_pcIP, spenodes + j * 68);
-         loc.m_iAppPort = *(int32_t*)(spenodes + j * 68 + 64);
-         output.m_vLocation[i].insert(loc);
-
-         *(int32_t*)msg.getData() = m_vDS.size();
-         sprintf(msg.getData() + 4, "%s.%d.%d", m_pOutput->m_strName.c_str(), randname, i);
-         output.m_vFiles[i] = msg.getData() + 4;
-
-         msg.setType(301);
-         msg.m_iDataLength = 4 + 4 + strlen(msg.getData() + 4) + 1;
-         m_GMP.rpc(m_pOutput->m_vLocation[i].begin()->m_pcIP, m_pOutput->m_vLocation[i].begin()->m_iAppPort, &msg, &msg);
-
-         memcpy(outputloc + i * 72, spenodes + j * 68, 64);
-         *(int32_t*)(outputloc + i * 72 + 64) = loc.m_iAppPort;
-         *(int32_t*)(outputloc + i * 72 + 68) = *(int32_t*)msg.getData();
-
-         if (++ j == n)
-            j = 0;
-      }
-   }
-
-
-   // prepare SPEs
-   for (int i = 0; i < n; ++ i)
-   {
-      SPE spe;
-      spe.m_uiID = i;
-      spe.m_pDS = NULL;
-      spe.m_iStatus = 0;
-      spe.m_iProgress = 0;
-
-      spe.m_strIP = spenodes + i * 68;
-      spe.m_iPort = *(int32_t*)(spenodes + i * 68 + 64);
-
-      int port = 0;
-      spe.m_DataChn.open(port);
-
-      msg.setType(300); // start processing engine
-      msg.setData(0, (char*)&(spe.m_uiID), 4);
-      msg.setData(4, (char*)&port, 4);
-      msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
-      msg.setData(72, (char*)&rows, 4);
-      msg.setData(76, (char*)&(m_iOutputType), 4);
-
-      cout << "sending output num " << m_iOutputType << endl;
-
-      if (m_iOutputType > 0)
-      {
-         msg.setData(80, outputloc, output.m_iFileNum * 72);
-         msg.setData(80 + output.m_iFileNum * 72, m_pcParam, m_iParamSize);
-         msg.m_iDataLength = 4 + 80 + output.m_iFileNum * 72 + m_iParamSize;
-      }
-      else
-      {
-         msg.setData(80, m_pcParam, m_iParamSize);
-         msg.m_iDataLength = 4 + 80 + m_iParamSize;
-      }
-
-      if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
-      {
-         cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
-         spe.m_DataChn.close();
-         continue;
-      }
-
-      if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
-      {
-         spe.m_DataChn.close();
-         continue;
-      }
-
-      m_vSPE.insert(m_vSPE.end(), spe);
-   }
-
+   prepareOutput();
+   prepareSPE();
 
    m_iProgress = 0;
    m_iAvgRunTime = 60;
    m_iTotalDS = m_vDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
-   delete [] spenodes;
-   delete [] outputloc;
 
    cout << m_vSPE.size() << " spes found! " << m_vDS.size() << " data seg total." << endl;
-
 
    // starting...
    pthread_t reduce;
@@ -431,54 +296,9 @@ void* Process::run(void* param)
    }
 
    // start initial round
-   int totalnum = (self->m_vSPE.size() < self->m_vDS.size()) ? self->m_vSPE.size() : self->m_vDS.size();
-   int num = 0;
-   for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
-   {
-      int dss = -1;
-      if (locsense)
-      {
-         for (unsigned int d = 0; d < self->m_vDS.size(); ++ d)
-         {
-            if (self->m_vDS[d].m_iStatus != 0)
-               continue;
+   self->start(locsense, datalocmap);
 
-            Node* loc = &datalocmap[self->m_vDS[d].m_strDataFile];
-            if ((i->m_strIP == loc->m_pcIP) && (i->m_iPort == loc->m_iAppPort))
-            {
-               dss = d;
-               break;
-            }
-         }
-
-         if (-1 == dss)
-            continue;
-      }
-      else
-         dss = num;
-
-      i->m_pDS = &self->m_vDS[dss];
-
-      char dataseg[80];
-      strcpy(dataseg, i->m_pDS->m_strDataFile.c_str());
-      *(int64_t*)(dataseg + 64) = i->m_pDS->m_llOffset;
-      *(int64_t*)(dataseg + 72) = i->m_pDS->m_llSize;
-
-      if (i->m_DataChn.send(dataseg, 80) > 0)
-      {
-         self->m_vDS[dss].m_iSPEID = i->m_uiID;
-         self->m_vDS[dss].m_iStatus = 1;
-         self->m_vSPE[dss].m_iStatus = 1;
-         self->m_vSPE[dss].m_iProgress = 0;
-         gettimeofday(&i->m_StartTime, 0);
-         gettimeofday(&i->m_LastUpdateTime, 0);
-      }
-
-      if (++ num == totalnum)
-         break;
-   }
-
-   while (true)
+   while (self->m_iProgress < self->m_iTotalDS)
    {
       if (0 == self->checkSPE(locsense, datalocmap))
          return NULL;
@@ -513,84 +333,13 @@ void* Process::run(void* param)
          continue;
 
       cout << "result is back!!! " << endl;
-
-
-      s->m_pDS->m_pResult->m_strOrigFile = s->m_pDS->m_strDataFile;
-      s->m_pDS->m_pResult->m_strIP = s->m_strIP;
-      s->m_pDS->m_pResult->m_iPort = s->m_iPort;
-
-
-      if (self->m_iOutputType == 0)
-      {
-         s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iDataLen, 4);
-         s->m_pDS->m_pResult->m_pcData = new char[s->m_pDS->m_pResult->m_iDataLen];
-         s->m_DataChn.recv(s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
-         s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iIndexLen, 4);
-         s->m_pDS->m_pResult->m_pllIndex = new int64_t[s->m_pDS->m_pResult->m_iIndexLen];
-         s->m_DataChn.recv((char*)s->m_pDS->m_pResult->m_pllIndex, s->m_pDS->m_pResult->m_iIndexLen * 8);
-      }
-      else if (self->m_iOutputType == -1)
-      {
-         int size;
-         s->m_DataChn.recv((char*)&size, 4);
-         char* filename = new char[size];
-         s->m_DataChn.recv(filename, size);
-         self->m_pOutput->m_vFiles[s->m_pDS->m_iID] = filename;
-         delete [] filename;
-
-         s->m_DataChn.recv((char*)&size, 4);
-         self->m_pOutput->m_vSize[s->m_pDS->m_iID] = size;
-         self->m_pOutput->m_llSize += size;
-
-         s->m_DataChn.recv((char*)&size, 4);
-         self->m_pOutput->m_vRecNum[s->m_pDS->m_iID] = size - 1;
-         self->m_pOutput->m_llRecNum += size -1;
-
-         if (self->m_pOutput->m_iFileNum < 0)
-            self->m_pOutput->m_iFileNum = 1;
-         else
-            self->m_pOutput->m_iFileNum ++;
-      }
-      else
-      {
-         int* sarray = new int[self->m_pOutput->m_iFileNum];
-         int* rarray = new int[self->m_pOutput->m_iFileNum];
-         s->m_DataChn.recv((char*)sarray, self->m_pOutput->m_iFileNum * 4);
-         s->m_DataChn.recv((char*)rarray, self->m_pOutput->m_iFileNum * 4);
-         for (int i = 0; i < self->m_pOutput->m_iFileNum; ++ i)
-         {
-            self->m_pOutput->m_vSize[i] += sarray[i];
-            self->m_pOutput->m_vRecNum[i] += rarray[i];
-            self->m_pOutput->m_llSize += sarray[i];
-            self->m_pOutput->m_llRecNum += rarray[i];
-         }
-
-         cout << "OUTPUT SIZE " << self->m_pOutput->m_llSize << " " << self->m_pOutput->m_llRecNum << endl;
-
-         delete [] sarray;
-         delete [] rarray;
-      }
-
+      self->readResult(&(*s));
       cout << "got it " << speid << endl;
-
-      s->m_pDS->m_iStatus = 2;
-      s->m_iStatus = 0;
-      ++ self->m_iProgress;
-      pthread_mutex_lock(&self->m_ResLock);
-      ++ self->m_iAvailRes;
-      pthread_cond_signal(&self->m_ResCond);
-      pthread_mutex_unlock(&self->m_ResLock);
 
       // one SPE completes!
       timeval t;
       gettimeofday(&t, 0);
       self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec)) / 8;
-
-      // check uncompleted data segment
-      if (self->m_iProgress < self->m_iTotalDS)
-         self->startSPE(*s, locsense, datalocmap);
-      else
-         break;
    }
 
    // disconnect all SPEs
@@ -605,69 +354,93 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
    timeval t;
    gettimeofday(&t, 0);
 
-   for (vector<SPE>::iterator i = m_vSPE.begin(); i != m_vSPE.end(); ++ i)
+   for (vector<SPE>::iterator s = m_vSPE.begin(); s != m_vSPE.end(); ++ s)
    {
-      if (-1 == i->m_iStatus)
+      if (-1 == s->m_iStatus)
          continue;
 
-      int rtime = t.tv_sec - i->m_StartTime.tv_sec;
-      int utime = t.tv_sec - i->m_LastUpdateTime.tv_sec;
+      int rtime = t.tv_sec - s->m_StartTime.tv_sec;
+      int utime = t.tv_sec - s->m_LastUpdateTime.tv_sec;
 
       if ((rtime > 8 * m_iAvgRunTime) && (utime > 30))
       {
          // dismiss this SPE and release its job
-         i->m_pDS->m_iSPEID = -1;
-         i->m_iStatus = -1;
-         i->m_DataChn.close();
+         s->m_pDS->m_iSPEID = -1;
+         s->m_iStatus = -1;
+         s->m_DataChn.close();
 
          m_iTotalSPE --;
 
          cout << "TIMEOUT!!!?\n";
       }
-      else if (0 == i->m_iStatus)
+      else if (0 == s->m_iStatus)
       {
          // find a new DS and start it
-         startSPE(*i, locsense, datalocmap);
+         for (vector<DS>::iterator d = m_vDS.begin(); d != m_vDS.end(); ++ d)
+         {
+            Node* loc = NULL;
+            if (locsense)
+               loc = &datalocmap[d->m_strDataFile];
+
+            if ((-1 == d->m_iSPEID) && (!locsense || ((loc->m_pcIP == s->m_strIP) && (loc->m_iAppPort == s->m_iPort))))
+            {
+               startSPE(*s, *d);
+               break;
+            }
+         }
       }
    }
 
    return m_iTotalSPE;
 }
 
-int Process::startSPE(SPE& s, bool locsense, map<string, Node>& datalocmap)
+int Process::startSPE(SPE& s, DS& d)
 {
    int res = 0;
 
    pthread_mutex_lock(&m_ResLock);
-   for (vector<DS>::iterator i = m_vDS.begin(); i != m_vDS.end(); ++ i)
+
+   s.m_pDS = &d;
+
+   char* dataseg;
+   int size;
+   if (m_iOutputType > 0)
+      size = 88 + m_pOutput->m_iFileNum * 72;
+   else if (m_iOutputType < 0)
+      size = 88 + 64;
+   else
+      size = 84;
+   dataseg = new char[size];
+
+   strcpy(dataseg, s.m_pDS->m_strDataFile.c_str());
+   *(int64_t*)(dataseg + 64) = s.m_pDS->m_llOffset;
+   *(int64_t*)(dataseg + 72) = s.m_pDS->m_llSize;
+   *(int32_t*)(dataseg + 80) = m_iOutputType;
+   if (m_iOutputType > 0)
    {
-      Node* loc = NULL;
-      if (locsense)
-         loc = &datalocmap[i->m_strDataFile];
-
-      if ((-1 == i->m_iSPEID) && (!locsense || ((loc->m_pcIP == s.m_strIP) && (loc->m_iAppPort == s.m_iPort))))
-      {
-         s.m_pDS = &(*i);
-
-         char dataseg[80];
-         strcpy(dataseg, s.m_pDS->m_strDataFile.c_str());
-         *(int64_t*)(dataseg + 64) = s.m_pDS->m_llOffset;
-         *(int64_t*)(dataseg + 72) = s.m_pDS->m_llSize;
-
-         if (s.m_DataChn.send(dataseg, 80) > 0)
-         {
-            i->m_iSPEID = s.m_uiID;
-            i->m_iStatus = 1;
-            s.m_iStatus = 1;
-            s.m_iProgress = 0;
-            gettimeofday(&s.m_StartTime, 0);
-            gettimeofday(&s.m_LastUpdateTime, 0);
-            res = 1;
-         }
-
-         break;
-      }
+      *(int32_t*)(dataseg + 84) = m_pOutput->m_bPermanent;
+      memcpy(dataseg + 88, m_pOutputLoc, m_pOutput->m_iFileNum * 72);
    }
+   else if (m_iOutputType < 0)
+   {
+      *(int32_t*)(dataseg + 84) = m_pOutput->m_bPermanent;
+      char localname[64];
+      sprintf(localname, "%s.%d", m_pOutput->m_strName.c_str(), d.m_iID);
+      memcpy(dataseg + 88, localname, strlen(localname) + 1);
+      m_pOutput->m_vFiles[d.m_iID] = localname;
+   }
+
+   if ((s.m_DataChn.send((char*)&size, 4) > 0) && (s.m_DataChn.send(dataseg, size) > 0))
+   {
+      d.m_iSPEID = s.m_uiID;
+      d.m_iStatus = 1;
+      s.m_iStatus = 1;
+      s.m_iProgress = 0;
+      gettimeofday(&s.m_StartTime, 0);
+      gettimeofday(&s.m_LastUpdateTime, 0);
+      res = 1;
+   }
+
    pthread_mutex_unlock(&m_ResLock);
 
    return res;
@@ -722,4 +495,250 @@ int Process::read(Result*& res, const bool& inorder, const bool& wait)
    }
 
    return -1;
+}
+
+int Process::prepareSPE()
+{
+   for (int i = 0; i < m_iSPENum; ++ i)
+   {
+      SPE spe;
+      spe.m_uiID = i;
+      spe.m_pDS = NULL;
+      spe.m_iStatus = 0;
+      spe.m_iProgress = 0;
+
+      spe.m_strIP = m_pSPENodes + i * 68;
+      spe.m_iPort = *(int32_t*)(m_pSPENodes + i * 68 + 64);
+
+      int port = 0;
+      spe.m_DataChn.open(port);
+
+      CCBMsg msg;
+      msg.setType(300); // start processing engine
+      msg.setData(0, (char*)&(spe.m_uiID), 4);
+      msg.setData(4, (char*)&port, 4);
+      msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
+      msg.setData(72, (char*)&m_iRows, 4);
+      msg.setData(76, m_pcParam, m_iParamSize);
+      msg.m_iDataLength = 4 + 76 + m_iParamSize;
+
+      if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
+      {
+         cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
+         spe.m_DataChn.close();
+         continue;
+      }
+
+      if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
+      {
+         spe.m_DataChn.close();
+         continue;
+      }
+
+      m_vSPE.insert(m_vSPE.end(), spe);
+   }
+
+   return m_vSPE.size();
+}
+
+int Process::segmentData()
+{
+   if (0 == m_iRows)
+   {
+      int seq = 0;
+      for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
+      {
+         DS ds;
+         ds.m_iID = seq ++;
+         ds.m_strDataFile = m_pInput->m_vFiles[i];
+         ds.m_llOffset = 0;
+         ds.m_llSize = m_pInput->m_vRecNum[i];
+         ds.m_iSPEID = -1;
+         ds.m_iStatus = 0;
+         ds.m_pResult = new Result;
+
+         m_vDS.insert(m_vDS.end(), ds);
+      }
+   }
+   else if (m_pInput->m_llRecNum != -1)
+   {
+      int64_t avg = m_pInput->m_llSize / m_iSPENum;
+      int64_t unitsize;
+      if (avg > m_iMaxUnitSize)
+         unitsize = m_iMaxUnitSize * m_pInput->m_llRecNum / m_pInput->m_llSize;
+      else if (avg < m_iMinUnitSize)
+         unitsize = m_iMinUnitSize * m_pInput->m_llRecNum / m_pInput->m_llSize;
+      else
+         unitsize = m_pInput->m_llRecNum / m_iSPENum;
+
+      cout << "unitsize " << unitsize << " " << m_vDS.size() << endl;
+
+      int seq = 0;
+      for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
+      {
+         int64_t off = 0;
+         while (off < m_pInput->m_vRecNum[i])
+         {
+            cout << "_++++ " << off << " " << m_pInput->m_vRecNum[i] << endl;
+
+            DS ds;
+            ds.m_iID = seq ++;
+            ds.m_strDataFile = m_pInput->m_vFiles[i];
+            ds.m_llOffset = off;
+            ds.m_llSize = (m_pInput->m_vRecNum[i] - off > unitsize + 1) ? unitsize : (m_pInput->m_vRecNum[i] - off);
+            ds.m_iSPEID = -1;
+            ds.m_iStatus = 0;
+            ds.m_pResult = new Result;
+
+            m_vDS.insert(m_vDS.end(), ds);
+
+            off += ds.m_llSize;
+         }
+      }
+   }
+   else
+   {
+      // data segementation error
+      return -1;
+   }
+
+   return 1;
+}
+
+int Process::prepareOutput()
+{
+   // prepare output stream locations
+   m_pOutputLoc = NULL;
+   if (m_iOutputType > 0)
+   {
+      CCBMsg msg;
+
+      m_pOutputLoc = new char[m_pOutput->m_iFileNum * 72];
+      for (int i = 0, j = 0; i < m_pOutput->m_iFileNum; ++ i)
+      {
+         Node loc;
+         strcpy(loc.m_pcIP, m_pSPENodes + j * 68);
+         loc.m_iAppPort = *(int32_t*)(m_pSPENodes + j * 68 + 64);
+         m_pOutput->m_vLocation[i].insert(loc);
+
+         *(int32_t*)msg.getData() = m_vDS.size();
+         sprintf(msg.getData() + 4, "%s.%d", m_pOutput->m_strName.c_str(), i);
+         m_pOutput->m_vFiles[i] = msg.getData() + 4;
+
+         msg.setType(301);
+         msg.m_iDataLength = 4 + 4 + strlen(msg.getData() + 4) + 1;
+         m_GMP.rpc(m_pOutput->m_vLocation[i].begin()->m_pcIP, m_pOutput->m_vLocation[i].begin()->m_iAppPort, &msg, &msg);
+
+         memcpy(m_pOutputLoc + i * 72, m_pSPENodes + j * 68, 64);
+         *(int32_t*)(m_pOutputLoc + i * 72 + 64) = loc.m_iAppPort;
+         *(int32_t*)(m_pOutputLoc + i * 72 + 68) = *(int32_t*)msg.getData();
+
+         if (++ j == m_iSPENum)
+            j = 0;
+      }
+   }
+
+   return m_pOutput->m_iFileNum;
+}
+
+int Process::readResult(SPE* s)
+{
+   s->m_pDS->m_pResult->m_strOrigFile = s->m_pDS->m_strDataFile;
+   s->m_pDS->m_pResult->m_strIP = s->m_strIP;
+   s->m_pDS->m_pResult->m_iPort = s->m_iPort;
+
+   if (m_iOutputType == 0)
+   {
+      s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iDataLen, 4);
+      s->m_pDS->m_pResult->m_pcData = new char[s->m_pDS->m_pResult->m_iDataLen];
+      s->m_DataChn.recv(s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
+      s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iIndexLen, 4);
+      s->m_pDS->m_pResult->m_pllIndex = new int64_t[s->m_pDS->m_pResult->m_iIndexLen];
+      s->m_DataChn.recv((char*)s->m_pDS->m_pResult->m_pllIndex, s->m_pDS->m_pResult->m_iIndexLen * 8);
+   }
+   else if (m_iOutputType == -1)
+   {
+      int size = 0;
+      s->m_DataChn.recv((char*)&size, 4);
+      m_pOutput->m_vSize[s->m_pDS->m_iID] = size;
+      m_pOutput->m_llSize += size;
+
+      s->m_DataChn.recv((char*)&size, 4);
+      m_pOutput->m_vRecNum[s->m_pDS->m_iID] = size - 1;
+      m_pOutput->m_llRecNum += size -1;
+
+      if (m_pOutput->m_iFileNum < 0)
+         m_pOutput->m_iFileNum = 1;
+      else
+         m_pOutput->m_iFileNum ++;
+   }
+   else
+   {
+      int* sarray = new int[m_pOutput->m_iFileNum];
+      int* rarray = new int[m_pOutput->m_iFileNum];
+      s->m_DataChn.recv((char*)sarray, m_pOutput->m_iFileNum * 4);
+      s->m_DataChn.recv((char*)rarray, m_pOutput->m_iFileNum * 4);
+      for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
+      {
+         m_pOutput->m_vSize[i] += sarray[i];
+         m_pOutput->m_vRecNum[i] += rarray[i];
+         m_pOutput->m_llSize += sarray[i];
+         m_pOutput->m_llRecNum += rarray[i];
+      }
+
+      cout << "OUTPUT SIZE " << m_pOutput->m_llSize << " " << m_pOutput->m_llRecNum << endl;
+
+      delete [] sarray;
+      delete [] rarray;
+   }
+
+   s->m_pDS->m_iStatus = 2;
+   s->m_iStatus = 0;
+   ++ m_iProgress;
+   pthread_mutex_lock(&m_ResLock);
+   ++ m_iAvailRes;
+   pthread_cond_signal(&m_ResCond);
+   pthread_mutex_unlock(&m_ResLock);
+
+   return 1;
+}
+
+int Process::start(bool locsense, map<string, Node>& datalocmap)
+{
+   int totalnum = (m_vSPE.size() < m_vDS.size()) ? m_vSPE.size() : m_vDS.size();
+   int num = 0;
+
+   for (vector<SPE>::iterator i = m_vSPE.begin(); i != m_vSPE.end(); ++ i)
+   {
+      int dss = -1;
+      if (locsense)
+      {
+         for (unsigned int d = 0; d < m_vDS.size(); ++ d)
+         {
+            if (m_vDS[d].m_iStatus != 0)
+               continue;
+
+            Node* loc = &datalocmap[m_vDS[d].m_strDataFile];
+            if ((i->m_strIP == loc->m_pcIP) && (i->m_iPort == loc->m_iAppPort))
+            {
+               dss = d;
+               break;
+            }
+         }
+
+         if (-1 == dss)
+            continue;
+      }
+      else
+         dss = num;
+
+      i->m_pDS = &m_vDS[dss];
+
+      startSPE(*i, *i->m_pDS);
+
+      if (++ num == totalnum)
+         break;
+   }
+
+   return num;
 }

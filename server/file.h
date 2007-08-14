@@ -34,8 +34,7 @@ written by
    #include <stdint.h>
 #endif
 #include <string>
-#include <set>
-#include <util.h>
+using namespace std;
 
 namespace cb
 {

@@ -29,14 +29,12 @@ written by
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
 #include <server.h>
 #include <assert.h>
 #include <sstream>
-#include <signal.h>
 #include <util.h>
 #include <fsclient.h>
 
@@ -95,9 +93,6 @@ int Server::init(char* ip, int port)
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
-
-   // ignore TCP broken pipe
-   signal(SIGPIPE, SIG_IGN);
 
    Client::init(m_strLocalHost.c_str(), m_iLocalPort);
 
@@ -187,6 +182,8 @@ void* Server::process(void* s)
                self->m_GMP.sendto(ip, port, id, msg);
                break;
             }
+
+            cout << "OPEN FILE " << dir << " " << filename << endl;
 
             int mode = *(int*)(msg->getData() + 64);
 
@@ -307,6 +304,8 @@ void* Server::process(void* s)
 
          case 5: // create a local file
          {
+            cout << "create new file..\n";
+
             string filename = msg->getData();
             string dir;
 
@@ -325,8 +324,11 @@ void* Server::process(void* s)
             attr.m_llTimeStamp = Time::getTime();
             attr.m_uiID = DHash::hash(attr.m_pcName, m_iKeySpace);
 
+            dir = ".sector-fs/";
             self->m_SectorFS.create(attr.m_pcName, attr.m_uiID, dir);
             self->m_LocalFile.insert(attr, dir);
+
+            cout << "FILE CREATED " << dir << endl;
 
             // generate certificate for the file owner
             char cert[1024];
@@ -446,28 +448,11 @@ void* Server::process(void* s)
             p->client_data_port = *(int32_t*)(msg->getData() + 4);
             p->function = msg->getData() + 8;
             p->rows = *(int32_t*)(msg->getData() + 72);
-            p->buckets = *(int32_t*)(msg->getData() + 76);
-            p->param = NULL;
-            if (p->buckets > 0)
+            p->psize = msg->m_iDataLength - 76;
+            if (p->psize > 0)
             {
-               p->locations = new char[p->buckets * 72];
-               memcpy(p->locations, msg->getData() + 80, p->buckets * 72);
-               p->psize = msg->m_iDataLength - 80 - p->buckets * 72;
-               if (p->psize > 0)
-               {
-                  p->param = new char[p->psize];
-                  memcpy(p->param, msg->getData() + 80 + p->buckets * 72, p->psize);
-               }
-            }
-            else
-            {
-               p->locations = NULL;
-               p->psize = msg->m_iDataLength - 80;
-               if (p->psize > 0)
-               {
-                  p->param = new char[p->psize];
-                  memcpy(p->param, msg->getData() + 80, p->psize);
-               }
+               p->param = new char[p->psize];
+               memcpy(p->param, msg->getData() + 76, p->psize);
             }
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << endl;

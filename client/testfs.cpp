@@ -9,7 +9,7 @@ int main(int argc, char** argv)
    if (NULL == f1)
       return -1;
 
-   if (f1->open("test.txt") < 0)
+   if (f1->open("test.txt", 1) < 0)
    {
       cout << "error to open file." << endl;
       return -1;

@@ -27,7 +27,9 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <iostream>
+#include <fstream>
 
 using namespace std;
 
@@ -46,27 +48,6 @@ int SectorFS::init(const string dir)
    return 1;
 }
 
-int SectorFS::locate(const string& filename, const uint32_t& key, string& loc)
-{
-   // loc input: home dir directory
-
-   char keystr[32];
-   sprintf(keystr, "%d", key);
-
-   for (int i = 0; i < m_iLevel; ++ i)
-   {
-      char tmp[2];
-      tmp[0] = keystr[i * 2];
-      tmp[1] = keystr[i * 2 + 1];
-      loc += tmp;
-      loc += "/";
-   }
-
-   loc += filename;
-
-   return 1;
-}
-
 int SectorFS::create(const string& filename, const uint32_t& key, string& loc)
 {
    // loc input: home dir directory
@@ -76,16 +57,19 @@ int SectorFS::create(const string& filename, const uint32_t& key, string& loc)
 
    for (int i = 0; i < m_iLevel; ++ i)
    {
-      char tmp[2];
+      char tmp[3];
+      tmp[2] = '\0';
       tmp[0] = keystr[i * 2];
       tmp[1] = keystr[i * 2 + 1];
 
       loc += tmp;
-      mkdir(loc.c_str(), S_ISVTX);
+      mkdir((m_strHomeDir + loc).c_str(), S_ISVTX);
+      chmod((m_strHomeDir + loc).c_str(), S_IRUSR | S_IWUSR | S_IXUSR);
+      cout << "mkdir " << loc << endl;
       loc += "/";
    }
 
-   loc += filename;
+   ::creat((m_strHomeDir + loc + filename).c_str(), S_IRUSR | S_IWUSR | S_IXUSR);
 
    return 1;
 }

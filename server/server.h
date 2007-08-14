@@ -42,6 +42,30 @@ written by
 namespace cb
 {
 
+class Server;
+
+class SPEResult
+{
+friend class Server;
+
+public:
+   ~SPEResult();
+
+public:
+   void init(const int& n, const int& size);
+   void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
+
+private:
+   int m_iBucketNum;
+   int m_iSize;
+
+   vector<int32_t> m_vIndexLen;
+   vector<int64_t*> m_vIndex;
+   vector<int32_t> m_vDataLen;
+   vector<char*> m_vData;
+};
+
+
 class Server
 {
 public:
@@ -91,11 +115,9 @@ private:
       int client_data_port;	// client data port
       int speid;		// speid
       string function;		// SPE operator
+      int rows;                 // number of rows per processing: -1 means all in the block
       char* param;		// SPE parameter
       int psize;		// parameter size
-      int rows;			// number of rows per processing: -1 means all in the block
-      int buckets;		// number of output buckets. 0: nothing, result sent back to client, -1: dump to local, n: sent to n buckets
-      char* locations;		// locations of buckets
    };
 
    struct Param5
@@ -116,6 +138,7 @@ private:
 
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
+   int SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, const bool& perm, Transport* datachn, char* locations);
 
 private:
    void updateOutLink();
@@ -147,27 +170,6 @@ private:
    SectorFS m_SectorFS;
 
    KnowledgeBase m_KBase;
-};
-
-class SPEResult
-{
-friend class Server;
-
-public:
-   ~SPEResult();
-
-public:
-   void init(const int& n, const int& size);
-   void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
-
-private:
-   int m_iBucketNum;
-   int m_iSize;
-
-   vector<int32_t> m_vIndexLen;
-   vector<int64_t*> m_vIndex;
-   vector<int32_t> m_vDataLen;
-   vector<char*> m_vData;
 };
 
 }; //namespace

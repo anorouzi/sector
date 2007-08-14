@@ -88,35 +88,28 @@ void* Server::SPEHandler(void* p)
 {
    Server* self = ((Param4*)p)->serv_instance;
    Transport* datachn = ((Param4*)p)->datachn;
-   string ip = ((Param4*)p)->client_ip;
-   int ctrlport = ((Param4*)p)->client_ctrl_port;
-   int dataport = ((Param4*)p)->client_data_port;
-   int speid = ((Param4*)p)->speid;
-   string function = ((Param4*)p)->function;
-   int rows = ((Param4*)p)->rows;
-   int buckets = ((Param4*)p)->buckets;
-   char* locations = ((Param4*)p)->locations;
-   char* param = ((Param4*)p)->param;
-   int psize = ((Param4*)p)->psize;
+   const string ip = ((Param4*)p)->client_ip;
+   const int ctrlport = ((Param4*)p)->client_ctrl_port;
+   const int dataport = ((Param4*)p)->client_data_port;
+   const int speid = ((Param4*)p)->speid;
+   const string function = ((Param4*)p)->function;
+   const int rows = ((Param4*)p)->rows;
+   const char* param = ((Param4*)p)->param;
+   const int psize = ((Param4*)p)->psize;
    delete (Param4*)p;
 
    CCBMsg msg;
-   msg.resize(65536);
 
    cout << "rendezvous connect " << ip << " " << dataport << endl;
    if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
 
+
    string dir;
    self->m_LocalFile.lookup(function + ".so", dir);
-
-   cout << "locating so " << (self->m_strHomeDir + dir + function + ".so") << endl;
    void* handle = dlopen((self->m_strHomeDir + dir + function + ".so").c_str(), RTLD_LAZY);
    if (NULL == handle)
       return NULL;
-
-   cout << "so found " << "locating process " << function << endl;
-
    int (*process)(const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&);
    process = (int (*) (const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&) )dlsym(handle, function.c_str());
    if (NULL == process)
@@ -124,8 +117,8 @@ void* Server::SPEHandler(void* p)
       cout << dlerror() <<  endl;
       return NULL;
    }
-
    cout << "process found~\n";
+
 
    timeval t1, t2, t3, t4;
    gettimeofday(&t1, 0);
@@ -136,17 +129,35 @@ void* Server::SPEHandler(void* p)
    // processing...
    while (true)
    {
-      char dataseg[80];
-      if (datachn->recv(dataseg, 80) < 0)
+      int32_t dssize;
+      if (datachn->recv((char*)&dssize, 4) < 0)
+         break;
+      char* dataseg = new char[dssize];
+      if (datachn->recv(dataseg, dssize) < 0)
          break;
 
+      // read data segment parameters
       string datafile = dataseg;
       int64_t offset = *(int64_t*)(dataseg + 64);
       int64_t totalrows = *(int64_t*)(dataseg + 72);
       int64_t* index = new int64_t[totalrows + 1];
 
+      // read outupt parameters
+      int buckets = *(int32_t*)(dataseg + 80);
+      bool perm = *(int32_t*)(dataseg + 84);
+      char* locations = NULL;
+      if (buckets > 0)
+      {
+         locations = new char[dssize - 88];
+         memcpy(locations, dataseg + 88, dssize - 88);
+      }
+      string localfile = (buckets < 0) ? dataseg + 88 : "";
+      delete [] dataseg;
+
+
       int size = 0;
       char* block = NULL;
+      int unitrows = (rows != -1) ? rows : totalrows;
 
       cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
 
@@ -161,16 +172,13 @@ void* Server::SPEHandler(void* p)
             continue;
          }
       }
-      else if (-1 == rows)
-      {
-         rows = totalrows;
-      }
       else
       {
          // store file name in "process" parameter
          block = new char[1024];
          strcpy(block, datafile.c_str());
          size = datafile.length() + 1;
+         totalrows = 0;
       }
 
       // TODO: use dynamic size at run time!
@@ -188,12 +196,12 @@ void* Server::SPEHandler(void* p)
       result.init(buckets, size);
 
       gettimeofday(&t3, 0);
-      for (int i = 0; i < totalrows; i += rows)
+      for (int i = 0; i < totalrows; i += unitrows)
       {
-         if (rows > totalrows - i)
-            rows = totalrows - i;
+         if (unitrows > totalrows - i)
+            unitrows = totalrows - i;
 
-         process(block + index[i] - index[0], rows, index + i, rdata, dlen, ilen, rindex, bid, param, psize);
+         process(block + index[i] - index[0], unitrows, index + i, rdata, dlen, ilen, rindex, bid, param, psize);
          if (buckets <= 0)
             bid = 0;
 
@@ -211,13 +219,11 @@ void* Server::SPEHandler(void* p)
          }
       }
 
-      if (0 == rows)
-      {
+      if (0 == unitrows)
          process(block, 0, NULL, rdata, dlen, ilen, rindex, bid, param, psize);
-      }
+
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
-
       progress = 100;
       msg.setData(4, (char*)&progress, 4);
       msg.m_iDataLength = 4 + 8;
@@ -225,110 +231,9 @@ void* Server::SPEHandler(void* p)
          return NULL;
 
       cout << "sending data back... " << buckets << endl;
+      self->SPESendResult(buckets, result, localfile, perm, datachn, locations);
 
-      if (buckets == -1)
-      {
-         char localfile[64];
-         sprintf(localfile, "%s.%s.%d", datafile.c_str(), function.c_str(), 1);
-         ofstream ofs;
-         ofs.open((self->m_strHomeDir + localfile).c_str());
-         ofs.write(result.m_vData[0], result.m_vDataLen[0]);
-         ofs.close();
-         ofs.open((self->m_strHomeDir + localfile + ".idx").c_str());
-         ofs.write((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
-         ofs.close();
-
-         self->scanLocalFile();
-
-         int32_t size = strlen(localfile) + 1;
-         datachn->send((char*)&size, 4);
-         datachn->send(localfile, size);
-         size = result.m_vDataLen[0];
-         datachn->send((char*)&size, 4);
-         size = result.m_vIndexLen[0];
-         datachn->send((char*)&size, 4);
-      }
-      else if (buckets == 0)
-      {
-         int32_t size = result.m_vDataLen[0];
-         datachn->send((char*)&size, 4);
-         datachn->send(result.m_vData[0], result.m_vDataLen[0]);
-         size = result.m_vIndexLen[0];
-         datachn->send((char*)&size, 4);
-         datachn->send((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
-      }
-      else
-      {
-         int* sarray = new int[buckets];
-         int* rarray = new int[buckets];
-
-         for (int i = 0; i < buckets; ++ i)
-         {
-            char* dstip = locations + i * 72;
-            int dstport = *(int32_t*)(locations + i * 72 + 64);
-            int32_t pass;
-
-            cout << "*********** " << "spe send data " << dstip << " " << dstport << " " << *(int32_t*)(locations + i * 72 + 68) << endl;
-            if (result.m_vDataLen[i] == 0)
-            {
-               pass = 0;
-               msg.setData(0, (char*)&pass, 4);
-               msg.m_iDataLength = 4 + 4;
-               self->m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
-            }
-            else if ((self->m_strLocalHost == dstip) && (self->m_iLocalPort == dstport))
-            {
-               pass = 1;
-               msg.setData(0, (char*)&pass, 4);
-               int size = result.m_vDataLen[i];
-               msg.setData(4, (char*)&size, 4);
-               int pos = (long)result.m_vData[i];
-               msg.setData(8, (char*)&pos, 4);
-               size = result.m_vIndexLen[i];
-               msg.setData(12, (char*)&size, 4);
-               pos = (long)result.m_vIndex[i];
-               msg.setData(16, (char*)&pos, 4);
-
-               msg.m_iDataLength = 4 + 20;
-
-               self->m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
-            }
-            else
-            {
-               Transport t;
-               int dataport = 0;
-               t.open(dataport);
-
-               pass = 2;
-               msg.setData(0, (char*)&pass, 4);
-               msg.setData(4, (char*)&dataport, 4);
-               msg.m_iDataLength = 4 + 8;
-
-               self->m_GMP.rpc(locations + i * 72, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
-
-               t.connect(locations + i * 72, *(int32_t*)msg.getData());
-
-               int32_t size = result.m_vDataLen[i];
-               t.send((char*)&size, 4);
-               t.send(result.m_vData[i], size);
-               size = result.m_vIndexLen[i];
-               t.send((char*)&size, 4);
-               t.send((char*)result.m_vIndex[i], result.m_vIndexLen[i] * 8);
-               t.close();
-            }
-
-            sarray[i] = result.m_vDataLen[i];
-            rarray[i] = result.m_vIndexLen[i] - 1;
-         }
-
-         cout << "sending back size/rec info!!! \n";
-         // send back size and recnum information
-         datachn->send((char*)sarray, buckets * 4);
-         datachn->send((char*)rarray, buckets * 4);
-         delete [] sarray;
-         delete [] rarray;
-      }
-
+      delete [] locations;
       delete [] index;
       delete [] block;
       index = NULL;
@@ -345,7 +250,6 @@ void* Server::SPEHandler(void* p)
    cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
 
    delete [] param;
-   delete [] locations;
 
    return NULL;
 }
@@ -480,4 +384,112 @@ int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size
    }
 
    return 0;
+}
+
+int Server::SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, const bool& perm, Transport* datachn, char* locations)
+{
+   if (buckets == -1)
+   {
+      string dir = (perm) ? ".sector-fs/" : ".sphere/";
+      m_SectorFS.create(localfile, DHash::hash(localfile.c_str(), m_iKeySpace), dir);
+
+      ofstream ofs;
+      ofs.open((m_strHomeDir + dir + localfile).c_str());
+      ofs.write(result.m_vData[0], result.m_vDataLen[0]);
+      ofs.close();
+      ofs.open((m_strHomeDir + dir + localfile + ".idx").c_str());
+      ofs.write((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
+      ofs.close();
+
+      scanLocalFile();
+
+      // send back result file/record size
+      int32_t size = result.m_vDataLen[0];
+      datachn->send((char*)&size, 4);
+      size = result.m_vIndexLen[0];
+      datachn->send((char*)&size, 4);
+   }
+   else if (buckets == 0)
+   {
+      int32_t size = result.m_vDataLen[0];
+      datachn->send((char*)&size, 4);
+      datachn->send(result.m_vData[0], result.m_vDataLen[0]);
+      size = result.m_vIndexLen[0];
+      datachn->send((char*)&size, 4);
+      datachn->send((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
+   }
+   else
+   {
+      int* sarray = new int[buckets];
+      int* rarray = new int[buckets];
+
+      for (int i = 0; i < buckets; ++ i)
+      {
+         char* dstip = locations + i * 72;
+         int dstport = *(int32_t*)(locations + i * 72 + 64);
+         int32_t pass;
+         CCBMsg msg;
+
+         cout << "*********** " << "spe send data " << dstip << " " << dstport << " " << *(int32_t*)(locations + i * 72 + 68) << endl;
+         if (result.m_vDataLen[i] == 0)
+         {
+            pass = 0;
+            msg.setData(0, (char*)&pass, 4);
+            msg.m_iDataLength = 4 + 4;
+            m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+         }
+         else if ((m_strLocalHost == dstip) && (m_iLocalPort == dstport))
+         {
+            pass = 1;
+            msg.setData(0, (char*)&pass, 4);
+            int size = result.m_vDataLen[i];
+            msg.setData(4, (char*)&size, 4);
+            int pos = (long)result.m_vData[i];
+            msg.setData(8, (char*)&pos, 4);
+            size = result.m_vIndexLen[i];
+            msg.setData(12, (char*)&size, 4);
+            pos = (long)result.m_vIndex[i];
+            msg.setData(16, (char*)&pos, 4);
+
+            msg.m_iDataLength = 4 + 20;
+
+            m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+         }
+         else
+         {
+            Transport t;
+            int dataport = 0;
+            t.open(dataport);
+
+            pass = 2;
+            msg.setData(0, (char*)&pass, 4);
+            msg.setData(4, (char*)&dataport, 4);
+            msg.m_iDataLength = 4 + 8;
+
+            m_GMP.rpc(locations + i * 72, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+
+            t.connect(locations + i * 72, *(int32_t*)msg.getData());
+
+            int32_t size = result.m_vDataLen[i];
+            t.send((char*)&size, 4);
+            t.send(result.m_vData[i], size);
+            size = result.m_vIndexLen[i];
+            t.send((char*)&size, 4);
+            t.send((char*)result.m_vIndex[i], result.m_vIndexLen[i] * 8);
+            t.close();
+         }
+
+         sarray[i] = result.m_vDataLen[i];
+         rarray[i] = result.m_vIndexLen[i] - 1;
+      }
+
+      cout << "sending back size/rec info!!! \n";
+      // send back size and recnum information
+      datachn->send((char*)sarray, buckets * 4);
+      datachn->send((char*)rarray, buckets * 4);
+      delete [] sarray;
+      delete [] rarray;
+   }
+
+   return 1;
 }

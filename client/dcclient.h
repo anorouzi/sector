@@ -51,6 +51,7 @@ public:
    int init(const vector<string>& files);
    int init(const int& num);
    void setName(const string& name);
+   void setPermanent(const bool& perm);
    int setSeg(const int64_t& start, const int64_t& end);
    int getSeg(int64_t& start, int64_t& end);
    int getSize(int64_t& size);
@@ -71,6 +72,7 @@ public:
    int64_t m_llEnd;		// end point (record), -1 means the last record
 
    int m_iStatus;		// 0: uninitialized, 1: initialized, -1: bad
+   bool m_bPermanent;		// if the files are permanent or temporary
 };
 
 struct Result
@@ -115,20 +117,20 @@ private:
    int m_iParamSize;
    Stream* m_pInput;
    Stream* m_pOutput;
+   int m_iRows;
    int m_iOutputType;
+   char* m_pOutputLoc;
+   char* m_pSPENodes;
+   int m_iSPENum;
 
    struct DS
    {
       int m_iID;
-
       string m_strDataFile;
       int64_t m_llOffset;
       int64_t m_llSize;
-
       int m_iSPEID;
-
       int m_iStatus;		// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
-
       Result* m_pResult;
    };
    vector<DS> m_vDS;
@@ -138,14 +140,11 @@ private:
       uint32_t m_uiID;
       string m_strIP;
       int m_iPort;
-
       DS* m_pDS;
       int m_iStatus;		// -1: bad; 0: ready; 1; running
       int m_iProgress;
-
       timeval m_StartTime;
       timeval m_LastUpdateTime;
-
       Transport m_DataChn;
    };
    vector<SPE> m_vSPE;
@@ -165,10 +164,17 @@ private:
    CGMP m_GMP;
 
 private:
+   int segmentData();
+   int prepareOutput();
    int prepareSPE();
+
    static void* run(void*);
+
+   int start(bool locsense, map<string, Node>& datalocmap);
    int checkSPE(bool locsense, map<string, Node>& datalocmap);
-   int startSPE(SPE& s, bool locsense, map<string, Node>& datalocmap);
+   int startSPE(SPE& s, DS& d);
+
+   int readResult(SPE* s);
 };
 
 }; // namespace cb
