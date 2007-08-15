@@ -148,12 +148,12 @@ int Transport::recv(char* buf, int size)
    return rsize;
 }
 
-int Transport::sendfile(ifstream& ifs, int64_t offset, int64_t size)
+int64_t Transport::sendfile(ifstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::sendfile(m_Socket, ifs, offset, size);
 }
 
-int Transport::recvfile(ofstream& ifs, int64_t offset, int64_t size)
+int64_t Transport::recvfile(ofstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::recvfile(m_Socket, ifs, offset, size);
 }

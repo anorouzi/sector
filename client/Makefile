@@ -32,7 +32,7 @@ anglec: anglec.cpp
 	$(C++) anglec.cpp -o anglec $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload
+	rm -f *.o *.so *.a testfs testdc download upload anglec
 
 install:
 	mv libclient.so libclient.a ../lib

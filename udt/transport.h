@@ -50,8 +50,8 @@ public:
    int connect(const char* ip, int port);
    int send(const char* buf, int size);
    int recv(char* buf, int size);
-   int sendfile(std::ifstream& ifs, int64_t offset, int64_t size);
-   int recvfile(std::ofstream& ifs, int64_t offset, int64_t size);
+   int64_t sendfile(std::ifstream& ifs, int64_t offset, int64_t size);
+   int64_t recvfile(std::ofstream& ifs, int64_t offset, int64_t size);
    int close();
 
 private:

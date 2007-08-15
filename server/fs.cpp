@@ -87,7 +87,7 @@ int SectorFS::scan(vector<string>& filelist, vector<string>& dirs, const string&
    for (int i = 2; i < n; ++ i)
    {
       struct stat s;
-      stat((m_strHomeDir + namelist[i]->d_name).c_str(), &s);
+      stat((m_strHomeDir + currdir + namelist[i]->d_name).c_str(), &s);
 
       if (S_ISDIR(s.st_mode))
          scan(filelist, dirs, currdir + namelist[i]->d_name + "/");
