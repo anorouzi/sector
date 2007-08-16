@@ -27,11 +27,17 @@ written by
 *****************************************************************************/
 
 
+#ifndef WIN32
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+#else
+   #include <windows.h>
+#endif
+
 #include "transport.h"
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <iostream>
+
 using namespace std;
 using namespace cb;
 
