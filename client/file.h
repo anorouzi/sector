@@ -30,11 +30,7 @@ written by
 #ifndef __FILE_H__
 #define __FILE_H__
 
-#ifndef WIN32
-   #include <stdint.h>
-#endif
-#include <string>
-using namespace std;
+#include <udt.h>
 
 namespace cb
 {

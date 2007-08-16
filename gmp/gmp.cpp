@@ -950,8 +950,7 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
       return -1;
    }
 
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
+   uint64_t t = CTimer::getTime();
 
    while (recv(id, res) < 0)
    {
@@ -962,8 +961,7 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
       }
 
       // 30 seconds maximum waiting time
-      gettimeofday(&t2, 0);
-      if (t2.tv_sec - t1.tv_sec > 30)
+	  if (CTimer::getTime() - t > 30000000)
       {
          //cout << "RPC TIMEOUT \n";
          return -1;

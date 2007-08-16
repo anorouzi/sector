@@ -32,12 +32,10 @@ written by
 
 #ifndef WIN32
    #include <sys/types.h>
-   #include <udt.h>
-
    #define GMP_API
 #else
    #include <windows.h>
-
+   #include <udt.h>
    #ifdef GMP_EXPORTS
       #define GMP_API __declspec(dllexport)
    #else

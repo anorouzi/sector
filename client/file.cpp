@@ -29,6 +29,7 @@ written by
 
 #include <file.h>
 #include <common.h>
+#include <string>
 
 using namespace std;
 using namespace cb;

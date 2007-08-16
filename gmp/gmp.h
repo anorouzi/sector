@@ -116,7 +116,7 @@ struct CFMsgRec
          return (m1->m_iPort > m2->m_iPort);
       }
       
-      return strcmp(m1->m_pcIP, m2->m_pcIP);
+      return (strcmp(m1->m_pcIP, m2->m_pcIP) > 0);
    }
 };
 
