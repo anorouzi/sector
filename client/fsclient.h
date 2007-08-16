@@ -31,7 +31,7 @@ written by
 #define __CBFS_CLIENT_H__
 
 #include <gmp.h>
-#include <index.h>
+//#include <index.h>
 #include <file.h>
 #include <node.h>
 #include <transport.h>

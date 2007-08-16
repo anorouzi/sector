@@ -32,9 +32,11 @@ written by
 
 #ifndef WIN32
    #include <pthread.h>
+#else
+   #include <udt.h>
+   #include <common.h>
 #endif
 
-#include <util.h>
 #include <set>
 #include <string>
 using namespace std;

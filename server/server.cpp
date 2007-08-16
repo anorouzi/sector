@@ -32,11 +32,11 @@ written by
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
-#include <server.h>
 #include <assert.h>
 #include <sstream>
-#include <util.h>
 #include <fsclient.h>
+#include <common.h>
+#include <server.h>
 
 using namespace std;
 using namespace cb;
@@ -321,7 +321,7 @@ void* Server::process(void* s)
 
             CFileAttr attr;
             strcpy(attr.m_pcName, filename.c_str());
-            attr.m_llTimeStamp = Time::getTime();
+            attr.m_llTimeStamp = CTimer::getTime();
             attr.m_uiID = DHash::hash(attr.m_pcName, m_iKeySpace);
 
             dir = ".sector-fs/";

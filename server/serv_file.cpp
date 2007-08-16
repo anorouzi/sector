@@ -29,7 +29,6 @@ written by
 
 #include <server.h>
 #include <assert.h>
-#include <util.h>
 
 using namespace cb;
 

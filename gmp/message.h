@@ -32,10 +32,11 @@ written by
 
 #ifndef WIN32
    #include <sys/types.h>
+   #include <udt.h>
 
    #define GMP_API
 #else
-   #include <util.h>
+   #include <windows.h>
 
    #ifdef GMP_EXPORTS
       #define GMP_API __declspec(dllexport)
@@ -44,8 +45,6 @@ written by
    #endif
 #endif
 
-#include <iostream>
-using namespace std;
 
 namespace cb
 {

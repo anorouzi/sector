@@ -33,24 +33,33 @@ written by
    #include <windows.h>
 #endif
 
-#include <iostream>
+#include <common.h>
 #include <prec.h>
+
 using namespace std;
 using namespace cb;
 
 CPeerManagement::CPeerManagement()
 {
-   Sync::initMutex(m_PeerRecLock);
+   #ifndef WIN32
+      pthread_mutex_init(&m_PeerRecLock, NULL);
+   #else
+      m_PeerRecLock = CreateMutex(NULL, false, NULL);
+   #endif
 }
 
 CPeerManagement::~CPeerManagement()
 {
-   Sync::releaseMutex(m_PeerRecLock);
+   #ifndef WIN32
+      pthread_mutex_destroy(&m_PeerRecLock);
+   #else
+      CloseHandle(m_PeerRecLock);
+   #endif
 }
 
 void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt)
 {
-   Sync::enterCS(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    CPeerRecord* pr = new CPeerRecord;
    pr->m_strIP = ip;
@@ -72,7 +81,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
             (*i)->m_iRTT = ((*i)->m_iRTT * 7 + rtt) >> 3;
       }
 
-      (*i)->m_llTimeStamp = Time::getTime();
+      (*i)->m_llTimeStamp = CTimer::getTime();
 
       delete pr;
    }
@@ -88,7 +97,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
       else
          pr->m_iRTT = -1;
 
-      pr->m_llTimeStamp = Time::getTime();
+      pr->m_llTimeStamp = CTimer::getTime();
 
       m_sPeerRec.insert(pr);
       m_sPeerRecByTS.insert(pr);
@@ -115,8 +124,6 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          delete t;
       }
    }
-
-   Sync::leaveCS(m_PeerRecLock);
 }
 
 int CPeerManagement::getRTT(const string& ip)
@@ -127,7 +134,7 @@ int CPeerManagement::getRTT(const string& ip)
    pr.m_strIP = ip;
    int rtt = -1;
 
-   Sync::enterCS(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    p = m_sPeerRecByIP.equal_range(&pr);
 
@@ -140,8 +147,6 @@ int CPeerManagement::getRTT(const string& ip)
       }
    }
 
-   Sync::leaveCS(m_PeerRecLock);
-
    return rtt;
 }
 
@@ -153,13 +158,11 @@ int CPeerManagement::getLastID(const string& ip, const int& port, const int& ses
    pr.m_iSession = session;
    int id = -1;
 
-   Sync::enterCS(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
    if (i != m_sPeerRec.end())
       id = (*i)->m_iID;
-
-   Sync::leaveCS(m_PeerRecLock);
 
    return id;
 }
@@ -169,12 +172,10 @@ void CPeerManagement::clearRTT(const string& ip)
    CPeerRecord pr;
    pr.m_strIP = ip;
 
-   Sync::enterCS(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
    p = m_sPeerRecByIP.equal_range(&pr);
    for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
       (*i)->m_iRTT = -1;
-
-   Sync::leaveCS(m_PeerRecLock);
 }

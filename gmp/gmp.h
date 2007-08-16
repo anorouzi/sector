@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/02/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/15/2007
 *****************************************************************************/
 
 
@@ -50,15 +50,12 @@ written by
    #endif
 #endif
 
-#include <util.h>
 #include <transport.h>
 #include <message.h>
 #include <prec.h>
 
-#include <vector>
 #include <string>
 #include <map>
-#include <set>
 #include <list>
 #include <queue>
 using namespace std;

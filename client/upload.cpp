@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <string.h>
 #include <errno.h>
+#include <iostream>
 
 using namespace std;
 using namespace cb;

@@ -27,59 +27,56 @@ written by
 *****************************************************************************/
 
 
-#ifndef __UTIL_H__
-#define __UTIL_H__
+#include <file.h>
+#include <common.h>
 
-namespace cb
+using namespace std;
+using namespace cb;
+
+CFileAttr::CFileAttr() 
 {
+   m_pcName[0] = '\0';
+   m_uiID = 0;
+   m_llTimeStamp = CTimer::getTime();
+   m_iAttr = 0;
+   m_iType = 0;
+   m_llSize = 0;
+}
 
-#ifdef WIN32
-
-   #include <windows.h>
-
-   // Windows compability
-   typedef HANDLE pthread_t;
-   typedef HANDLE pthread_mutex_t;
-   typedef HANDLE pthread_cond_t;
-   typedef DWORD pthread_key_t;
-   typedef int socklen_t;
-
-   // Explicitly define 32-bit and 64-bit numbers
-   typedef __int32 int32_t;
-   typedef __int64 int64_t;
-   typedef unsigned __int32 uint32_t;
-   #if _MSC_VER >= 1300
-      typedef unsigned __int64 uint64_t;
-   #else
-      // VC 6.0 does not support unsigned __int64: may bring potential problems.
-      typedef __int64 uint64_t;
-   #endif
-
-#else
-
-   #include <sys/types.h>
-
-   #define closesocket ::close
-
-#endif
-
-class Time
+CFileAttr::~CFileAttr()
 {
-public:
-   static int64_t getTime();
-};
+}
 
-class Sync
+CFileAttr& CFileAttr::operator=(const CFileAttr& f)
 {
-public:
-   static void initMutex(pthread_mutex_t& mutex);
-   static void releaseMutex(pthread_mutex_t& mutex);
-   static void initCond(pthread_cond_t& cond);
-   static void releaseCond(pthread_cond_t& cond);
-   static void enterCS(pthread_mutex_t& mutex);
-   static void leaveCS(pthread_mutex_t& mutex);
-};
+   strcpy(m_pcName, f.m_pcName);
+   m_uiID = f.m_uiID;
+   m_llTimeStamp = f.m_llTimeStamp;
+   m_iAttr = f.m_iAttr;
+   m_iType = f.m_iType;
+   m_llSize = f.m_llSize;
 
-}; //namespace 
+   return *this;
+}
 
-#endif
+void CFileAttr::serialize(char* attr, int& len) const
+{
+   char* p = attr;
+
+   memcpy(p, m_pcName, 64);
+   p += 64;
+
+   sprintf(p, "%d %lld %d %lld\n", m_uiID, m_llTimeStamp, m_iType, m_llSize);
+
+   len = 64 + strlen(p) + 1;
+}
+
+void CFileAttr::deserialize(const char* attr, const int& len)
+{
+   char* p = (char*)attr;
+
+   memcpy(m_pcName, p, 64);
+   p += 64;
+
+   sscanf(p, "%d %lld %d %lld", &m_uiID, &m_llTimeStamp, &m_iType, &m_llSize);
+}

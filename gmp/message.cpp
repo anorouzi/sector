@@ -23,20 +23,22 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/15/2007
 *****************************************************************************/
 
-
-#include <string.h>
+#include <string>
 #include <message.h>
 
+using namespace std;
 using namespace cb;
-
 
 CUserMessage::CUserMessage():
 m_iDataLength(0),
-m_iBufLength(65536)
+m_iBufLength(1500)
 {
+   if (m_iBufLength < 4)
+      m_iBufLength = 4;
+
    m_pcBuffer = new char[m_iBufLength];
 }
 

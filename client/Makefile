@@ -1,9 +1,9 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lclient -lrpc -ludt -lmeta
+LDFLAGS += -lclient -lrpc -ludt
 
-OBJS = client.o fsclient.o dcclient.o
+OBJS = file.o client.o fsclient.o dcclient.o
 
 all: libclient.so libclient.a testfs testdc download upload anglec
 

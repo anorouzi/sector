@@ -3,8 +3,8 @@ C++ = g++
 DEBUG = 1
 STATIC = 0
 
-CCFLAGS = -I./ -I../util -I../udt -I../gmp -I../routing -I../client -I../server
-LDFLAGS = -lstdc++ -lpthread -L. -L../lib -lutil
+CCFLAGS = -I./ -I../udt -I../gmp -I../routing -I../client -I../server
+LDFLAGS = -lstdc++ -lpthread -L. -L../lib
 
 ifeq ($(DEBUG), 1)
    CCFLAGS += -Wall -g

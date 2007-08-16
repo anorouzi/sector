@@ -28,7 +28,7 @@ written by
 
 #include "dcclient.h"
 #include "fsclient.h"
-#include <algorithm>
+#include <iostream>
 
 using namespace std;
 using namespace cb;

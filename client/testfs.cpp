@@ -1,4 +1,7 @@
 #include <fsclient.h>
+#include <iostream>
+
+using namespace std;
 using namespace cb;
 
 int main(int argc, char** argv)

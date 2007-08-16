@@ -28,6 +28,7 @@ written by
 
 
 #include <fsclient.h>
+#include <iostream>
 
 using namespace std;
 using namespace cb;

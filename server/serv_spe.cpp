@@ -27,7 +27,6 @@ written by
 *****************************************************************************/
 
 #include <server.h>
-#include <util.h>
 #include <dlfcn.h>
 #include <fsclient.h>
 
