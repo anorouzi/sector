@@ -30,97 +30,39 @@ written by
 #ifndef __ROUTING_H__
 #define __ROUTING_H__
 
-#include <vector>
-#include <dhash.h>
-#include <gmp.h>
 #include <node.h>
-
-using namespace std;
 
 namespace cb
 {
-
-struct FTItem
-{
-   unsigned int m_uiStart;
-   Node m_Node;
-};
-
-struct KeyItem
-{
-   unsigned int m_uiKey;
-   char m_pcName[64];
-   char m_pcIP[64];
-   int m_iPort;
-};
 
 class CRouting
 {
 public:
    CRouting();
-   ~CRouting();
+   virtual ~CRouting();
 
 public:
-   int start(const char* ip, const int& port = 0);
-   int join(const char* ip, const char* peer_ip, const int& port = 0, const int& peer_port = 0);
+   virtual int start(const char* ip, const int& port) = 0;
+   virtual int join(const char* ip, const char* peer_ip, const int& port, const int& peer_port) = 0;
 
 public:
-   int lookup(const unsigned int& key, Node* n);
+   virtual int lookup(const unsigned int& key, Node* n) = 0;
+   virtual bool has(const unsigned int& id) = 0;
    void setAppPort(const int& port);
-   bool has(const unsigned int& id);
 
-private:
-   int find_successor(const unsigned int& id, Node* n);
-   void closest_preceding_finger(const unsigned int& id, Node* n);
-
-private:
-   void init_finger_table(const Node* n = NULL);
-   void print_finger_table();
-
-   void stabilize();
-   void notify(Node* n);
-   void fix_fingers();
-   void check_predecessor();
-   void check_successor();
-
-   uint32_t hash(const char* ip, const int& port);
-
-private:
-   struct Param
-   {
-      CRouting* r;
-      char ip[64];
-      int port;
-      int32_t id;
-      CRTMsg* msg;
-   };
-
-   static void* run(void* r);
-   static void* process(void* p);
-   static void* stabilize(void* r);
-
-private:
+protected:
    char m_pcIP[64];			// IP address
    int m_iPort;				// port
    uint32_t m_uiID;			// DHash ID
+
    int m_iAppPort;			// Application port
-   int m_iKeySpace;			// DHash key space
 
-private:
-   vector<FTItem> m_vFingerTable;	// route table
-   Node m_Successor;			// successor
-   Node m_Predecessor;			// predecessor
-   vector<Node> m_vBackupSuccessors;	// backup successor
+protected:
+   int m_iRouterPort;			// default router port
 
-private:
-   CGMP* m_pGMP;			// GMP messenger
-
-private:
-   pthread_mutex_t m_PKeyLock;		// synchronize predecessor access
-   pthread_mutex_t m_SKeyLock;		// synchronize successor access
-
-public:
-   static const int m_iRouterPort;	// default router port
+protected:
+   int m_iKeySpace;                     // DHash key space
+   uint32_t hash(const char* ip, const int& port);
 };
 
 }; // namespace

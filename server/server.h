@@ -147,7 +147,7 @@ private:
    int scanLocalFile();
 
 private:
-   CRouting m_Router;
+   CRouting* m_pRouter;
 
    CGMP m_GMP;
 

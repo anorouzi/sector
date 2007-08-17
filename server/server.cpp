@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/16/2007
 *****************************************************************************/
 
 
@@ -36,6 +36,8 @@ written by
 #include <sstream>
 #include <fsclient.h>
 #include <common.h>
+#include <chord.h>
+#include <center.h>
 #include <server.h>
 
 using namespace std;
@@ -44,28 +46,34 @@ using namespace cb;
 Server::Server(const string& ip)
 {
    m_strLocalHost = ip;
+   m_pRouter = NULL;
 }
 
 Server::~Server()
 {
    m_GMP.close();
    Client::close();
+
+   delete m_pRouter;
 }
 
 int Server::init(char* ip, int port)
 {
-   cout << "SECTOR server built 08102007.\n";
+   cout << "SECTOR server built 08162007.\n";
 
    m_SysConfig.init("sector.conf");
 
    m_iLocalPort = m_SysConfig.m_iSECTORPort;
    m_GMP.init(m_iLocalPort);
-   m_Router.setAppPort(m_iLocalPort);
+
+   m_pRouter = new Chord;
+
+   m_pRouter->setAppPort(m_iLocalPort);
 
    int res;
    if (NULL == ip)
    {
-      res = m_Router.start(m_strLocalHost.c_str(), m_SysConfig.m_iRouterPort);
+      res = m_pRouter->start(m_strLocalHost.c_str(), m_SysConfig.m_iRouterPort);
    }
    else
    {
@@ -76,7 +84,7 @@ int Server::init(char* ip, int port)
       if ((m_GMP.rpc(ip, port, &msg, &msg) < 0) || (msg.getType() < 0))
          return -1;
 
-      res = m_Router.join(m_strLocalHost.c_str(), ip, m_SysConfig.m_iRouterPort, *(int*)msg.getData());
+      res = m_pRouter->join(m_strLocalHost.c_str(), ip, m_SysConfig.m_iRouterPort, *(int*)msg.getData());
    }
    if (res < 0)
       return -1;
@@ -286,7 +294,7 @@ void* Server::process(void* s)
          {
             string filename = msg->getData();
             int fid = DHash::hash(filename.c_str(), m_iKeySpace);
-            int r = self->m_Router.lookup(fid, (Node*)msg->getData());
+            int r = self->m_pRouter->lookup(fid, (Node*)msg->getData());
 
             if (-1 == r)
             {
@@ -398,7 +406,7 @@ void* Server::process(void* s)
             int c = 0;
             for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
             {
-               if (!self->m_Router.has(DHash::hash(fl + i * 64, m_iKeySpace)))
+               if (!self->m_pRouter->has(DHash::hash(fl + i * 64, m_iKeySpace)))
                {
                   self->m_RemoteFile.remove(fl + i * 64);
                   msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
@@ -567,7 +575,7 @@ void* Server::processEx(void* p)
          int fid = DHash::hash(filename.c_str(), m_iKeySpace);
          Node n;
 
-         int r = self->m_Router.lookup(fid, &n);
+         int r = self->m_pRouter->lookup(fid, &n);
 
          if (-1 == r)
          {
@@ -654,7 +662,7 @@ void Server::updateOutLink()
          char* filename = msg.getData() + m * 64;
          Node loc;
          int fid = DHash::hash(filename, m_iKeySpace);
-         if (-1 == m_Router.lookup(fid, &loc))
+         if (-1 == m_pRouter->lookup(fid, &loc))
             continue;
 
          m_LocalFile.updateNameServer(filename, loc);

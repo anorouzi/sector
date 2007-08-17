@@ -23,45 +23,34 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/16/2007
 *****************************************************************************/
 
 
-#ifndef __NODE_H__
-#define __NODE_H__
+#ifndef __CENTER_H__
+#define __CENTER_H__
 
-#include <udt.h>
+#include <routing.h>
 
 namespace cb
 {
 
-struct Node
+class Center: public CRouting
 {
-   uint32_t m_uiID;
-   char m_pcIP[64];
-   int32_t m_iPort;
-   int32_t m_iAppPort;
-};
+public:
+   Center();
+   virtual ~Center();
 
-struct NodeComp
-{
-   bool operator()(const Node& n1, const Node& n2) const
-   {
-      int nc = strcmp(n1.m_pcIP, n2.m_pcIP);
-      if (nc != 0)
-         return (nc > 0);
+public:
+   virtual int start(const char* ip, const int& port = 0);
+   virtual int join(const char* ip, const char* peer_ip, const int& port = 0, const int& peer_port = 0);
 
-      return (n1.m_iAppPort > n2.m_iAppPort);
-   }
-};
+public:
+   virtual int lookup(const unsigned int& key, Node* n);
+   virtual bool has(const unsigned int& id);
 
-struct NodeInfo
-{
-   int32_t m_iStatus;		// good, bad
-   int32_t m_iAvailDisk;	// MB
-   int32_t m_iSPEMem;		// MB
-   int32_t m_iJobs;		// number of clients currently serves
-   int32_t m_iRTT;		// RTT
+private:
+   Node m_Center;
 };
 
 }; // namespace

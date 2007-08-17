@@ -81,10 +81,24 @@ int download(const char* file, const char* dest)
 
 int main(int argc, char** argv)
 {
-   vector<string> filelist;
-   ifstream src(argv[3]);
-   char buf[1024];
+   if (argc != 5)
+   {
+      cout << "USAGE: download <ip> <port> <filelist> <local dir>\n";
+      return -1;
+   }
 
+   cout << "Sector client version 1.3, built 081607.\n";
+
+   ifstream src;
+   src.open(argv[3]);
+   if (src.fail())
+   {
+      cout << "No file list found, exit.\n";
+      return -1;
+   }
+
+   vector<string> filelist;
+   char buf[1024];
    while (!src.eof())
    {
       src.getline(buf, 1024);

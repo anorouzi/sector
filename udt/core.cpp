@@ -92,13 +92,13 @@ CUDT::CUDT()
    m_iMSS = 1500;
    m_bSynSending = true;
    m_bSynRecving = true;
-   m_iFlightFlagSize = 25600;
+   m_iFlightFlagSize = 12800;
    m_iSndQueueLimit = 10000000;
-   m_iUDTBufSize = 25600;
+   m_iUDTBufSize = 12800;
    m_Linger.l_onoff = 1;
    m_Linger.l_linger = 180;
-   m_iUDPSndBufSize = 1000000;
-   m_iUDPRcvBufSize = 1000000;
+   m_iUDPSndBufSize = 10000000;
+   m_iUDPRcvBufSize = 10000000;
    m_iIPversion = AF_INET;
    m_bRendezvous = false;
    m_iSndTimeOut = -1;

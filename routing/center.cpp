@@ -27,29 +27,67 @@ written by
 *****************************************************************************/
 
 
-#include <routing.h>
+#include <center.h>
 #include <dhash.h>
 
+using namespace std;
 using namespace cb;
 
-CRouting::CRouting():
-m_iAppPort(0),
-m_iKeySpace(32)
+Center::Center()
+{
+   m_iKeySpace = 32;
+   m_iRouterPort = 23683;      //center
+}
+
+Center::~Center()
 {
 }
 
-CRouting::~CRouting()
+int Center::start(const char* ip, const int& port)
 {
+   strcpy(m_pcIP, ip);
+   if (port > 0)
+      m_iPort = port;
+   else
+      m_iPort = m_iRouterPort;
+   m_uiID = hash(m_pcIP, m_iPort);
+
+   strcpy(m_Center.m_pcIP, m_pcIP);
+   m_Center.m_iPort = m_iPort;
+   m_Center.m_uiID = m_uiID;
+
+   return 0;
 }
 
-void CRouting::setAppPort(const int& port)
+int Center::join(const char* ip, const char* peer_ip, const int& port, const int& peer_port)
 {
-   m_iAppPort = port;
+   strcpy(m_pcIP, ip);
+   if (port > 0)
+      m_iPort = port;
+   else
+      m_iPort = m_iRouterPort;
+   m_uiID = hash(m_pcIP, m_iPort);
+
+   strcpy(m_Center.m_pcIP, peer_ip);
+   if (peer_port > 0)
+      m_Center.m_iPort = peer_port;
+   else
+      m_Center.m_iPort = m_iRouterPort;
+   m_Center.m_uiID = hash(m_Center.m_pcIP, m_Center.m_iPort);
+
+   return 0;
 }
 
-uint32_t CRouting::hash(const char* ip, const int& port)
+bool Center::has(const unsigned int& id)
 {
-   char str[64];
-   sprintf(str, "%s:%d", ip, port);
-   return DHash::hash(str, m_iKeySpace);
+   return (m_Center.m_uiID == m_uiID);
+}
+
+int Center::lookup(const unsigned int& key, Node* n)
+{
+   strcpy(n->m_pcIP, m_Center.m_pcIP);
+   n->m_iPort = m_Center.m_iPort;
+   n->m_uiID = m_Center.m_uiID;
+
+   return 1;
 }

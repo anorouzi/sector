@@ -29,6 +29,7 @@ written by
 #include <server.h>
 #include <dlfcn.h>
 #include <fsclient.h>
+#include <dhash.h>
 
 using namespace cb;
 
