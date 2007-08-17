@@ -31,6 +31,7 @@ written by
 #define __ROUTING_H__
 
 #include <node.h>
+#include <gmp.h>
 
 namespace cb
 {
@@ -63,6 +64,9 @@ protected:
 protected:
    int m_iKeySpace;                     // DHash key space
    uint32_t hash(const char* ip, const int& port);
+
+protected:
+   CGMP* m_pGMP;                        // GMP messenger
 };
 
 }; // namespace

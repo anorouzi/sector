@@ -37,10 +37,14 @@ Center::Center()
 {
    m_iKeySpace = 32;
    m_iRouterPort = 23683;      //center
+
+   m_pGMP = new CGMP;
 }
 
 Center::~Center()
 {
+   m_pGMP->close();
+   delete m_pGMP;
 }
 
 int Center::start(const char* ip, const int& port)
@@ -52,9 +56,16 @@ int Center::start(const char* ip, const int& port)
       m_iPort = m_iRouterPort;
    m_uiID = hash(m_pcIP, m_iPort);
 
+   m_pGMP->init(m_iPort);
+
    strcpy(m_Center.m_pcIP, m_pcIP);
    m_Center.m_iPort = m_iPort;
    m_Center.m_uiID = m_uiID;
+   m_Center.m_iAppPort = m_iAppPort;
+
+   pthread_t msgserver;
+   pthread_create(&msgserver, NULL, process, this);
+   pthread_detach(msgserver);
 
    return 0;
 }
@@ -68,12 +79,26 @@ int Center::join(const char* ip, const char* peer_ip, const int& port, const int
       m_iPort = m_iRouterPort;
    m_uiID = hash(m_pcIP, m_iPort);
 
+   m_pGMP->init(m_iPort);
+
+   pthread_t msgserver;
+   pthread_create(&msgserver, NULL, process, this);
+   pthread_detach(msgserver);
+
    strcpy(m_Center.m_pcIP, peer_ip);
    if (peer_port > 0)
       m_Center.m_iPort = peer_port;
    else
       m_Center.m_iPort = m_iRouterPort;
    m_Center.m_uiID = hash(m_Center.m_pcIP, m_Center.m_iPort);
+
+   CRTMsg msg;
+   msg.setType(1);
+   msg.m_iDataLength = 4;
+   if (m_pGMP->rpc(m_Center.m_pcIP, m_Center.m_iPort, &msg, &msg) < 0)
+      return -1;
+
+   m_Center.m_iAppPort = *(int*)msg.getData();
 
    return 0;
 }
@@ -88,6 +113,38 @@ int Center::lookup(const unsigned int& key, Node* n)
    strcpy(n->m_pcIP, m_Center.m_pcIP);
    n->m_iPort = m_Center.m_iPort;
    n->m_uiID = m_Center.m_uiID;
+   n->m_iAppPort = m_Center.m_iAppPort;
 
    return 1;
+}
+
+void* Center::process(void* r)
+{
+   Center* self = (Center*)r;
+
+   char ip[64];
+   int port;
+   int32_t id;
+   CRTMsg* msg = new CRTMsg;
+
+   while (true)
+   {
+      self->m_pGMP->recvfrom(ip, port, id, msg);
+
+      //cout << "recv request RT " << msg->getType() << endl;
+
+      switch(msg->getType())
+      {
+      case 1: // get app port
+         *(int*)msg->getData() = self->m_iAppPort;
+         msg->m_iDataLength = 4 + 4;
+         self->m_pGMP->sendto(ip, port, id, msg);
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   delete msg;
 }

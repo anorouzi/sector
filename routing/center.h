@@ -51,6 +51,9 @@ public:
 
 private:
    Node m_Center;
+
+private:
+   static void* process(void* r);
 };
 
 }; // namespace

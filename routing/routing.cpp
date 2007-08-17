@@ -34,7 +34,8 @@ using namespace cb;
 
 CRouting::CRouting():
 m_iAppPort(0),
-m_iKeySpace(32)
+m_iKeySpace(32),
+m_pGMP(NULL)
 {
 }
 

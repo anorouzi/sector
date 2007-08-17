@@ -31,8 +31,6 @@ written by
 #define __CHORD_H__
 
 #include <vector>
-#include <dhash.h>
-#include <gmp.h>
 #include <routing.h>
 
 using namespace std;
@@ -84,8 +82,8 @@ private:
       CRTMsg* msg;
    };
 
-   static void* run(void* r);
-   static void* process(void* p);
+   static void* process(void* r);
+   static void* processEx(void* p);
    static void* stabilize(void* r);
 
 private:
@@ -97,9 +95,6 @@ private:
 private:
    pthread_mutex_t m_PKeyLock;		// synchronize predecessor access
    pthread_mutex_t m_SKeyLock;		// synchronize successor access
-
-private:
-   CGMP* m_pGMP;                        // GMP messenger
 };
 
 }; // namespace

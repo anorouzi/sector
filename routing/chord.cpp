@@ -73,7 +73,7 @@ int Chord::start(const char* ip, const int& port)
    init_finger_table();
 
    pthread_t msgserver;
-   pthread_create(&msgserver, NULL, run, this);
+   pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
 
    pthread_t stabilizer;
@@ -98,7 +98,7 @@ int Chord::join(const char* ip, const char* peer_ip, const int& port, const int&
    init_finger_table();
 
    pthread_t msgserver;
-   pthread_create(&msgserver, NULL, run, this);
+   pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
 
    Node n;
@@ -439,7 +439,7 @@ void Chord::check_successor()
    }
 }
 
-void* Chord::run(void* r)
+void* Chord::process(void* r)
 {
    Chord* self = (Chord*)r;
 
@@ -503,7 +503,7 @@ void* Chord::run(void* r)
          p->msg = new CRTMsg(*msg);
 
          pthread_t process_thread;
-         pthread_create(&process_thread, NULL, process, p);
+         pthread_create(&process_thread, NULL, processEx, p);
          pthread_detach(process_thread);
       }
    }
@@ -511,7 +511,7 @@ void* Chord::run(void* r)
    delete msg;
 }
 
-void* Chord::process(void* p)
+void* Chord::processEx(void* p)
 {
    Chord* self = ((Param*)p)->r;
    char* ip = ((Param*)p)->ip;
