@@ -89,6 +89,8 @@ int32_t CRTMsg::getType() const
 void CRTMsg::setType(const int32_t& type)
 {
    *(int32_t*)m_pcBuffer = type;
+   if (m_iDataLength < 4)
+      m_iDataLength = 4;
 }
 
 char* CRTMsg::getData() const
@@ -102,6 +104,9 @@ void CRTMsg::setData(const int& offset, const char* data, const int& len)
       resize(m_iBufLength << 1);
 
    memcpy(m_pcBuffer + 4 + offset, data, len);
+
+   if (m_iDataLength < 4 + offset + len)
+      m_iDataLength = 4 + offset + len;
 }
 
 
@@ -113,6 +118,8 @@ int32_t CCBMsg::getType() const
 void CCBMsg::setType(const int32_t& type)
 {
    *(int32_t*)m_pcBuffer = type;
+   if (m_iDataLength < 4)
+      m_iDataLength = 4;
 }
 
 char* CCBMsg::getData() const
@@ -126,4 +133,7 @@ void CCBMsg::setData(const int& offset, const char* data, const int& len)
       resize(m_iBufLength << 1);
 
    memcpy(m_pcBuffer + 4 + offset, data, len);
+
+   if (m_iDataLength < 4 + offset + len)
+      m_iDataLength = 4 + offset + len;
 }

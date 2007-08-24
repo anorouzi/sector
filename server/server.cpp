@@ -531,6 +531,7 @@ void* Server::processEx(void* p)
    int port = ((Param1*)p)->client_ctrl_port;
    int32_t id = ((Param1*)p)->msg_id;
    CCBMsg* msg = ((Param1*)p)->msg;
+   delete (Param1*)p;
 
    //cout << "recv request " << msg->getType() << endl;
 
@@ -625,7 +626,6 @@ void* Server::processEx(void* p)
    //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
    delete msg;
-   delete (Param1*)p;
 
    return NULL;
 }
@@ -654,6 +654,8 @@ void Server::updateOutLink()
          ++ c;
       }
       msg.m_iDataLength = 4 + c * 64;
+
+      //cout << "sending msg 7 " << msg.getType() << " " << msg.m_iDataLength << endl;
 
       if (m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg) >= 0)
          c = (msg.m_iDataLength - 4) / 64;
@@ -705,6 +707,8 @@ void Server::updateInLink()
 
       msg.setType(6);
       msg.m_iDataLength = 4 + c * 64;
+
+      //cout << "sending msg 6 " << msg.m_iDataLength << endl;
 
       int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
 

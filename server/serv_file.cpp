@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/12/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/22/2007
 *****************************************************************************/
 
 
@@ -50,19 +50,14 @@ void* Server::fileHandler(void* p)
    if (datachn->connect(ip.c_str(), port) < 0)
       return NULL;
 
-   cout << "client connected " << "MODE " << mode << endl;
-
 //   self->m_KBase.m_iNumConn ++;
 
    string dir;
    self->m_LocalFile.lookup(filename, dir);
    filename = self->m_strHomeDir + dir + filename;
 
-   cout << "processing " << filename << endl;
-
    timeval t1, t2;
    gettimeofday(&t1, 0);
-
    int64_t rb = 0;
    int64_t wb = 0;
 
