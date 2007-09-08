@@ -29,7 +29,7 @@ int main()
 
       cout << "response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
 
-      sleep(1);
+      //sleep(1);
 
       cout << endl << endl;
    }

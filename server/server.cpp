@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/16/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/08/2007
 *****************************************************************************/
 
 
@@ -60,7 +60,7 @@ Server::~Server()
 
 int Server::init(char* ip, int port)
 {
-   cout << "SECTOR server built 08162007.\n";
+   cout << "SECTOR server built 09082007.\n";
 
    m_SysConfig.init("sector.conf");
 
@@ -383,7 +383,7 @@ void* Server::process(void* s)
 
             int c = 0;
             string dir;
-            for (int i ; i < (msg->m_iDataLength - 4) / 64; ++ i)
+            for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
             {
                if (self->m_LocalFile.lookup(fl + i * 64, dir) < 0)
                {
@@ -756,8 +756,8 @@ int Server::scanLocalFile()
    // check new files on disk
    for (unsigned int i = 0; i < filelist.size(); ++ i)
    {
-      string dir;
-      if (m_LocalFile.lookup(filelist[i], dir) < 0)
+      string tmp;
+      if (m_LocalFile.lookup(filelist[i], tmp) < 0)
       {
          ifstream ifs((m_strHomeDir + dirs[i] + filelist[i]).c_str());
          ifs.seekg(0, ios::end);
@@ -771,7 +771,7 @@ int Server::scanLocalFile()
          attr.m_llSize = size;
 
          struct stat s;
-         stat((m_strHomeDir + dir[i] + filelist[i]).c_str(), &s);
+         stat((m_strHomeDir + dirs[i] + filelist[i]).c_str(), &s);
          attr.m_llTimeStamp = (int64_t)s.st_mtime * 1000000;
 
          m_LocalFile.insert(attr, dirs[i]);

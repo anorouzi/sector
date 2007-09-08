@@ -33,7 +33,7 @@ UDT protocol specification (draft-gg-udt-xx.txt)
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/04/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -84,6 +84,10 @@ CUDT::CUDT()
    m_pRcvTimeWindow = NULL;
 
    m_pSndQueue = NULL;
+   m_pRcvQueue = NULL;
+   m_pPeerAddr = NULL;
+   m_pSNode = NULL;
+   m_pRNode = NULL;
 
    // Initilize mutex and condition variables
    initSynch();
@@ -92,13 +96,13 @@ CUDT::CUDT()
    m_iMSS = 1500;
    m_bSynSending = true;
    m_bSynRecving = true;
-   m_iFlightFlagSize = 12800;
-   m_iSndQueueLimit = 10000000;
-   m_iUDTBufSize = 12800;
+   m_iFlightFlagSize = 25600;
+   m_iSndQueueLimit = 20000000;
+   m_iUDTBufSize = 25600;
    m_Linger.l_onoff = 1;
    m_Linger.l_linger = 180;
-   m_iUDPSndBufSize = 10000000;
-   m_iUDPRcvBufSize = 10000000;
+   m_iUDPSndBufSize = 100000;
+   m_iUDPRcvBufSize = 1000000;
    m_iIPversion = AF_INET;
    m_bRendezvous = false;
    m_iSndTimeOut = -1;
@@ -109,18 +113,13 @@ CUDT::CUDT()
    m_pCC = NULL;
    m_pController = NULL;
 
-   m_iRTT = 10 * m_iSYNInterval;
-   m_iRTTVar = m_iRTT >> 1;
-   m_ullCPUFrequency = CTimer::getCPUFrequency();
-
    // Initial status
    m_bOpened = false;
+   m_bListening = false;
    m_bConnected = false;
+   m_bClosing = false;
+   m_bShutdown = false;
    m_bBroken = false;
-
-   m_pPeerAddr = NULL;
-   m_pSNode = NULL;
-   m_pRNode = NULL;
 }
 
 CUDT::CUDT(const CUDT& ancestor)
@@ -134,6 +133,10 @@ CUDT::CUDT(const CUDT& ancestor)
    m_pRcvTimeWindow = NULL;
 
    m_pSndQueue = NULL;
+   m_pRcvQueue = NULL;
+   m_pPeerAddr = NULL;
+   m_pSNode = NULL;
+   m_pRNode = NULL;
 
    // Initilize mutex and condition variables
    initSynch();
@@ -159,18 +162,13 @@ CUDT::CUDT(const CUDT& ancestor)
    m_pCC = NULL;
    m_pController = ancestor.m_pController;
 
-   m_iRTT = ancestor.m_iRTT;
-   m_iRTTVar = ancestor.m_iRTTVar;
-   m_ullCPUFrequency = ancestor.m_ullCPUFrequency;
-
    // Initial status
    m_bOpened = false;
+   m_bListening = false;
    m_bConnected = false;
+   m_bClosing = false;
+   m_bShutdown = false;
    m_bBroken = false;
-
-   m_pPeerAddr = NULL;
-   m_pSNode = NULL;
-   m_pRNode = NULL;
 }
 
 CUDT::~CUDT()
@@ -209,6 +207,12 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 3, 0);
 
       m_iMSS = *(int*)optval;
+
+      // Packet size cannot be greater than UDP buffer size
+      if (m_iMSS > m_iUDPSndBufSize)
+         m_iMSS = m_iUDPSndBufSize;
+      if (m_iMSS > m_iUDPRcvBufSize)
+         m_iMSS = m_iUDPRcvBufSize;
 
       break;
 
@@ -275,6 +279,10 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 1, 0);
 
       m_iUDPSndBufSize = *(int*)optval;
+
+      if (m_iUDPSndBufSize < m_iMSS)
+         m_iUDPSndBufSize = m_iMSS;
+
       break;
 
    case UDP_RCVBUF:
@@ -282,6 +290,10 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
          throw CUDTException(5, 1, 0);
 
       m_iUDPRcvBufSize = *(int*)optval;
+
+      if (m_iUDPRcvBufSize < m_iMSS)
+         m_iUDPRcvBufSize = m_iMSS;
+
       break;
 
    case UDT_RENDEZVOUS:
@@ -402,11 +414,6 @@ void CUDT::open()
 {
    CGuard cg(m_ConnectionLock);
 
-   // Initial status
-   m_bClosing = false;
-   m_bShutdown = false;
-   m_bListening = false;
-
    // Initial sequence number, loss, acknowledgement, etc.
    m_iPktSize = m_iMSS - 28;
    m_iPayloadSize = m_iPktSize - CPacket::m_iPktHdrSize;
@@ -437,7 +444,11 @@ void CUDT::open()
    m_pRNode->m_llTimeStamp = 1;
    m_pRNode->m_pPrev = m_pRNode->m_pNext = NULL;
 
-   // set ip the timers
+   m_iRTT = 10 * m_iSYNInterval;
+   m_iRTTVar = m_iRTT >> 1;
+   m_ullCPUFrequency = CTimer::getCPUFrequency();
+
+   // set up the timers
    m_ullSYNInt = m_iSYNInterval * m_ullCPUFrequency;
    
    m_ullACKInt = m_ullSYNInt;
@@ -475,13 +486,11 @@ void CUDT::listen()
    if (m_bListening)
       return;
 
+   // if there is already another socket listening on the same port
+   if (m_pRcvQueue->setListener(this) < 0)
+      throw CUDTException(5, 11, 0);
+
    m_bListening = true;
-
-   // TO DO
-   //detect error here:
-   // if there is already a listener, throw exception
-
-   m_pRcvQueue->m_ListenerID = m_SocketID;
 }
 
 void CUDT::connect(const sockaddr* serv_addr)
@@ -499,7 +508,7 @@ void CUDT::connect(const sockaddr* serv_addr)
 
    // rendezvous mode check in
    if (m_bRendezvous)
-      m_pRcvQueue->m_pRendezvousQueue->insert(m_SocketID, m_iIPversion, serv_addr);
+      m_pRcvQueue->m_pRendezvousQueue->insert(m_SocketID, m_iIPversion, serv_addr, this);
 
    CPacket request;
    char* reqdata = new char [m_iPayloadSize];
@@ -514,7 +523,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    req->m_iType = m_iSockType;
    req->m_iMSS = m_iMSS;
    req->m_iFlightFlagSize = (m_iUDTBufSize < m_iFlightFlagSize)? m_iUDTBufSize : m_iFlightFlagSize;
-   req->m_iReqType = (!m_bRendezvous) ? 1 : 2;
+   req->m_iReqType = (!m_bRendezvous) ? 1 : 0;
    req->m_iID = m_SocketID;
 
    // Random Initial Sequence Number
@@ -540,7 +549,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    uint64_t entertime = CTimer::getTime();
    CUDTException e(0, 0);
 
-   do
+   while (!m_bClosing)
    {
       m_pSndQueue->sendto(serv_addr, request);
 
@@ -561,13 +570,16 @@ void CUDT::connect(const sockaddr* serv_addr)
          }
       }
 
+      if ((response.getLength() > 0) && (res->m_iReqType < 0))
+         break;
+
       if (CTimer::getTime() - entertime > timeo)
       {
          // timeout
          e = CUDTException(1, 1, 0);
          break;
       }
-   } while (((response.getLength() <= 0) || (m_bRendezvous && (res->m_iReqType > 0))) && !m_bClosing);
+   }
 
    delete [] reqdata;
 
@@ -613,7 +625,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    m_pSndLossList = new CSndLossList(m_iFlowWindowSize * 2);
    m_pRcvLossList = new CRcvLossList(m_iFlightFlagSize);
    m_pACKWindow = new CACKWindow(4096);
-   m_pRcvTimeWindow = new CPktTimeWindow(16, 16, 64);
+   m_pRcvTimeWindow = new CPktTimeWindow(16, 64);
    m_pSndTimeWindow = new CPktTimeWindow();
 
    m_pCC = m_pCCFactory->create();
@@ -631,7 +643,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    m_pCC->init();
 
    // register this socket for receiving data packets
-   m_pRcvQueue->m_pRcvUList->newEntry(this);
+   m_pRcvQueue->setNewEntry(this);
 
    m_pPeerAddr = (AF_INET == m_iIPversion) ? (sockaddr*)new sockaddr_in : (sockaddr*)new sockaddr_in6;
    memcpy(m_pPeerAddr, serv_addr, (AF_INET == m_iIPversion) ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
@@ -690,7 +702,7 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    m_pSndLossList = new CSndLossList(m_iFlowWindowSize * 2);
    m_pRcvLossList = new CRcvLossList(m_iFlightFlagSize);
    m_pACKWindow = new CACKWindow(4096);
-   m_pRcvTimeWindow = new CPktTimeWindow(16, 16, 64);
+   m_pRcvTimeWindow = new CPktTimeWindow(16, 64);
    m_pSndTimeWindow = new CPktTimeWindow();
 
    m_pCC = m_pCCFactory->create();
@@ -707,8 +719,8 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    m_pCC->setBandwidth(m_iBandwidth);
    m_pCC->init();
 
-   // register this socket for receiving data packet
-   m_pRcvQueue->m_pRcvUList->newEntry(this);
+   // register this socket for receiving data packets
+   m_pRcvQueue->setNewEntry(this);
 
    m_pPeerAddr = (AF_INET == m_iIPversion) ? (sockaddr*)new sockaddr_in : (sockaddr*)new sockaddr_in6;
    memcpy(m_pPeerAddr, peer, (AF_INET == m_iIPversion) ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
@@ -751,7 +763,7 @@ void CUDT::close()
    if (m_bListening)
    {
       m_bListening = false;
-      m_pRcvQueue->m_ListenerID = -1;
+      m_pRcvQueue->removeListener(this);
    }
    if (m_bConnected)
    {
@@ -762,10 +774,10 @@ void CUDT::close()
       m_pController->leave(this, m_iRTT, m_iBandwidth);
 
       m_bConnected = false;
-   }
 
-   if (m_bRendezvous)
-      m_pRcvQueue->m_pRendezvousQueue->remove(m_SocketID);
+      if (m_bRendezvous)
+         m_pRcvQueue->m_pRendezvousQueue->remove(m_SocketID);
+   }
 
    // waiting all send and recv calls to stop
    CGuard sendguard(m_SendLock);
@@ -1682,17 +1694,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       if (rtt <= 0)
          break;
 
-      //
-      // Well, I decide to temporaly disable the use of delay.
-      // a good idea but the algorithm to detect it is not good enough.
-      // I'll come back later...
-      //
-
-      //m_pRcvTimeWindow->ack2Arrival(rtt);
-
-      // check packet delay trend
-      //CTimer::rdtsc(currtime);
-      //if (m_pRcvTimeWindow->getDelayTrend() && (currtime - m_ullLastWarningTime > (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency))
+      //if increasing delay detected...
       //   sendCtrl(4);
 
       // RTT EWMA
@@ -1748,7 +1750,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
    case 4: //100 - Delay Warning
       // One way packet delay is increasing, so decrease the sending rate
       m_ullInterval = (uint64_t)ceil(m_ullInterval * 1.125);
-
       m_iLastDecSeq = m_iSndCurrSeqNo;
 
       break;
@@ -1956,7 +1957,7 @@ int CUDT::processData(CUnit* unit)
 
    m_iPktCount ++;
 
-   // update time/delay information
+   // update time information
    m_pRcvTimeWindow->onPktArrival();
 
    // check if it is probing packet pair

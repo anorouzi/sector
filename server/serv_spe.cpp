@@ -175,7 +175,7 @@ void* Server::SPEHandler(void* p)
       else
       {
          // store file name in "process" parameter
-         block = new char[1024];
+         block = new char[64];
          strcpy(block, datafile.c_str());
          size = datafile.length() + 1;
          totalrows = 0;

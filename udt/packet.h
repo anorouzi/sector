@@ -28,7 +28,7 @@ This header file contains the definition of UDT packet structure and operations.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/17/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/28/2007
 *****************************************************************************/
 
 #ifndef __UDT_PACKET_H__
@@ -46,7 +46,7 @@ class CPacket
 {
 friend class CChannel;
 friend class CSndQueue;
-friend class CHash;
+friend class CRcvQueue;
 
 public:
    int32_t& m_iSeqNo;                   // alias: sequence number
@@ -163,6 +163,15 @@ public:
 
    int32_t getMsgSeq() const;
 
+      // Functionality:
+      //    Clone this packet.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    Pointer to the new packet.
+
+   CPacket* clone() const;
+
 protected:
    uint32_t m_nHeader[4];               // The 128-bit header field
    iovec m_PacketVector[2];             // The 2-demension vector of UDT packet [header, data]
@@ -181,7 +190,7 @@ struct CHandShake
    int32_t m_iISN;              // random initial sequence number
    int32_t m_iMSS;              // maximum segment size
    int32_t m_iFlightFlagSize;   // flow control window size
-   int32_t m_iReqType;          // connection request type: -1: response, 1: initial request, 0: rendezvous request
+   int32_t m_iReqType;          // connection request type: 1: regular connection request, 0: rendezvous connection request, -1/-2: response
    int32_t m_iID;		// socket ID
 };
 
