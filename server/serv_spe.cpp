@@ -56,16 +56,16 @@ void SPEResult::init(const int& n, const int& size)
    m_vDataLen.resize(m_iBucketNum);
 
    for (vector<int32_t>::iterator i = m_vIndexLen.begin(); i != m_vIndexLen.end(); ++ i)
-     *i = 1;
+      *i = 1;
    for (vector<int32_t>::iterator i = m_vDataLen.begin(); i != m_vDataLen.end(); ++ i)
-     *i = 0;
+      *i = 0;
    for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
    {
-     *i = new int64_t[m_iSize];
-     (*i)[0] = 0;
+      *i = new int64_t[m_iSize];
+      (*i)[0] = 0;
    }
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
-     *i = new char[m_iSize];
+      *i = new char[m_iSize];
 }
 
 void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
@@ -82,6 +82,14 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
    m_vDataLen[bucketid] += dlen;
+}
+
+void SPEResult::clear()
+{
+   for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
+      delete [] *i;
+   for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
+      delete [] *i;
 }
 
 void* Server::SPEHandler(void* p)
@@ -182,7 +190,11 @@ void* Server::SPEHandler(void* p)
       }
 
       // TODO: use dynamic size at run time!
-      char* rdata = new char[1024 * 1024];
+      char* rdata;
+      if (size < 1000000) 
+         rdata = new char[1024 * 1024];
+      else
+         rdata = new char[size];
       int dlen = 0;
       int64_t* rindex = new int64_t[size];
       int ilen = 0;
@@ -236,6 +248,9 @@ void* Server::SPEHandler(void* p)
       delete [] locations;
       delete [] index;
       delete [] block;
+      delete [] rdata;
+      delete [] rindex;
+      result.clear();
       index = NULL;
       block = NULL;
    }

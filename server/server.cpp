@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/08/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/10/2007
 *****************************************************************************/
 
 
@@ -98,6 +98,8 @@ int Server::init(char* ip, int port)
 
    if (scanLocalFile() < 0)
       return -1;
+
+   gettimeofday(&m_ReplicaCheckTime, 0);
 
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
@@ -442,6 +444,40 @@ void* Server::process(void* s)
             break;
          }
 
+         case 11: // create a replica
+         {
+            string filename = msg->getData() + 8;
+            string dir;
+
+            //check if file already exists!
+            if (self->m_LocalFile.lookup(filename, dir) > 0)
+            {
+               msg->setType(-msg->getType());
+               msg->m_iDataLength = 4;
+               break;
+            }
+
+            // check if there is enough local disk space
+            if (*(int*)msg->getData() > self->m_SysConfig.m_llMaxDataSize - KnowledgeBase::getTotalDataSize(self->m_SysConfig.m_strDataDir))
+            {
+               msg->setType(-msg->getType());
+               msg->m_iDataLength = 4;
+               break;
+            }
+
+            Param1* p = new Param1;
+            p->serv_instance = self;
+            p->msg = new CCBMsg(*msg);
+
+            pthread_t rep;
+            pthread_create(&rep, NULL, createReplica, p);
+            pthread_detach(rep);
+
+            msg->m_iDataLength = 4;
+
+            break;
+         }
+
          case 300: // processing engine
          {
             Transport* datachn = new Transport;
@@ -537,40 +573,6 @@ void* Server::processEx(void* p)
 
    switch (msg->getType())
    {
-      case 11:
-      {
-         string filename = msg->getData() + 8;
-         string dir;
-
-         //check if file already exists!
-         if (self->m_LocalFile.lookup(filename, dir) > 0)
-         {
-            msg->setType(-msg->getType());
-            msg->m_iDataLength = 4;
-            break;
-         }
-
-         // check if there is enough local disk space
-         if (*(int*)msg->getData() > self->m_SysConfig.m_llMaxDataSize - KnowledgeBase::getTotalDataSize(self->m_SysConfig.m_strDataDir))
-         {
-            msg->setType(-msg->getType());
-            msg->m_iDataLength = 4;
-            break;
-         }
-
-         File* f = Client::createFileHandle();
-         if (f->open(filename) < 0)
-            msg->setType(-msg->getType());
-         else if (f->download((self->m_strHomeDir + filename).c_str()) < 0)
-            msg->setType(-msg->getType());
-         f->close();
-         Client::releaseFileHandle(f);
-
-         msg->m_iDataLength = 4;
-
-         break;
-      }
-
       case 101: // stat
       {
          string filename = msg->getData();
@@ -618,14 +620,43 @@ void* Server::processEx(void* p)
       default:
          msg->setType(-msg->getType());
          msg->m_iDataLength = 4;
+         self->m_GMP.sendto(ip.c_str(), port, id, msg);
+
          break;
    }
 
-   self->m_GMP.sendto(ip.c_str(), port, id, msg);
+    self->m_GMP.sendto(ip.c_str(), port, id, msg);
 
    //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
 
    delete msg;
+
+   return NULL;
+}
+
+void* Server::createReplica(void* p)
+{
+   Server* self = ((Param1*)p)->serv_instance;
+   CCBMsg* msg = ((Param1*)p)->msg;
+   delete (Param1*)p;
+
+   string filename = msg->getData() + 8;
+   delete msg;
+
+   CFileAttr attr;
+   strcpy(attr.m_pcName, filename.c_str());
+   attr.m_llTimeStamp = CTimer::getTime();
+   attr.m_uiID = DHash::hash(attr.m_pcName, m_iKeySpace);
+
+   string dir = ".sector-fs/";
+   self->m_SectorFS.create(filename, attr.m_uiID, dir);
+   self->m_LocalFile.insert(attr, dir);
+
+   File* f = Client::createFileHandle();
+   if (f->open(filename) > 0)
+      f->download((self->m_strHomeDir + dir + filename).c_str());
+   f->close();
+   Client::releaseFileHandle(f);
 
    return NULL;
 }
@@ -642,7 +673,10 @@ void Server::updateOutLink()
 
    for (map<Node, set<string>, NodeComp>::iterator i = li.begin(); i != li.end(); ++ i)
    {
-      usleep(1000);
+      timespec ts;
+      ts.tv_sec = 0;
+      ts.tv_nsec = 10000000;
+      nanosleep(&ts, NULL);
 
       // ask remote if it is the right node to hold the metadata for these files
       msg.setType(7);
@@ -691,11 +725,12 @@ void Server::updateInLink()
    CCBMsg msg;
    msg.resize(65536);
 
-   //Node loc;
-
    for (map<Node, set<string>, NodeComp>::iterator i = li.begin(); i != li.end(); ++ i)
    {
-      usleep(1000);
+      timespec ts;
+      ts.tv_sec = 0;
+      ts.tv_nsec = 10000000;
+      nanosleep(&ts, NULL);
 
       // check if the original file still exists
       int c = 0;
@@ -707,11 +742,7 @@ void Server::updateInLink()
 
       msg.setType(6);
       msg.m_iDataLength = 4 + c * 64;
-
-      //cout << "sending msg 6 " << msg.m_iDataLength << endl;
-
       int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
-
       if (r < 0)
          m_RemoteFile.remove(i->first);
       else
@@ -719,10 +750,37 @@ void Server::updateInLink()
          for (c = 0; c < (msg.m_iDataLength - 4) / 64; ++ c)
             m_RemoteFile.removeCopy(msg.getData() + c * 64, i->first);
       }
-
-      // less than 2 copies in the system, create a new one
-      // TODO: start a timeout before making a copy
    }
+
+   /*
+   timeval currtime;
+   gettimeofday(&currtime, 0);
+   if (currtime.tv_sec - m_ReplicaCheckTime.tv_sec > 24 * 3600)
+   {
+      // less than 2 copies in the system, create a new one
+
+      map<string, int> ri;
+      m_RemoteFile.getReplicaInfo(ri, 2);
+
+      for (map<string, int>::const_iterator i = ri.begin(); i != ri.end(); ++ i)
+      {
+         int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
+         Node n;
+         if (m_pRouter->lookup(seed, &n) < 0)
+            continue;
+
+         CFileAttr attr;
+         m_RemoteFile.lookup(i->first, &attr);
+
+         msg.setType(11);
+         msg.setData(0, (char*)&(attr.m_llSize), 8);
+         msg.setData(8, attr.m_pcName, strlen(attr.m_pcName) + 1);
+         msg.m_iDataLength = 4 + 8 + strlen(attr.m_pcName) + 1;
+
+         m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg);
+      }
+   }
+   */
 }
 
 int Server::scanLocalFile()

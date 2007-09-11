@@ -33,7 +33,7 @@ UDT protocol specification (draft-gg-udt-xx.txt)
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/04/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/10/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -101,8 +101,8 @@ CUDT::CUDT()
    m_iUDTBufSize = 25600;
    m_Linger.l_onoff = 1;
    m_Linger.l_linger = 180;
-   m_iUDPSndBufSize = 100000;
-   m_iUDPRcvBufSize = 1000000;
+   m_iUDPSndBufSize = 1024000;
+   m_iUDPRcvBufSize = 10240000;
    m_iIPversion = AF_INET;
    m_bRendezvous = false;
    m_iSndTimeOut = -1;
@@ -744,7 +744,10 @@ void CUDT::close()
       while (!m_bBroken && m_bConnected && (m_pSndBuffer->getCurrBufSize() > 0) && (CTimer::getTime() - entertime < m_Linger.l_linger * 1000000ULL))
       {
          #ifndef WIN32
-            usleep(10);
+            timespec ts;
+            ts.tv_sec = 0;
+            ts.tv_nsec = 1000000;
+            nanosleep(&ts, NULL);
          #else
             Sleep(1);
          #endif

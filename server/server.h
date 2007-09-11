@@ -54,6 +54,7 @@ public:
 public:
    void init(const int& n, const int& size);
    void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
+   void clear();
 
 private:
    int m_iBucketNum;
@@ -135,6 +136,7 @@ private:
    static void* fileHandler(void* p2);
    static void* SPEHandler(void* p4);
    static void* SPEShuffler(void* p5);
+   static void* createReplica(void* p1);
 
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
@@ -170,6 +172,8 @@ private:
    SectorFS m_SectorFS;
 
    KnowledgeBase m_KBase;
+
+   timeval m_ReplicaCheckTime;
 };
 
 }; //namespace
