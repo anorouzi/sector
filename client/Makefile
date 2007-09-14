@@ -5,7 +5,7 @@ LDFLAGS += -lclient -lrpc -ludt
 
 OBJS = file.o client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload anglec
+all: libclient.so libclient.a testfs testdc download upload anglec mycluster
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -30,6 +30,9 @@ upload: upload.cpp
 
 anglec: anglec.cpp
 	$(C++) anglec.cpp -o anglec $(CCFLAGS) $(LDFLAGS)
+
+mycluster: cluster.cpp
+	$(C++) cluster.cpp -o mycluster $(CCFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f *.o *.so *.a testfs testdc download upload anglec

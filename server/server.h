@@ -52,7 +52,7 @@ public:
    ~SPEResult();
 
 public:
-   void init(const int& n, const int& size);
+   void init(const int& n, const int& rows, const int& size);
    void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
    void clear();
 

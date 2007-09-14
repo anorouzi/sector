@@ -41,7 +41,7 @@ SPEResult::~SPEResult()
       delete [] *i;
 }
 
-void SPEResult::init(const int& n, const int& size)
+void SPEResult::init(const int& n, const int& rows, const int& size)
 {
    if (n < 1)
      m_iBucketNum = 1;
@@ -61,11 +61,11 @@ void SPEResult::init(const int& n, const int& size)
       *i = 0;
    for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
    {
-      *i = new int64_t[m_iSize];
+      *i = new int64_t[(rows + 1) / m_iBucketNum];
       (*i)[0] = 0;
    }
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
-      *i = new char[m_iSize];
+      *i = new char[size / m_iBucketNum];
 }
 
 void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
@@ -87,9 +87,15 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
 void SPEResult::clear()
 {
    for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
+   {
       delete [] *i;
+      *i = NULL;
+   }
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
+   {
       delete [] *i;
+      *i = NULL;
+   }
 }
 
 void* Server::SPEHandler(void* p)
@@ -152,12 +158,17 @@ void* Server::SPEHandler(void* p)
 
       // read outupt parameters
       int buckets = *(int32_t*)(dataseg + 80);
-      bool perm = *(int32_t*)(dataseg + 84);
+      bool perm = 0;
       char* locations = NULL;
-      if (buckets > 0)
+      if (buckets != 0)
       {
-         locations = new char[dssize - 88];
-         memcpy(locations, dataseg + 88, dssize - 88);
+         perm = *(int32_t*)(dataseg + 84);
+
+         if (buckets > 0)
+         {
+            locations = new char[dssize - 88];
+            memcpy(locations, dataseg + 88, dssize - 88);
+         }
       }
       string localfile = (buckets < 0) ? dataseg + 88 : "";
       delete [] dataseg;
@@ -205,7 +216,7 @@ void* Server::SPEHandler(void* p)
       strcpy(rdata, self->m_strHomeDir.c_str());
 
       SPEResult result;
-      result.init(buckets, size);
+      result.init(buckets, totalrows, size);
 
       gettimeofday(&t3, 0);
       for (int i = 0; i < totalrows; i += unitrows)
@@ -250,7 +261,6 @@ void* Server::SPEHandler(void* p)
       delete [] block;
       delete [] rdata;
       delete [] rindex;
-      result.clear();
       index = NULL;
       block = NULL;
    }
