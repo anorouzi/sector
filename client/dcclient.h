@@ -107,7 +107,7 @@ public:
    //	0: no rows, one file per time
    //	-1: all rows
 
-   int read(Result*& res, const bool& inorder = true, const bool& wait = true);
+   int read(Result*& res, const bool& inorder = false, const bool& wait = true);
    int checkProgress();
    int close();
 
@@ -133,7 +133,7 @@ private:
       int m_iStatus;		// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
       Result* m_pResult;
    };
-   vector<DS> m_vDS;
+   vector<DS*> m_vpDS;
 
    struct SPE
    {
@@ -172,7 +172,7 @@ private:
 
    int start(bool locsense, map<string, Node>& datalocmap);
    int checkSPE(bool locsense, map<string, Node>& datalocmap);
-   int startSPE(SPE& s, DS& d);
+   int startSPE(SPE& s, DS* d);
 
    int readResult(SPE* s);
 };

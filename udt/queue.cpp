@@ -28,7 +28,7 @@ This file contains the implementation of UDT multiplexer.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/10/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/16/2007
 *****************************************************************************/
 
 #ifdef WIN32
@@ -39,7 +39,7 @@ written by
 #include "common.h"
 #include "queue.h"
 #include "core.h"
-
+#include <iostream>
 using namespace std;
 
 CUnitQueue::CUnitQueue():
@@ -1003,13 +1003,13 @@ TIMER_CHECK:
       uint64_t currtime;
       CTimer::rdtsc(currtime);
 
+//      if (ul != NULL)
+//         cout << "TIME CHECK " << ul << " " << ul->m_llTimeStamp << " " << CTimer::getCPUFrequency() << endl;
+
       while ((NULL != ul) && (ul->m_llTimeStamp < currtime - 10000 * CTimer::getCPUFrequency()))
       {
          CUDT* u = ul->m_pUDT;
          int32_t id = ul->m_iID;
-
-         CPacket packet;
-         packet.setLength(0);
 
          if (u->m_bConnected && !u->m_bBroken)
          {
@@ -1059,11 +1059,17 @@ int CRcvQueue::recvfrom(const int32_t& id, CPacket& packet)
 
       i = m_mBuffer.find(id);
       if (i == m_mBuffer.end())
+      {
+         packet.setLength(-1);
          return -1;
+      }
    }
 
    if (packet.getLength() < i->second->getLength())
+   {
+      packet.setLength(-1);
       return -1;
+   }
 
    memcpy(packet.m_nHeader, i->second->m_nHeader, CPacket::m_iPktHdrSize);
    memcpy(packet.m_pcData, i->second->m_pcData, i->second->getLength());

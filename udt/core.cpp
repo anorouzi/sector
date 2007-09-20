@@ -33,7 +33,7 @@ UDT protocol specification (draft-gg-udt-xx.txt)
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/10/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/20/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -806,7 +806,7 @@ int CUDT::send(char* data, const int& len)
    if (len <= 0)
       return 0;
 
-   if (m_pSndBuffer->getCurrBufSize() > m_iSndQueueLimit)
+   if (m_pSndBuffer->getCurrBufSize() >= m_iSndQueueLimit)
    {
       if (!m_bSynSending)
          throw CUDTException(6, 1, 0);
@@ -850,17 +850,20 @@ int CUDT::send(char* data, const int& len)
    if ((m_iSndTimeOut >= 0) && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize())) 
       return 0; 
 
-   char* buf = new char[len];
-   memcpy(buf, data, len);
+   int size = m_iSndQueueLimit - m_pSndBuffer->getCurrBufSize();
+   if (size > len)
+      size = len;
+   char* buf = new char[size];
+   memcpy(buf, data, size);
 
    // insert the user buffer into the sening list
-   m_pSndBuffer->addBuffer(buf, len);
+   m_pSndBuffer->addBuffer(buf, size);
 
    // insert this socket to snd list if it is not on the list yet
    m_pSndQueue->m_pSndUList->update(m_SocketID, this, false);
 
    // UDT either sends nothing or sends all 
-   return len;
+   return size;
 }
 
 int CUDT::recv(char* data, const int& len)
@@ -934,7 +937,10 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
    if (len <= 0)
       return 0;
 
-   if (m_pSndBuffer->getCurrBufSize() > m_iSndQueueLimit)
+   if (len > m_iSndQueueLimit)
+      throw CUDTException(5, 12, 0);
+
+   if (m_iSndQueueLimit - m_pSndBuffer->getCurrBufSize() < len)
    {
       if (!m_bSynSending)
          throw CUDTException(6, 1, 0);
@@ -975,7 +981,7 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
       }
    }
 
-   if ((m_iSndTimeOut >= 0) && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+   if ((m_iSndTimeOut >= 0) && (m_iSndQueueLimit - m_pSndBuffer->getCurrBufSize() < len))
       return 0;
 
    char* buf = new char[len];
@@ -1217,6 +1223,11 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
 
 void CUDT::sample(CPerfMon* perf, bool clear)
 {
+   if (!m_bConnected)
+      throw CUDTException(2, 2, 0);
+   if (m_bBroken)
+      throw CUDTException(2, 1, 0);
+
    uint64_t currtime = CTimer::getTime();
 
    perf->msTimeStamp = (currtime - m_StartTime) / 1000;
@@ -1381,6 +1392,9 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
       else
          ack = m_pRcvLossList->getFirstLostSeq();
 
+      if (ack == m_iRcvLastAckAck)
+         break;
+
       // send out a lite ACK
       // to save time on buffer processing and bandwidth/AS measurement, a lite ACK only feeds back an ACK number
       if (4 == size)
@@ -1407,11 +1421,11 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
          // signal a waiting "recv" call if there is any data available
          #ifndef WIN32
             pthread_mutex_lock(&m_RecvDataLock);
-            if ((m_bSynRecving) && (0 != m_pRcvBuffer->getRcvDataSize()))
+            if (m_bSynRecving)
                pthread_cond_signal(&m_RecvDataCond);
             pthread_mutex_unlock(&m_RecvDataLock);
          #else
-            if ((m_bSynRecving) && (0 != m_pRcvBuffer->getRcvDataSize()))
+            if (m_bSynRecving)
                SetEvent(m_RecvDataCond);
          #endif
       }
@@ -2054,7 +2068,7 @@ void CUDT::checkTimers()
 
    if ((currtime > m_ullNextACKTime) || ((m_pCC->m_iACKInterval > 0) && (m_pCC->m_iACKInterval <= m_iPktCount)))
    {
-      // ACK timer expired, or user buffer is fulfilled, or ACK interval reached
+      // ACK timer expired or ACK interval reached
 
       sendCtrl(2);
       CTimer::rdtsc(currtime);

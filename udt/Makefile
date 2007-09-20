@@ -1,6 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS +=
+CCFLAGS += -D LINUX -D IA32
 LDFLAGS += 
 
 OBJS = common.o window.o list.o buffer.o packet.o channel.o queue.o core.o control.o api.o ccc.o transport.o

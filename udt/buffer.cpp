@@ -32,7 +32,7 @@ The receiving buffer is a logically circular memeory block.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/29/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/19/2007
 *****************************************************************************/
 
 #include <cstring>
@@ -196,7 +196,7 @@ int CSndBuffer::readData(char** data, const int offset, const int& len, int32_t&
 
    if (p->m_iTTL >= 0)
    {
-      if (int(CTimer::getTime() - p->m_OriginTime) > p->m_iTTL)
+      if ((CTimer::getTime() - p->m_OriginTime) / 1000 > (uint64_t)p->m_iTTL)
       {
          msgno = p->m_iMsgNo;
          seqno = p->m_iSeqNo;
@@ -245,7 +245,7 @@ void CSndBuffer::ackData(const int& len, const int& payloadsize)
 
       // Update the size error between regular and irregular packets
       if (0 != m_pCurrAckBlk->m_iLength % payloadsize)
-         m_iCurrAckPnt -= payloadsize - m_pCurrAckBlk->m_iLength % payloadsize;
+         m_iCurrAckPnt -= payloadsize - (m_pCurrAckBlk->m_iLength % payloadsize);
 
       m_iCurrBufSize -= m_pCurrAckBlk->m_iLength;
       m_pCurrAckBlk = m_pCurrAckBlk->m_next;
@@ -276,7 +276,7 @@ m_iSize(65536),
 m_pUnitQueue(queue),
 m_iStartPos(0),
 m_iLastAckPos(0),
-m_iMaxPos(0),
+m_iMaxPos(-1),
 m_iNotch(0)
 {
    m_pUnit = new CUnit* [m_iSize];
@@ -288,7 +288,7 @@ m_iSize(bufsize),
 m_pUnitQueue(queue),
 m_iStartPos(0),
 m_iLastAckPos(0),
-m_iMaxPos(0),
+m_iMaxPos(-1),
 m_iNotch(0)
 {
    m_pUnit = new CUnit* [m_iSize];
@@ -312,11 +312,9 @@ CRcvBuffer::~CRcvBuffer()
 
 int CRcvBuffer::addData(CUnit* unit, int offset)
 {
-   int pos = m_iLastAckPos + offset;
-   if (pos > m_iMaxPos)
-      m_iMaxPos = pos;
-
-   pos %= m_iSize;
+   int pos = (m_iLastAckPos + offset) % m_iSize;
+   if (offset > m_iMaxPos)
+      m_iMaxPos = offset;
 
    if (NULL != m_pUnit[pos])
       return -1;
@@ -405,8 +403,7 @@ int CRcvBuffer::readBufferToFile(ofstream& file, const int& len)
 void CRcvBuffer::ackData(const int& len)
 {
    m_iLastAckPos = (m_iLastAckPos + len) % m_iSize;
-
-   m_iMaxPos -= len - 1;
+   m_iMaxPos -= len;
 
    CTimer::triggerEvent();
 }
@@ -427,7 +424,7 @@ int CRcvBuffer::getRcvDataSize() const
 
 void CRcvBuffer::dropMsg(const int32_t& msgno)
 {
-   for (int i = 0, n = m_iMaxPos + getRcvDataSize(); i < n; ++ i)
+   for (int i = m_iStartPos, n = (m_iLastAckPos + m_iMaxPos) % m_iSize; i != n; i = (i + 1) % m_iSize)
       if ((NULL != m_pUnit[i]) && (msgno == m_pUnit[i]->m_Packet.m_iMsgNo))
          m_pUnit[i]->m_iFlag = 3;
 }
@@ -503,11 +500,11 @@ bool CRcvBuffer::scanMsg(int& p, int& q, bool& passack)
 
    p = -1;                  // message head
    q = m_iStartPos;         // message tail
-   passack = false;
+   passack = m_iStartPos == m_iLastAckPos;
    bool found = false;
 
    // looking for the first message
-   for (int i = 0, n = m_iMaxPos + getRcvDataSize(); i < n; ++ i)
+   for (int i = 0, n = m_iMaxPos + getRcvDataSize(); i <= n; ++ i)
    {
       if ((NULL != m_pUnit[q]) && (1 == m_pUnit[q]->m_iFlag))
       {
