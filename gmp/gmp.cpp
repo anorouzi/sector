@@ -961,7 +961,7 @@ int CGMP::rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* 
       }
 
       // 30 seconds maximum waiting time
-	  if (CTimer::getTime() - t > 30000000)
+      if (CTimer::getTime() - t > 30000000)
       {
          //cout << "RPC TIMEOUT \n";
          return -1;

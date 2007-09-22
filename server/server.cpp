@@ -60,7 +60,7 @@ Server::~Server()
 
 int Server::init(char* ip, int port)
 {
-   cout << "SECTOR server built 09082007.\n";
+   cout << "SECTOR server built 09222007.\n";
 
    m_SysConfig.init("sector.conf");
 
@@ -315,8 +315,6 @@ void* Server::process(void* s)
 
          case 5: // create a local file
          {
-            cout << "create new file..\n";
-
             string filename = msg->getData();
             string dir;
 
@@ -338,8 +336,6 @@ void* Server::process(void* s)
             dir = ".sector-fs/";
             self->m_SectorFS.create(attr.m_pcName, attr.m_uiID, dir);
             self->m_LocalFile.insert(attr, dir);
-
-            cout << "FILE CREATED " << dir << endl;
 
             // generate certificate for the file owner
             char cert[1024];
@@ -689,8 +685,6 @@ void Server::updateOutLink()
       }
       msg.m_iDataLength = 4 + c * 64;
 
-      //cout << "sending msg 7 " << msg.getType() << " " << msg.m_iDataLength << endl;
-
       if (m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg) >= 0)
          c = (msg.m_iDataLength - 4) / 64;
 
@@ -743,6 +737,7 @@ void Server::updateInLink()
       msg.setType(6);
       msg.m_iDataLength = 4 + c * 64;
       int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
+
       if (r < 0)
          m_RemoteFile.remove(i->first);
       else

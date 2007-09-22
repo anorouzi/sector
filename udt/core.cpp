@@ -806,7 +806,7 @@ int CUDT::send(char* data, const int& len)
    if (len <= 0)
       return 0;
 
-   if (m_pSndBuffer->getCurrBufSize() >= m_iSndQueueLimit)
+   if (m_iSndQueueLimit <= m_pSndBuffer->getCurrBufSize())
    {
       if (!m_bSynSending)
          throw CUDTException(6, 1, 0);
@@ -817,7 +817,7 @@ int CUDT::send(char* data, const int& len)
             pthread_mutex_lock(&m_SendBlockLock);
             if (m_iSndTimeOut < 0) 
             { 
-               while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+               while (!m_bBroken && m_bConnected && (m_iSndQueueLimit <= m_pSndBuffer->getCurrBufSize()))
                   pthread_cond_wait(&m_SendBlockCond, &m_SendBlockLock);
             }
             else
@@ -834,7 +834,7 @@ int CUDT::send(char* data, const int& len)
          #else
             if (m_iSndTimeOut < 0)
             {
-               while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+               while (!m_bBroken && m_bConnected && (m_iSndQueueLimit <= m_pSndBuffer->getCurrBufSize()))
                   WaitForSingleObject(m_SendBlockCond, INFINITE);
             }
             else 
@@ -847,7 +847,7 @@ int CUDT::send(char* data, const int& len)
       }
    }
 
-   if ((m_iSndTimeOut >= 0) && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize())) 
+   if ((m_iSndTimeOut >= 0) || (m_iSndQueueLimit <= m_pSndBuffer->getCurrBufSize())) 
       return 0; 
 
    int size = m_iSndQueueLimit - m_pSndBuffer->getCurrBufSize();
@@ -981,14 +981,14 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
       }
    }
 
-   if ((m_iSndTimeOut >= 0) && (m_iSndQueueLimit - m_pSndBuffer->getCurrBufSize() < len))
+   if ((m_iSndTimeOut >= 0) || (m_iSndQueueLimit - m_pSndBuffer->getCurrBufSize() < len))
       return 0;
 
    char* buf = new char[len];
    memcpy(buf, data, len);
 
    // insert the user buffer into the sening list
-   m_pSndBuffer->addBuffer(buf, len, msttl, m_iSndCurrSeqNo, inorder);
+   m_pSndBuffer->addBuffer(buf, len, msttl, CSeqNo::incseq(m_iSndCurrSeqNo), inorder);
 
    // insert this socket to the snd list if it is not on the list yet
    m_pSndQueue->m_pSndUList->update(m_SocketID, this, false);
@@ -1134,11 +1134,11 @@ int64_t CUDT::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size
 
       #ifndef WIN32
          pthread_mutex_lock(&m_SendBlockLock);
-         while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+         while (!m_bBroken && m_bConnected && (m_iSndQueueLimit <= m_pSndBuffer->getCurrBufSize()))
             pthread_cond_wait(&m_SendBlockCond, &m_SendBlockLock);
          pthread_mutex_unlock(&m_SendBlockLock);
       #else
-         while (!m_bBroken && m_bConnected && (m_iSndQueueLimit < m_pSndBuffer->getCurrBufSize()))
+         while (!m_bBroken && m_bConnected && (m_iSndQueueLimit <= m_pSndBuffer->getCurrBufSize()))
             WaitForSingleObject(m_SendBlockCond, INFINITE);
       #endif
 
@@ -1861,7 +1861,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
 
       if (-1 == payload)
       {
-         seqpair[1] = CSeqNo::incseq(seqpair[0], msglen / m_iPayloadSize);
+         seqpair[1] = CSeqNo::incseq(seqpair[0], msglen / m_iPayloadSize - ((0 != msglen % m_iPayloadSize) ? 0 : 1));
          sendCtrl(7, &packet.m_iMsgNo, seqpair, 8);
 
          // only one msg drop request is necessary

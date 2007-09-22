@@ -35,7 +35,7 @@ mycluster: cluster.cpp
 	$(C++) cluster.cpp -o mycluster $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload anglec
+	rm -f *.o *.so *.a testfs testdc download upload anglec mycluster
 
 install:
 	mv libclient.so libclient.a ../lib

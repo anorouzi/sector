@@ -39,7 +39,7 @@ written by
 #include "common.h"
 #include "queue.h"
 #include "core.h"
-#include <iostream>
+
 using namespace std;
 
 CUnitQueue::CUnitQueue():
@@ -1002,9 +1002,6 @@ TIMER_CHECK:
       CUDTList* ul = self->m_pRcvUList->m_pUList;
       uint64_t currtime;
       CTimer::rdtsc(currtime);
-
-//      if (ul != NULL)
-//         cout << "TIME CHECK " << ul << " " << ul->m_llTimeStamp << " " << CTimer::getCPUFrequency() << endl;
 
       while ((NULL != ul) && (ul->m_llTimeStamp < currtime - 10000 * CTimer::getCPUFrequency()))
       {

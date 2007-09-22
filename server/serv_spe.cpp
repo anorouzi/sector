@@ -61,15 +61,11 @@ void SPEResult::init(const int& n, const int& rows, const int& size)
       *i = 0;
    for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
    {
-      cout << "allocate " << (rows + 1) / m_iBucketNum * 8 << endl;
       *i = new int64_t[(rows + 1) / m_iBucketNum];
       (*i)[0] = 0;
    }
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
-   {
-      cout << "allocate " << size / m_iBucketNum << endl;
       *i = new char[size / m_iBucketNum];
-   }
 }
 
 void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
@@ -160,8 +156,6 @@ void* Server::SPEHandler(void* p)
       int64_t totalrows = *(int64_t*)(dataseg + 72);
       int64_t* index = new int64_t[totalrows + 1];
 
-      cout << "allocate " << (totalrows + 1) * 8 << endl;
-
       // read outupt parameters
       int buckets = *(int32_t*)(dataseg + 80);
       bool perm = 0;
@@ -212,11 +206,9 @@ void* Server::SPEHandler(void* p)
          rdata = new char[1024 * 1024];
       else
          rdata = new char[size];
-      cout << "allocate " << size << endl;
 
       int dlen = 0;
       int64_t* rindex = new int64_t[totalrows + 1];
-      cout << "allocate " << (totalrows + 1) * 8 << endl;
       int ilen = 0;
       int bid;
       int progress = 0;

@@ -197,6 +197,7 @@ m_iMaxUnitSize(256000000)
 
    pthread_mutex_init(&m_ResLock, NULL);
    pthread_cond_init(&m_ResCond, NULL);
+   pthread_mutex_init(&m_RunLock, NULL);
 }
 
 Process::~Process()
@@ -209,10 +210,14 @@ Process::~Process()
 
    pthread_mutex_destroy(&m_ResLock);
    pthread_cond_destroy(&m_ResCond);
+   pthread_mutex_destroy(&m_RunLock);
 }
 
 int Process::run(const Stream& input, Stream& output, string op, const int& rows, const char* param, const int& size)
 {
+   pthread_mutex_lock(&m_RunLock);
+   pthread_mutex_unlock(&m_RunLock);
+
    m_strOperator = op;
    m_pcParam = new char[size];
    memcpy(m_pcParam, param, size);
@@ -275,8 +280,8 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
 
 int Process::close()
 {
-   for (vector<SPE>::iterator i = m_vSPE.begin(); i != m_vSPE.end(); ++ i)
-      i->m_DataChn.close();
+   pthread_mutex_lock(&m_RunLock);
+   pthread_mutex_unlock(&m_RunLock);
 
    m_vSPE.clear();
    m_vpDS.clear();
@@ -287,6 +292,9 @@ int Process::close()
 void* Process::run(void* param)
 {
    Process* self = (Process*)param;
+
+   pthread_mutex_lock(&self->m_RunLock);
+
    bool locsense = !(self->m_pInput->m_vLocation[0].empty());
 
    map<string, Node> datalocmap;
@@ -302,7 +310,7 @@ void* Process::run(void* param)
    while (self->m_iProgress < self->m_iTotalDS)
    {
       if (0 == self->checkSPE(locsense, datalocmap))
-         return NULL;
+         break;
 
       char ip[64];
       int port;
@@ -345,6 +353,8 @@ void* Process::run(void* param)
    for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
       i->m_DataChn.close();
 
+   pthread_mutex_unlock(&self->m_RunLock);
+
    return NULL;
 }
 
@@ -369,8 +379,6 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
          s->m_DataChn.close();
 
          m_iTotalSPE --;
-
-         cout << "TIMEOUT!!!?\n";
       }
       else if (0 == s->m_iStatus)
       {
@@ -573,8 +581,6 @@ int Process::segmentData()
       else
          unitsize = m_pInput->m_llRecNum / m_iSPENum;
 
-      //cout << "unitsize " << unitsize << " " << avg << " " << m_iMaxUnitSize << " " << m_iMinUnitSize << " " << m_iSPENum << endl;
-
       int seq = 0;
       for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
       {
@@ -685,8 +691,6 @@ int Process::readResult(SPE* s)
          m_pOutput->m_llSize += sarray[i];
          m_pOutput->m_llRecNum += rarray[i];
       }
-
-      //cout << "OUTPUT SIZE " << m_pOutput->m_llSize << " " << m_pOutput->m_llRecNum << endl;
 
       delete [] sarray;
       delete [] rarray;

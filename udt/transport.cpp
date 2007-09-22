@@ -53,7 +53,7 @@ int Transport::open(int& port, bool rendezvous)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
-   cout << "OPEN " << m_Socket << " " << rendezvous << endl;
+   //cout << "OPEN " << m_Socket << " " << rendezvous << endl;
 
    bool reuseaddr = false;
    UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
@@ -172,7 +172,7 @@ int64_t Transport::recvfile(ofstream& ifs, int64_t offset, int64_t size)
 
 int Transport::close()
 {
-   cout << "CLOSE " << m_Socket << endl;
+   //cout << "CLOSE " << m_Socket << endl;
 
    return UDT::close(m_Socket);
 }

@@ -169,6 +169,7 @@ private:
    int prepareSPE();
 
    static void* run(void*);
+   pthread_mutex_t m_RunLock;
 
    int start(bool locsense, map<string, Node>& datalocmap);
    int checkSPE(bool locsense, map<string, Node>& datalocmap);
