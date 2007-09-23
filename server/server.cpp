@@ -411,6 +411,17 @@ void* Server::process(void* s)
                   msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
                   ++ c;
                }
+               else
+               {
+                  Node n;
+                  strcpy(n.m_pcIP, ip);
+                  n.m_iAppPort = port;
+                  if (!self->m_RemoteFile.check(fl + i * 64, n))
+                  {
+                     msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
+                     ++ c;
+                  }
+               }
             }
             delete [] fl;
 
@@ -733,17 +744,24 @@ void Server::updateInLink()
          msg.setData(c * 64, f->c_str(), f->length() + 1);
          ++ c;
       }
+      cout << "IN LINK " << i->first.m_pcIP << " " << c << endl;
 
       msg.setType(6);
       msg.m_iDataLength = 4 + c * 64;
       int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
 
       if (r < 0)
+      {
+         cout << "******************* remove " << i->first.m_pcIP << endl;
          m_RemoteFile.remove(i->first);
+      }
       else
       {
          for (c = 0; c < (msg.m_iDataLength - 4) / 64; ++ c)
+         {
+            cout << "******************* removecopy " << msg.getData() + c * 64 << endl;
             m_RemoteFile.removeCopy(msg.getData() + c * 64, i->first);
+         }
       }
    }
 
