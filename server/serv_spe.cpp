@@ -202,14 +202,13 @@ void* Server::SPEHandler(void* p)
 
       // TODO: use dynamic size at run time!
       char* rdata;
-//      if (size < 1000000) 
+      if (size < 1000000) 
          rdata = new char[1024 * 1024];
-//      else
-//         rdata = new char[size];
+      else
+         rdata = new char[size];
 
       int dlen = 0;
-//      int64_t* rindex = new int64_t[totalrows + 1];
-      int64_t* rindex = new int64_t[2];
+      int64_t* rindex = new int64_t[totalrows + 1];
       int ilen = 0;
       int bid;
       int progress = 0;
@@ -258,6 +257,7 @@ void* Server::SPEHandler(void* p)
       cout << "sending data back... " << buckets << endl;
       self->SPESendResult(buckets, result, localfile, perm, datachn, locations);
 
+      result.clear();
       delete [] locations;
       delete [] index;
       delete [] block;

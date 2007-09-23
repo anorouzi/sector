@@ -23,11 +23,10 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/20/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/22/2007
 *****************************************************************************/
 
 #include "dcclient.h"
-#include "fsclient.h"
 #include <iostream>
 
 using namespace std;
@@ -180,7 +179,7 @@ int Stream::getSize(int64_t& size)
 //
 Process::Process():
 m_iMinUnitSize(1000000),
-m_iMaxUnitSize(256000000)
+m_iMaxUnitSize(128000000)
 {
    m_strOperator = "";
    m_pcParam = NULL;
@@ -339,9 +338,8 @@ void* Process::run(void* param)
       if (progress < 100)
          continue;
 
-      cout << "result is back!!! " << endl;
       self->readResult(&(*s));
-      cout << "got it " << speid << endl;
+      cout << "got result " << speid << endl;
 
       // one SPE completes!
       timeval t;
@@ -351,7 +349,10 @@ void* Process::run(void* param)
 
    // disconnect all SPEs
    for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
+   {
+      cout << "CLOSING CHANNEL!!!\n";
       i->m_DataChn.close();
+   }
 
    pthread_mutex_unlock(&self->m_RunLock);
 
