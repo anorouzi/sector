@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/23/2007
 *****************************************************************************/
 
 #ifndef __SECTOR_H__
@@ -134,6 +134,7 @@ private:
       Result* m_pResult;
    };
    vector<DS*> m_vpDS;
+   pthread_mutex_t m_DSLock;
 
    struct SPE
    {

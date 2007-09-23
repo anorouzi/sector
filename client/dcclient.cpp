@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/22/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/23/2007
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -194,6 +194,7 @@ m_iMaxUnitSize(128000000)
    m_vpDS.clear();
    m_vSPE.clear();
 
+   pthread_mutex_init(&m_DSLock, NULL);
    pthread_mutex_init(&m_ResLock, NULL);
    pthread_cond_init(&m_ResCond, NULL);
    pthread_mutex_init(&m_RunLock, NULL);
@@ -207,6 +208,7 @@ Process::~Process()
 
    m_GMP.close();
 
+   pthread_mutex_destroy(&m_DSLock);
    pthread_mutex_destroy(&m_ResLock);
    pthread_cond_destroy(&m_ResCond);
    pthread_mutex_destroy(&m_RunLock);
@@ -349,10 +351,7 @@ void* Process::run(void* param)
 
    // disconnect all SPEs
    for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
-   {
-      cout << "CLOSING CHANNEL!!!\n";
       i->m_DataChn.close();
-   }
 
    pthread_mutex_unlock(&self->m_RunLock);
 
@@ -384,6 +383,8 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
       else if (0 == s->m_iStatus)
       {
          // find a new DS and start it
+         pthread_mutex_lock(&m_DSLock);
+
          for (vector<DS*>::iterator d = m_vpDS.begin(); d != m_vpDS.end(); ++ d)
          {
             Node* loc = NULL;
@@ -396,6 +397,8 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
                break;
             }
          }
+
+         pthread_mutex_unlock(&m_DSLock);
       }
    }
 
@@ -488,8 +491,10 @@ int Process::read(Result*& res, const bool& inorder, const bool& wait)
          res = (*i)->m_pResult;
          res->m_strOrigFile = (*i)->m_strDataFile;
 
+         pthread_mutex_lock(&m_DSLock);
          delete *i;
          m_vpDS.erase(i);
+         pthread_mutex_unlock(&m_DSLock);
 
          pthread_mutex_lock(&m_ResLock);
          -- m_iAvailRes;
