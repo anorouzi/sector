@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/10/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/24/2007
 *****************************************************************************/
 
 
@@ -744,24 +744,17 @@ void Server::updateInLink()
          msg.setData(c * 64, f->c_str(), f->length() + 1);
          ++ c;
       }
-      cout << "IN LINK " << i->first.m_pcIP << " " << c << endl;
 
       msg.setType(6);
       msg.m_iDataLength = 4 + c * 64;
       int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
 
       if (r < 0)
-      {
-         cout << "******************* remove " << i->first.m_pcIP << endl;
          m_RemoteFile.remove(i->first);
-      }
       else
       {
          for (c = 0; c < (msg.m_iDataLength - 4) / 64; ++ c)
-         {
-            cout << "******************* removecopy " << msg.getData() + c * 64 << endl;
             m_RemoteFile.removeCopy(msg.getData() + c * 64, i->first);
-         }
       }
    }
 
@@ -818,10 +811,7 @@ int Server::scanLocalFile()
    for (set<string>::iterator i = lfindex.begin(); i != lfindex.end(); ++ i)
    {
       if (sortlist.find(*i) == sortlist.end())
-      {
          m_LocalFile.remove(*i);
-         //cout << "remove local file " << *i << endl;
-      }
    }
 
    // check new files on disk
