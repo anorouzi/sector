@@ -452,8 +452,6 @@ void* Chord::process(void* r)
    {
       self->m_pGMP->recvfrom(ip, port, id, msg);
 
-      //cout << "recv request RT " << msg->getType() << endl;
-
       switch(msg->getType())
       {
       case 1: // get Successor
@@ -519,8 +517,6 @@ void* Chord::processEx(void* p)
    int32_t id = ((Param*)p)->id;
    CRTMsg* msg = ((Param*)p)->msg;
 
-   //cout << "recv request RT " << msg->getType() << endl;
-
    switch (msg->getType())
    {
    case 3: // find successor
@@ -540,8 +536,6 @@ void* Chord::processEx(void* p)
    }
 
    self->m_pGMP->sendto(ip, port, id, msg);
-
-   //cout << "responded RT " << msg->getType() << " " << id << " " << msg->m_iDataLength << endl;
 
    delete msg;
    delete (Param*)p;

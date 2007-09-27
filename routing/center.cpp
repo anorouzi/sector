@@ -30,7 +30,6 @@ written by
 #include <center.h>
 #include <dhash.h>
 
-using namespace std;
 using namespace cb;
 
 Center::Center()
@@ -130,8 +129,6 @@ void* Center::process(void* r)
    while (true)
    {
       self->m_pGMP->recvfrom(ip, port, id, msg);
-
-      //cout << "recv request RT " << msg->getType() << endl;
 
       switch(msg->getType())
       {

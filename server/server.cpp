@@ -67,8 +67,9 @@ int Server::init(char* ip, int port)
    m_iLocalPort = m_SysConfig.m_iSECTORPort;
    m_GMP.init(m_iLocalPort);
 
-   m_pRouter = new Chord;
+   Client::init(m_strLocalHost.c_str(), m_iLocalPort);
 
+   m_pRouter = new Chord;
    m_pRouter->setAppPort(m_iLocalPort);
 
    int res;
@@ -92,7 +93,6 @@ int Server::init(char* ip, int port)
 
 
    m_strHomeDir = m_SysConfig.m_strDataDir;
-   //cout << "Home Dir " << m_strHomeDir << endl;
    m_SectorFS.init(m_strHomeDir);
    m_HomeDirMTime = -1;
 
@@ -104,8 +104,6 @@ int Server::init(char* ip, int port)
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
-
-   Client::init(m_strLocalHost.c_str(), m_iLocalPort);
 
    return 1;
 }
@@ -141,8 +139,6 @@ void* Server::process(void* s)
    while (true)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
-
-      //cout << "recv CB " << msg->getType() << " " << ip << " " << port << " " << msg->m_iDataLength << endl;
 
       switch (msg->getType())
       {
@@ -193,8 +189,6 @@ void* Server::process(void* s)
                self->m_GMP.sendto(ip, port, id, msg);
                break;
             }
-
-            cout << "OPEN FILE " << dir << " " << filename << endl;
 
             int mode = *(int*)(msg->getData() + 64);
 
@@ -576,8 +570,6 @@ void* Server::processEx(void* p)
    CCBMsg* msg = ((Param1*)p)->msg;
    delete (Param1*)p;
 
-   //cout << "recv request " << msg->getType() << endl;
-
    switch (msg->getType())
    {
       case 101: // stat
@@ -608,8 +600,6 @@ void* Server::processEx(void* p)
                   attr.serialize(msg->getData(), msg->m_iDataLength);
                   msg->m_iDataLength += 4;
                }
-
-               cout << "syn " << filename << " " << msg->getType() << " " << msg->m_iDataLength - 4 << " " << attr.m_llSize << endl;
             }
             else
             {
@@ -627,14 +617,11 @@ void* Server::processEx(void* p)
       default:
          msg->setType(-msg->getType());
          msg->m_iDataLength = 4;
-         self->m_GMP.sendto(ip.c_str(), port, id, msg);
 
          break;
    }
 
-    self->m_GMP.sendto(ip.c_str(), port, id, msg);
-
-   //cout << "responded " << ip << " " << port << " " << msg->getType() << " " << msg->m_iDataLength << endl;
+   self->m_GMP.sendto(ip.c_str(), port, id, msg);
 
    delete msg;
 

@@ -36,9 +36,7 @@ written by
 #endif
 
 #include "transport.h"
-#include <iostream>
 
-using namespace std;
 using namespace cb;
 
 Transport::Transport()
@@ -52,8 +50,6 @@ Transport::~Transport()
 int Transport::open(int& port, bool rendezvous)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
-
-   //cout << "OPEN " << m_Socket << " " << rendezvous << endl;
 
    bool reuseaddr = false;
    UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
@@ -122,10 +118,7 @@ int Transport::connect(const char* ip, int port)
       memset(&(serv_addr.sin_zero), '\0', 8);
 
    if (UDT::ERROR == UDT::connect(m_Socket, (sockaddr*)&serv_addr, sizeof(serv_addr)))
-   {
-      //cout << "udt connect fail " << UDT::getlasterror().getErrorMessage() << endl;
       return -1;
-   }
 
    return 1;
 }
@@ -172,7 +165,5 @@ int64_t Transport::recvfile(ofstream& ifs, int64_t offset, int64_t size)
 
 int Transport::close()
 {
-   //cout << "CLOSE " << m_Socket << endl;
-
    return UDT::close(m_Socket);
 }

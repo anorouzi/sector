@@ -128,11 +128,9 @@ void* Server::SPEHandler(void* p)
    process = (int (*) (const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&) )dlsym(handle, function.c_str());
    if (NULL == process)
    {
-      cout << dlerror() <<  endl;
+      cerr << dlerror() <<  endl;
       return NULL;
    }
-   cout << "process found~\n";
-
 
    timeval t1, t2, t3, t4;
    gettimeofday(&t1, 0);
@@ -376,7 +374,6 @@ int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size
       idx.close();
 
       size = index[totalrows] - index[0];
-      cout << "to read data " << size << endl;
       block = new char[size];
 
       ifstream ifs;
@@ -384,8 +381,6 @@ int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size
       ifs.seekg(index[0]);
       ifs.read(block, size);
       ifs.close();
-
-      cout << "read data into block...\n";
 
       return totalrows;
    }
@@ -457,7 +452,6 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
          int32_t pass;
          CCBMsg msg;
 
-         cout << "*********** " << "spe send data " << dstip << " " << dstport << " " << *(int32_t*)(locations + i * 72 + 68) << endl;
          if (result.m_vDataLen[i] == 0)
          {
             pass = 0;
@@ -510,7 +504,6 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
          rarray[i] = result.m_vIndexLen[i] - 1;
       }
 
-      cout << "sending back size/rec info!!! \n";
       // send back size and recnum information
       datachn->send((char*)sarray, buckets * 4);
       datachn->send((char*)rarray, buckets * 4);
