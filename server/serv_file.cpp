@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/22/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/02/2007
 *****************************************************************************/
 
 
@@ -66,7 +66,7 @@ void* Server::fileHandler(void* p)
    while (run)
    {
       if (datachn->recv((char*)&cmd, 4) < 0)
-         continue;
+         break;
 
       if (5 != cmd)
       {
@@ -84,10 +84,10 @@ void* Server::fileHandler(void* p)
          }
 
          if (datachn->send((char*)&response, 4) < 0)
-            continue;
+            break;
 
          if (-1 == response)
-            continue;
+            break;
       }
 
       switch (cmd)
