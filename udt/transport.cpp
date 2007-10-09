@@ -35,9 +35,11 @@ written by
    #include <windows.h>
 #endif
 
+#include <fstream>
 #include "transport.h"
 
 using namespace cb;
+using namespace std;
 
 Transport::Transport()
 {

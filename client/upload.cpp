@@ -50,7 +50,7 @@ int upload(const char* file, const char* dst = NULL)
    cert[0] = '\0';
    if (fh->open(rname, 2, cert) < 0)
    {
-      cout << "ERROR: unable to connect to server." << endl;
+      cout << "ERROR: unable to connect to server or file already exists." << endl;
       return -1;
    }
 

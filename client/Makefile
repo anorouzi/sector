@@ -1,7 +1,7 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lclient -lrpc -ludt
+LDFLAGS += -lclient -lrpc -ludt -lpthread
 
 OBJS = file.o client.o fsclient.o dcclient.o
 

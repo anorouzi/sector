@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/09/2007
 *****************************************************************************/
 
 
@@ -148,7 +148,7 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
       if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
          return -1;
 
-      cout << "file owner certificate: " << msg.getData() << endl;
+      //cout << "file owner certificate: " << msg.getData() << endl;
       if (NULL != cert)
          strcpy(cert, msg.getData());
    }
@@ -171,6 +171,8 @@ int File::open(const string& filename, const int& mode, char* cert, char* nl, in
       msg.m_iDataLength = 4 + 64 + 4 + 4;
 
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+      return -1;
+   if (msg.getType() < 0)
       return -1;
 
    cout << "rendezvous connect " << m_strServerIP << " " << *(int*)(msg.getData()) << endl;

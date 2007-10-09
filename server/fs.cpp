@@ -21,6 +21,11 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/08/2007
+*****************************************************************************/
+
 
 #include "fs.h"
 #include <cstdio>
@@ -53,7 +58,7 @@ int SectorFS::create(const string& filename, const uint32_t& key, string& loc)
    // loc input: home dir directory
 
    char keystr[32];
-   sprintf(keystr, "%d", key);
+   sprintf(keystr, "%u", key);
 
    for (int i = 0; i < m_iLevel; ++ i)
    {

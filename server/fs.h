@@ -21,6 +21,12 @@ You should have received a copy of the GNU General Public License along
 with this program.  If not, see <http://www.gnu.org/licenses/>.
 *****************************************************************************/
 
+/*****************************************************************************
+written by
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/08/2007
+*****************************************************************************/
+
+
 #ifndef __SECTOR_FS_H__
 #define __SECTOR_FS_H__
 
