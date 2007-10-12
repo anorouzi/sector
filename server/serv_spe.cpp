@@ -61,7 +61,7 @@ void SPEResult::init(const int& n, const int& rows, const int& size)
       *i = 0;
    for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
    {
-      *i = new int64_t[(rows + 1) / m_iBucketNum];
+      *i = new int64_t[rows + 2];
       (*i)[0] = 0;
    }
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
@@ -117,7 +117,6 @@ void* Server::SPEHandler(void* p)
    cout << "rendezvous connect " << ip << " " << dataport << endl;
    if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
-
 
    string dir;
    self->m_LocalFile.lookup(function + ".so", dir);
@@ -201,21 +200,21 @@ void* Server::SPEHandler(void* p)
       // TODO: use dynamic size at run time!
       char* rdata;
       if (size < 1000000) 
-         rdata = new char[1024 * 1024];
+         rdata = new char[1000000];
       else
          rdata = new char[size];
 
       int dlen = 0;
-      int64_t* rindex = new int64_t[totalrows + 1];
+      int64_t* rindex = new int64_t[totalrows + 2];
       int ilen = 0;
       int bid;
       int progress = 0;
 
       // rdata initially contains home data directory
-      strcpy(rdata, self->m_strHomeDir.c_str());
+      strcpy(rdata, (self->m_strHomeDir + dir).c_str());
 
       SPEResult result;
-      result.init(buckets, totalrows, size);
+      result.init(buckets, totalrows, (size > 1000000) ? size : 1000000);
 
       gettimeofday(&t3, 0);
       for (int i = 0; i < totalrows; i += unitrows)
@@ -242,7 +241,12 @@ void* Server::SPEHandler(void* p)
       }
 
       if (0 == unitrows)
+      {
          process(block, 0, NULL, rdata, dlen, ilen, rindex, bid, param, psize);
+         result.addData(bid, rindex, ilen, rdata, dlen);
+      }
+
+      cout << "RESULT " << dlen << " " << *(double*)(rdata + 340) << endl;
 
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
@@ -261,6 +265,7 @@ void* Server::SPEHandler(void* p)
       delete [] block;
       delete [] rdata;
       delete [] rindex;
+
       index = NULL;
       block = NULL;
    }
