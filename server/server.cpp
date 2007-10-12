@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/24/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/12/2007
 *****************************************************************************/
 
 
@@ -60,7 +60,7 @@ Server::~Server()
 
 int Server::init(char* ip, int port)
 {
-   cout << "SECTOR server built 09222007.\n";
+   cout << "SECTOR server built 10122007.\n";
 
    m_SysConfig.init("sector.conf");
 
@@ -91,7 +91,7 @@ int Server::init(char* ip, int port)
    if (res < 0)
       return -1;
 
-
+   // initialize local directory
    m_strHomeDir = m_SysConfig.m_strDataDir;
    m_SectorFS.init(m_strHomeDir);
    m_HomeDirMTime = -1;
@@ -101,6 +101,24 @@ int Server::init(char* ip, int port)
 
    gettimeofday(&m_ReplicaCheckTime, 0);
 
+   // check local directory
+   DIR* test = opendir((m_strHomeDir + ".cert").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".cert").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+
+   test = opendir((m_strHomeDir + ".sector-fs").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sector-fs").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+
+   // start the server...
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
@@ -341,20 +359,6 @@ void* Server::process(void* s)
             unsigned char sha[SHA_DIGEST_LENGTH + 1];
             SHA1((const unsigned char*)cert, strlen(cert), sha);
             sha[SHA_DIGEST_LENGTH] = '\0';
-
-            DIR* test = opendir((self->m_strHomeDir + ".cert").c_str());
-            if (NULL == test)
-            {
-               if ((errno != ENOENT) || (mkdir((self->m_strHomeDir + ".cert").c_str(), S_IRWXU) < 0))
-               {
-                  msg->setType(-msg->getType());
-                  msg->m_iDataLength = 4;
-
-                  self->m_GMP.sendto(ip, port, id, msg);
-                  break;
-               }
-            }
-            closedir(test);
 
             ofstream cf((self->m_strHomeDir + ".cert/" + filename + ".cert").c_str());
             for (int i = 0; i < SHA_DIGEST_LENGTH; i += 4)
