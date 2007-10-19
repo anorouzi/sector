@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/12/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/19/2007
 *****************************************************************************/
 
 
@@ -348,6 +348,10 @@ void* Server::process(void* s)
             dir = ".sector-fs/";
             self->m_SectorFS.create(attr.m_pcName, attr.m_uiID, dir);
             self->m_LocalFile.insert(attr, dir);
+
+            struct stat s;
+            stat(self->m_strHomeDir.c_str(), &s);
+            self->m_HomeDirMTime = s.st_mtime;
 
             // generate certificate for the file owner
             char cert[1024];
