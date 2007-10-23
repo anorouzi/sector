@@ -151,7 +151,9 @@ void* Server::SPEHandler(void* p)
       string datafile = dataseg;
       int64_t offset = *(int64_t*)(dataseg + 64);
       int64_t totalrows = *(int64_t*)(dataseg + 72);
-      int64_t* index = new int64_t[totalrows + 1];
+      int64_t* index = NULL;
+      if (totalrows > 0)
+         new int64_t[totalrows + 1];
 
       // read outupt parameters
       int buckets = *(int32_t*)(dataseg + 80);
