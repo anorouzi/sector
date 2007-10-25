@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/23/2007
 *****************************************************************************/
 
 #include <server.h>
@@ -200,14 +200,15 @@ void* Server::SPEHandler(void* p)
       }
 
       // TODO: use dynamic size at run time!
-      char* rdata;
+      char* rdata = NULL;
       if (size < 1000000) 
          rdata = new char[1000000];
       else
          rdata = new char[size];
 
       int dlen = 0;
-      int64_t* rindex = new int64_t[totalrows + 2];
+      int64_t* rindex = NULL;
+      rindex = new int64_t[totalrows + 2];
       int ilen = 0;
       int bid;
       int progress = 0;
