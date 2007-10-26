@@ -254,7 +254,7 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
    m_pSPENodes = new char[msg.m_iDataLength - 4];
    memcpy(m_pSPENodes, msg.getData(), msg.m_iDataLength - 4);
 
-   if (segmentData() < 0)
+   if (segmentData() <= 0)
       return -1;
 
    if (m_iOutputType == -1)
@@ -614,7 +614,7 @@ int Process::segmentData()
       return -1;
    }
 
-   return 1;
+   return m_vpDS.size();
 }
 
 int Process::prepareOutput()
