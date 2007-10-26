@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/26/2007
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -365,7 +365,7 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
 
    for (vector<SPE>::iterator s = m_vSPE.begin(); s != m_vSPE.end(); ++ s)
    {
-      if (-1 == s->m_iStatus)
+      if (1 != s->m_iStatus)
          continue;
 
       int rtime = t.tv_sec - s->m_StartTime.tv_sec;
