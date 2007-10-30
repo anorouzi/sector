@@ -365,22 +365,10 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
 
    for (vector<SPE>::iterator s = m_vSPE.begin(); s != m_vSPE.end(); ++ s)
    {
-      if (1 != s->m_iStatus)
+      if (-1 == s->m_iStatus)
          continue;
 
-      int rtime = t.tv_sec - s->m_StartTime.tv_sec;
-      int utime = t.tv_sec - s->m_LastUpdateTime.tv_sec;
-
-      if ((rtime > 8 * m_iAvgRunTime) && (utime > 30))
-      {
-         // dismiss this SPE and release its job
-         s->m_pDS->m_iSPEID = -1;
-         s->m_iStatus = -1;
-         s->m_DataChn.close();
-
-         m_iTotalSPE --;
-      }
-      else if (0 == s->m_iStatus)
+      if (0 == s->m_iStatus)
       {
          // find a new DS and start it
          pthread_mutex_lock(&m_DSLock);
@@ -399,6 +387,21 @@ int Process::checkSPE(bool locsense, map<string, Node>& datalocmap)
          }
 
          pthread_mutex_unlock(&m_DSLock);
+      }
+      else 
+      {
+         int rtime = t.tv_sec - s->m_StartTime.tv_sec;
+         int utime = t.tv_sec - s->m_LastUpdateTime.tv_sec;
+
+         if ((rtime > 8 * m_iAvgRunTime) && (utime > 30))
+         {
+            // dismiss this SPE and release its job
+            s->m_pDS->m_iSPEID = -1;
+            s->m_iStatus = -1;
+            s->m_DataChn.close();
+
+            m_iTotalSPE --;
+         }
       }
    }
 

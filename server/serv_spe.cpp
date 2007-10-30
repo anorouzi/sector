@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/30/2007
 *****************************************************************************/
 
 #include <server.h>
@@ -214,6 +214,7 @@ void* Server::SPEHandler(void* p)
       int progress = 0;
 
       // rdata initially contains home data directory
+      self->m_LocalFile.lookup(datafile, dir);
       strcpy(rdata, (self->m_strHomeDir + dir).c_str());
 
       SPEResult result;
