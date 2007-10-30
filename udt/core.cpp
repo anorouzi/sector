@@ -1,39 +1,41 @@
 /*****************************************************************************
-Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
-All Rights Reserved.
+Copyright (c) 2001 - 2007, The Board of Trustees of the University of Illinois.
+All rights reserved.
 
-UDP-based Data Transfer Library (UDT) version 4
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-National Center for Data Mining (NCDM)
-University of Illinois at Chicago
-http://www.ncdm.uic.edu/
+* Redistributions of source code must retain the above
+  copyright notice, this list of conditions and the
+  following disclaimer.
 
-UDT is free software; you can redistribute it and/or modify it under the
-terms of the GNU Lesser General Public License as published by the Free
-Software Foundation; either version 3 of the License, or (at your option)
-any later version.
+* Redistributions in binary form must reproduce the
+  above copyright notice, this list of conditions
+  and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
 
-UDT is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
-more details.
+* Neither the name of the University of Illinois
+  nor the names of its contributors may be used to
+  endorse or promote products derived from this
+  software without specific prior written permission.
 
-You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*****************************************************************************/
-
-/*****************************************************************************
-This file contains the implementation of main algorithms of UDT protocol and
-the implementation of core UDT interfaces.
-
-Reference:
-UDT programming manual
-UDT protocol specification (draft-gg-udt-xx.txt)
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/20/2007
+   Yunhong Gu, last updated 10/18/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -98,11 +100,11 @@ CUDT::CUDT()
    m_bSynRecving = true;
    m_iFlightFlagSize = 25600;
    m_iSndQueueLimit = 20000000;
-   m_iUDTBufSize = 25600;
+   m_iUDTBufSize = 8192;
    m_Linger.l_onoff = 1;
    m_Linger.l_linger = 180;
-   m_iUDPSndBufSize = 1024000;
-   m_iUDPRcvBufSize = 10240000;
+   m_iUDPSndBufSize = 65536;
+   m_iUDPRcvBufSize = m_iUDTBufSize * m_iMSS;
    m_iIPversion = AF_INET;
    m_bRendezvous = false;
    m_iSndTimeOut = -1;
@@ -420,6 +422,7 @@ void CUDT::open()
 
    m_iEXPCount = 1;
    m_iBandwidth = 1;
+   m_iDeliveryRate = 16;
    m_iAckSeqNo = 0;
    m_ullLastAckTime = 0;
 
@@ -637,7 +640,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    m_pCC->setMSS(m_iMSS);
    m_pCC->setMaxCWndSize((int&)m_iFlowWindowSize);
    m_pCC->setSndCurrSeqNo(m_iSndCurrSeqNo);
-   m_pCC->setRcvRate(0);
+   m_pCC->setRcvRate(m_iDeliveryRate);
    m_pCC->setRTT(m_iRTT);
    m_pCC->setBandwidth(m_iBandwidth);
    m_pCC->init();
@@ -714,7 +717,7 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    m_pCC->setMSS(m_iMSS);
    m_pCC->setMaxCWndSize((int&)m_iFlowWindowSize);
    m_pCC->setSndCurrSeqNo(m_iSndCurrSeqNo);
-   m_pCC->setRcvRate(0);
+   m_pCC->setRcvRate(m_iDeliveryRate);
    m_pCC->setRTT(m_iRTT);
    m_pCC->setBandwidth(m_iBandwidth);
    m_pCC->init();
@@ -862,7 +865,6 @@ int CUDT::send(char* data, const int& len)
    // insert this socket to snd list if it is not on the list yet
    m_pSndQueue->m_pSndUList->update(m_SocketID, this, false);
 
-   // UDT either sends nothing or sends all 
    return size;
 }
 
@@ -1573,26 +1575,11 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 {
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
-   m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-   if (CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck)
+   if ((CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck) || (2 == ctrlpkt.getType()) || (3 == ctrlpkt.getType()))
    {
       CTimer::rdtsc(m_ullNextEXPTime);
       m_ullNextEXPTime += m_ullEXPInt;
    }
-
-   if ((2 == ctrlpkt.getType()) || (6 == ctrlpkt.getType()))
-   {
-      m_ullNAKInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency;
-      //do not resent the loss report within too short period
-      if (m_ullNAKInt < m_ullSYNInt)
-         m_ullNAKInt = m_ullSYNInt;
-   }
-
-   uint64_t currtime;
-   CTimer::rdtsc(currtime);
-   if ((2 <= ctrlpkt.getType()) && (4 >= ctrlpkt.getType()))
-      m_ullNextEXPTime = currtime + m_ullEXPInt;
-
 
    switch (ctrlpkt.getType())
    {
@@ -1624,7 +1611,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
       if (CSeqNo::seqcmp(ack, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
       {
-         // Update Flow Window Size, must update before and together m_iSndLastAck
+         // Update Flow Window Size, must update before and together with m_iSndLastAck
          m_iFlowWindowSize = *((int32_t *)ctrlpkt.m_pcData + 3);
          m_iSndLastAck = ack;
       }
@@ -1677,15 +1664,22 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       // Update RTT
       m_iRTT = *((int32_t *)ctrlpkt.m_pcData + 1);
       m_iRTTVar = *((int32_t *)ctrlpkt.m_pcData + 2);
+
+      m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+      m_ullNAKInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+
       m_pCC->setRTT(m_iRTT);
 
       if (ctrlpkt.getLength() > 16)
       {
-         // Update Estimated Bandwidth
+         // Update Estimated Bandwidth and packet delivery rate
+         if (*((int32_t *)ctrlpkt.m_pcData + 4) > 0)
+            m_iDeliveryRate = (m_iDeliveryRate * 7 + *((int32_t *)ctrlpkt.m_pcData + 4)) >> 3;
+
          if (*((int32_t *)ctrlpkt.m_pcData + 5) > 0)
             m_iBandwidth = (m_iBandwidth * 7 + *((int32_t *)ctrlpkt.m_pcData + 5)) >> 3;
 
-         m_pCC->setRcvRate(*((int32_t *)ctrlpkt.m_pcData + 4));
+         m_pCC->setRcvRate(m_iDeliveryRate);
          m_pCC->setBandwidth(m_iBandwidth);
       }
 
@@ -1703,7 +1697,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       {
       int32_t ack;
       int rtt = -1;
-      //timeval currtime;
 
       // update RTT
       rtt = m_pACKWindow->acknowledge(ctrlpkt.getAckSeqNo(), ack);
@@ -1717,6 +1710,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       // RTT EWMA
       m_iRTTVar = (m_iRTTVar * 3 + abs(rtt - m_iRTT)) >> 2;
       m_iRTT = (m_iRTT * 7 + rtt) >> 3;
+
+      m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+      m_ullNAKInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
 
       // update last ACK that has been received by the sender
       if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)

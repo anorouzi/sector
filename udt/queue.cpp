@@ -1,34 +1,41 @@
 /*****************************************************************************
-Copyright © 2001 - 2007, The Board of Trustees of the University of Illinois.
-All Rights Reserved.
+Copyright (c) 2001 - 2007, The Board of Trustees of the University of Illinois.
+All rights reserved.
 
-UDP-based Data Transfer Library (UDT) version 4
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
 
-National Center for Data Mining (NCDM)
-University of Illinois at Chicago
-http://www.ncdm.uic.edu/
+* Redistributions of source code must retain the above
+  copyright notice, this list of conditions and the
+  following disclaimer.
 
-UDT is free software; you can redistribute it and/or modify it under the
-terms of the GNU Lesser General Public License as published by the Free
-Software Foundation; either version 3 of the License, or (at your option)
-any later version.
+* Redistributions in binary form must reproduce the
+  above copyright notice, this list of conditions
+  and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
 
-UDT is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
-more details.
+* Neither the name of the University of Illinois
+  nor the names of its contributors may be used to
+  endorse or promote products derived from this
+  software without specific prior written permission.
 
-You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*****************************************************************************/
-
-/*****************************************************************************
-This file contains the implementation of UDT multiplexer.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/16/2007
+   Yunhong Gu, last updated 10/11/2007
 *****************************************************************************/
 
 #ifdef WIN32
@@ -844,6 +851,7 @@ m_pRendezvousQueue(NULL)
    #endif
 
    m_vNewEntry.clear();
+   m_mBuffer.clear();
 }
 
 CRcvQueue::~CRcvQueue()
@@ -868,6 +876,12 @@ CRcvQueue::~CRcvQueue()
    delete m_pRcvUList;
    delete m_pHash;
    delete m_pRendezvousQueue;
+
+   for (map<int32_t, CPacket*>::iterator i = m_mBuffer.begin(); i != m_mBuffer.end(); ++ i)
+   {
+      delete [] i->second->m_pcData;
+      delete i->second;
+   }
 }
 
 void CRcvQueue::init(const int& qsize, const int& payload, const int& version, const int& hsize, const CChannel* cc, const CTimer* t)
@@ -950,19 +964,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
             if (u->m_bConnected && !u->m_bBroken)
                u->processCtrl(unit->m_Packet);
             else
-            {
-               #ifndef WIN32
-                  pthread_mutex_lock(&self->m_PassLock);
-                  self->m_mBuffer[id] = unit->m_Packet.clone();
-                  pthread_mutex_unlock(&self->m_PassLock);
-                  pthread_cond_signal(&self->m_PassCond);
-               #else
-                  WaitForSingleObject(self->m_PassLock, INFINITE);
-                  self->m_mBuffer[id] = unit->m_Packet.clone();
-                  ReleaseMutex(self->m_PassLock);
-                  SetEvent(self->m_PassCond);
-               #endif
-            }
+               self->storePkt(id, unit->m_Packet.clone());
          }
       }
       else 
@@ -981,19 +983,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
             }
          }
          else
-         {
-            #ifndef WIN32
-               pthread_mutex_lock(&self->m_PassLock);
-               self->m_mBuffer[id] = unit->m_Packet.clone();
-               pthread_mutex_unlock(&self->m_PassLock);
-               pthread_cond_signal(&self->m_PassCond);
-            #else
-               WaitForSingleObject(self->m_PassLock, INFINITE);
-               self->m_mBuffer[id] = unit->m_Packet.clone();
-               ReleaseMutex(self->m_PassLock);
-               SetEvent(self->m_PassCond);
-            #endif
-         }
+            self->storePkt(id, unit->m_Packet.clone());
       }
 
 TIMER_CHECK:
@@ -1073,6 +1063,7 @@ int CRcvQueue::recvfrom(const int32_t& id, CPacket& packet)
    packet.setLength(i->second->getLength());
 
    delete [] i->second->m_pcData;
+   delete i->second;
    m_mBuffer.erase(i);
 
    return packet.getLength();
@@ -1119,4 +1110,32 @@ CUDT* CRcvQueue::getNewEntry()
    m_vNewEntry.erase(m_vNewEntry.begin());
 
    return u;
+}
+
+void CRcvQueue::storePkt(const int32_t& id, CPacket* pkt)
+{
+   #ifndef WIN32
+      pthread_mutex_lock(&m_PassLock);
+   #else
+      WaitForSingleObject(m_PassLock, INFINITE);
+   #endif
+
+   map<int32_t, CPacket*>::iterator i = m_mBuffer.find(id);
+
+   if (i == m_mBuffer.end())
+      m_mBuffer[id] = pkt;
+   else
+   {
+      delete [] i->second->m_pcData;
+      delete i->second;
+      i->second = pkt;
+   }
+
+   #ifndef WIN32
+      pthread_mutex_unlock(&m_PassLock);
+      pthread_cond_signal(&m_PassCond);
+   #else
+      ReleaseMutex(m_PassLock);
+      SetEvent(m_PassCond);
+   #endif
 }
