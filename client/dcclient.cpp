@@ -555,8 +555,6 @@ int Process::prepareSPE()
          continue;
       }
 
-       cout << "got it!!!!!\n";
-
       m_vSPE.insert(m_vSPE.end(), spe);
    }
 
