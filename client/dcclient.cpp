@@ -547,12 +547,15 @@ int Process::prepareSPE()
          spe.m_DataChn.close();
          continue;
       }
+      cout << "connect SPE " << spe.m_strIP.c_str() << " " << *(int*)(msg.getData()) << " " << msg.m_iDataLength << endl;
 
       if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
       {
          spe.m_DataChn.close();
          continue;
       }
+
+       cout << "got it!!!!!\n";
 
       m_vSPE.insert(m_vSPE.end(), spe);
    }
