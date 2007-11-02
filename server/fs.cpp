@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/08/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/01/2007
 *****************************************************************************/
 
 
@@ -74,7 +74,8 @@ int SectorFS::create(const string& filename, const uint32_t& key, string& loc)
       loc += "/";
    }
 
-   ::creat((m_strHomeDir + loc + filename).c_str(), S_IRUSR | S_IWUSR | S_IXUSR);
+   int fd = creat((m_strHomeDir + loc + filename).c_str(), S_IRUSR | S_IWUSR | S_IXUSR);
+   close(fd);
 
    return 1;
 }

@@ -510,7 +510,7 @@ void* Server::process(void* s)
                memcpy(p->param, msg->getData() + 76, p->psize);
             }
 
-            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << endl;
+            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << endl;
 
             pthread_t spe_handler;
             pthread_create(&spe_handler, NULL, SPEHandler, p);

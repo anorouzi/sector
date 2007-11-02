@@ -341,7 +341,6 @@ void* Process::run(void* param)
          continue;
 
       self->readResult(&(*s));
-      cout << "got result " << speid << endl;
 
       // one SPE completes!
       timeval t;
