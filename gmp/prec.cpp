@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/08/2007
 *****************************************************************************/
 
 #ifndef WIN32
@@ -116,7 +116,10 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator k = p.first; k != p.second; k ++)
          {
             if ((*k)->m_iPort == t->m_iPort)
+            {
                m_sPeerRecByIP.erase(k);
+               break;
+            }
          }
 
          m_sPeerRecByTS.erase(t);
