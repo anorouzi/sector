@@ -55,6 +55,7 @@ public:
    void updateNameServer(const string& filename, const Node& loc);
    int getLocIndex(vector<Node>& li);
    int getFileList(set<string>& fl);
+   int getFileList(vector<string>& fl, const Node& n);
    int updateFileLock(const string& filename, const int& iotype) {return 0;}
 
 private:

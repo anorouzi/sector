@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2007
 *****************************************************************************/
 
 
@@ -84,7 +84,7 @@ int Server::init(char* ip, int port)
       msg.m_iDataLength = 4;
 
       if ((m_GMP.rpc(ip, port, &msg, &msg) < 0) || (msg.getType() < 0))
-         return -1;
+         return -2;
 
       res = m_pRouter->join(m_strLocalHost.c_str(), ip, m_SysConfig.m_iRouterPort, *(int*)msg.getData());
    }
@@ -97,7 +97,7 @@ int Server::init(char* ip, int port)
    m_HomeDirMTime = -1;
 
    if (scanLocalFile() < 0)
-      return -1;
+      return -3;
 
    gettimeofday(&m_ReplicaCheckTime, 0);
 
@@ -106,7 +106,7 @@ int Server::init(char* ip, int port)
    if (NULL == test)
    {
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".cert").c_str(), S_IRWXU) < 0))
-         return -1;
+         return -4;
    }
    closedir(test);
 
@@ -114,7 +114,7 @@ int Server::init(char* ip, int port)
    if (NULL == test)
    {
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sector-fs").c_str(), S_IRWXU) < 0))
-         return -1;
+         return -4;
    }
    closedir(test);
 
@@ -134,10 +134,6 @@ int Server::run()
       sleep(10);
 
       updateInLink();
-      sleep(10);
-
-      // check out link more often since it is more important
-      updateOutLink();
       sleep(10);
    }
 
@@ -385,7 +381,7 @@ void* Server::process(void* s)
          {
             Node n;
             strcpy(n.m_pcIP, ip);
-            n.m_iPort = port;
+            n.m_iAppPort = port;
             vector<string> fl;
 
             // read all files on node n
@@ -671,26 +667,32 @@ void Server::updateOutLink()
       msg.setType(7);
       msg.m_iDataLength = 4;
 
-      int c = 0;
-      if (m_GMP.rpc(i->m_pcIP, i->m_iAppPort, &msg, &msg) >= 0)
-         c = (msg.m_iDataLength - 4) / 64;
+      vector<string> fl;
 
-      for (int m = 0; m < c; ++ m)
+      if (m_GMP.rpc(i->m_pcIP, i->m_iAppPort, &msg, &msg) >= 0)
       {
-         char* filename = msg.getData() + m * 64;
+         int c = (msg.m_iDataLength - 4) / 64;
+         for (int j = 0; j < c; ++ j)
+            fl.insert(fl.end(), msg.getData() + j * 64);
+      }
+      else
+         m_LocalFile.getFileList(fl, *i);
+
+      for (vector<string>::iterator f = fl.begin(); f != fl.end(); ++ f)
+      {
          Node loc;
-         int fid = DHash::hash(filename, m_iKeySpace);
+         int fid = DHash::hash(f->c_str(), m_iKeySpace);
          if (-1 == m_pRouter->lookup(fid, &loc))
             continue;
 
-         m_LocalFile.updateNameServer(filename, loc);
+         m_LocalFile.updateNameServer(*f, loc);
 
          // send metadata to a new node
          CCBMsg msg3;
          msg3.setType(3);
          CFileAttr attr;
          string dir;
-         m_LocalFile.lookup(filename, dir, &attr);
+         m_LocalFile.lookup(*f, dir, &attr);
          attr.serialize(msg3.getData(), msg3.m_iDataLength);
          msg3.m_iDataLength += 4;
          m_GMP.rpc(loc.m_pcIP, loc.m_iAppPort, &msg3, &msg3);

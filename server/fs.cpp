@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/01/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2007
 *****************************************************************************/
 
 
@@ -70,7 +70,6 @@ int SectorFS::create(const string& filename, const uint32_t& key, string& loc)
       loc += tmp;
       mkdir((m_strHomeDir + loc).c_str(), S_ISVTX);
       chmod((m_strHomeDir + loc).c_str(), S_IRUSR | S_IWUSR | S_IXUSR);
-      cout << "mkdir " << loc << endl;
       loc += "/";
    }
 
@@ -82,8 +81,6 @@ int SectorFS::create(const string& filename, const uint32_t& key, string& loc)
 
 int SectorFS::scan(vector<string>& filelist, vector<string>& dirs, const string& currdir)
 {
-   cout << "scaning " << currdir << endl;
-
    dirent **namelist;
    int n = scandir((m_strHomeDir + currdir).c_str(), &namelist, 0, alphasort);
 

@@ -161,6 +161,18 @@ int LocalFileIndex::getFileList(set<string>& fl)
    return fl.size();
 }
 
+int LocalFileIndex::getFileList(vector<string>& fl, const Node& n)
+{
+   CGuard indexg(m_IndexLock);
+
+   fl.clear();
+   for (set<string>::iterator i = m_mLocIndex[n].begin(); i != m_mLocIndex[n].end(); ++ i)
+      fl.insert(fl.end(), *i);
+
+   return fl.size();
+}
+
+
 RemoteFileIndex::RemoteFileIndex()
 {
    #ifndef WIN32
