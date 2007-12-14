@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2007
 *****************************************************************************/
 
 
@@ -57,15 +57,15 @@ int LocalFileIndex::lookup(const string& filename, string& dir, CFileAttr* attr)
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+   map<string, LocalIndexInfo>::iterator i = m_mFileIndex.find(filename);
 
-   if (i == m_mNameIndex.end())
+   if (i == m_mFileIndex.end())
       return -1;
 
-   dir = m_mDir[filename];
+   dir = i->second.m_strDir;
 
    if (NULL != attr)
-      *attr = i->second;
+      *attr = i->second.m_Attr;
 
    return 1;
 }
@@ -74,80 +74,78 @@ int LocalFileIndex::insert(const CFileAttr& attr, const string& dir, const Node*
 {
    CGuard indexg(m_IndexLock);
 
-   m_mNameIndex[attr.m_pcName] = attr;
-
-   Node tmp;
-   Node* node = (Node*)n;
+   LocalIndexInfo lii;
+   lii.m_Attr = attr;
    if (NULL == n)
    {
-      strcpy(tmp.m_pcIP, "");
-      tmp.m_iAppPort = 0;
-      node = &tmp;
+      strcpy(lii.m_Loc.m_pcIP, "");
+      lii.m_Loc.m_iAppPort = 0;
    }
+   else
+      lii.m_Loc = *n;
+   lii.m_strDir = dir;
 
-   map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.find(*node);
+   m_mFileIndex[attr.m_pcName] = lii;
+
+   map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.find(lii.m_Loc);
    if (i == m_mLocIndex.end())
    {
       set<string> fl;
-      i = m_mLocIndex.insert(m_mLocIndex.begin(), pair<Node, set<string> >(*node, fl));
+      i = m_mLocIndex.insert(m_mLocIndex.begin(), pair<Node, set<string> >(lii.m_Loc, fl));
    }
    i->second.insert(attr.m_pcName);
-   m_mLocInfo[attr.m_pcName] = *node;
-   m_mDir[attr.m_pcName] = dir;
 
-   return 1;  
+   return 1;
 }
 
 void LocalFileIndex::remove(const string& filename)
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+   map<string, LocalIndexInfo>::iterator i = m_mFileIndex.find(filename);
 
-   if (i == m_mNameIndex.end())
+   if (i == m_mFileIndex.end())
       return;
 
-   m_mNameIndex.erase(i);
-
-   Node& n = m_mLocInfo[filename];
+   Node& n = i->second.m_Loc;
    m_mLocIndex[n].erase(filename);
    if (m_mLocIndex[n].empty())
       m_mLocIndex.erase(n);
 
-   m_mLocInfo.erase(filename);
-   m_mDir.erase(filename);
+   m_mFileIndex.erase(i);
 }
 
 void LocalFileIndex::updateNameServer(const string& filename, const Node& loc)
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, Node>::iterator i = m_mLocInfo.find(filename);
+   map<string, LocalIndexInfo>::iterator i = m_mFileIndex.find(filename);
 
-   if (i == m_mLocInfo.end())
+   if (i == m_mFileIndex.end())
       return;
 
-   Node& tmp = m_mLocInfo[filename];
-   m_mLocIndex[tmp].erase(filename);
-   if (m_mLocIndex[tmp].empty())
-      m_mLocIndex.erase(tmp);
+   Node& n = i->second.m_Loc;
+   m_mLocIndex[n].erase(filename);
+   if (m_mLocIndex[n].empty())
+      m_mLocIndex.erase(n);
 
-   m_mLocInfo[filename] = loc;
-   m_mLocIndex[loc].insert(filename);
+   i->second.m_Loc = loc;
+   map<Node, set<string>, NodeComp>::iterator l = m_mLocIndex.find(loc);
+   if (l == m_mLocIndex.end())
+   {
+      set<string> fl;
+      l = m_mLocIndex.insert(m_mLocIndex.begin(), pair<Node, set<string> >(loc, fl));
+   }
+   l->second.insert(filename);
 }
 
-int LocalFileIndex::getLocIndex(map<Node, set<string>, NodeComp>& li)
+int LocalFileIndex::getLocIndex(vector<Node>& li)
 {
    CGuard indexg(m_IndexLock);
 
    li.clear();
    for (map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.begin(); i != m_mLocIndex.end(); ++ i)
-   {
-      set<string> tmp;
-      map<Node, set<string>, NodeComp>::iterator j = li.insert(li.end(), pair<Node, set<string> >(i->first, tmp));
-      for (set<string>::iterator k = i->second.begin(); k != i->second.end(); ++ k)
-         j->second.insert(*k);
-   }
+      li.insert(li.end(), i->first);
 
    return li.size();
 }
@@ -157,7 +155,7 @@ int LocalFileIndex::getFileList(set<string>& fl)
    CGuard indexg(m_IndexLock);
 
    fl.clear();
-   for (map<string, CFileAttr>::iterator i = m_mNameIndex.begin(); i != m_mNameIndex.end(); ++ i)
+   for (map<string, LocalIndexInfo>::iterator i = m_mFileIndex.begin(); i != m_mFileIndex.end(); ++ i)
       fl.insert(fl.end(), i->first);
 
    return fl.size();
@@ -185,46 +183,65 @@ int RemoteFileIndex::lookup(const string& filename, CFileAttr* attr, set<Node, N
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+   map<string, RemoteIndexInfo>::iterator i = m_mFileIndex.find(filename);
 
-   if (i == m_mNameIndex.end())
+   if (i == m_mFileIndex.end())
       return -1;
 
    if (NULL != attr)
-      *attr = i->second;
+      *attr = i->second.m_Attr;
 
    if (NULL != nl)
    {
       nl->clear();
-      for (set<Node, NodeComp>::iterator j = m_mLocInfo[filename].begin(); j != m_mLocInfo[filename].end(); ++ j)
+      for (set<Node, NodeComp>::iterator j = i->second.m_sLocInfo.begin(); j != i->second.m_sLocInfo.end(); ++ j)
          nl->insert(*j);
    }
 
-   return m_mLocInfo[filename].size();
+   return i->second.m_sLocInfo.size();
 }
 
 bool RemoteFileIndex::check(const string& filename, const Node& n)
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, set<Node, NodeComp> >::iterator i = m_mLocInfo.find(filename);
-   if (i == m_mLocInfo.end())
+   map<string, RemoteIndexInfo>::iterator i = m_mFileIndex.find(filename);
+   if (i == m_mFileIndex.end())
       return false;
 
-   return (i->second.find(n) != i->second.end());
+   return (i->second.m_sLocInfo.find(n) != i->second.m_sLocInfo.end());
 }
 
 int RemoteFileIndex::insert(const CFileAttr& attr, const Node& n)
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, CFileAttr>::iterator i = m_mNameIndex.find(attr.m_pcName);
+   map<string, RemoteIndexInfo>::iterator i = m_mFileIndex.find(attr.m_pcName);
 
-   if (i == m_mNameIndex.end())
-      m_mNameIndex[attr.m_pcName] = attr;
+   if (i == m_mFileIndex.end())
+   {
+      RemoteIndexInfo rii;
+      rii.m_Attr = attr;
+      rii.m_sLocInfo.insert(n);
+      m_mFileIndex[attr.m_pcName] = rii;
+   }
+   else
+      i->second.m_sLocInfo.insert(n);
 
-   m_mLocInfo[attr.m_pcName].insert(n);
-   m_mLocIndex[n].insert(attr.m_pcName);
+   map<Node, RemoteNodeInfo, NodeComp>::iterator j = m_mLocIndex.find(n);
+
+   if (j == m_mLocIndex.end())
+   {
+      RemoteNodeInfo rni;
+      rni.m_sFileList.insert(attr.m_pcName);
+      rni.m_ullTimeStamp = 0;
+      m_mLocIndex[n] = rni;
+   }
+   else
+   {
+      j->second.m_sFileList.insert(attr.m_pcName);
+      j->second.m_ullTimeStamp = 0;
+   }
 
    return 1;
 }
@@ -233,38 +250,35 @@ void RemoteFileIndex::remove(const string& filename)
 {
    CGuard indexg(m_IndexLock);
 
-   map<string, CFileAttr>::iterator i = m_mNameIndex.find(filename);
+   map<string, RemoteIndexInfo>::iterator i = m_mFileIndex.find(filename);
 
-   if (i != m_mNameIndex.end())
-      m_mNameIndex.erase(i);
+   if (i == m_mFileIndex.end())
+      return;
 
-   for (set<Node, NodeComp>::iterator j = m_mLocInfo[filename].begin(); j != m_mLocInfo[filename].end(); ++ j)
+   for (set<Node, NodeComp>::iterator j = i->second.m_sLocInfo.begin(); j != i->second.m_sLocInfo.end(); ++ j)
    {
-      m_mLocIndex[*j].erase(filename);
-      if (m_mLocIndex[*j].empty())
+      m_mLocIndex[*j].m_sFileList.erase(filename);
+      if (m_mLocIndex[*j].m_sFileList.empty())
          m_mLocIndex.erase(*j);
    }
 
-   m_mLocInfo.erase(filename);
+   m_mFileIndex.erase(i);
 }
 
 void RemoteFileIndex::remove(const Node& n)
 {
    CGuard indexg(m_IndexLock);
 
-   map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.find(n);
+   map<Node, RemoteNodeInfo, NodeComp>::iterator i = m_mLocIndex.find(n);
 
    if (i == m_mLocIndex.end())
       return;
 
-   for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
+   for (set<string>::iterator f = i->second.m_sFileList.begin(); f != i->second.m_sFileList.end(); ++ f)
    {
-      m_mLocInfo[*f].erase(n);
-      if (m_mLocInfo[*f].empty())
-      {
-         m_mLocInfo.erase(*f);
-         m_mNameIndex.erase(*f);
-      }
+      m_mFileIndex[*f].m_sLocInfo.erase(n);
+      if (m_mFileIndex[*f].m_sLocInfo.empty())
+         m_mFileIndex.erase(*f);
    }
 
    m_mLocIndex.erase(i);
@@ -274,32 +288,32 @@ void RemoteFileIndex::removeCopy(const string& filename, const Node& n)
 {
    CGuard indexg(m_IndexLock);
 
-   m_mLocIndex[n].erase(filename);
-   if (m_mLocIndex[n].empty())
-      m_mLocIndex.erase(n);
+   map<Node, RemoteNodeInfo, NodeComp>::iterator i = m_mLocIndex.find(n);
+   if (i == m_mLocIndex.end())
+      return;
 
-   m_mLocInfo[filename].erase(n);
-   if (m_mLocInfo[filename].empty())
-      m_mLocInfo.erase(filename);
+   i->second.m_sFileList.erase(filename);
+   if (i->second.m_sFileList.empty())
+      m_mLocIndex.erase(i);
 
-   if (m_mLocInfo.find(filename) == m_mLocInfo.end())
-      m_mNameIndex.erase(filename);
+   map<string, RemoteIndexInfo>::iterator j = m_mFileIndex.find(filename);
+   if (j == m_mFileIndex.end())
+      return;
+
+   j->second.m_sLocInfo.erase(n);
+   if (j->second.m_sLocInfo.empty())
+      m_mFileIndex.erase(j);
 }
 
-int RemoteFileIndex::getLocIndex(map<Node, set<string>, NodeComp>& li)
+int RemoteFileIndex::getFileList(vector<string>& fl, const Node& n)
 {
    CGuard indexg(m_IndexLock);
 
-   li.clear();
-   for (map<Node, set<string>, NodeComp>::iterator i = m_mLocIndex.begin(); i != m_mLocIndex.end(); ++ i)
-   {
-      set<string> tmp;
-      map<Node, set<string>, NodeComp>::iterator j = li.insert(li.end(), pair<Node, set<string> >(i->first, tmp));
-      for (set<string>::iterator k = i->second.begin(); k != i->second.end(); ++ k)
-         j->second.insert(*k);
-   }
+   fl.clear();
+   for (set<string>::iterator i = m_mLocIndex[n].m_sFileList.begin(); i != m_mLocIndex[n].m_sFileList.end(); ++ i)
+      fl.insert(fl.end(), *i);
 
-   return li.size();
+   return fl.size();   
 }
 
 int RemoteFileIndex::getReplicaInfo(map<string, int>& ri, const unsigned int& num)
@@ -308,10 +322,10 @@ int RemoteFileIndex::getReplicaInfo(map<string, int>& ri, const unsigned int& nu
 
    ri.clear();
 
-   for (map<string, set<Node, NodeComp> >::const_iterator i = m_mLocInfo.begin(); i != m_mLocInfo.end(); ++ i)
+   for (map<string, RemoteIndexInfo>::const_iterator i = m_mFileIndex.begin(); i != m_mFileIndex.end(); ++ i)
    {
-      if (i->second.size() < num)
-         ri[i->first] = i->second.size();
+      if (i->second.m_sLocInfo.size() < num)
+         ri[i->first] = i->second.m_sLocInfo.size();
    }
 
    return ri.size();

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2007
 *****************************************************************************/
 
 
@@ -33,6 +33,7 @@ written by
 #include <file.h>
 #include <map>
 #include <set>
+#include <vector>
 #include <iostream>
 #include <node.h>
 
@@ -52,16 +53,20 @@ public:
    int insert(const CFileAttr& attr, const string& dir, const Node* n = NULL);
    void remove(const string& filename);
    void updateNameServer(const string& filename, const Node& loc);
-   int getLocIndex(map<Node, set<string>, NodeComp>& li);
+   int getLocIndex(vector<Node>& li);
    int getFileList(set<string>& fl);
    int updateFileLock(const string& filename, const int& iotype) {return 0;}
 
 private:
-   map<string, CFileAttr> m_mNameIndex;			// name index
-   map<string, Node> m_mLocInfo;			// remote metadata location
+   struct LocalIndexInfo
+   {
+      CFileAttr m_Attr;		// file attribute
+      Node m_Loc;		// meta server location
+      string m_strDir;		// local directory
+   };
+
+   map<string, LocalIndexInfo> m_mFileIndex;		// name index
    map<Node, set<string>, NodeComp> m_mLocIndex;	// remote metadata location ordered by node
-   map<string, int> m_mFileLock;			// 0: available; 1: read locked, 2: write locked
-   map<string, string> m_mDir;				// local directory
 
 private:
    pthread_mutex_t m_IndexLock;
@@ -80,13 +85,24 @@ public:
    void remove(const string& filename);
    void remove(const Node& n);
    void removeCopy(const string& filename, const Node& n);
-   int getLocIndex(map<Node, set<string>, NodeComp>& li);
+   int getFileList(vector<string>& fl, const Node& n);
    int getReplicaInfo(map<string, int>& ri, const unsigned int& num = 1);
 
 private:
-   map<string, CFileAttr> m_mNameIndex;
-   map<string, set<Node, NodeComp> > m_mLocInfo;
-   map<Node, set<string>, NodeComp> m_mLocIndex;
+   struct RemoteIndexInfo
+   {
+      CFileAttr m_Attr;			// file attribute
+      set<Node, NodeComp> m_sLocInfo;	// file locations 
+   };
+
+   struct RemoteNodeInfo
+   {
+      set<string> m_sFileList;		// list of files on remote node
+      uint64_t m_ullTimeStamp;		// time stamp of last probe message
+   };
+
+   map<string, RemoteIndexInfo> m_mFileIndex;
+   map<Node, RemoteNodeInfo, NodeComp> m_mLocIndex;
 
 private:
    pthread_mutex_t m_IndexLock;

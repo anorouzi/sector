@@ -377,41 +377,28 @@ void* Server::process(void* s)
             break;
          }
 
-         case 6: // probe the existence of a file
+         case 6: // reserved for remote RemoteFileIndex check
          {
-            char* fl = new char [msg->m_iDataLength - 4];
-            memcpy(fl, msg->getData(), msg->m_iDataLength - 4);
-
-            int c = 0;
-            string dir;
-            for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
-            {
-               if (self->m_LocalFile.lookup(fl + i * 64, dir) < 0)
-               {
-                  msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
-                  ++ c;
-               }
-            }
-            delete [] fl;
-
-            msg->m_iDataLength = 4 + c * 64;
-
-            self->m_GMP.sendto(ip, port, id, msg);
-            break;
          }
 
-         case 7: // check query from RemoteFileIndex
+         case 7: // check query from remote LocalFileIndex
          {
-            char* fl = new char [msg->m_iDataLength - 4];
-            memcpy(fl, msg->getData(), msg->m_iDataLength - 4);
+            Node n;
+            strcpy(n.m_pcIP, ip);
+            n.m_iPort = port;
+            vector<string> fl;
 
+            // read all files on node n
+            self->m_RemoteFile.getFileList(fl, n);
+
+            // check if their metadata should be stored on this node
             int c = 0;
-            for (int i = 0; i < (msg->m_iDataLength - 4) / 64; ++ i)
+            for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
             {
-               if (!self->m_pRouter->has(DHash::hash(fl + i * 64, m_iKeySpace)))
+               if (!self->m_pRouter->has(DHash::hash(i->c_str(), m_iKeySpace)))
                {
-                  self->m_RemoteFile.remove(fl + i * 64);
-                  msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
+                  self->m_RemoteFile.remove(*i);
+                  msg->setData(c * 64, i->c_str(), i->length() + 1);
                   ++ c;
                }
                else
@@ -419,14 +406,13 @@ void* Server::process(void* s)
                   Node n;
                   strcpy(n.m_pcIP, ip);
                   n.m_iAppPort = port;
-                  if (!self->m_RemoteFile.check(fl + i * 64, n))
+                  if (!self->m_RemoteFile.check(*i, n))
                   {
-                     msg->setData(c * 64, fl + i * 64, strlen(fl + i * 64) + 1);
+                     msg->setData(c * 64, i->c_str(), i->length() + 1);
                      ++ c;
                   }
                }
             }
-            delete [] fl;
 
             msg->m_iDataLength = 4 + c * 64;
             self->m_GMP.sendto(ip, port, id, msg);
@@ -668,13 +654,13 @@ void Server::updateOutLink()
 {
    scanLocalFile();
 
-   map<Node, set<string>, NodeComp> li;
+   vector<Node> li;
    m_LocalFile.getLocIndex(li);
 
    CCBMsg msg;
    msg.resize(65536);
 
-   for (map<Node, set<string>, NodeComp>::iterator i = li.begin(); i != li.end(); ++ i)
+   for (vector<Node>::iterator i = li.begin(); i != li.end(); ++ i)
    {
       timespec ts;
       ts.tv_sec = 0;
@@ -683,16 +669,10 @@ void Server::updateOutLink()
 
       // ask remote if it is the right node to hold the metadata for these files
       msg.setType(7);
+      msg.m_iDataLength = 4;
 
       int c = 0;
-      for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
-      {
-         msg.setData(c * 64, f->c_str(), f->length() + 1);
-         ++ c;
-      }
-      msg.m_iDataLength = 4 + c * 64;
-
-      if (m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg) >= 0)
+      if (m_GMP.rpc(i->m_pcIP, i->m_iAppPort, &msg, &msg) >= 0)
          c = (msg.m_iDataLength - 4) / 64;
 
       for (int m = 0; m < c; ++ m)
@@ -720,39 +700,10 @@ void Server::updateOutLink()
 
 void Server::updateInLink()
 {
-   map<Node, set<string>, NodeComp> li;
-   m_RemoteFile.getLocIndex(li);
-
    CCBMsg msg;
    msg.resize(65536);
 
-   for (map<Node, set<string>, NodeComp>::iterator i = li.begin(); i != li.end(); ++ i)
-   {
-      timespec ts;
-      ts.tv_sec = 0;
-      ts.tv_nsec = 10000000;
-      nanosleep(&ts, NULL);
-
-      // check if the original file still exists
-      int c = 0;
-      for (set<string>::iterator f = i->second.begin(); f != i->second.end(); ++ f)
-      {
-         msg.setData(c * 64, f->c_str(), f->length() + 1);
-         ++ c;
-      }
-
-      msg.setType(6);
-      msg.m_iDataLength = 4 + c * 64;
-      int r = m_GMP.rpc(i->first.m_pcIP, i->first.m_iAppPort, &msg, &msg);
-
-      if (r < 0)
-         m_RemoteFile.remove(i->first);
-      else
-      {
-         for (c = 0; c < (msg.m_iDataLength - 4) / 64; ++ c)
-            m_RemoteFile.removeCopy(msg.getData() + c * 64, i->first);
-      }
-   }
+   // check timer...
 
    /*
    timeval currtime;
