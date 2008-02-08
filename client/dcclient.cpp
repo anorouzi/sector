@@ -179,7 +179,7 @@ int Stream::getSize(int64_t& size)
 //
 Process::Process():
 m_iMinUnitSize(1000000),
-m_iMaxUnitSize(128000000)
+m_iMaxUnitSize(64000000)
 {
    m_strOperator = "";
    m_pcParam = NULL;

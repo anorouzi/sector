@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/30/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/07/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -65,7 +65,7 @@ void SPEResult::init(const int& n, const int& rows, const int& size)
       (*i)[0] = 0;
    }
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
-      *i = new char[size / m_iBucketNum];
+      *i = new char[size];
 }
 
 void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
@@ -153,7 +153,7 @@ void* Server::SPEHandler(void* p)
       int64_t totalrows = *(int64_t*)(dataseg + 72);
       int64_t* index = NULL;
       if (totalrows > 0)
-         new int64_t[totalrows + 1];
+         index = new int64_t[totalrows + 1];
 
       // read outupt parameters
       int buckets = *(int32_t*)(dataseg + 80);
