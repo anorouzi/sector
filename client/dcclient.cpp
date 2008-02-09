@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/26/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/08/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -179,7 +179,8 @@ int Stream::getSize(int64_t& size)
 //
 Process::Process():
 m_iMinUnitSize(1000000),
-m_iMaxUnitSize(64000000)
+m_iMaxUnitSize(64000000),
+m_iCore(4)
 {
    m_strOperator = "";
    m_pcParam = NULL;
@@ -519,42 +520,46 @@ int Process::prepareSPE()
 {
    for (int i = 0; i < m_iSPENum; ++ i)
    {
-      SPE spe;
-      spe.m_uiID = i;
-      spe.m_pDS = NULL;
-      spe.m_iStatus = 0;
-      spe.m_iProgress = 0;
-
-      spe.m_strIP = m_pSPENodes + i * 68;
-      spe.m_iPort = *(int32_t*)(m_pSPENodes + i * 68 + 64);
-
-      int port = 0;
-      spe.m_DataChn.open(port);
-
-      CCBMsg msg;
-      msg.setType(300); // start processing engine
-      msg.setData(0, (char*)&(spe.m_uiID), 4);
-      msg.setData(4, (char*)&port, 4);
-      msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
-      msg.setData(72, (char*)&m_iRows, 4);
-      msg.setData(76, m_pcParam, m_iParamSize);
-      msg.m_iDataLength = 4 + 76 + m_iParamSize;
-
-      if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
+      // start multiple SPEs per node
+      for (int j = 0; j < m_iCore; ++ j)
       {
-         cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
-         spe.m_DataChn.close();
-         continue;
-      }
-      cout << "connect SPE " << spe.m_strIP.c_str() << " " << *(int*)(msg.getData()) << " " << msg.m_iDataLength << endl;
+         SPE spe;
+         spe.m_uiID = i * m_iCore + j;
+         spe.m_pDS = NULL;
+         spe.m_iStatus = 0;
+         spe.m_iProgress = 0;
 
-      if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
-      {
-         spe.m_DataChn.close();
-         continue;
-      }
+         spe.m_strIP = m_pSPENodes + i * 68;
+         spe.m_iPort = *(int32_t*)(m_pSPENodes + i * 68 + 64);
 
-      m_vSPE.insert(m_vSPE.end(), spe);
+         int port = 0;
+         spe.m_DataChn.open(port);
+
+         CCBMsg msg;
+         msg.setType(300); // start processing engine
+         msg.setData(0, (char*)&(spe.m_uiID), 4);
+         msg.setData(4, (char*)&port, 4);
+         msg.setData(8, m_strOperator.c_str(), m_strOperator.length() + 1);
+         msg.setData(72, (char*)&m_iRows, 4);
+         msg.setData(76, m_pcParam, m_iParamSize);
+         msg.m_iDataLength = 4 + 76 + m_iParamSize;
+
+         if (m_GMP.rpc(spe.m_strIP.c_str(), spe.m_iPort, &msg, &msg) < 0)
+         {
+            cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
+            spe.m_DataChn.close();
+            continue;
+         }
+         cout << "connect SPE " << spe.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
+
+         if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
+         {
+            spe.m_DataChn.close();
+            continue;
+         }
+
+         m_vSPE.insert(m_vSPE.end(), spe);
+      }
    }
 
    return m_vSPE.size();

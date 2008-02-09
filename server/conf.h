@@ -96,6 +96,8 @@ public:
    IPSec m_IPSec;		// IP security check
 
    int m_iMaxSPEMem;		// Available physical memory for SPE
+
+   int m_iCore;			// number of CPU cores
 };
 
 }; // namespace

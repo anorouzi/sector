@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/08/2009
 *****************************************************************************/
 
 
@@ -60,7 +60,7 @@ Server::~Server()
 
 int Server::init(char* ip, int port)
 {
-   cout << "SECTOR server built 10122007.\n";
+   cout << "SECTOR server built 02072008.\n";
 
    m_SysConfig.init("sector.conf");
 

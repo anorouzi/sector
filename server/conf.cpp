@@ -138,6 +138,7 @@ int SECTORParam::init(const string& path)
    m_iSECTORPort = 2237;	// CBFS
    m_iRouterPort = 24673;	// CHORD
    m_iDataPort = 8386;		// UDTM
+   m_iCore = 2;
 
    ConfParser parser;
    Param param;
@@ -170,6 +171,8 @@ int SECTORParam::init(const string& path)
       }
       else if ("MAX_SPE_MEM" == param.m_strName)
          m_iMaxSPEMem = atoi(param.m_vstrValue[0].c_str());
+      else if ("NUM_OF_CORE" == param.m_strName)
+         m_iCore = atoi(param.m_vstrValue[0].c_str());
       else
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
    }

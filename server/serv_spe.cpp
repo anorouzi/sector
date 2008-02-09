@@ -250,9 +250,6 @@ void* Server::SPEHandler(void* p)
          result.addData(bid, rindex, ilen, rdata, dlen);
       }
 
-      cout << "RESULT " << dlen << " " << *(double*)(rdata + 340) << endl;
-
-
       cout << "completed 100 " << ip << " " << ctrlport << endl;
       progress = 100;
       msg.setData(4, (char*)&progress, 4);
@@ -260,7 +257,7 @@ void* Server::SPEHandler(void* p)
       if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
          return NULL;
 
-      cout << "sending data back... " << buckets << endl;
+      //cout << "sending data back... " << buckets << endl;
       self->SPESendResult(buckets, result, localfile, perm, datachn, locations);
 
       result.clear();
@@ -318,10 +315,11 @@ void* Server::SPEShuffler(void* p)
       }
       else if (*(int32_t*)msg.getData() == 1)
       {
-         datafile.write((char*)*(int32_t*)(msg.getData() + 8), *(int32_t*)(msg.getData() + 4));
+         datafile.write((char*)*(int64_t*)(msg.getData() + 8), *(int32_t*)(msg.getData() + 4));
 
-         int64_t* p = (int64_t*)*(int32_t*)(msg.getData() + 16);
-         int len = *(int32_t*)(msg.getData() + 12) - 1;
+         int64_t* p = (int64_t*)*(int64_t*)(msg.getData() + 20);
+         int len = *(int32_t*)(msg.getData() + 16) - 1;
+
          for (int i = 0; i < len; ++ i)
             *(++ p) += start;
          start = *p;
@@ -472,16 +470,16 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
          {
             pass = 1;
             msg.setData(0, (char*)&pass, 4);
-            int size = result.m_vDataLen[i];
+            int32_t size = result.m_vDataLen[i];
             msg.setData(4, (char*)&size, 4);
-            int pos = (long)result.m_vData[i];
-            msg.setData(8, (char*)&pos, 4);
+            uint64_t pos = (unsigned long)result.m_vData[i];
+            msg.setData(8, (char*)&pos, 8);
             size = result.m_vIndexLen[i];
-            msg.setData(12, (char*)&size, 4);
-            pos = (long)result.m_vIndex[i];
-            msg.setData(16, (char*)&pos, 4);
+            msg.setData(16, (char*)&size, 4);
+            pos = (unsigned long)result.m_vIndex[i];
+            msg.setData(20, (char*)&pos, 8);
 
-            msg.m_iDataLength = 4 + 20;
+            msg.m_iDataLength = 4 + 28;
 
             m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
          }
