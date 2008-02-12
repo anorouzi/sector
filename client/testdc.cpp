@@ -10,10 +10,14 @@ int main(int argc, char** argv)
 
    vector<string> files;
    files.insert(files.end(), "rand1.dat");
-   files.insert(files.end(), "rand2.dat");
+   //files.insert(files.end(), "rand2.dat");
 
    Stream s;
-   s.init(files);
+   if (s.init(files) < 0)
+   {
+      cout << "unable to locate input data files. quit.\n";
+      return -1;
+   }
 
    Stream temp;
    temp.m_strName = "stream_sort_bucket";
@@ -32,7 +36,7 @@ int main(int argc, char** argv)
    {
       Result* res;
 
-      if (-1 == myproc->read(res, true))
+      if (-1 == myproc->read(res))
       {
          if (myproc->checkProgress() == -1)
          {
@@ -47,8 +51,7 @@ int main(int argc, char** argv)
    }
 
    Stream output;
-   output.m_strName = "stream_sort_result";
-   output.init(-1);
+   output.init(0);
 
    if (myproc->run(temp, output, "sort", 0) < 0)
    {
@@ -60,7 +63,7 @@ int main(int argc, char** argv)
    {
       Result* res;
 
-      if (-1 == myproc->read(res, true))
+      if (-1 == myproc->read(res))
       {
          if (myproc->checkProgress() == -1)
          {
@@ -74,7 +77,7 @@ int main(int argc, char** argv)
       }
    }
 
-   cout << "SPE COMPLETED " << output.m_iFileNum << " " << output.m_vFiles[0] << endl;
+   cout << "SPE COMPLETED " << endl;
 
    myproc->close();
    Sector::releaseJob(myproc);

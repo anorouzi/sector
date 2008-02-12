@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/08/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/10/2009
 *****************************************************************************/
 
 
@@ -393,7 +393,7 @@ void* Server::process(void* s)
             {
                if (!self->m_pRouter->has(DHash::hash(i->c_str(), m_iKeySpace)))
                {
-                  self->m_RemoteFile.remove(*i);
+                  self->m_RemoteFile.removeCopy(*i, n);
                   msg->setData(c * 64, i->c_str(), i->length() + 1);
                   ++ c;
                }

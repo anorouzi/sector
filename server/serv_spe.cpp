@@ -295,13 +295,22 @@ void* Server::SPEShuffler(void* p)
    CGMP* gmp = ((Param5*)p)->gmp;
    delete (Param5*)p;
 
-   ofstream datafile((self->m_strHomeDir + localfile).c_str());
-   ofstream indexfile((self->m_strHomeDir + localfile + ".idx").c_str());
-
-   int64_t start = 0;
-   indexfile.write((char*)&start, 8);
-
+   // remove old result data files
    for (int i = 0; i < dsnum; ++ i)
+   {
+      char tmp[64];
+      sprintf(tmp, "%s.%d", (self->m_strHomeDir + localfile).c_str(), i);
+      unlink(tmp);
+      sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + localfile).c_str(), i);
+      unlink(tmp);
+   }
+
+   vector<int64_t> offset;
+   offset.resize(dsnum);
+   for (vector<int64_t>::iterator i = offset.begin(); i != offset.end(); ++ i)
+      *i = 0;
+
+   while (true)
    {
       char speip[64];
       int speport;
@@ -309,20 +318,35 @@ void* Server::SPEShuffler(void* p)
       int msgid;
       gmp->recvfrom(speip, speport, msgid, &msg);
 
-      if (*(int32_t*)msg.getData() == 0)
+      int pass = *(int32_t*)msg.getData();
+      int bucket = *(int32_t*)(msg.getData() + 4);
+
+      if (0 == pass)
       {
          gmp->sendto(speip, speport, msgid, &msg);
+         continue;
       }
-      else if (*(int32_t*)msg.getData() == 1)
-      {
-         datafile.write((char*)*(int64_t*)(msg.getData() + 8), *(int32_t*)(msg.getData() + 4));
 
-         int64_t* p = (int64_t*)*(int64_t*)(msg.getData() + 20);
-         int len = *(int32_t*)(msg.getData() + 16) - 1;
+      char tmp[64];
+      sprintf(tmp, "%s.%d", (self->m_strHomeDir + localfile).c_str(), bucket);
+      ofstream datafile(tmp, ios::app);
+
+      sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + localfile).c_str(), bucket);
+      ofstream indexfile(tmp, ios::app);
+      int64_t start = offset[bucket];
+      if (0 == start)
+         indexfile.write((char*)&start, 8);
+
+      if (1 == pass)
+      {
+         datafile.write((char*)*(int64_t*)(msg.getData() + 12), *(int32_t*)(msg.getData() + 8));
+
+         int64_t* p = (int64_t*)*(int64_t*)(msg.getData() + 24);
+         int len = *(int32_t*)(msg.getData() + 20) - 1;
 
          for (int i = 0; i < len; ++ i)
             *(++ p) += start;
-         start = *p;
+         offset[bucket] = *p;
          indexfile.write((char*)(p - len + 1), len * 8);
 
          msg.m_iDataLength = 4;
@@ -332,7 +356,7 @@ void* Server::SPEShuffler(void* p)
       {
          Transport t;
          int dataport = 0;
-         int remoteport = *(int32_t*)(msg.getData() + 4);
+         int remoteport = *(int32_t*)(msg.getData() + 8);
          t.open(dataport);
 
          *(int32_t*)msg.getData() = dataport;
@@ -351,14 +375,14 @@ void* Server::SPEShuffler(void* p)
          t.recv((char*)index, len * 8);
          for (int i = 1; i <= len; ++ i)
             index[i] += start;
-         start = index[len];
+         offset[bucket] = index[len];
          indexfile.write((char*)(index + 1), (len - 1) * 8);
          t.close();
       }
-   }
 
-   datafile.close();
-   indexfile.close();
+      datafile.close();
+      indexfile.close();
+   }
 
    gmp->close();
    delete gmp;
@@ -455,7 +479,8 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
       for (int i = 0; i < buckets; ++ i)
       {
          char* dstip = locations + i * 72;
-         int dstport = *(int32_t*)(locations + i * 72 + 64);
+         int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
+         int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
          int32_t pass;
          CCBMsg msg;
 
@@ -463,25 +488,27 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
          {
             pass = 0;
             msg.setData(0, (char*)&pass, 4);
-            msg.m_iDataLength = 4 + 4;
-            m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+            msg.setData(4, (char*)&i, 4);
+            msg.m_iDataLength = 4 + 8;
+            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
          }
          else if ((m_strLocalHost == dstip) && (m_iLocalPort == dstport))
          {
             pass = 1;
             msg.setData(0, (char*)&pass, 4);
+            msg.setData(4, (char*)&i, 4);
             int32_t size = result.m_vDataLen[i];
-            msg.setData(4, (char*)&size, 4);
+            msg.setData(8, (char*)&size, 4);
             uint64_t pos = (unsigned long)result.m_vData[i];
-            msg.setData(8, (char*)&pos, 8);
+            msg.setData(12, (char*)&pos, 8);
             size = result.m_vIndexLen[i];
-            msg.setData(16, (char*)&size, 4);
+            msg.setData(20, (char*)&size, 4);
             pos = (unsigned long)result.m_vIndex[i];
-            msg.setData(20, (char*)&pos, 8);
+            msg.setData(24, (char*)&pos, 8);
 
-            msg.m_iDataLength = 4 + 28;
+            msg.m_iDataLength = 4 + 32;
 
-            m_GMP.rpc(dstip, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
          }
          else
          {
@@ -491,12 +518,13 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
 
             pass = 2;
             msg.setData(0, (char*)&pass, 4);
-            msg.setData(4, (char*)&dataport, 4);
-            msg.m_iDataLength = 4 + 8;
+            msg.setData(4, (char*)&i, 4);
+            msg.setData(8, (char*)&dataport, 4);
+            msg.m_iDataLength = 4 + 12;
 
-            m_GMP.rpc(locations + i * 72, *(int32_t*)(locations + i * 72 + 68), &msg, &msg);
+            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
 
-            t.connect(locations + i * 72, *(int32_t*)msg.getData());
+            t.connect(dstip, *(int32_t*)msg.getData());
 
             int32_t size = result.m_vDataLen[i];
             t.send((char*)&size, 4);

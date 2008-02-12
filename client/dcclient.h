@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/08/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/10/2008
 *****************************************************************************/
 
 #ifndef __SECTOR_H__
@@ -63,7 +63,7 @@ public:
    vector<int64_t> m_vSize;	// size per file
    vector<int64_t> m_vRecNum;	// number of record per file
 
-   vector< set<Node, NodeComp> > m_vLocation;            // locations for each bucket
+   vector< set<Node, NodeComp> > m_vLocation;            // locations for each file
 
    int m_iFileNum;		// number of files
    int64_t m_llSize;		// total data size
@@ -120,7 +120,6 @@ private:
    int m_iRows;
    int m_iOutputType;
    char* m_pOutputLoc;
-   char* m_pSPENodes;
    int m_iSPENum;
 
    struct DS
@@ -130,7 +129,8 @@ private:
       int64_t m_llOffset;
       int64_t m_llSize;
       int m_iSPEID;
-      int m_iStatus;		// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
+      int m_iStatus;			// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
+      set<Node, NodeComp>* m_pLoc;	// locations of DS
       Result* m_pResult;
    };
    vector<DS*> m_vpDS;
@@ -142,11 +142,13 @@ private:
       string m_strIP;
       int m_iPort;
       DS* m_pDS;
-      int m_iStatus;		// -1: bad; 0: ready; 1; running
-      int m_iProgress;
+      int m_iStatus;			// -1: bad; 0: ready; 1; running
+      int m_iProgress;			// 0 - 100 (%)
       timeval m_StartTime;
       timeval m_LastUpdateTime;
       Transport m_DataChn;
+      int m_iShufflerPort;              // GMP port for the shuffler on this SPE
+
    };
    vector<SPE> m_vSPE;
 
@@ -167,15 +169,15 @@ private:
    CGMP m_GMP;
 
 private:
+   int prepareSPE(const char* spenodes);
    int segmentData();
    int prepareOutput();
-   int prepareSPE();
 
    static void* run(void*);
    pthread_mutex_t m_RunLock;
 
-   int start(bool locsense, map<string, Node>& datalocmap);
-   int checkSPE(bool locsense, map<string, Node>& datalocmap);
+   int start();
+   int checkSPE();
    int startSPE(SPE& s, DS* d);
 
    int readResult(SPE* s);
