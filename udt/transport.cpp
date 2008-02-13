@@ -49,15 +49,12 @@ Transport::~Transport()
 {
 }
 
-int Transport::open(int& port, bool rendezvous)
+int Transport::open(int& port, bool rendezvous, bool reuseaddr)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
-   if (!rendezvous)
-   {
-      bool reuseaddr = false;
+   if (!reuseaddr)
       UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
-   }
 
    sockaddr_in my_addr;
    my_addr.sin_family = AF_INET;

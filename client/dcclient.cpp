@@ -369,6 +369,10 @@ int Process::checkSPE()
 
       if (0 == s->m_iStatus)
       {
+         Node sn;
+         strcpy(sn.m_pcIP, s->m_strIP.c_str());
+         sn.m_iAppPort = s->m_iPort;
+
          // find a new DS and start it
          pthread_mutex_lock(&m_DSLock);
 
@@ -376,12 +380,10 @@ int Process::checkSPE()
 
          for (vector<DS*>::iterator d = m_vpDS.begin(); d != m_vpDS.end(); ++ d)
          {
-            Node sn;
-            strcpy(sn.m_pcIP, s->m_strIP.c_str());
-            sn.m_iAppPort = s->m_iPort;
-
             if ((0 == (*d)->m_iStatus) && (-1 == (*d)->m_iSPEID))
                dss = d;
+            else
+               continue;
 
             if ((*d)->m_pLoc->find(sn) != (*d)->m_pLoc->end())
                break;

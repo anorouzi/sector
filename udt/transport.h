@@ -42,7 +42,7 @@ public:
    ~Transport();
 
 public:
-   int open(int& port, bool rendezvous = true);
+   int open(int& port, bool rendezvous = true, bool reuseaddr = false);
 
    int listen();
    int accept(Transport& t, sockaddr* addr = NULL, int* addrlen = NULL);

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/12/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -342,12 +342,12 @@ void* Server::SPEShuffler(void* p)
          datafile.write((char*)*(int64_t*)(msg.getData() + 12), *(int32_t*)(msg.getData() + 8));
 
          int64_t* p = (int64_t*)*(int64_t*)(msg.getData() + 24);
-         int len = *(int32_t*)(msg.getData() + 20) - 1;
+         int len = *(int32_t*)(msg.getData() + 20);
 
          for (int i = 0; i < len; ++ i)
             *(++ p) += start;
          offset[bucket] = *p;
-         indexfile.write((char*)(p - len + 1), len * 8);
+         indexfile.write((char*)(p - len), len * 8);
 
          msg.m_iDataLength = 4;
          gmp->sendto(speip, speport, msgid, &msg);
@@ -373,10 +373,10 @@ void* Server::SPEShuffler(void* p)
          t.recv((char*)&len, 4);
          int64_t* index = new int64_t[len];
          t.recv((char*)index, len * 8);
-         for (int i = 1; i <= len; ++ i)
+         for (int i = 0; i < len; ++ i)
             index[i] += start;
-         offset[bucket] = index[len];
-         indexfile.write((char*)(index + 1), (len - 1) * 8);
+         offset[bucket] = index[len - 1];
+         indexfile.write((char*)index, len * 8);
          t.close();
       }
 
@@ -475,9 +475,22 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
    {
       int* sarray = new int[buckets];
       int* rarray = new int[buckets];
+      for (int i = 0; i < buckets; ++ i)
+      {
+         sarray[i] = result.m_vDataLen[i];
+         rarray[i] = result.m_vIndexLen[i] - 1;
+      }
+      // send back size and recnum information
+      datachn->send((char*)sarray, buckets * 4);
+      datachn->send((char*)rarray, buckets * 4);
+      delete [] sarray;
+      delete [] rarray;
 
       for (int i = 0; i < buckets; ++ i)
       {
+         if (0 == result.m_vDataLen[i])
+            continue;
+
          char* dstip = locations + i * 72;
          int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
          int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
@@ -501,9 +514,9 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
             msg.setData(8, (char*)&size, 4);
             uint64_t pos = (unsigned long)result.m_vData[i];
             msg.setData(12, (char*)&pos, 8);
-            size = result.m_vIndexLen[i];
+            size = result.m_vIndexLen[i] - 1;
             msg.setData(20, (char*)&size, 4);
-            pos = (unsigned long)result.m_vIndex[i];
+            pos = (unsigned long)(result.m_vIndex[i] + 1);
             msg.setData(24, (char*)&pos, 8);
 
             msg.m_iDataLength = 4 + 32;
@@ -529,21 +542,12 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
             int32_t size = result.m_vDataLen[i];
             t.send((char*)&size, 4);
             t.send(result.m_vData[i], size);
-            size = result.m_vIndexLen[i];
+            size = result.m_vIndexLen[i] - 1;
             t.send((char*)&size, 4);
-            t.send((char*)result.m_vIndex[i], result.m_vIndexLen[i] * 8);
+            t.send((char*)(result.m_vIndex[i] + 1), size * 8);
             t.close();
          }
-
-         sarray[i] = result.m_vDataLen[i];
-         rarray[i] = result.m_vIndexLen[i] - 1;
       }
-
-      // send back size and recnum information
-      datachn->send((char*)sarray, buckets * 4);
-      datachn->send((char*)rarray, buckets * 4);
-      delete [] sarray;
-      delete [] rarray;
    }
 
    return 1;
