@@ -140,7 +140,7 @@ private:
 
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
-   int SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, const bool& perm, Transport* datachn, char* locations);
+   int SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Node, Transport*, NodeComp>* outputchn);
 
 private:
    void updateOutLink();

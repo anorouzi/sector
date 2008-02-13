@@ -114,10 +114,36 @@ void* Server::SPEHandler(void* p)
 
    CCBMsg msg;
 
+
    cout << "rendezvous connect " << ip << " " << dataport << endl;
    if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
 
+   // read outupt parameters
+   int buckets;
+   if (datachn->recv((char*)&buckets, 4) < 0)
+      return NULL;
+
+   char* outputloc = NULL;
+   string localfile = "";
+   if (buckets > 0)
+   {
+      outputloc = new char[buckets * 72];
+      if (datachn->recv(outputloc, buckets * 72) < 0)
+         return NULL;
+   }
+   else if (buckets < 0)
+   {
+      outputloc = new char[64];
+      if (datachn->recv(outputloc, 64) < 0)
+         return NULL;
+      localfile = outputloc;
+   }
+
+   map<Node, Transport*, NodeComp> OutputChn;
+
+
+   // initialize processing function
    string dir;
    self->m_LocalFile.lookup(function + ".so", dir);
    void* handle = dlopen((self->m_strHomeDir + dir + function + ".so").c_str(), RTLD_LAZY);
@@ -131,20 +157,19 @@ void* Server::SPEHandler(void* p)
       return NULL;
    }
 
+
    timeval t1, t2, t3, t4;
    gettimeofday(&t1, 0);
 
    msg.setType(1); // success, return result
    msg.setData(0, (char*)&(speid), 4);
 
+   char* dataseg = new char[80];
+
    // processing...
    while (true)
    {
-      int32_t dssize;
-      if (datachn->recv((char*)&dssize, 4) < 0)
-         break;
-      char* dataseg = new char[dssize];
-      if (datachn->recv(dataseg, dssize) < 0)
+      if (datachn->recv(dataseg, 80) < 0)
          break;
 
       // read data segment parameters
@@ -154,24 +179,6 @@ void* Server::SPEHandler(void* p)
       int64_t* index = NULL;
       if (totalrows > 0)
          index = new int64_t[totalrows + 1];
-
-      // read outupt parameters
-      int buckets = *(int32_t*)(dataseg + 80);
-      bool perm = 0;
-      char* locations = NULL;
-      if (buckets != 0)
-      {
-         perm = *(int32_t*)(dataseg + 84);
-
-         if (buckets > 0)
-         {
-            locations = new char[dssize - 88];
-            memcpy(locations, dataseg + 88, dssize - 88);
-         }
-      }
-      string localfile = (buckets < 0) ? dataseg + 88 : "";
-      delete [] dataseg;
-
 
       int size = 0;
       char* block = NULL;
@@ -258,10 +265,9 @@ void* Server::SPEHandler(void* p)
          return NULL;
 
       //cout << "sending data back... " << buckets << endl;
-      self->SPESendResult(buckets, result, localfile, perm, datachn, locations);
+      self->SPESendResult(buckets, result, localfile, datachn, outputloc, &OutputChn);
 
       result.clear();
-      delete [] locations;
       delete [] index;
       delete [] block;
       delete [] rdata;
@@ -281,6 +287,13 @@ void* Server::SPEHandler(void* p)
    cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
 
    delete [] param;
+   delete [] dataseg;
+
+   for (map<Node, Transport*, NodeComp>::iterator i = OutputChn.begin(); i != OutputChn.end(); ++ i)
+   {
+      i->second->close();
+      delete i->second;
+   }
 
    return NULL;
 }
@@ -305,10 +318,14 @@ void* Server::SPEShuffler(void* p)
       unlink(tmp);
    }
 
+   // index file initial offset
    vector<int64_t> offset;
    offset.resize(dsnum);
    for (vector<int64_t>::iterator i = offset.begin(); i != offset.end(); ++ i)
       *i = 0;
+
+   // data channels
+   map<Node, Transport*, NodeComp> DataChn;
 
    while (true)
    {
@@ -354,30 +371,48 @@ void* Server::SPEShuffler(void* p)
       }
       else
       {
-         Transport t;
-         int dataport = 0;
-         int remoteport = *(int32_t*)(msg.getData() + 8);
-         t.open(dataport);
+         Node n;
+         strcpy(n.m_pcIP, speip);
+         n.m_iAppPort = speport;
 
-         *(int32_t*)msg.getData() = dataport;
-         msg.m_iDataLength = 4 + 4;
-         gmp->sendto(speip, speport, msgid, &msg);
+         Transport* chn = NULL;
 
-         t.connect(speip, remoteport);
+         map<Node, Transport*, NodeComp>::iterator i = DataChn.find(n);
+         if (i != DataChn.end())
+         {
+            chn = i->second;
+            msg.m_iDataLength = 4;
+            gmp->sendto(speip, speport, msgid, &msg);
+         }
+         else
+         {
+            Transport* t = new Transport;
+            int dataport = 0;
+            int remoteport = *(int32_t*)(msg.getData() + 8);
+            t->open(dataport);
+
+            *(int32_t*)msg.getData() = dataport;
+            msg.m_iDataLength = 4 + 4;
+            gmp->sendto(speip, speport, msgid, &msg);
+
+            t->connect(speip, remoteport);
+
+            DataChn[n] = t;
+            chn = t;
+         }
 
          int32_t len;
-         t.recv((char*)&len, 4);
+         chn->recv((char*)&len, 4);
          char* data = new char[len];
-         t.recv(data, len);
+         chn->recv(data, len);
          datafile.write(data, len);
-         t.recv((char*)&len, 4);
+         chn->recv((char*)&len, 4);
          int64_t* index = new int64_t[len];
-         t.recv((char*)index, len * 8);
+         chn->recv((char*)index, len * 8);
          for (int i = 0; i < len; ++ i)
             index[i] += start;
          offset[bucket] = index[len - 1];
          indexfile.write((char*)index, len * 8);
-         t.close();
       }
 
       datafile.close();
@@ -386,6 +421,13 @@ void* Server::SPEShuffler(void* p)
 
    gmp->close();
    delete gmp;
+
+   // release data channels
+   for (map<Node, Transport*, NodeComp>::iterator i = DataChn.begin(); i != DataChn.end(); ++ i)
+   {
+      i->second->close();
+      delete i->second;
+   }
 
    self->scanLocalFile();
 
@@ -439,8 +481,10 @@ int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size
    return 0;
 }
 
-int Server::SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, const bool& perm, Transport* datachn, char* locations)
+int Server::SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Node, Transport*, NodeComp>* outputchn)
 {
+   bool perm = false;
+
    if (buckets == -1)
    {
       string dir = (perm) ? ".sector-fs/" : ".sphere/";
@@ -497,15 +541,7 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
          int32_t pass;
          CCBMsg msg;
 
-         if (result.m_vDataLen[i] == 0)
-         {
-            pass = 0;
-            msg.setData(0, (char*)&pass, 4);
-            msg.setData(4, (char*)&i, 4);
-            msg.m_iDataLength = 4 + 8;
-            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
-         }
-         else if ((m_strLocalHost == dstip) && (m_iLocalPort == dstport))
+         if ((m_strLocalHost == dstip) && (m_iLocalPort == dstport))
          {
             pass = 1;
             msg.setData(0, (char*)&pass, 4);
@@ -525,27 +561,47 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
          }
          else
          {
-            Transport t;
-            int dataport = 0;
-            t.open(dataport);
-
             pass = 2;
             msg.setData(0, (char*)&pass, 4);
             msg.setData(4, (char*)&i, 4);
-            msg.setData(8, (char*)&dataport, 4);
-            msg.m_iDataLength = 4 + 12;
 
-            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
+            Transport* chn;
 
-            t.connect(dstip, *(int32_t*)msg.getData());
+            Node n;
+            strcpy(n.m_pcIP, dstip);
+            n.m_iAppPort = shufflerport;
+
+            map<Node, Transport*, NodeComp>::iterator c = outputchn->find(n);
+            if (c != outputchn->end())
+            {
+               msg.m_iDataLength = 4 + 8;
+               m_GMP.rpc(dstip, shufflerport, &msg, &msg);
+
+               chn = c->second;
+            }
+            else
+            {
+               Transport* t = new Transport;
+               int dataport = 0;
+               t->open(dataport);
+
+               msg.setData(8, (char*)&dataport, 4);
+               msg.m_iDataLength = 4 + 12;
+
+               m_GMP.rpc(dstip, shufflerport, &msg, &msg);
+
+               t->connect(dstip, *(int32_t*)msg.getData());
+
+               (*outputchn)[n] = t;
+               chn = t;
+            }
 
             int32_t size = result.m_vDataLen[i];
-            t.send((char*)&size, 4);
-            t.send(result.m_vData[i], size);
+            chn->send((char*)&size, 4);
+            chn->send(result.m_vData[i], size);
             size = result.m_vIndexLen[i] - 1;
-            t.send((char*)&size, 4);
-            t.send((char*)(result.m_vIndex[i] + 1), size * 8);
-            t.close();
+            chn->send((char*)&size, 4);
+            chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
          }
       }
    }

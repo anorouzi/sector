@@ -422,35 +422,13 @@ int Process::startSPE(SPE& s, DS* d)
 
    s.m_pDS = d;
 
-   char* dataseg;
-   int size;
-   if (m_iOutputType > 0)
-      size = 88 + m_pOutput->m_iFileNum * 72;
-   else if (m_iOutputType < 0)
-      size = 88 + 64;
-   else
-      size = 84;
-   dataseg = new char[size];
+   char* dataseg = new char[80];
 
    strcpy(dataseg, s.m_pDS->m_strDataFile.c_str());
    *(int64_t*)(dataseg + 64) = s.m_pDS->m_llOffset;
    *(int64_t*)(dataseg + 72) = s.m_pDS->m_llSize;
-   *(int32_t*)(dataseg + 80) = m_iOutputType;
-   if (m_iOutputType > 0)
-   {
-      *(int32_t*)(dataseg + 84) = m_pOutput->m_bPermanent;
-      memcpy(dataseg + 88, m_pOutputLoc, m_pOutput->m_iFileNum * 72);
-   }
-   else if (m_iOutputType < 0)
-   {
-      *(int32_t*)(dataseg + 84) = m_pOutput->m_bPermanent;
-      char localname[64];
-      sprintf(localname, "%s.%d", m_pOutput->m_strName.c_str(), d->m_iID);
-      memcpy(dataseg + 88, localname, strlen(localname) + 1);
-      m_pOutput->m_vFiles[d->m_iID] = localname;
-   }
 
-   if ((s.m_DataChn.send((char*)&size, 4) > 0) && (s.m_DataChn.send(dataseg, size) > 0))
+   if (s.m_DataChn.send(dataseg, 80) > 0)
    {
       d->m_iSPEID = s.m_uiID;
       d->m_iStatus = 1;
@@ -677,6 +655,41 @@ int Process::prepareOutput()
 
          if (++ s == m_vSPE.end())
             s = m_vSPE.begin();
+      }
+   }
+
+   // prepare and submit output locations
+   char* outputloc;
+   int size;
+   if (m_iOutputType > 0)
+      size = 4 + m_pOutput->m_iFileNum * 72;
+   else if (m_iOutputType < 0)
+      size = 4 + 64;
+   else
+      size = 4;
+   outputloc = new char[size];
+
+   *(int32_t*)outputloc = m_iOutputType;
+
+   if (m_iOutputType > 0)
+      memcpy(outputloc + 4, m_pOutputLoc, m_pOutput->m_iFileNum * 72);
+   else if (m_iOutputType < 0)
+   {
+      //TODO: fix this
+      char localname[64];
+      localname[63] = '\0';
+      //sprintf(localname, "%s.%d", m_pOutput->m_strName.c_str(), d->m_iID);
+      memcpy(outputloc + 4, localname, strlen(localname) + 1);
+      //m_pOutput->m_vFiles[d->m_iID] = localname;
+   }
+
+   for (vector<SPE>::iterator s = m_vSPE.begin(); s != m_vSPE.end(); ++ s)
+   {
+      if (s->m_DataChn.send(outputloc, size) < 0)
+      {
+         s->m_DataChn.close();
+         s->m_iStatus = -1;
+         return -1;
       }
    }
 
