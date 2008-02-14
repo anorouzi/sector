@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/12/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -262,10 +262,10 @@ void* Server::SPEHandler(void* p)
       msg.setData(4, (char*)&progress, 4);
       msg.m_iDataLength = 4 + 8;
       if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
-         return NULL;
+         break;
 
       //cout << "sending data back... " << buckets << endl;
-      self->SPESendResult(buckets, result, localfile, datachn, outputloc, &OutputChn);
+      self->SPESendResult(speid, buckets, result, localfile, datachn, outputloc, &OutputChn);
 
       result.clear();
       delete [] index;
@@ -336,13 +336,21 @@ void* Server::SPEShuffler(void* p)
       gmp->recvfrom(speip, speport, msgid, &msg);
 
       int pass = *(int32_t*)msg.getData();
-      int bucket = *(int32_t*)(msg.getData() + 4);
 
       if (0 == pass)
       {
          gmp->sendto(speip, speport, msgid, &msg);
          continue;
       }
+      else if (pass < 0)
+      {
+         // client send a message to stop the shuffler
+         gmp->sendto(speip, speport, msgid, &msg);
+         break;
+      }
+
+      int bucket = *(int32_t*)(msg.getData() + 4);
+      int speid = *(int32_t*)(msg.getData() + 8);
 
       char tmp[64];
       sprintf(tmp, "%s.%d", (self->m_strHomeDir + localfile).c_str(), bucket);
@@ -373,7 +381,7 @@ void* Server::SPEShuffler(void* p)
       {
          Node n;
          strcpy(n.m_pcIP, speip);
-         n.m_iAppPort = speport;
+         n.m_iAppPort = speid;
 
          Transport* chn = NULL;
 
@@ -388,7 +396,7 @@ void* Server::SPEShuffler(void* p)
          {
             Transport* t = new Transport;
             int dataport = 0;
-            int remoteport = *(int32_t*)(msg.getData() + 8);
+            int remoteport = *(int32_t*)(msg.getData() + 12);
             t->open(dataport);
 
             *(int32_t*)msg.getData() = dataport;
@@ -406,6 +414,7 @@ void* Server::SPEShuffler(void* p)
          char* data = new char[len];
          chn->recv(data, len);
          datafile.write(data, len);
+         delete [] data;
          chn->recv((char*)&len, 4);
          int64_t* index = new int64_t[len];
          chn->recv((char*)index, len * 8);
@@ -413,6 +422,7 @@ void* Server::SPEShuffler(void* p)
             index[i] += start;
          offset[bucket] = index[len - 1];
          indexfile.write((char*)index, len * 8);
+         delete [] index;
       }
 
       datafile.close();
@@ -481,7 +491,7 @@ int Server::SPEReadData(const string& datafile, const int64_t& offset, int& size
    return 0;
 }
 
-int Server::SPESendResult(const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Node, Transport*, NodeComp>* outputchn)
+int Server::SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Node, Transport*, NodeComp>* outputchn)
 {
    bool perm = false;
 
@@ -564,6 +574,7 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
             pass = 2;
             msg.setData(0, (char*)&pass, 4);
             msg.setData(4, (char*)&i, 4);
+            msg.setData(8, (char*)&speid, 4);
 
             Transport* chn;
 
@@ -574,7 +585,7 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
             map<Node, Transport*, NodeComp>::iterator c = outputchn->find(n);
             if (c != outputchn->end())
             {
-               msg.m_iDataLength = 4 + 8;
+               msg.m_iDataLength = 4 + 12;
                m_GMP.rpc(dstip, shufflerport, &msg, &msg);
 
                chn = c->second;
@@ -585,8 +596,8 @@ int Server::SPESendResult(const int& buckets, const SPEResult& result, const str
                int dataport = 0;
                t->open(dataport);
 
-               msg.setData(8, (char*)&dataport, 4);
-               msg.m_iDataLength = 4 + 12;
+               msg.setData(12, (char*)&dataport, 4);
+               msg.m_iDataLength = 4 + 16;
 
                m_GMP.rpc(dstip, shufflerport, &msg, &msg);
 

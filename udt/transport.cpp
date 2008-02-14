@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/12/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2008
 *****************************************************************************/
 
 
@@ -53,8 +53,7 @@ int Transport::open(int& port, bool rendezvous, bool reuseaddr)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
-   if (!reuseaddr)
-      UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
+   UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
 
    sockaddr_in my_addr;
    my_addr.sin_family = AF_INET;

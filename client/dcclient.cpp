@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -273,7 +273,7 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
    prepareOutput();
 
    m_iProgress = 0;
-   m_iAvgRunTime = 60;
+   m_iAvgRunTime = 300;
    m_iTotalDS = m_vpDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
@@ -380,13 +380,18 @@ int Process::checkSPE()
 
          for (vector<DS*>::iterator d = m_vpDS.begin(); d != m_vpDS.end(); ++ d)
          {
-            if ((0 == (*d)->m_iStatus) && (-1 == (*d)->m_iSPEID))
-               dss = d;
-            else
+            if ((0 != (*d)->m_iStatus) || (-1 != (*d)->m_iSPEID))
                continue;
 
+            // if a file is processed via pass by filename, it must be processed on its original location
+            if (0 != m_iRows)
+               dss = d;
+
             if ((*d)->m_pLoc->find(sn) != (*d)->m_pLoc->end())
+            {
+               dss = d;
                break;
+            }
          }
 
          if (dss != m_vpDS.end())
@@ -399,7 +404,7 @@ int Process::checkSPE()
          int rtime = t.tv_sec - s->m_StartTime.tv_sec;
          int utime = t.tv_sec - s->m_LastUpdateTime.tv_sec;
 
-         if ((rtime > 8 * m_iAvgRunTime) && (utime > 30))
+         if ((rtime > 8 * m_iAvgRunTime) && (utime > 300))
          {
             // dismiss this SPE and release its job
             s->m_pDS->m_iSPEID = -1;
@@ -773,7 +778,8 @@ int Process::start()
          if ((*d)->m_iStatus != 0)
             continue;
 
-         dss = d;
+         if (0 != m_iRows)
+            dss = d;
 
          Node sn;
          strcpy(sn.m_pcIP, i->m_strIP.c_str());
