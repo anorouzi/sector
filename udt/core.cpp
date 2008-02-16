@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/12/2008
+   Yunhong Gu, last updated 02/15/2008
 *****************************************************************************/
 
 #ifndef WIN32
@@ -551,6 +551,8 @@ void CUDT::connect(const sockaddr* serv_addr)
    uint64_t entertime = CTimer::getTime();
    CUDTException e(0, 0);
 
+   char* tmp = NULL;
+
    while (!m_bClosing)
    {
       m_pSndQueue->sendto(serv_addr, request);
@@ -558,6 +560,15 @@ void CUDT::connect(const sockaddr* serv_addr)
       response.setLength(m_iPayloadSize);
       if (m_pRcvQueue->recvfrom(m_SocketID, response) > 0)
       {
+         if (m_bRendezvous && (0 == response.getFlag()) && (NULL != tmp))
+         {
+            // a data packet comes, which means the peer side is already connected
+            // in this situation, a previously recorded response (tmp) will be used
+            memcpy(resdata, tmp, sizeof(CHandShake));
+            delete [] tmp;
+            break;
+         }
+
          if ((1 != response.getFlag()) || (0 != response.getType()))
             response.setLength(-1);
 
@@ -569,6 +580,9 @@ void CUDT::connect(const sockaddr* serv_addr)
                response.setLength(-1);
             else if ((0 == res->m_iReqType) || (0 == req->m_iReqType))
             {
+               tmp = new char [m_iPayloadSize];
+               memcpy(tmp, resdata, sizeof(CHandShake));
+
                req->m_iReqType = -1;
                request.m_iID = res->m_iID;
                response.setLength(-1);
@@ -881,7 +895,7 @@ int CUDT::send(const char* data, const int& len)
       }
    }
 
-   if ((m_iSndTimeOut >= 0) || (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize())) 
+   if (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize())
       return 0; 
 
    int size = (m_iSndBufSize - m_pSndBuffer->getCurrBufSize()) * m_iPayloadSize;
@@ -1020,7 +1034,7 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
       }
    }
 
-   if ((m_iSndTimeOut >= 0) && ((m_iSndBufSize - m_pSndBuffer->getCurrBufSize()) * m_iPayloadSize < len))
+   if ((m_iSndBufSize - m_pSndBuffer->getCurrBufSize()) * m_iPayloadSize < len)
       return 0;
 
    // insert the user buffer into the sening list
@@ -1585,8 +1599,8 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
    if ((CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck) || (2 == ctrlpkt.getType()) || (3 == ctrlpkt.getType()))
    {
       m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-      if (m_ullEXPInt < 13 * m_ullSYNInt)
-         m_ullEXPInt = 13 * m_ullSYNInt;
+      if (m_ullEXPInt < 100000 * m_ullCPUFrequency)
+         m_ullEXPInt = 100000 * m_ullCPUFrequency;
       CTimer::rdtsc(m_ullNextEXPTime);
       m_ullNextEXPTime += m_ullEXPInt;
    }
@@ -1954,8 +1968,9 @@ int CUDT::processData(CUnit* unit)
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
    m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-   if (m_ullEXPInt < 13 * m_ullSYNInt)
-      m_ullEXPInt = 13 * m_ullSYNInt;
+   if (m_ullEXPInt < 100000 * m_ullCPUFrequency)
+      m_ullEXPInt = 100000 * m_ullCPUFrequency;
+
    if (CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck)
    {
       CTimer::rdtsc(m_ullNextEXPTime);
@@ -2033,7 +2048,7 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
    getnameinfo(addr, (AF_INET == m_iVersion) ? sizeof(sockaddr_in) : sizeof(sockaddr_in6), clienthost, sizeof(clienthost), clientport, sizeof(clientport), NI_NUMERICHOST|NI_NUMERICSERV);
    int64_t timestamp = (CTimer::getTime() - m_StartTime) / 60000000; // secret changes every one minute
    char cookiestr[1024];
-   sprintf(cookiestr, "%s:%s:%lld", clienthost, clientport, timestamp);
+   sprintf(cookiestr, "%s:%s:%lld", clienthost, clientport, (long long int)timestamp);
    unsigned char cookie[16];
    CMD5::compute(cookiestr, cookie);
 
@@ -2050,7 +2065,7 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
       if (hs->m_iCookie != *(int*)cookie)
       {
          timestamp --;
-         sprintf(cookiestr, "%s:%s:%lld", clienthost, clientport, timestamp);
+         sprintf(cookiestr, "%s:%s:%lld", clienthost, clientport, (long long int)timestamp);
          CMD5::compute(cookiestr, cookie);
 
          if (hs->m_iCookie != *(int*)cookie)
@@ -2124,8 +2139,8 @@ void CUDT::checkTimers()
       // Haven't receive any information from the peer, is it dead?!
       // timeout: at least 16 expirations and must be greater than 3 seconds and be less than 30 seconds
       if (((m_iEXPCount > 16) && 
-          (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 3000000))
-          || (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
+          (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
+          || (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 300000000))
       {
          //
          // Connection is broken. 
@@ -2163,8 +2178,8 @@ void CUDT::checkTimers()
 
       ++ m_iEXPCount;
       m_ullEXPInt = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;
-      if (m_ullEXPInt < 13 * m_ullSYNInt)
-         m_ullEXPInt = 13 * m_ullSYNInt;
+      if (m_ullEXPInt < m_iEXPCount * 100000 * m_ullCPUFrequency)
+         m_ullEXPInt = m_iEXPCount * 100000 * m_ullCPUFrequency;
       CTimer::rdtsc(m_ullNextEXPTime);
       m_ullNextEXPTime += m_ullEXPInt;
 
