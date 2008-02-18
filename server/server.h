@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/18/2008
 *****************************************************************************/
 
 
@@ -52,18 +52,19 @@ public:
    ~SPEResult();
 
 public:
-   void init(const int& n, const int& rows, const int& size);
+   void init(const int& n);
    void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
    void clear();
 
 private:
    int m_iBucketNum;
-   int m_iSize;
 
    vector<int32_t> m_vIndexLen;
    vector<int64_t*> m_vIndex;
+   vector<int32_t> m_vIndexPhyLen;
    vector<int32_t> m_vDataLen;
    vector<char*> m_vData;
+   vector<int32_t> m_vDataPhyLen;
 };
 
 

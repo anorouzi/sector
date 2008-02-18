@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/18/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -41,14 +41,12 @@ SPEResult::~SPEResult()
       delete [] *i;
 }
 
-void SPEResult::init(const int& n, const int& rows, const int& size)
+void SPEResult::init(const int& n)
 {
    if (n < 1)
      m_iBucketNum = 1;
    else
      m_iBucketNum = n;
-
-   m_iSize = size;
 
    m_vIndex.resize(m_iBucketNum);
    m_vIndexLen.resize(m_iBucketNum);
@@ -56,16 +54,17 @@ void SPEResult::init(const int& n, const int& rows, const int& size)
    m_vDataLen.resize(m_iBucketNum);
 
    for (vector<int32_t>::iterator i = m_vIndexLen.begin(); i != m_vIndexLen.end(); ++ i)
-      *i = 1;
+      *i = 0;
    for (vector<int32_t>::iterator i = m_vDataLen.begin(); i != m_vDataLen.end(); ++ i)
       *i = 0;
+   for (vector<int32_t>::iterator i = m_vIndexPhyLen.begin(); i != m_vIndexPhyLen.end(); ++ i)
+      *i = 0;
+   for (vector<int32_t>::iterator i = m_vDataPhyLen.begin(); i != m_vDataPhyLen.end(); ++ i)
+      *i = 0;
    for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
-   {
-      *i = new int64_t[rows + 2];
-      (*i)[0] = 0;
-   }
+      *i = NULL;
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
-      *i = new char[size];
+      *i = NULL;
 }
 
 void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
@@ -73,12 +72,43 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
    if ((bucketid >= m_iBucketNum) || (bucketid < 0))
       return;
 
+   // dynamically increase index buffer size
+   while (m_vIndexLen[bucketid] + ilen > m_vIndexPhyLen[bucketid])
+   {
+      int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 256];
+      if (NULL != m_vIndex[bucketid])
+      {
+         memcpy((char*)tmp, (char*)m_vIndex[bucketid], m_vIndexLen[bucketid]);
+         delete [] m_vIndex[bucketid];
+      }
+      else
+      {
+         tmp[0] = 0;
+         m_vIndexLen[bucketid] = 1;
+      }
+      m_vIndex[bucketid] = tmp;
+      m_vIndexPhyLen[bucketid] += 256;
+   }
+
    int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid] - 1;
    int64_t start = *p;
    for (int i = 1; i <= ilen; ++ i)
       *(++ p) = index[i] + start;
 
    m_vIndexLen[bucketid] += ilen;
+
+   // dynamically increase index buffer size
+   while (m_vDataLen[bucketid] + dlen > m_vDataPhyLen[bucketid])
+   {
+      char* tmp = new char[m_vDataPhyLen[bucketid] + 16777216];
+      if (NULL != m_vData[bucketid])
+      {
+         memcpy((char*)tmp, (char*)m_vData[bucketid], m_vDataLen[bucketid]);
+         delete [] m_vData[bucketid];
+      }
+      m_vData[bucketid] = tmp;
+      m_vDataPhyLen[bucketid] += 16777216;
+   }
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
    m_vDataLen[bucketid] += dlen;
@@ -166,6 +196,9 @@ void* Server::SPEHandler(void* p)
 
    char* dataseg = new char[80];
 
+   SPEResult result;
+   result.init(buckets);
+
    // processing...
    while (true)
    {
@@ -224,9 +257,6 @@ void* Server::SPEHandler(void* p)
       self->m_LocalFile.lookup(datafile, dir);
       strcpy(rdata, (self->m_strHomeDir + dir).c_str());
 
-      SPEResult result;
-      result.init(buckets, totalrows, (size > 1000000) ? size : 1000000);
-
       gettimeofday(&t3, 0);
       for (int i = 0; i < totalrows; i += unitrows)
       {
@@ -267,7 +297,6 @@ void* Server::SPEHandler(void* p)
       //cout << "sending data back... " << buckets << endl;
       self->SPESendResult(speid, buckets, result, localfile, datachn, outputloc, &OutputChn);
 
-      result.clear();
       delete [] index;
       delete [] block;
       delete [] rdata;
@@ -276,6 +305,8 @@ void* Server::SPEHandler(void* p)
       index = NULL;
       block = NULL;
    }
+
+   result.clear();
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
