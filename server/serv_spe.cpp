@@ -50,8 +50,10 @@ void SPEResult::init(const int& n)
 
    m_vIndex.resize(m_iBucketNum);
    m_vIndexLen.resize(m_iBucketNum);
+   m_vIndexPhyLen.resize(m_iBucketNum);
    m_vData.resize(m_iBucketNum);
    m_vDataLen.resize(m_iBucketNum);
+   m_vDataPhyLen.resize(m_iBucketNum);
 
    for (vector<int32_t>::iterator i = m_vIndexLen.begin(); i != m_vIndexLen.end(); ++ i)
       *i = 0;
