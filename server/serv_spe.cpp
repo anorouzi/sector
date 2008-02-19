@@ -80,7 +80,7 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
       int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 256];
       if (NULL != m_vIndex[bucketid])
       {
-         memcpy((char*)tmp, (char*)m_vIndex[bucketid], m_vIndexLen[bucketid]);
+         memcpy((char*)tmp, (char*)m_vIndex[bucketid], m_vIndexLen[bucketid] * 8);
          delete [] m_vIndex[bucketid];
       }
       else
@@ -118,16 +118,13 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
 
 void SPEResult::clear()
 {
-   for (vector<int64_t*>::iterator i = m_vIndex.begin(); i != m_vIndex.end(); ++ i)
+   for (vector<int32_t>::iterator i = m_vIndexLen.begin(); i != m_vIndexLen.end(); ++ i)
    {
-      delete [] *i;
-      *i = NULL;
+      if (*i > 0)
+         *i = 1;
    }
-   for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
-   {
-      delete [] *i;
-      *i = NULL;
-   }
+   for (vector<int32_t>::iterator i = m_vDataLen.begin(); i != m_vDataLen.end(); ++ i)
+      *i = 0;
 }
 
 void* Server::SPEHandler(void* p)
@@ -255,6 +252,8 @@ void* Server::SPEHandler(void* p)
       int bid;
       int progress = 0;
 
+      result.clear();
+
       // rdata initially contains home data directory
       self->m_LocalFile.lookup(datafile, dir);
       strcpy(rdata, (self->m_strHomeDir + dir).c_str());
@@ -307,8 +306,6 @@ void* Server::SPEHandler(void* p)
       index = NULL;
       block = NULL;
    }
-
-   result.clear();
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
