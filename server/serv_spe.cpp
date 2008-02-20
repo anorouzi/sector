@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/19/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -71,13 +71,13 @@ void SPEResult::init(const int& n)
 
 void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
 {
-   if ((bucketid >= m_iBucketNum) || (bucketid < 0))
+   if ((bucketid >= m_iBucketNum) || (bucketid < 0) || (ilen <= 0) || (dlen <= 0))
       return;
 
    // dynamically increase index buffer size
    while (m_vIndexLen[bucketid] + ilen > m_vIndexPhyLen[bucketid])
    {
-      int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 256];
+      int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 128];
       if (NULL != m_vIndex[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vIndex[bucketid], m_vIndexLen[bucketid] * 8);
@@ -89,7 +89,7 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
          m_vIndexLen[bucketid] = 1;
       }
       m_vIndex[bucketid] = tmp;
-      m_vIndexPhyLen[bucketid] += 256;
+      m_vIndexPhyLen[bucketid] += 128;
    }
 
    int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid] - 1;
