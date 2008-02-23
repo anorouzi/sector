@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/20/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/22/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -276,8 +276,9 @@ void* Server::SPEHandler(void* p)
             progress = i * 100 / totalrows;
             msg.setData(4, (char*)&progress, 4);
             msg.m_iDataLength = 4 + 8;
-            if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
-               return NULL;
+            int id = 0;
+            self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
+
             t3 = t4;
          }
       }
@@ -292,8 +293,8 @@ void* Server::SPEHandler(void* p)
       progress = 100;
       msg.setData(4, (char*)&progress, 4);
       msg.m_iDataLength = 4 + 8;
-      if (self->m_GMP.rpc(ip.c_str(), ctrlport, &msg, &msg) < 0)
-         break;
+      int id = 0;
+      self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
       //cout << "sending data back... " << buckets << endl;
       self->SPESendResult(speid, buckets, result, localfile, datachn, outputloc, &OutputChn);
@@ -363,24 +364,10 @@ void* Server::SPEShuffler(void* p)
       int speport;
       CCBMsg msg;
       int msgid;
-      gmp->recvfrom(speip, speport, msgid, &msg);
-
-      int pass = *(int32_t*)msg.getData();
-
-      if (0 == pass)
-      {
-         gmp->sendto(speip, speport, msgid, &msg);
+      if (gmp->recvfrom(speip, speport, msgid, &msg) < 0)
          continue;
-      }
-      else if (pass < 0)
-      {
-         // client send a message to stop the shuffler
-         gmp->sendto(speip, speport, msgid, &msg);
-         break;
-      }
 
-      int bucket = *(int32_t*)(msg.getData() + 4);
-      int speid = *(int32_t*)(msg.getData() + 8);
+      int bucket = *(int32_t*)msg.getData();
 
       char tmp[64];
       sprintf(tmp, "%s.%d", (self->m_strHomeDir + localfile).c_str(), bucket);
@@ -392,68 +379,51 @@ void* Server::SPEShuffler(void* p)
       if (0 == start)
          indexfile.write((char*)&start, 8);
 
-      if (1 == pass)
+      Node n;
+      strcpy(n.m_pcIP, speip);
+      n.m_iAppPort = *(int32_t*)(msg.getData() + 4); // SPE ID
+
+      Transport* chn = NULL;
+
+      map<Node, Transport*, NodeComp>::iterator i = DataChn.find(n);
+      if (i != DataChn.end())
       {
-         datafile.write((char*)*(int64_t*)(msg.getData() + 12), *(int32_t*)(msg.getData() + 8));
-
-         int64_t* p = (int64_t*)*(int64_t*)(msg.getData() + 24);
-         int len = *(int32_t*)(msg.getData() + 20);
-
-         for (int i = 0; i < len; ++ i)
-            *(++ p) += start;
-         offset[bucket] = *p;
-         indexfile.write((char*)(p - len), len * 8);
-
+         chn = i->second;
          msg.m_iDataLength = 4;
-         gmp->sendto(speip, speport, msgid, &msg);
+
+         // channel exists, no response to be sent; start receiving data
       }
       else
       {
-         Node n;
-         strcpy(n.m_pcIP, speip);
-         n.m_iAppPort = speid;
+         Transport* t = new Transport;
+         int dataport = 0;
+         int remoteport = *(int32_t*)(msg.getData() + 8);
+         t->open(dataport);
 
-         Transport* chn = NULL;
+         *(int32_t*)msg.getData() = dataport;
+         msg.m_iDataLength = 4 + 4;
+         gmp->sendto(speip, speport, msgid, &msg);
 
-         map<Node, Transport*, NodeComp>::iterator i = DataChn.find(n);
-         if (i != DataChn.end())
-         {
-            chn = i->second;
-            msg.m_iDataLength = 4;
-            gmp->sendto(speip, speport, msgid, &msg);
-         }
-         else
-         {
-            Transport* t = new Transport;
-            int dataport = 0;
-            int remoteport = *(int32_t*)(msg.getData() + 12);
-            t->open(dataport);
+         t->connect(speip, remoteport);
 
-            *(int32_t*)msg.getData() = dataport;
-            msg.m_iDataLength = 4 + 4;
-            gmp->sendto(speip, speport, msgid, &msg);
-
-            t->connect(speip, remoteport);
-
-            DataChn[n] = t;
-            chn = t;
-         }
-
-         int32_t len;
-         chn->recv((char*)&len, 4);
-         char* data = new char[len];
-         chn->recv(data, len);
-         datafile.write(data, len);
-         delete [] data;
-         chn->recv((char*)&len, 4);
-         int64_t* index = new int64_t[len];
-         chn->recv((char*)index, len * 8);
-         for (int i = 0; i < len; ++ i)
-            index[i] += start;
-         offset[bucket] = index[len - 1];
-         indexfile.write((char*)index, len * 8);
-         delete [] index;
+         DataChn[n] = t;
+         chn = t;
       }
+
+      int32_t len;
+      chn->recv((char*)&len, 4);
+      char* data = new char[len];
+      chn->recv(data, len);
+      datafile.write(data, len);
+      delete [] data;
+      chn->recv((char*)&len, 4);
+      int64_t* index = new int64_t[len];
+      chn->recv((char*)index, len * 8);
+      for (int i = 0; i < len; ++ i)
+         index[i] += start;
+      offset[bucket] = index[len - 1];
+      indexfile.write((char*)index, len * 8);
+      delete [] index;
 
       datafile.close();
       indexfile.close();
@@ -570,80 +540,61 @@ int Server::SPESendResult(const int& speid, const int& buckets, const SPEResult&
       delete [] sarray;
       delete [] rarray;
 
-      for (int i = 0; i < buckets; ++ i)
+      for (int r = speid; r < buckets + speid; ++ r)
       {
+         // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
+         int i = r % buckets;
+
          if (0 == result.m_vDataLen[i])
             continue;
 
          char* dstip = locations + i * 72;
          int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
          int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
-         int32_t pass;
          CCBMsg msg;
 
-         if ((m_strLocalHost == dstip) && (m_iLocalPort == dstport))
+         msg.setData(0, (char*)&i, 4);
+         msg.setData(4, (char*)&speid, 4);
+
+         Transport* chn;
+
+         Node n;
+         strcpy(n.m_pcIP, dstip);
+         n.m_iAppPort = shufflerport;
+
+         map<Node, Transport*, NodeComp>::iterator c = outputchn->find(n);
+         if (c != outputchn->end())
          {
-            pass = 1;
-            msg.setData(0, (char*)&pass, 4);
-            msg.setData(4, (char*)&i, 4);
-            int32_t size = result.m_vDataLen[i];
-            msg.setData(8, (char*)&size, 4);
-            uint64_t pos = (unsigned long)result.m_vData[i];
-            msg.setData(12, (char*)&pos, 8);
-            size = result.m_vIndexLen[i] - 1;
-            msg.setData(20, (char*)&size, 4);
-            pos = (unsigned long)(result.m_vIndex[i] + 1);
-            msg.setData(24, (char*)&pos, 8);
+            // channel exists, send a message immediately followed by data, no response expected
+            msg.m_iDataLength = 4 + 8;
+            int id = 0;
+            m_GMP.sendto(dstip, shufflerport, id, &msg);
 
-            msg.m_iDataLength = 4 + 32;
-
-            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
+            chn = c->second;
          }
          else
          {
-            pass = 2;
-            msg.setData(0, (char*)&pass, 4);
-            msg.setData(4, (char*)&i, 4);
-            msg.setData(8, (char*)&speid, 4);
+            Transport* t = new Transport;
+            int dataport = 0;
+            t->open(dataport);
 
-            Transport* chn;
+            msg.setData(8, (char*)&dataport, 4);
+            msg.m_iDataLength = 4 + 12;
 
-            Node n;
-            strcpy(n.m_pcIP, dstip);
-            n.m_iAppPort = shufflerport;
+            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
 
-            map<Node, Transport*, NodeComp>::iterator c = outputchn->find(n);
-            if (c != outputchn->end())
-            {
-               msg.m_iDataLength = 4 + 12;
-               m_GMP.rpc(dstip, shufflerport, &msg, &msg);
+            t->connect(dstip, *(int32_t*)msg.getData());
 
-               chn = c->second;
-            }
-            else
-            {
-               Transport* t = new Transport;
-               int dataport = 0;
-               t->open(dataport);
-
-               msg.setData(12, (char*)&dataport, 4);
-               msg.m_iDataLength = 4 + 16;
-
-               m_GMP.rpc(dstip, shufflerport, &msg, &msg);
-
-               t->connect(dstip, *(int32_t*)msg.getData());
-
-               (*outputchn)[n] = t;
-               chn = t;
-            }
-
-            int32_t size = result.m_vDataLen[i];
-            chn->send((char*)&size, 4);
-            chn->send(result.m_vData[i], size);
-            size = result.m_vIndexLen[i] - 1;
-            chn->send((char*)&size, 4);
-            chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
+            (*outputchn)[n] = t;
+            chn = t;
          }
+
+         int32_t size = result.m_vDataLen[i];
+         chn->send((char*)&size, 4);
+         chn->send(result.m_vData[i], size);
+         size = result.m_vIndexLen[i] - 1;
+         chn->send((char*)&size, 4);
+         chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
       }
    }
 

@@ -100,7 +100,7 @@ public:
    Process();
    ~Process();
 
-   int run(const Stream& input, Stream& output, string op, const int& rows, const char* param = NULL, const int& size = 0);
+   int run(const Stream& input, Stream& output, string op, const int& rows, const char* param = NULL, const int& size = 0, const int& core = -1);
 
    // rows:
    // 	n (n > 0): n rows per time

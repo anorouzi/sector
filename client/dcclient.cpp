@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/22/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -224,7 +224,7 @@ Process::~Process()
    pthread_mutex_destroy(&m_RunLock);
 }
 
-int Process::run(const Stream& input, Stream& output, string op, const int& rows, const char* param, const int& size)
+int Process::run(const Stream& input, Stream& output, string op, const int& rows, const char* param, const int& size, const int& core)
 {
    pthread_mutex_lock(&m_RunLock);
    pthread_mutex_unlock(&m_RunLock);
@@ -237,6 +237,8 @@ int Process::run(const Stream& input, Stream& output, string op, const int& rows
    m_pOutput = &output;
    m_iRows = rows;
    m_iOutputType = m_pOutput->m_iFileNum;
+   if (core > 0)
+      m_iCore = core;
 
    m_vpDS.clear();
    m_vSPE.clear();
@@ -319,9 +321,6 @@ void* Process::run(void* param)
       CCBMsg msg;
       if (self->m_GMP.recvfrom(ip, port, id, &msg, false) < 0)
          continue;
-
-      msg.m_iDataLength = 4;
-      self->m_GMP.sendto(ip, port, id, &msg);
 
       uint32_t speid = *(uint32_t*)(msg.getData());
       vector<SPE>::iterator s = self->m_vSPE.begin();

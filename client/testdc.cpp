@@ -25,6 +25,10 @@ int main(int argc, char** argv)
 
    Process* myproc = Sector::createJob();
 
+   timeval t;
+   gettimeofday(&t, 0);
+   cout << "start time " << t.tv_sec << endl;
+
    int n = 2;
    if (myproc->run(s, temp, "sorthash", 1, (char*)&n, sizeof(int)) < 0)
    {
@@ -50,10 +54,13 @@ int main(int argc, char** argv)
       }
    }
 
+   gettimeofday(&t, 0);
+   cout << "stage 1 accomplished " << t.tv_sec << endl;
+
    Stream output;
    output.init(0);
 
-   if (myproc->run(temp, output, "sort", 0) < 0)
+   if (myproc->run(temp, output, "sort", 0, NULL, 0, 2) < 0)
    {
       cout << "failed to find any computing resources." << endl;
       return -1;
@@ -76,6 +83,9 @@ int main(int argc, char** argv)
          continue;
       }
    }
+
+   gettimeofday(&t, 0);
+   cout << "stage 2 accomplished " << t.tv_sec << endl;
 
    cout << "SPE COMPLETED " << endl;
 
