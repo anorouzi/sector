@@ -103,7 +103,6 @@ int Stream::init(const vector<string>& files)
           // no record index found
           *r = -1;
           m_llRecNum = -1;
-
           indexfound = false;
       }
       else

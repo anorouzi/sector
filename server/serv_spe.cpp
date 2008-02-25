@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/22/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/24/2008
 *****************************************************************************/
 
 #include <server.h>
@@ -532,7 +532,10 @@ int Server::SPESendResult(const int& speid, const int& buckets, const SPEResult&
       for (int i = 0; i < buckets; ++ i)
       {
          sarray[i] = result.m_vDataLen[i];
-         rarray[i] = result.m_vIndexLen[i] - 1;
+         if (sarray[i] > 0)
+            rarray[i] = result.m_vIndexLen[i] - 1;
+         else
+            rarray[i] = 0;
       }
       // send back size and recnum information
       datachn->send((char*)sarray, buckets * 4);
