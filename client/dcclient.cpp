@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/22/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/24/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -86,6 +86,8 @@ int Stream::init(const vector<string>& files)
    m_vLocation.resize(m_iFileNum);
    int lp = 0;
 
+   bool indexfound = true;
+
    for (vector<string>::iterator i = m_vFiles.begin(); i != m_vFiles.end(); ++ i)
    {
       CFileAttr fattr, iattr;
@@ -101,11 +103,16 @@ int Stream::init(const vector<string>& files)
           // no record index found
           *r = -1;
           m_llRecNum = -1;
+
+          indexfound = false;
       }
       else
       {
-         *r = iattr.m_llSize / 8 - 1;
-         m_llRecNum += *r;
+         if (indexfound)
+         {
+            *r = iattr.m_llSize / 8 - 1;
+            m_llRecNum += *r;
+         }
       }
 
       s ++;
@@ -119,6 +126,9 @@ int Stream::init(const vector<string>& files)
       for (vector<Node>::iterator n = nl.begin(); n != nl.end(); ++ n)
         ls->insert(*n);
    }
+
+   if (!indexfound)
+      cout << "warning: no record index found!\n";
 
    m_llEnd = m_llRecNum;
 
@@ -406,6 +416,7 @@ int Process::checkSPE()
          if ((rtime > 8 * m_iAvgRunTime) && (utime > 300))
          {
             // dismiss this SPE and release its job
+            s->m_pDS->m_iStatus = 0;
             s->m_pDS->m_iSPEID = -1;
             s->m_iStatus = -1;
             s->m_DataChn.close();
