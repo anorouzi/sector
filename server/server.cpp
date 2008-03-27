@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/10/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/27/2008
 *****************************************************************************/
 
 
@@ -705,21 +705,22 @@ void Server::updateInLink()
    CCBMsg msg;
    msg.resize(65536);
 
-   // check timer...
+   // check timer: if probe message has been received, expiration time: 1 minute
+   m_RemoteFile.checkExpiredNode(60);
 
-   /*
+   // check number of replicas every day
    timeval currtime;
    gettimeofday(&currtime, 0);
    if (currtime.tv_sec - m_ReplicaCheckTime.tv_sec > 24 * 3600)
    {
-      // less than 2 copies in the system, create a new one
+      // less than 3 copies in the system, create a new one
 
       map<string, int> ri;
-      m_RemoteFile.getReplicaInfo(ri, 2);
+      m_RemoteFile.getReplicaInfo(ri, 3);
 
       for (map<string, int>::const_iterator i = ri.begin(); i != ri.end(); ++ i)
       {
-         int seed = 1 + (int)(10.0 * rand() / (RAND_MAX + 1.0));
+         uint32_t seed = (uint32_t)(0xFFFFFFFF * (rand() / (RAND_MAX + 1.0)));
          Node n;
          if (m_pRouter->lookup(seed, &n) < 0)
             continue;
@@ -735,7 +736,6 @@ void Server::updateInLink()
          m_GMP.rpc(n.m_pcIP, n.m_iAppPort, &msg, &msg);
       }
    }
-   */
 }
 
 int Server::scanLocalFile()

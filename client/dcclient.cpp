@@ -801,7 +801,8 @@ int Process::start()
          }
       }
 
-      assert (dss != m_vpDS.end());
+      if (dss == m_vpDS.end())
+         continue;
 
       i->m_pDS = *dss;
 

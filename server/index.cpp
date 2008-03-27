@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/13/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/27/2008
 *****************************************************************************/
 
 
@@ -242,17 +242,20 @@ int RemoteFileIndex::insert(const CFileAttr& attr, const Node& n)
 
    map<Node, RemoteNodeInfo, NodeComp>::iterator j = m_mLocIndex.find(n);
 
+   timeval t;
+   gettimeofday(&t, 0);
+
    if (j == m_mLocIndex.end())
    {
       RemoteNodeInfo rni;
       rni.m_sFileList.insert(attr.m_pcName);
-      rni.m_ullTimeStamp = 0;
+      rni.m_uiTimeStamp = t.tv_sec;
       m_mLocIndex[n] = rni;
    }
    else
    {
       j->second.m_sFileList.insert(attr.m_pcName);
-      j->second.m_ullTimeStamp = 0;
+      j->second.m_uiTimeStamp = t.tv_sec;
    }
 
    return 1;
@@ -325,6 +328,10 @@ int RemoteFileIndex::getFileList(vector<string>& fl, const Node& n)
    for (set<string>::iterator i = m_mLocIndex[n].m_sFileList.begin(); i != m_mLocIndex[n].m_sFileList.end(); ++ i)
       fl.insert(fl.end(), *i);
 
+   timeval t;
+   gettimeofday(&t, 0);
+   m_mLocIndex[n].m_uiTimeStamp = t.tv_sec;
+
    return fl.size();   
 }
 
@@ -341,4 +348,27 @@ int RemoteFileIndex::getReplicaInfo(map<string, int>& ri, const unsigned int& nu
    }
 
    return ri.size();
+}
+
+void RemoteFileIndex::checkExpiredNode(const unsigned int& sec_interval)
+{
+   CGuard indexg(m_IndexLock);
+
+   timeval t;
+   gettimeofday(&t, 0);
+
+   for (map<Node, RemoteNodeInfo, NodeComp>::iterator i = m_mLocIndex.begin(); i != m_mLocIndex.end(); ++ i)
+   {
+      if (t.tv_sec - i->second.m_uiTimeStamp < sec_interval)
+         continue;
+
+      for (set<string>::iterator f = i->second.m_sFileList.begin(); f != i->second.m_sFileList.end(); ++ f)
+      {
+         m_mFileIndex[*f].m_sLocInfo.erase(i->first);
+         if (m_mFileIndex[*f].m_sLocInfo.empty())
+            m_mFileIndex.erase(*f);
+      }
+
+      m_mLocIndex.erase(i);
+   }
 }
