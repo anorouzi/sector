@@ -140,6 +140,12 @@ int Slave::run()
    secconn.send((char*)&size, 4);
    secconn.send(buf, size);
 
+   // send total available disk space
+   secconn.send((char*)&(m_SysConfig.m_llMaxDataSize), 8);
+
+   // send cluster ID
+   secconn.send((char*)&(m_SysConfig.m_iClusterID), 4);
+
    secconn.close();
    SSLTransport::destroy();
 
@@ -341,4 +347,29 @@ void* Slave::process(void* s)
 
    delete msg;
    return NULL;
+}
+
+void Slave::report(const int32_t& transid, const string& filename)
+{
+   SectorMsg msg;
+   msg.setType(1);
+   msg.setKey(0);
+   msg.setData(0, (char*)&transid, 4);
+
+   SNode sn;
+   sn.m_strName = filename;
+   struct stat s;
+   stat((m_strHomeDir + filename).c_str(), &s);
+   sn.m_llTimeStamp = s.st_mtime;
+   ifstream ifs((m_strHomeDir + filename).c_str());
+   ifs.seekg(0, ios::end);
+   sn.m_llSize = ifs.tellg();
+
+   char buf[1024];
+   sn.serialize(buf);
+
+   msg.setData(4, buf, strlen(buf));
+
+   int id;
+   m_GMP.sendto(m_strMasterIP.c_str(), m_iMasterPort, id, &msg);
 }

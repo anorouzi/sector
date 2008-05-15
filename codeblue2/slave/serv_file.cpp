@@ -194,8 +194,10 @@ void* Slave::fileHandler(void* p)
                run = false;
                break;
             }
-
+cout << "recv file " << filename << endl;
             ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
+if (ofs.bad())
+   cout << "why!!!\n";
 
             if (datachn->recvfile(ofs, offset, size) < 0)
                run = false;
@@ -230,6 +232,9 @@ void* Slave::fileHandler(void* p)
    delete datachn;
 
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
+
+   //report to master the task is completed
+   self->report(0, filename);
 
    return NULL;
 }
@@ -285,6 +290,8 @@ void* Slave::copy(void* p)
       unlink(filename.c_str());
 
    ofs.close();
+
+   self->report(0, filename);
 
    return NULL;
 }

@@ -5,7 +5,7 @@ LDFLAGS += -lclient
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc #download upload
+all: libclient.so libclient.a testfs testdc download upload
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c

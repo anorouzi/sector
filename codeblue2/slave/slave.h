@@ -115,6 +115,9 @@ private:
    int SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Address, Transport*, AddrComp>* outputchn);
 
 private:
+   void report(const int32_t& transid, const string& path);
+
+private:
    CGMP m_GMP;
 
    string m_strLocalHost;

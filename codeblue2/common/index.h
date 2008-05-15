@@ -90,13 +90,16 @@ public:
    int remove(const char* path, bool recursive = false);
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
-
+   int update(const char* fileinfo, const Address& addr);
+ 
 public:
    static int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
    static int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address& addr);
    static int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
    static int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch);
    static int substract(std::map<std::string, SNode>& currdir, const Address& addr);
+
+   static int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);
 
    static int parsePath(const char* path, std::vector<std::string>& result);
 

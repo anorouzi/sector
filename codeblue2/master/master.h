@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/11/2008
 *****************************************************************************/
 
 
@@ -50,6 +50,8 @@ struct SlaveNode
    int m_iCurrWorkLoad;
 
    string m_strExecDir;
+
+   int m_iClusterID;
 };
 
 struct SysStat
@@ -104,6 +106,7 @@ private:
    inline void reject(char* ip, int port, int id, int32_t code);
 
 private:
+   void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath);
    int createReplica(const char* ip, int port, const char* path);
    int removeReplica(const char* ip, int port, const char* path);
 

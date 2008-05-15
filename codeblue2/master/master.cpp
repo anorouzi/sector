@@ -55,7 +55,6 @@ int ActiveUser::deserialize(vector<string>& dirs, const string& buf)
 
 bool ActiveUser::match(const string& path, int32_t& rwx)
 {
-cout << "to match " << path << " " << rwx << endl;
    if ((rwx & 1) != 0)
    {
       for (vector<string>::iterator i = m_vstrReadList.begin(); i != m_vstrReadList.end(); ++ i)
@@ -70,13 +69,10 @@ cout << "to match " << path << " " << rwx << endl;
 
    if ((rwx & 2) != 0)
    {
-cout << "match 2 " << endl;
       for (vector<string>::iterator i = m_vstrWriteList.begin(); i != m_vstrWriteList.end(); ++ i)
       {
-cout << "222 " << *i << endl;
          if ((path.length() >= i->length()) && (path.substr(0, i->length()) == *i) && ((path.length() == i->length()) || (path.c_str()[i->length()] == '/') || (*i == "/")))
          {
-cout << "hoho\n";
             rwx ^= 2;
             break;
          }
@@ -85,14 +81,8 @@ cout << "hoho\n";
 
    if ((rwx & 4) != 0)
    {
-      for (vector<string>::iterator i = m_vstrWriteList.begin(); i != m_vstrWriteList.end(); ++ i)
-      {
-         if ((path.length() >= i->length()) && (path.substr(0, i->length()) == *i) && ((path.length() == i->length()) || (path.c_str()[i->length()] == '/') || (*i == "/")))
-         {
-            rwx ^= 4;
-            break;
-         }
-      }
+      if (!m_vstrExecList.empty())
+         rwx ^= 4;
    }
 
    return (rwx == 0);
@@ -193,27 +183,7 @@ int Master::run()
       }
 
       // check replica, create or remove replicas if necessary
-      stack<SNode*> scanmap;
-
-      for (map<string, SNode>::iterator i = m_Metadata.m_mDirectory.begin(); i != m_Metadata.m_mDirectory.end(); ++ i)
-         scanmap.push(&(i->second));
-
-      while (!scanmap.empty())
-      {
-         SNode* n = scanmap.top();
-         scanmap.pop();
-
-         if (n->m_bIsDir)
-         {
-            for (map<string, SNode>::iterator i = n->m_mDirectory.begin(); i != n->m_mDirectory.end(); ++ i)
-               scanmap.push(&(i->second));
-         }
-         else
-         {
-            //if (n->m_sLocation.size() < m_SysConfig.m_iReplicaNum)
-            //   createReplica();
-         }
-      }
+      checkReplica(m_Metadata.m_mDirectory, "/");
 
       sleep(60);
    }
@@ -332,6 +302,10 @@ void* Master::serviceEx(void* p)
             Index::deserialize(ifs, branch, addr);
             ifs.close();
             Index::merge(self->m_Metadata.m_mDirectory, branch);
+
+            sn.m_llUsedDiskSpace = Index::getTotalDataSize(branch);
+            s->recv((char*)&(sn.m_llMaxDiskSpace), 8);
+            s->recv((char*)&(sn.m_iClusterID), 4);
 
             self->m_mSlaveList[addr] = sn;
          }
@@ -471,8 +445,15 @@ void* Master::process(void* s)
       {
          // internal system commands
 
-         case 1: // slave reports status
+         case 1: // slave reports transaction status
          {
+            int transid = *(int32_t*)msg->getData();
+
+            Address addr;
+            addr.m_strIP = ip;
+            addr.m_iPort = port;
+            self->m_Metadata.update(msg->getData() + 4, addr);
+
             break;
          }
 
@@ -561,7 +542,6 @@ void* Master::process(void* s)
          {
             int rwx = 2;
             if (!user->match(msg->getData(), rwx))
-            if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, -1);
                break;
@@ -575,7 +555,6 @@ void* Master::process(void* s)
          case 105: // delete dir/file
          {
             int rwx = 2;
-            if (!user->match(msg->getData(), rwx))
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, -1);
@@ -620,21 +599,16 @@ void* Master::process(void* s)
 
             if (r < 0)
             {
-               cout << "really?\n";
                // file does not exist
                self->m_Metadata.create(path);
 
+               // choose a slave node for the new file
                addr.m_strIP = self->m_mSlaveList.begin()->second.m_strIP;
                addr.m_iPort = self->m_mSlaveList.begin()->second.m_iPort;
-
-               // choose slave node, create new file
             }
             else
             {
-               // choose a node
-               // send command to the chosen slave
-               // get back data channel infor
-
+               // choose a slave node with the requested file
                addr.m_strIP = attr.m_sLocation.begin()->m_strIP;
                addr.m_iPort = attr.m_sLocation.begin()->m_iPort;
             }
@@ -664,6 +638,13 @@ void* Master::process(void* s)
 
          case 201: // upload spe
          {
+            int rwx = 4;
+            if (!user->match("", rwx))
+            {
+               self->reject(ip, port, id, -1);
+               break;
+            }
+
             string lib = msg->getData();
             int libsize = msg->m_iDataLength - SectorMsg::m_iHdrSize - 64;
 
@@ -690,6 +671,13 @@ void* Master::process(void* s)
 
          case 202: // locate SPEs
          {
+            int rwx = 4;
+            if (!user->match("", rwx))
+            {
+               self->reject(ip, port, id, -1);
+               break;
+            }
+
             int c = 0;
             for (map<Address, SlaveNode, AddrComp>::iterator i = self->m_mSlaveList.begin(); i != self->m_mSlaveList.end(); ++ i)
             {
@@ -705,6 +693,13 @@ void* Master::process(void* s)
 
          case 203: // start spe
          {
+            int rwx = 4;
+            if (!user->match("", rwx))
+            {
+               self->reject(ip, port, id, -1);
+               break;
+            }
+
             Address addr;
             addr.m_strIP = msg->getData();
             addr.m_iPort = *(int32_t*)(msg->getData() + 64);
@@ -721,6 +716,13 @@ void* Master::process(void* s)
 
          case 204: // start shuffler
          {
+            int rwx = 4;
+            if (!user->match("", rwx))
+            {
+               self->reject(ip, port, id, -1);
+               break;
+            }
+
             Address addr;
             addr.m_strIP = msg->getData();
             addr.m_iPort = *(int32_t*)(msg->getData() + 64);
@@ -737,7 +739,7 @@ void* Master::process(void* s)
 
          default:
          {
-            // wrong command
+            self->reject(ip, port, id, -1);
             break;
          }
       }
@@ -760,12 +762,41 @@ void* Master::processEx(void* p)
    return NULL;
 }
 
+void Master::checkReplica(map<string, SNode>& currdir, const string& currpath)
+{
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      if (!i->second.m_bIsDir)
+      {
+         if (i->second.m_sLocation.size() < m_SysConfig.m_iReplicaNum)
+         {
+            // choose a node for replica
+            // using a random node, should fix this later
+
+            //   createReplica(ip, port, path)
+         }
+      }
+      else
+      {
+          string path = currpath + "/" + i->second.m_strName;
+          checkReplica(i->second.m_mDirectory, path);
+      }
+   }
+}
+
 int Master::createReplica(const char* ip, int port, const char* path)
 {
+   SectorMsg msg;
+   msg.setType(111);
+   msg.setData(0, path, strlen(path) + 1);
+   msg.m_iDataLength = SectorMsg::m_iHdrSize + strlen(path) + 1;
+   m_GMP.rpc(ip, port, &msg, &msg);
+
    return 0;
 }
 
 int Master::removeReplica(const char* ip, int port, const char* path)
 {
+
    return 0;
 }

@@ -250,6 +250,47 @@ int Index::eraseCopy(const char* path, const Address& loc)
    return 0;
 }
 
+int Index::update(const char* fileinfo, const Address& loc)
+{
+   SNode sn;
+   sn.deserialize(fileinfo);
+
+   vector<string> dir;
+   parsePath(fileinfo, dir);
+
+   string filename = *(dir.rbegin());
+   sn.m_strName = filename;
+   dir.erase(dir.begin() + dir.size() - 1);
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+      {
+         SNode n;
+         n.m_strName = *d;
+         n.m_bIsDir = false;
+         (*currdir)[*d] = n;
+         s = currdir->find(*d);;
+      }
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   s = currdir->find(filename);
+   if (s == currdir->end())
+   {
+      (*currdir)[filename] = sn;
+   }
+   else
+   {
+      s->second.m_sLocation.insert(loc);
+   }
+
+   return 1;
+}
+
 int SNode::serialize(char* buf)
 {
    sprintf(buf, "%s,%d,%lld,%lld", m_strName.c_str(), m_bIsDir, m_llTimeStamp, m_llSize);
@@ -497,6 +538,21 @@ int Index::substract(map<string, SNode>& currdir, const Address& addr)
    }
 
    return 0;
+}
+
+int64_t Index::getTotalDataSize(std::map<std::string, SNode>& currdir)
+{
+   int64_t size = 0;
+
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      if (!i->second.m_bIsDir)
+         size += i->second.m_llSize;
+      else
+         size += getTotalDataSize(i->second.m_mDirectory);
+   }
+
+   return size;
 }
 
 int Index::parsePath(const char* path, std::vector<string>& result)

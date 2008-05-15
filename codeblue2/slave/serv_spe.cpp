@@ -361,6 +361,8 @@ void* Slave::SPEShuffler(void* p)
    // data channels
    map<Address, Transport*, AddrComp> DataChn;
 
+   set<int> fileid;
+
    while (true)
    {
       char speip[64];
@@ -371,6 +373,8 @@ void* Slave::SPEShuffler(void* p)
          continue;
 
       int bucket = *(int32_t*)msg.getData();
+
+      fileid.insert(bucket);
 
       cout << "RECV BUCKET " << bucket << endl;
 
@@ -442,6 +446,14 @@ void* Slave::SPEShuffler(void* p)
    {
       i->second->close();
       delete i->second;
+   }
+
+   // report sphere output files
+   for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
+   {
+      char tmp[64];
+      sprintf(tmp, "%s.%d", localfile.c_str(), *i);
+      self->report(0, tmp);
    }
 
    return NULL;
@@ -534,19 +546,18 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
 int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Address, Transport*, AddrComp>* outputchn)
 {
-   bool perm = false;
-
    if (buckets == -1)
    {
-      string dir = (perm) ? ".sector-fs/" : ".sphere/";
-
       ofstream ofs;
-      ofs.open((m_strHomeDir + dir + localfile).c_str());
+      ofs.open((m_strHomeDir + localfile).c_str());
       ofs.write(result.m_vData[0], result.m_vDataLen[0]);
       ofs.close();
-      ofs.open((m_strHomeDir + dir + localfile + ".idx").c_str());
+      ofs.open((m_strHomeDir + localfile + ".idx").c_str());
       ofs.write((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
       ofs.close();
+
+      // report the result file to master
+      report(0, localfile);
 
       // send back result file/record size
       int32_t size = result.m_vDataLen[0];
