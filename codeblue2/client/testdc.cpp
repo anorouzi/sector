@@ -94,6 +94,7 @@ int main(int argc, char** argv)
 
    myproc.close();
 
+   Sector::logout();
    Sector::close();
 
    return 0;

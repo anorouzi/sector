@@ -252,20 +252,25 @@ int Index::eraseCopy(const char* path, const Address& loc)
 
 int Index::update(const char* fileinfo, const Address& loc)
 {
+cout << "index update " << fileinfo << endl;
    SNode sn;
    sn.deserialize(fileinfo);
 
    vector<string> dir;
-   parsePath(fileinfo, dir);
+   parsePath(sn.m_strName.c_str(), dir);
 
    string filename = *(dir.rbegin());
    sn.m_strName = filename;
    dir.erase(dir.begin() + dir.size() - 1);
 
+   cout << "file updated " << filename << endl;
+
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
+      cout << "DIR " << *d << endl;
+
       s = currdir->find(*d);
       if (s == currdir->end())
       {
@@ -281,10 +286,14 @@ int Index::update(const char* fileinfo, const Address& loc)
    s = currdir->find(filename);
    if (s == currdir->end())
    {
+      cout << "new file \n";
       (*currdir)[filename] = sn;
    }
    else
    {
+      cout << "new loc \n";
+      s->second.m_llSize = sn.m_llSize;
+      s->second.m_llTimeStamp = sn.m_llTimeStamp;
       s->second.m_sLocation.insert(loc);
    }
 

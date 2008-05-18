@@ -370,6 +370,7 @@ void Slave::report(const int32_t& transid, const string& filename)
 
    msg.setData(4, buf, strlen(buf));
 
-   int id;
-   m_GMP.sendto(m_strMasterIP.c_str(), m_iMasterPort, id, &msg);
+   cout << "report " << m_strMasterIP << " " << m_iMasterPort << endl;
+
+   m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg);
 }

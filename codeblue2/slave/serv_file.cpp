@@ -36,6 +36,7 @@ void* Slave::fileHandler(void* p)
 {
    Slave* self = ((Param2*)p)->serv_instance;
    string filename = self->m_strHomeDir + ((Param2*)p)->filename;
+   string sname = ((Param2*)p)->filename;
    Transport* datachn = ((Param2*)p)->datachn;
    string ip = ((Param2*)p)->client_ip;
    int port = ((Param2*)p)->client_data_port;
@@ -234,7 +235,7 @@ if (ofs.bad())
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
 
    //report to master the task is completed
-   self->report(0, filename);
+   self->report(0, sname);
 
    return NULL;
 }

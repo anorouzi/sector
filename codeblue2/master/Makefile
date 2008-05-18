@@ -3,7 +3,7 @@ include ../Makefile.common
 CCFLAGS += 
 LDFLAGS += -lmaster
 
-OBJS = master.o
+OBJS = topology.o master.o
 
 all: libmaster.so libmaster.a start_master start_all
 

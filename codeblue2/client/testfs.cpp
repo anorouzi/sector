@@ -43,6 +43,7 @@ int main(int argc, char** argv)
    Sector::stat("output.csv", attr);
    cout << attr.m_strName << " " << attr.m_llSize << endl;
 
+   Sector::logout();
    Sector::close();
 
    return 1;

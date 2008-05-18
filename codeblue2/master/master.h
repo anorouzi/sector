@@ -37,22 +37,7 @@ written by
 #include <index.h>
 #include <vector>
 #include <ssltransport.h>
-
-struct SlaveNode
-{
-   string m_strIP;
-   int m_iPort;
-
-   int64_t m_llMaxDiskSpace;
-   int64_t m_llUsedDiskSpace;
-
-   int64_t m_llLastUpdateTime;
-   int m_iCurrWorkLoad;
-
-   string m_strExecDir;
-
-   int m_iClusterID;
-};
+#include <topology.h>
 
 struct SysStat
 {
@@ -107,8 +92,8 @@ private:
 
 private:
    void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath);
-   int createReplica(const char* ip, int port, const char* path);
-   int removeReplica(const char* ip, int port, const char* path);
+   int createReplica(const char* ip, int port, const string& path);
+   int removeReplica(const char* ip, int port, const string& path);
 
 private:
    CGMP m_GMP;
@@ -120,12 +105,12 @@ private:
    CAccessLog m_AccessLog;
    CPerfLog m_PerfLog;
 
-   std::map<Address, SlaveNode, AddrComp> m_mSlaveList;
-
    int m_iMaxActiveUser;
    std::map<int, ActiveUser> m_mActiveUser;
 
    Index m_Metadata;
+
+   SlaveList m_SlaveList;
 
    enum Status {INIT, RUNNING, STOPPED} m_Status;
 };

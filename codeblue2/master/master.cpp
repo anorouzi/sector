@@ -128,7 +128,6 @@ int Master::init()
    }
    closedir(test);
 
-   m_mSlaveList.clear();
    m_mActiveUser.clear();
 
    ActiveUser au;
@@ -161,7 +160,7 @@ int Master::run()
       // check each slave node
       // if probe fails, remove the metadata about the data on the node, and create new replicas
 
-      for (map<Address, SlaveNode, AddrComp>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+      for (map<int, SlaveNode>::iterator i = m_SlaveList.m_mSlaveList.begin(); i != m_SlaveList.m_mSlaveList.end(); ++ i)
       {
          SectorMsg msg;
          msg.setType(1);
@@ -178,7 +177,10 @@ int Master::run()
 
          if (CTimer::getTime() - i->second.m_llLastUpdateTime > 600)
          {
-            m_Metadata.substract(m_Metadata.m_mDirectory, i->first);
+            Address addr;
+            addr.m_strIP = i->second.m_strIP;
+            addr.m_iPort = i->second.m_iPort;
+            m_Metadata.substract(m_Metadata.m_mDirectory, addr);
          }
       }
 
@@ -235,7 +237,7 @@ void* Master::serviceEx(void* p)
    Master* self = ((Param*)p)->self;
    SSLTransport* s = ((Param*)p)->ssl;
    string ip = ((Param*)p)->ip;
-   int port = ((Param*)p)->port;
+   //int port = ((Param*)p)->port;
 
    SSLTransport secconn;
    secconn.initClientCTX("security_server.cert");
@@ -307,7 +309,7 @@ void* Master::serviceEx(void* p)
             s->recv((char*)&(sn.m_llMaxDiskSpace), 8);
             s->recv((char*)&(sn.m_iClusterID), 4);
 
-            self->m_mSlaveList[addr] = sn;
+            self->m_SlaveList.insert(sn);
          }
 
          break;
@@ -404,7 +406,7 @@ void* Master::process(void* s)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
 
-      cout << "recv msg " << ip << " " << port << " " << msg->getType() << msg->getKey() << endl;
+      cout << "recv msg " << ip << " " << port << " " << msg->getType() << " " << msg->getKey() << endl;
 
       int32_t key = msg->getKey();
       map<int, ActiveUser>::iterator i = self->m_mActiveUser.find(key);
@@ -429,11 +431,11 @@ void* Master::process(void* s)
          Address addr;
          addr.m_strIP = ip;
          addr.m_iPort = port;
-         if (self->m_mSlaveList.end() == self->m_mSlaveList.find(addr))
-         {
-            self->reject(ip, port, id, -1);
-            continue;
-         }
+         //if (self->m_mSlaveList.end() == self->m_mSlaveList.find(addr))
+         //{
+         //   self->reject(ip, port, id, -1);
+         //   continue;
+         //}
       }
       else
       {
@@ -447,12 +449,14 @@ void* Master::process(void* s)
 
          case 1: // slave reports transaction status
          {
-            int transid = *(int32_t*)msg->getData();
+            cout << "hoho\n";
+            //int transid = *(int32_t*)msg->getData();
 
             Address addr;
             addr.m_strIP = ip;
             addr.m_iPort = port;
             self->m_Metadata.update(msg->getData() + 4, addr);
+            self->m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -460,6 +464,7 @@ void* Master::process(void* s)
          case 2: // client logout
          {
             self->m_mActiveUser.erase(key);
+            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
@@ -603,14 +608,27 @@ void* Master::process(void* s)
                self->m_Metadata.create(path);
 
                // choose a slave node for the new file
-               addr.m_strIP = self->m_mSlaveList.begin()->second.m_strIP;
-               addr.m_iPort = self->m_mSlaveList.begin()->second.m_iPort;
+               SlaveNode sn;
+               Address client;
+               client.m_strIP = ip;
+               client.m_iPort = port;
+               set<int> empty;
+               self->m_SlaveList.chooseIONode(empty, client, rwx, sn);
+
+               addr.m_strIP = sn.m_strIP;
+               addr.m_iPort = sn.m_iPort;
             }
             else
             {
                // choose a slave node with the requested file
-               addr.m_strIP = attr.m_sLocation.begin()->m_strIP;
-               addr.m_iPort = attr.m_sLocation.begin()->m_iPort;
+               SlaveNode sn;
+               Address client;
+               client.m_strIP = ip;
+               client.m_iPort = port;
+               self->m_SlaveList.chooseIONode(attr.m_sLocation, client, rwx, sn);
+
+               addr.m_strIP = sn.m_strIP;
+               addr.m_iPort = sn.m_iPort;
             }
 
             cout << "send req to " << addr.m_strIP << " " << addr.m_iPort << endl;
@@ -657,10 +675,10 @@ void* Master::process(void* s)
             ofs.write(msg->getData() + 64, libsize);
             ofs.close();
 
-            for (map<Address, SlaveNode, AddrComp>::iterator i = self->m_mSlaveList.begin(); i != self->m_mSlaveList.end(); ++ i)
+            for (map<int, SlaveNode>::iterator i = self->m_SlaveList.m_mSlaveList.begin(); i != self->m_SlaveList.m_mSlaveList.end(); ++ i)
             {
                msg->m_iDataLength = SectorMsg::m_iHdrSize + libsize + 64;
-               self->m_GMP.rpc(i->first.m_strIP.c_str(), i->first.m_iPort, msg, msg);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, msg, msg);
             }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -679,10 +697,10 @@ void* Master::process(void* s)
             }
 
             int c = 0;
-            for (map<Address, SlaveNode, AddrComp>::iterator i = self->m_mSlaveList.begin(); i != self->m_mSlaveList.end(); ++ i)
+            for (map<int, SlaveNode>::iterator i = self->m_SlaveList.m_mSlaveList.begin(); i != self->m_SlaveList.m_mSlaveList.end(); ++ i)
             {
-               msg->setData(c * 68, i->first.m_strIP.c_str(), i->first.m_strIP.length() + 1);
-               msg->setData(c * 68 + 64, (char*)&(i->first.m_iPort), 4);
+               msg->setData(c * 68, i->second.m_strIP.c_str(), i->second.m_strIP.length() + 1);
+               msg->setData(c * 68 + 64, (char*)&(i->second.m_iPort), 4);
                c ++;
             }
 
@@ -772,8 +790,9 @@ void Master::checkReplica(map<string, SNode>& currdir, const string& currpath)
          {
             // choose a node for replica
             // using a random node, should fix this later
-
-            //   createReplica(ip, port, path)
+            SlaveNode sn;
+            if (m_SlaveList.chooseReplicaNode(i->second.m_sLocation, sn) > 0)
+               createReplica(sn.m_strIP.c_str(), sn.m_iPort, currpath + "/" + i->second.m_strName);
          }
       }
       else
@@ -784,18 +803,18 @@ void Master::checkReplica(map<string, SNode>& currdir, const string& currpath)
    }
 }
 
-int Master::createReplica(const char* ip, int port, const char* path)
+int Master::createReplica(const char* ip, int port, const string& path)
 {
    SectorMsg msg;
    msg.setType(111);
-   msg.setData(0, path, strlen(path) + 1);
-   msg.m_iDataLength = SectorMsg::m_iHdrSize + strlen(path) + 1;
+   msg.setData(0, path.c_str(), path.length() + 1);
+   msg.m_iDataLength = SectorMsg::m_iHdrSize + path.length() + 1;
    m_GMP.rpc(ip, port, &msg, &msg);
 
    return 0;
 }
 
-int Master::removeReplica(const char* ip, int port, const char* path)
+int Master::removeReplica(const char* ip, int port, const string& path)
 {
 
    return 0;
