@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2008
 *****************************************************************************/
 
 #include <unistd.h>
@@ -60,7 +60,7 @@ void SSLTransport::init()
       SSL_load_error_strings();
       ERR_load_BIO_strings();
       ERR_load_SSL_strings();
-      OpenSSL_add_all_algorithms();
+      SSL_library_init();
    }
 
    s_iInstance ++;
@@ -179,7 +179,7 @@ int SSLTransport::connect(const char* host, const int& port)
 
    if (SSL_get_verify_result(m_pSSL) != X509_V_OK)
    {
-      cout << "failed verify SSL\n";
+      cerr << "failed verify SSL certificate.\n";
       return -1;
    }
 
@@ -188,7 +188,7 @@ int SSLTransport::connect(const char* host, const int& port)
    X509_NAME_get_text_by_NID(X509_get_subject_name(peer), NID_commonName, peer_CN, 256);
    if (strcasecmp(peer_CN, host))
    {
-      cerr << "server name does not match\n";
+      cerr << "server name does not match.\n";
       return -1;
    }
 

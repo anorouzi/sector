@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -484,6 +484,7 @@ void* Master::process(void* s)
             vector<string> filelist;
             self->m_Metadata.list(msg->getData(), filelist);
 
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
             int size = 0;
             for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
             {
@@ -492,8 +493,7 @@ void* Master::process(void* s)
                msg->setData(size, ";", 1);
                size += 1;
             }
-
-            msg->m_iDataLength ++;
+            msg->setData(size, "\0", 1);
 
             self->m_GMP.sendto(ip, port, id, msg);
 
