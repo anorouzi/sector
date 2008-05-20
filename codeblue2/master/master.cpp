@@ -128,12 +128,14 @@ int Master::init()
    }
    closedir(test);
 
-   m_mActiveUser.clear();
 
+   m_mActiveUser.clear();
    ActiveUser au;
    au.m_strName = "slave";
    au.m_iKey = 0;
+   au.m_vstrReadList.insert(au.m_vstrReadList.begin(), "/");
    m_mActiveUser[au.m_iKey] = au;
+
 
    m_Status = RUNNING;
 

@@ -249,18 +249,21 @@ void* Slave::copy(void* p)
    string filename = ((Param2*)p)->filename;
    delete (Param2*)p;
 
+
+
    SectorMsg msg;
-   msg.setType(2); // open the file
+   msg.setType(110); // open the file
    msg.setKey(0);
-   msg.setData(0, filename.c_str(), filename.length() + 1);
-   int32_t mode = 1;
-   msg.setData(64, (char*)&mode, 4);
 
    Transport datachn;
    int port = 0;
    datachn.open(port);
 
-   msg.setData(68, (char*)&port, 4);
+   int mode = 1;
+
+   msg.setData(0, (char*)&port, 4);
+   msg.setData(4, (char*)&mode, 4);
+   msg.setData(8, filename.c_str(), filename.length() + 1);
 
    if (self->m_GMP.rpc(self->m_strMasterIP.c_str(), self->m_iMasterPort, &msg, &msg) < 0)
       return NULL;
@@ -269,7 +272,7 @@ void* Slave::copy(void* p)
 
    cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
 
-   if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 64)) < 0)
+   if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
       return NULL;
 
    int32_t cmd = 3;
