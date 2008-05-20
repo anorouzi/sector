@@ -53,7 +53,7 @@ int ActiveUser::deserialize(vector<string>& dirs, const string& buf)
    return dirs.size();
 }
 
-bool ActiveUser::match(const string& path, int32_t& rwx)
+bool ActiveUser::match(const string& path, int32_t rwx)
 {
    if ((rwx & 1) != 0)
    {
@@ -605,6 +605,13 @@ void* Master::process(void* s)
             if (r < 0)
             {
                // file does not exist
+               if (mode == 1)
+               {
+                  self->reject(ip, port, id, -1);
+                  break;
+               }
+
+               // otherwise, create a new file for write
                self->m_Metadata.create(path);
 
                // choose a slave node for the new file

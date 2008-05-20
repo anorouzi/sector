@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/19/2008
 *****************************************************************************/
 
 
@@ -50,7 +50,7 @@ class ActiveUser
 {
 public:
    int deserialize(std::vector<string>& dirs, const std::string& buf);
-   bool match(const std::string& path, int& rwx);
+   bool match(const std::string& path, int rwx);
 
 public:
    string m_strName;

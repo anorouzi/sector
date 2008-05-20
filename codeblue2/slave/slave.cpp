@@ -247,9 +247,6 @@ void* Slave::process(void* s)
             p->serv_instance = self;
             p->filename = msg->getData();
 
-            int dir = p->filename.rfind('/');
-            ::mkdir((self->m_strHomeDir + p->filename.substr(0, dir)).c_str(), S_IRWXU);
-
             pthread_t replica_handler;
             pthread_create(&replica_handler, NULL, copy, p);
             pthread_detach(replica_handler);

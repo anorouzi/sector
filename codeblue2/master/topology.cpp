@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/19/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -90,7 +90,7 @@ int SlaveList::chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn)
    set<int> avail;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      if (loclist.find(i->first) != loclist.end())
+      if (loclist.find(i->first) == loclist.end())
          avail.insert(i->first);
    }
 

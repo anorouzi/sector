@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/02/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/20/2008
 *****************************************************************************/
 
 
@@ -50,6 +50,9 @@ void* Slave::fileHandler(void* p)
 
    if (datachn->connect(ip.c_str(), port) < 0)
       return NULL;
+
+   //create a new directory in case it does not exist
+   self->createDir(sname.substr(0, sname.rfind('/')));
 
    cout << "connected\n";
 
@@ -285,6 +288,9 @@ void* Slave::copy(void* p)
    if (datachn.recv((char*)&size, 8) < 0)
       return NULL;
 
+   //create a new directory in case it does not exist
+   self->createDir(filename.substr(0, filename.rfind('/')));
+
    ofstream ofs;
    ofs.open((self->m_strHomeDir + filename).c_str(), ios::out | ios::binary | ios::trunc);
    if (datachn.recvfile(ofs, offset, size) < 0)
@@ -295,4 +301,20 @@ void* Slave::copy(void* p)
    self->report(0, filename);
 
    return NULL;
+}
+
+int Slave::createDir(const string& path)
+{
+   vector<string> dir;
+   Index::parsePath(path.c_str(), dir);
+
+   string currpath = m_strHomeDir;
+   for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
+   {
+      currpath += *i;
+      ::mkdir(currpath.c_str(), S_IRWXU);
+      currpath += "/";
+   }
+
+   return 1;
 }
