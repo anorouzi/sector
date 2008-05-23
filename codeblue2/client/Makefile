@@ -5,7 +5,7 @@ LDFLAGS += -lclient
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload
+all: libclient.so libclient.a testfs testdc download upload ls
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -28,8 +28,11 @@ download: download.cpp
 upload: upload.cpp
 	$(C++) upload.cpp -o upload $(CCFLAGS) $(LDFLAGS)
 
+ls: ls.cpp
+	$(C++) ls.cpp -o ls $(CCFLAGS) $(LDFLAGS)
+
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload
+	rm -f *.o *.so *.a testfs testdc download upload ls
 
 install:
 	mv libclient.so libclient.a ../lib

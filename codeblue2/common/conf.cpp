@@ -236,6 +236,8 @@ int SlaveConf::init(const string& path)
          m_strPublicIP = param.m_vstrValue[0];
       else if ("CLUSTER_ID" == param.m_strName)
          m_iClusterID = atoi(param.m_vstrValue[0].c_str());
+      else if ("EXEC_DIRECTORY" == param.m_strName)
+         m_strExecDir = param.m_vstrValue[0];
       else
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
    }

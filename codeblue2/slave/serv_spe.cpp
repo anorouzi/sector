@@ -603,7 +603,7 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
             continue;
 
          char* dstip = locations + i * 72;
-         int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
+         //int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
          int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
 
          SectorMsg msg;

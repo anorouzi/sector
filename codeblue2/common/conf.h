@@ -86,6 +86,7 @@ public:
    string m_strLocalIP;
    string m_strPublicIP;
    int m_iClusterID;
+   string m_strExecDir;
 };
 
 #endif

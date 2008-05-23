@@ -144,11 +144,10 @@ int Client::list(const string& path, vector<SNode>& attr)
 
    string filelist = msg.getData();
 
-   int s = 0;
+   unsigned int s = 0;
    while (s < filelist.length())
    {
       int t = filelist.find(';', s);
-      cout << filelist.substr(s, t - s) << endl;
       SNode sn;
       sn.deserialize(filelist.substr(s, t - s).c_str());
       attr.insert(attr.end(), sn);

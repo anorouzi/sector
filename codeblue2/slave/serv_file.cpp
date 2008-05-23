@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/20/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
 *****************************************************************************/
 
 
@@ -198,10 +198,8 @@ void* Slave::fileHandler(void* p)
                run = false;
                break;
             }
-cout << "recv file " << filename << endl;
+
             ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
-if (ofs.bad())
-   cout << "why!!!\n";
 
             if (datachn->recvfile(ofs, offset, size) < 0)
                run = false;
@@ -248,8 +246,6 @@ void* Slave::copy(void* p)
    Slave* self = ((Param2*)p)->serv_instance;
    string filename = ((Param2*)p)->filename;
    delete (Param2*)p;
-
-
 
    SectorMsg msg;
    msg.setType(110); // open the file

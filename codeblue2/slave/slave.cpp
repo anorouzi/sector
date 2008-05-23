@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
 *****************************************************************************/
 
 
@@ -365,9 +365,9 @@ void Slave::report(const int32_t& transid, const string& filename)
    char buf[1024];
    sn.serialize(buf);
 
-   msg.setData(4, buf, strlen(buf));
+   msg.setData(4, buf, strlen(buf) + 1);
 
-   cout << "report " << m_strMasterIP << " " << m_iMasterPort << endl;
+   cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
 
    m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg);
 }

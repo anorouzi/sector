@@ -252,7 +252,7 @@ int Index::eraseCopy(const char* path, const Address& loc)
 
 int Index::update(const char* fileinfo, const Address& loc)
 {
-cout << "index update " << fileinfo << endl;
+   cout << "index update " << fileinfo << endl;
    SNode sn;
    sn.deserialize(fileinfo);
 
@@ -263,7 +263,7 @@ cout << "index update " << fileinfo << endl;
    sn.m_strName = filename;
    dir.erase(dir.begin() + dir.size() - 1);
 
-   cout << "file updated " << filename << endl;
+   cout << "file updated 111 " << filename << endl;
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
@@ -458,6 +458,13 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
    {
       // skip "." and ".."
       if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
+      {
+         free(namelist[i]);
+         continue;
+      }
+
+      // skip system directory
+      if (namelist[i]->d_name[0] == '.')
       {
          free(namelist[i]);
          continue;

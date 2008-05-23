@@ -1,0 +1,31 @@
+#include <fsclient.h>
+#include <iostream>
+#include <iomanip>
+
+using namespace std;
+
+int main(int argc, char** argv)
+{
+   Sector::init(argv[1], atoi(argv[2]));
+   Sector::login("test", "xxx");
+
+   vector<SNode> filelist;
+   Sector::list(argv[3], filelist);
+
+   for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   {
+      cout << setiosflags(ios::left) << setw(40) << i->m_strName << "\t";
+      if (i->m_bIsDir)
+         cout << "<dir>" << endl;
+      else
+      {
+         time_t t = i->m_llTimeStamp;
+         cout << i->m_llSize << " bytes " << "\t" << ctime(&t);
+      }
+   }
+
+   Sector::logout();
+   Sector::close();
+
+   return 1;
+}

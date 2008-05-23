@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
 *****************************************************************************/
 
 #include "security.h"
@@ -147,8 +147,6 @@ bool ACL::match(const char* ip)
 
 int User::init(const char* name, const char* ufile)
 {
-   cout << "init user " << name << " " << ufile << endl;
-
    m_iID = 0;
    m_strName = name;
    m_llQuota = -1;
@@ -202,8 +200,6 @@ int User::serialize(const vector<string>& input, string& buf)
 
 int Shadow::init(const string& path)
 {
-   cout << "init " << path << endl;
-
    dirent **namelist;
    int n = scandir(path.c_str(), &namelist, 0, alphasort);
 
@@ -225,8 +221,6 @@ int Shadow::init(const string& path)
       if (u.init(namelist[i]->d_name, (path + "/" + namelist[i]->d_name).c_str()) > 0)
          m_mUser[u.m_strName] = u;
 
-      cout << "user " << u.m_strName << " " << u.m_strPassword << endl;
-
       free(namelist[i]);
    }
    free(namelist);
@@ -236,8 +230,6 @@ int Shadow::init(const string& path)
 
 User* Shadow::match(const char* name, const char* password, const char* ip)
 {
-   cout << "match " << name << " " << password << " " << ip << endl;
-
    map<string, User>::iterator i = m_mUser.find(name);
 
    if (i == m_mUser.end())
@@ -320,14 +312,12 @@ void* SServer::process(void* p)
    SServer* self = ((Param*)p)->sserver;
    SSLTransport* s = ((Param*)p)->ssl;
 
-cout << "process new\n";
-
    while (true)
    {
       int32_t cmd;
       if (s->recv((char*)&cmd, 4) <= 0)
          break;
-cout << "cmd " << cmd << endl;
+
       switch (cmd)
       {
          case 1: // slave node join
@@ -339,8 +329,6 @@ cout << "cmd " << cmd << endl;
             int32_t res = self->m_ACL.match(ip);
             if (s->send((char*)&res, 4) <= 0)
                goto EXIT;
-
-            cout << "check IP " << ip << " " << res << endl;
 
             break;
          }
@@ -356,8 +344,6 @@ cout << "cmd " << cmd << endl;
             char ip[64];
             if (s->recv(ip, 64) <= 0)
                goto EXIT;
-
-            cout << "check user " << user << " " << password << endl;
 
             int32_t key;
             User* u;

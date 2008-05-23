@@ -246,8 +246,6 @@ void* Master::serviceEx(void* p)
    secconn.open(NULL, 0);
    int r = secconn.connect(self->m_SysConfig.m_strSecServIP.c_str(), self->m_SysConfig.m_iSecServPort);
 
-   cout << "new sec conn " << r << endl;
-
    int32_t cmd;
    s->recv((char*)&cmd, 4);
 
@@ -269,11 +267,8 @@ void* Master::serviceEx(void* p)
 
          s->send((char*)&res, 4);
 
-         cout << "GOT SEC RES " << res << endl;
-
          if (res == 1)
          {
-            // approved
             SlaveNode sn;
             sn.m_strIP = ip;
             s->recv((char*)&sn.m_iPort, 4);
@@ -287,16 +282,11 @@ void* Master::serviceEx(void* p)
             addr.m_strIP = ip;
             addr.m_iPort = sn.m_iPort;
 
-            cout << "RECV PORT " << sn.m_iPort << endl;
-
             int size = 0;
             s->recv((char*)&size, 4);
-            cout << "RECV META SIZE " << size << endl;
 
             char* buf = new char[size];
             s->recv(buf, size);
-
-            cout << (self->m_strHomeDir + ".metadata/" + ip).c_str() << endl;
 
             ofstream meta((self->m_strHomeDir + ".metadata/" + ip).c_str());
             meta.write(buf, size);
@@ -323,7 +313,6 @@ void* Master::serviceEx(void* p)
          s->recv(user, 64);
          char password[128];
          s->recv(password, 128);
-         cout << "user " << user << " " << password << " " << ip << endl;
 
          secconn.send((char*)&cmd, 4);
          secconn.send(user, 64);
@@ -353,7 +342,6 @@ void* Master::serviceEx(void* p)
                buf = new char[size];
                secconn.recv(buf, size);
                au.deserialize(au.m_vstrReadList, buf);
-               cout << "NEW USER " << size << " " << buf << endl;
                delete [] buf;
             }
 
@@ -402,13 +390,9 @@ void* Master::process(void* s)
    SectorMsg* msg = new SectorMsg;
    msg->resize(65536);
 
-   cout << "in process = " << self->m_GMP.getPort() << endl;
-
    while (self->m_Status == RUNNING)
    {
       self->m_GMP.recvfrom(ip, port, id, msg);
-
-      cout << "recv msg " << ip << " " << port << " " << msg->getType() << " " << msg->getKey() << endl;
 
       int32_t key = msg->getKey();
       map<int, ActiveUser>::iterator i = self->m_mActiveUser.find(key);
@@ -433,11 +417,11 @@ void* Master::process(void* s)
          Address addr;
          addr.m_strIP = ip;
          addr.m_iPort = port;
-         //if (self->m_mSlaveList.end() == self->m_mSlaveList.find(addr))
-         //{
-         //   self->reject(ip, port, id, -1);
-         //   continue;
-         //}
+         if (self->m_SlaveList.m_mAddrList.end() == self->m_SlaveList.m_mAddrList.find(addr))
+         {
+            self->reject(ip, port, id, -1);
+            continue;
+         }
       }
       else
       {
@@ -451,8 +435,9 @@ void* Master::process(void* s)
 
          case 1: // slave reports transaction status
          {
-            cout << "hoho\n";
             //int transid = *(int32_t*)msg->getData();
+
+            cout << "get report " << msg->getData() + 4 << endl;
 
             Address addr;
             addr.m_strIP = ip;
@@ -480,8 +465,6 @@ void* Master::process(void* s)
                self->reject(ip, port, id, -1);
                break;
             }
-
-            cout << "ls " << msg->getData() << endl;
 
             vector<string> filelist;
             self->m_Metadata.list(msg->getData(), filelist);
@@ -640,8 +623,6 @@ void* Master::process(void* s)
                addr.m_iPort = sn.m_iPort;
             }
 
-            cout << "send req to " << addr.m_strIP << " " << addr.m_iPort << endl;
-
             // send infomation back to the client
 
             msg->setData(0, ip, strlen(ip) + 1);
@@ -795,7 +776,7 @@ void Master::checkReplica(map<string, SNode>& currdir, const string& currpath)
    {
       if (!i->second.m_bIsDir)
       {
-         if (i->second.m_sLocation.size() < m_SysConfig.m_iReplicaNum)
+         if (int(i->second.m_sLocation.size()) < m_SysConfig.m_iReplicaNum)
          {
             // choose a node for replica
             // using a random node, should fix this later
