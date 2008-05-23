@@ -143,7 +143,6 @@ private:
       timeval m_LastUpdateTime;
       Transport m_DataChn;
       int m_iShufflerPort;              // GMP port for the shuffler on this SPE
-
    };
    vector<SPE> m_vSPE;
 

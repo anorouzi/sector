@@ -94,7 +94,6 @@ int Client::login(const string& username, const string& password)
 
    int32_t port = m_GMP.getPort();
    secconn.send((char*)&port, 4);
-cout << "wiat for key " << endl;
    secconn.recv((char*)&m_iKey, 4);
 
    cout << "RECV RES " << m_iKey << endl;
