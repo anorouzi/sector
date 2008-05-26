@@ -64,7 +64,7 @@ public:
    ~Slave();
 
 public:
-   int init();
+   int init(const char* base = NULL);
    int run();
 
 private:
@@ -136,6 +136,8 @@ private:
    SlaveConf m_SysConfig;
 
    Index m_LocalFile;
+
+   string m_strBase;
 };
 
 #endif

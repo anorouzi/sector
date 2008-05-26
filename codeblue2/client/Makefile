@@ -1,7 +1,11 @@
 include ../Makefile.common
 
 CCFLAGS += 
-LDFLAGS += -lclient
+ifeq ($(STATIC), 1)
+   LDFLAGS += libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libudt.a ../lib/libcommon.a
+else
+   LDFLAGS += -lclient -lsecurity -lrpc -ludt -lcommon
+endif
 
 OBJS = client.o fsclient.o dcclient.o
 

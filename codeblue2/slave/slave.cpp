@@ -37,15 +37,25 @@ using namespace std;
 
 Slave::Slave()
 {
+   m_strBase = "./";
 }
 
 Slave::~Slave()
 {
 }
 
-int Slave::init()
+int Slave::init(const char* base)
 {
-   m_SysConfig.init("slave.conf");
+   if (NULL != base)
+     m_strBase = base;
+
+   string conf = m_strBase + "/slave.conf";
+
+   if (m_SysConfig.init(conf) < 0)
+   {
+      cerr << "unable to initialize from configuration file; quit.\n";
+      return -1;
+   }
 
    m_strMasterHost = m_SysConfig.m_strMasterHost;
    struct hostent* masterip = gethostbyname(m_strMasterHost.c_str());
@@ -106,8 +116,10 @@ int Slave::run()
    // join the server
    SSLTransport::init();
 
+   string cert = m_strBase += "/master_node.cert";
+
    SSLTransport secconn;
-   secconn.initClientCTX("master_node.cert");
+   secconn.initClientCTX(cert.c_str());
    secconn.open(NULL, 0);
    int r = secconn.connect(m_strMasterHost.c_str(), m_iMasterPort);
 

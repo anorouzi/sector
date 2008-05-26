@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2008
 *****************************************************************************/
 
 
@@ -38,7 +38,7 @@ int ConfParser::init(string path)
 {
    m_ConfFile.open(path.c_str());
 
-   if (m_ConfFile.bad())
+   if (m_ConfFile.bad() || m_ConfFile.fail())
       return -1;
 
    return 0;
@@ -139,7 +139,7 @@ int MasterConf::init(const string& path)
 
    if (0 != parser.init(path))
    {
-      cerr << "couldn't locate SETCOR configuration file. Please check " << path << endl;
+      cerr << "couldn't locate SECTOR configuration file. Please check " << path << endl;
       return -1;
    }
 
@@ -195,7 +195,7 @@ int SlaveConf::init(const string& path)
 
    if (0 != parser.init(path))
    {
-      cerr << "couldn't locate SETCOR configuration file. Please check " << path << endl;
+      cerr << "couldn't locate SECTOR configuration file. Please check " << path << endl;
       return -1;
    }
 
@@ -245,5 +245,4 @@ int SlaveConf::init(const string& path)
    parser.close();
 
    return 0;
-
 }

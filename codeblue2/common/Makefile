@@ -1,7 +1,7 @@
 include ../Makefile.common
 
-CCFLAGS += -g
-LDFLAGS += 
+CCFLAGS +=
+LDFLAGS +=
 
 OBJS = conf.o index.o log.o
 

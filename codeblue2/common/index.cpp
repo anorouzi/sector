@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/06/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
 *****************************************************************************/
 
 
@@ -298,6 +298,96 @@ int Index::update(const char* fileinfo, const Address& loc)
    }
 
    return 1;
+}
+
+int Index::lock(const char* path, int mode)
+{
+   vector<string> dir;
+   parsePath(path, dir);
+
+   vector<map<string, SNode>::iterator> ptr;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return -1;
+
+      ptr.insert(ptr.end(), s);
+
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   // cannot lock a directory
+   if ((*(ptr.rbegin()))->second.m_bIsDir)
+      return -2;
+
+   // if already in write lock, return error
+   if ((*(ptr.rbegin()))->second.m_iWriteLock > 0)
+      return -3;
+
+   // write
+   if (2 == mode)
+   {
+      // if already in read lock, return error
+      if ((*(ptr.rbegin()))->second.m_iReadLock > 0)
+         return -4;
+
+      for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
+         (*i)->second.m_iWriteLock ++;
+   }
+
+   // read
+   if (1 == mode)
+   {
+      for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
+         (*i)->second.m_iReadLock ++;
+   }
+
+   return 0;
+}
+
+int Index::unlock(const char* path, int mode)
+{
+   vector<string> dir;
+   parsePath(path, dir);
+
+   vector<map<string, SNode>::iterator> ptr;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return -1;
+
+      ptr.insert(ptr.end(), s);
+
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   // cannot lock a directory
+   if ((*(ptr.rbegin()))->second.m_bIsDir)
+      return -2;
+
+   // write
+   if (2 == mode)
+   {
+      for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
+         (*i)->second.m_iWriteLock --;
+   }
+
+   // read
+   if (1 == mode)
+   {
+      for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
+         (*i)->second.m_iReadLock --;
+   }
+
+   return 0;
 }
 
 int SNode::serialize(char* buf)

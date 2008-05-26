@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/27/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/24/2008
 *****************************************************************************/
 
 
@@ -63,7 +63,8 @@ public:
    int64_t m_llTimeStamp;
    int64_t m_llSize;
    std::string m_strChecksum;
-   int m_iStatus;
+   int m_iReadLock;
+   int m_iWriteLock;
 
 public:
    int serialize(char* buf);
@@ -91,6 +92,10 @@ public:
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
    int update(const char* fileinfo, const Address& addr);
+
+public:
+   int lock(const char* path, int mode);
+   int unlock(const char* path, int mode);
  
 public:
    static int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);

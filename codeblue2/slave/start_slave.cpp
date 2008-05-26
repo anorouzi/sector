@@ -2,11 +2,16 @@
 #include <iostream>
 using namespace std;
 
-int main()
+int main(int argc, char** argv)
 {
    Slave s;
 
-   int res = s.init();
+   int res;
+
+   if (argc > 1)
+      s.init(argv[1]);
+   else
+      s.init();
 
    if (res < 0)
    {

@@ -145,7 +145,8 @@ int Master::init()
    pthread_detach(svcserver);
 
    // start GMP
-   m_GMP.init(m_SysConfig.m_iServerPort);
+   if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
+      return -5;
 
    // start management/process thread
    pthread_t msgserver;
