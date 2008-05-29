@@ -6,6 +6,12 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
+   if (argc != 4)
+   {
+      cout << "USAGE: ls <ip> <port> <dir>\n";
+      return -1;
+   }
+
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 

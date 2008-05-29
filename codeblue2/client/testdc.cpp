@@ -25,8 +25,8 @@ int main(int argc, char** argv)
 
    SphereProcess myproc;
 
-   myproc.loadOperator("sorthash.so");
-   myproc.loadOperator("sort.so");
+   myproc.loadOperator("./examples/sorthash.so");
+   myproc.loadOperator("./examples/sort.so");
 
    timeval t;
    gettimeofday(&t, 0);
