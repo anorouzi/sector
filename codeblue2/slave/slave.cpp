@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2008
 *****************************************************************************/
 
 
@@ -203,6 +203,12 @@ void* Slave::process(void* s)
          case 1: // probe
          {
             self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 3: // stop
+         {
+            // stop the slave node
             break;
          }
 

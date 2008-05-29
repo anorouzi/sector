@@ -624,6 +624,12 @@ void* Master::process(void* s)
                addr.m_iPort = sn.m_iPort;
             }
 
+            //if (self->m_Metadata.lock(path, rwx) < 0)
+            //{
+            //   self->reject(ip, port, id, -2);
+            //   break;
+            //}
+
             // send infomation back to the client
 
             msg->setData(0, ip, strlen(ip) + 1);
