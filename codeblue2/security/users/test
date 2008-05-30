@@ -12,9 +12,11 @@ READ_PERMISSION
 #directories that the user can write or modify
 WRITE_PERMISSION
 	/angle
+	/
 
 #directories that the user can process the data
 EXEC_PERMISSION
+	/
 
 #list of IP addresses from which the user is allowed to login. 
 #this field must exist, otherwise the user will not be able to login

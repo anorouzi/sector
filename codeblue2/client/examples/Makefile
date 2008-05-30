@@ -1,9 +1,9 @@
 C++ = g++
 
-all: randwriter sort.so sorthash.so
+all: randwriter.so sort.so sorthash.so
 
-randwriter: randwriter.cpp
-	$(C++) $^ -o $@ -lstdc++
+randwriter.so: randwriter.cpp
+	$(C++) -shared -fPIC -o $@ $^ -lstdc++
 
 sort.so: sort.cpp
 	$(C++) -shared -fPIC -o $@ $^ -lstdc++

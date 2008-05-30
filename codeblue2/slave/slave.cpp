@@ -373,6 +373,7 @@ void Slave::report(const int32_t& transid, const string& filename)
 
    SNode sn;
    sn.m_strName = filename;
+   sn.m_bIsDir = 0;
    struct stat s;
    stat((m_strHomeDir + filename).c_str(), &s);
    sn.m_llTimeStamp = s.st_mtime;
@@ -382,6 +383,12 @@ void Slave::report(const int32_t& transid, const string& filename)
 
    char buf[1024];
    sn.serialize(buf);
+
+   //update local
+   Address addr;
+   addr.m_strIP = "127.0.0.1";
+   addr.m_iPort = 0;
+   m_LocalFile.update(buf, addr);
 
    msg.setData(4, buf, strlen(buf) + 1);
 

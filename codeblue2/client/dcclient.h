@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/29/2008
 *****************************************************************************/
 
 #ifndef __SPHERE_CLIENT_H__
@@ -105,6 +105,9 @@ public:
    int read(SphereResult*& res, const bool& inorder = false, const bool& wait = true);
    int checkProgress();
    int close();
+
+   void setMinUnitSize(int size) {m_iMinUnitSize = size;}
+   void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}
 
 private:
    string m_strOperator;

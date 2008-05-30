@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/15/2008
+   Yunhong Gu, last updated 05/13/2008
 *****************************************************************************/
 
 #ifndef WIN32
@@ -48,6 +48,7 @@ written by
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
+   #include <wspiapi.h>
 #endif
 #include <cmath>
 #include "queue.h"
@@ -442,7 +443,7 @@ void CUDT::open()
    if (NULL == m_pRNode)
       m_pRNode = new CRNode;
    m_pRNode->m_pUDT = this;
-   m_pSNode->m_llTimeStamp = 1;
+   m_pRNode->m_llTimeStamp = 1;
    m_pRNode->m_pPrev = m_pRNode->m_pNext = NULL;
    m_pRNode->m_bOnList = false;
 
@@ -1474,7 +1475,7 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
          if (data[3] < 2)
             data[3] = 2;
 
-         if (CTimer::getTime() - m_ullLastAckTime > (uint64_t)m_iSYNInterval)
+         if (currtime - m_ullLastAckTime > m_ullSYNInt)
          {
             data[4] = m_pRcvTimeWindow->getPktRcvSpeed();
             data[5] = m_pRcvTimeWindow->getBandwidth();
@@ -2138,9 +2139,9 @@ void CUDT::checkTimers()
    {
       // Haven't receive any information from the peer, is it dead?!
       // timeout: at least 16 expirations and must be greater than 3 seconds and be less than 30 seconds
-      if (((m_iEXPCount > 16) && 
-          (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
-          || (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 300000000))
+      if (((m_iEXPCount > 16) && (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 3000000))
+          || (m_iEXPCount > 30)
+          || (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
       {
          //
          // Connection is broken. 

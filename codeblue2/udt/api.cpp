@@ -35,12 +35,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/30/2008
+   Yunhong Gu, last updated 05/23/2008
 *****************************************************************************/
 
 #ifdef WIN32
    #include <winsock2.h>
    #include <ws2tcpip.h>
+   #include <wspiapi.h>
 #else
    #include <unistd.h>
 #endif
@@ -135,8 +136,12 @@ CUDTUnited::CUDTUnited()
 
    m_bClosing = false;
    #ifndef WIN32
+      pthread_mutex_init(&m_GCStopLock, NULL);
+      pthread_cond_init(&m_GCStopCond, NULL);
       pthread_create(&m_GCThread, NULL, garbageCollect, this);
    #else
+      m_GCStopCond = CreateEvent(NULL, false, false, NULL);
+      m_GCExitCond = CreateEvent(NULL, false, false, NULL);
       DWORD ThreadID;
       m_GCThread = CreateThread(NULL, 0, garbageCollect, this, NULL, &ThreadID);
    #endif
@@ -146,9 +151,17 @@ CUDTUnited::~CUDTUnited()
 {
    m_bClosing = true;
    #ifndef WIN32
+      pthread_cond_signal(&m_GCStopCond);
       pthread_join(m_GCThread, NULL);
+      pthread_mutex_destroy(&m_GCStopLock);
+      pthread_cond_destroy(&m_GCStopCond);
    #else
-      WaitForSingleObject(m_GCThread, INFINITE);
+      SetEvent(m_GCStopCond);
+      WaitForSingleObject(m_GCExitCond, INFINITE);
+      TerminateThread(m_GCThread, 0);
+      CloseHandle(m_GCThread);
+      CloseHandle(m_GCStopCond);
+      CloseHandle(m_GCExitCond);
    #endif
 
    #ifndef WIN32
@@ -477,6 +490,46 @@ int CUDTUnited::bind(const UDTSOCKET u, const sockaddr* name, const int& namelen
 
    s->m_pUDT->open();
    updateMux(s->m_pUDT, name);
+   s->m_Status = CUDTSocket::OPENED;
+
+   // copy address information of local node
+   s->m_pUDT->m_pSndQueue->m_pChannel->getSockAddr(s->m_pSelfAddr);
+
+   return 0;
+}
+
+int CUDTUnited::bind(UDTSOCKET u, UDPSOCKET udpsock)
+{
+   CUDTSocket* s = locate(u);
+
+   if (NULL == s)
+      throw CUDTException(5, 4, 0);
+
+   // cannot bind a socket more than once
+   if (CUDTSocket::INIT != s->m_Status)
+      throw CUDTException(5, 0, 0);
+
+   sockaddr_in name4;
+   sockaddr_in6 name6;
+   sockaddr* name;
+   int namelen;
+
+   if (AF_INET == s->m_iIPversion)
+   {
+      namelen = sizeof(sockaddr_in);
+      name = (sockaddr*)&name4;
+   }
+   else
+   {
+      namelen = sizeof(sockaddr_in6);
+      name = (sockaddr*)&name6;
+   }
+
+   if (-1 == getsockname(udpsock, name, &namelen))
+      throw CUDTException(5, 3);
+
+   s->m_pUDT->open();
+   updateMux(s->m_pUDT, name, &udpsock);
    s->m_Status = CUDTSocket::OPENED;
 
    // copy address information of local node
@@ -1086,7 +1139,7 @@ CUDTException* CUDTUnited::getError()
    #endif
 }
 
-void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr)
+void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr, const UDPSOCKET* udpsock)
 {
    CGuard cg(m_ControlLock);
 
@@ -1126,7 +1179,10 @@ void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr)
 
    try
    {
-      m.m_pChannel->open(addr);
+      if (NULL != udpsock)
+         m.m_pChannel->open(*udpsock);
+      else
+         m.m_pChannel->open(addr);
    }
    catch (CUDTException& e)
    {
@@ -1185,15 +1241,30 @@ void CUDTUnited::updateMux(CUDT* u, const CUDTSocket* ls)
    {
       self->checkBrokenSockets();
       #ifndef WIN32
-         sleep(1);
+         timeval now;
+         timespec timeout;
+         gettimeofday(&now, 0);
+         timeout.tv_sec = now.tv_sec + 1;
+         timeout.tv_nsec = now.tv_usec * 1000;
+
+         pthread_cond_timedwait(&self->m_GCStopCond, &self->m_GCStopLock, &timeout);
       #else
-         Sleep(1);
+         WaitForSingleObject(self->m_GCStopCond, 1000);
       #endif
    }
+
+   // remove all active sockets
+   for (map<UDTSOCKET, CUDTSocket*>::iterator i = self->m_Sockets.begin(); i != self->m_Sockets.end(); ++ i)
+   {
+      i->second->m_Status = CUDTSocket::CLOSED;
+      i->second->m_TimeStamp = 0;
+   }
+   self->checkBrokenSockets();
 
    #ifndef WIN32
       return NULL;
    #else
+      SetEvent(self->m_GCExitCond);
       return 0;
    #endif   
 }
@@ -1228,6 +1299,29 @@ int CUDT::bind(UDTSOCKET u, const sockaddr* name, int namelen)
    try
    {
       return s_UDTUnited.bind(u, name, namelen);
+   }
+   catch (CUDTException& e)
+   {
+      s_UDTUnited.setError(new CUDTException(e));
+      return ERROR;
+   }
+   catch (bad_alloc&)
+   {
+      s_UDTUnited.setError(new CUDTException(3, 2, 0));
+      return ERROR;
+   }
+   catch (...)
+   {
+      s_UDTUnited.setError(new CUDTException(-1, 0, 0));
+      return ERROR;
+   }
+}
+
+int CUDT::bind(UDTSOCKET u, UDPSOCKET udpsock)
+{
+   try
+   {
+      return s_UDTUnited.bind(u, udpsock);
    }
    catch (CUDTException& e)
    {
@@ -1659,6 +1753,11 @@ UDTSOCKET socket(int af, int type, int protocol)
 int bind(UDTSOCKET u, const struct sockaddr* name, int namelen)
 {
    return CUDT::bind(u, name, namelen);
+}
+
+int bind(UDTSOCKET u, UDPSOCKET udpsock)
+{
+   return CUDT::bind(u, udpsock);
 }
 
 int listen(UDTSOCKET u, int backlog)

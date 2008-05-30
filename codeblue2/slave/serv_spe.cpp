@@ -27,6 +27,7 @@ written by
 *****************************************************************************/
 
 #include <slave.h>
+#include <sphere.h>
 #include <dlfcn.h>
 #include <iostream>
 
@@ -177,8 +178,8 @@ void* Slave::SPEHandler(void* p)
    void* handle = dlopen((self->m_strHomeDir + ".sphere/" + path + "/" + function + ".so").c_str(), RTLD_LAZY);
    if (NULL == handle)
       return NULL;
-   int (*process)(const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&);
-   process = (int (*) (const char*, const int&, const int64_t*, char*, int&, int&, int64_t*, int&, const char*, const int&) )dlsym(handle, function.c_str());
+   int (*process)(const SInput*, SOutput*, SFile*);
+   process = (int (*) (const SInput*, SOutput*, SFile*) )dlsym(handle, function.c_str());
    if (NULL == process)
    {
       cerr << dlerror() <<  endl;
@@ -239,34 +240,42 @@ void* Slave::SPEHandler(void* p)
 
       // TODO: use dynamic size at run time!
       char* rdata = NULL;
-      if (size < 1000000) 
-         rdata = new char[1000000];
-      else
-         rdata = new char[size];
+      if (size < 1000000)
+         size = 1000000;
+      rdata = new char[size];
 
-      int dlen = 0;
       int64_t* rindex = NULL;
       rindex = new int64_t[totalrows + 2];
-      int ilen = 0;
-      int bid;
+
+      SInput input;
+      input.m_pcParam = (char*)param;
+      input.m_iPSize = psize;
+      SOutput output;
+      output.m_pcResult = rdata;
+      output.m_iBufSize = size;
+      output.m_pllIndex = rindex;
+      output.m_iIndSize = totalrows + 2;
+      SFile file;
+      file.m_strHomeDir = self->m_strHomeDir;
+
       int progress = 0;
-
       result.clear();
-
-      // rdata initially contains home data directory
-      strcpy(rdata, self->m_strHomeDir.c_str());
-
       gettimeofday(&t3, 0);
+
       for (int i = 0; i < totalrows; i += unitrows)
       {
          if (unitrows > totalrows - i)
             unitrows = totalrows - i;
 
-         process(block + index[i] - index[0], unitrows, index + i, rdata, dlen, ilen, rindex, bid, param, psize);
+         input.m_pcUnit = block + index[i] - index[0];
+         input.m_iRows = unitrows;
+         input.m_pllIndex = index + i;
+cout << "LOOP " << unitrows << endl;
+         process(&input, &output, &file);
          if (buckets <= 0)
-            bid = 0;
-
-         result.addData(bid, rindex, ilen, rdata, dlen);
+            output.m_iBucketID = 0;
+cout << "done\n";
+         result.addData(output.m_iBucketID, output.m_pllIndex, output.m_iRows, output.m_pcResult, output.m_iResSize);
 
          gettimeofday(&t4, 0);
          if (t4.tv_sec - t3.tv_sec > 1)
@@ -283,8 +292,9 @@ void* Slave::SPEHandler(void* p)
 
       if (0 == unitrows)
       {
-         process(block, 0, NULL, rdata, dlen, ilen, rindex, bid, param, psize);
-         result.addData(bid, rindex, ilen, rdata, dlen);
+         file.m_sstrFiles.insert(datafile);
+         process(&input, &output, &file);
+         result.addData(output.m_iBucketID, output.m_pllIndex, output.m_iRows, output.m_pcResult, output.m_iResSize);
       }
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
@@ -296,6 +306,10 @@ void* Slave::SPEHandler(void* p)
 
       cout << "sending data back... " << buckets << endl;
       self->SPESendResult(speid, buckets, result, localfile, datachn, outputloc, &OutputChn);
+
+      // report new files
+      for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
+         self->report(0, *i);
 
       delete [] index;
       delete [] block;

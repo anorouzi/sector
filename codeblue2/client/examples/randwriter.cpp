@@ -2,13 +2,18 @@
 #include <fstream>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <stdint.h>
 
+#include "../../common/sphere.h"
+
 using namespace std;
 
-// 10 byte key, 90 byte value
+extern "C"
+{
 
+// 10 byte key, 90 byte value
 struct Key
 {
    uint32_t k1;
@@ -19,17 +24,36 @@ struct Key
 void keyinit();
 void keygen(char* key);
 
-int main(int argc, char** argv)
+int randwriter(const SInput* input, SOutput* output, SFile* file)
 {
+   // input->m_pcUnit: file ID
+   // input->m_pcParam: filename prefix: e.g., /test/sortinput
+   // target file is $SECTOR_HOME/test/sortinput.i.dat
+
+   // mkdir
+   string rname = input->m_pcParam;
+   int slash = rname.find('/', slash);
+   while (slash != string::npos)
+   {
+      ::mkdir((file->m_strHomeDir + rname.substr(0, slash)).c_str(), S_IRWXU);
+      slash = rname.find('/', slash);
+   }
+
+   char filename[256];
+   sprintf(filename, "%s.%d.dat", input->m_pcParam, *(int32_t*)input->m_pcUnit);
+
    ofstream ofs;
-   ofs.open(argv[1], ios::binary);
+   ofs.open((file->m_strHomeDir + filename).c_str(), ios::binary);
+
+   if (ofs.bad() || ofs.fail())
+      return -1;
 
    char record[100];
    
    keyinit();
 
    //10GB = 100 * 100000000
-   for (int i = 0; i < 1000000; ++ i)
+   for (int i = 0; i < 1000; ++ i)
    {
       keygen(record);
       ofs.write(record, 100);
@@ -37,16 +61,22 @@ int main(int argc, char** argv)
 
    ofs.close();
 
-   string ifile = string(argv[1]) + ".idx";
-   ofstream idx(ifile.c_str(), ios::binary);
+   ofstream idx((file->m_strHomeDir + filename + ".idx").c_str(), ios::binary);
 
-   for (int i = 0; i < 1000001; ++ i)
+   for (int i = 0; i < 1001; ++ i)
    {
       long long int d = i * 100;
       idx.write((char*)&d, 8);
    }
 
    idx.close();
+
+   output->m_iRows = 0;
+   output->m_iResSize = 0;
+   output->m_iBucketID = 0;
+
+   file->m_sstrFiles.insert(filename);
+   file->m_sstrFiles.insert(string(filename) + ".idx");
 
    return 0;
 }
@@ -66,4 +96,6 @@ void keygen(char* key)
    *(int*)(key + 4) = r;
    r = rand();
    *(int*)(key + 8) = r;
+}
+
 }
