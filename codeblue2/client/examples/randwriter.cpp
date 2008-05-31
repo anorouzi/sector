@@ -36,14 +36,14 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
    while (slash != string::npos)
    {
       ::mkdir((file->m_strHomeDir + rname.substr(0, slash)).c_str(), S_IRWXU);
-      slash = rname.find('/', slash);
+      slash = rname.find('/', slash + 1);
    }
 
    char filename[256];
    sprintf(filename, "%s.%d.dat", input->m_pcParam, *(int32_t*)input->m_pcUnit);
 
    ofstream ofs;
-   ofs.open((file->m_strHomeDir + filename).c_str(), ios::binary);
+   ofs.open((file->m_strHomeDir + filename).c_str(), ios::binary | ios::trunc);
 
    if (ofs.bad() || ofs.fail())
       return -1;

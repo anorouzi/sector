@@ -267,7 +267,7 @@ void* Slave::copy(void* p)
    if (msg.getType() < 0)
       return NULL;
 
-   cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
+   cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
 
    if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
       return NULL;

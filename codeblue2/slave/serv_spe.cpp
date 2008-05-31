@@ -501,26 +501,26 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    else
    {
       SectorMsg msg;
-      msg.setType(2); // open the file
+      msg.setType(110); // open the file
       msg.setKey(0);
-      msg.setData(0, datafile.c_str(), datafile.length() + 1);
-      int32_t mode = 1;
-      msg.setData(64, (char*)&mode, 4);
 
       Transport datachn;
       int port = 0;
       datachn.open(port);
 
-      msg.setData(68, (char*)&port, 4);
+      msg.setData(0, (char*)&port, 4);
+      int32_t mode = 1;
+      msg.setData(4, (char*)&mode, 4);
+      msg.setData(8, datafile.c_str(), datafile.length() + 1);
 
       if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
          return -1;
       if (msg.getType() < 0)
          return -1;
 
-      cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
+      cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
 
-      if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 64)) < 0)
+      if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
          return -1;
 
       int32_t cmd = 6;

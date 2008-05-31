@@ -600,7 +600,7 @@ int SphereProcess::segmentData()
             ds->m_iID = seq ++;
             ds->m_strDataFile = m_pInput->m_vFiles[i];
             ds->m_llOffset = off;
-            ds->m_llSize = (m_pInput->m_vRecNum[i] - off > unitsize + 1) ? unitsize : (m_pInput->m_vRecNum[i] - off);
+            ds->m_llSize = (m_pInput->m_vRecNum[i] - off > unitsize) ? unitsize : (m_pInput->m_vRecNum[i] - off);
             ds->m_iSPEID = -1;
             ds->m_iStatus = 0;
             ds->m_pLoc = &m_pInput->m_vLocation[i];

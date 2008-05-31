@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/31/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -579,7 +579,13 @@ cout << "WIERD " << addr.size() << endl;
             int32_t dataport = *(int32_t*)(msg->getData());
             int32_t mode = *(int32_t*)(msg->getData() + 4);
             char path[128];
-            strcpy(path, msg->getData() + 8);
+            if (*(msg->getData() + 8) != '/')
+            {
+               path[0] = '/';
+               strcpy(path + 1, msg->getData() + 8);
+            }
+            else
+               strcpy(path, msg->getData() + 8);
 
             cout << "open file " << ip << " " << port << " " << dataport << " " << mode << " " << path << " " << key << endl;
 
