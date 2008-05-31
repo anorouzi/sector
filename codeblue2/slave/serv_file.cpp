@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/30/2008
 *****************************************************************************/
 
 
@@ -230,13 +230,14 @@ void* Slave::fileHandler(void* p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   datachn->close();
-   delete datachn;
-
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
 
    //report to master the task is completed
    self->report(0, sname);
+
+   datachn->send((char*)&cmd, 4);
+   datachn->close();
+   delete datachn;
 
    return NULL;
 }

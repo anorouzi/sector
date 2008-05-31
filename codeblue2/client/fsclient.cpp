@@ -194,6 +194,9 @@ int SectorFile::close()
    if (m_DataChn.send((char*)&cmd, 4) < 0)
       return -1;
 
+   // wait for response
+   m_DataChn.recv((char*)&cmd, 4);
+
    m_DataChn.close();
 
    return 1;

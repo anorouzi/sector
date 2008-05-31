@@ -224,6 +224,7 @@ void* Slave::process(void* s)
 
          case 105: // remove dir/file
          {
+            cout << "REMOVE  " << self->m_strHomeDir + msg->getData() << endl;
             char* path = msg->getData();
             self->m_LocalFile.remove(path, true);
             ::remove((self->m_strHomeDir + path).c_str());

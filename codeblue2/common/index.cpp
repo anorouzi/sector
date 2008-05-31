@@ -114,10 +114,10 @@ int Index::lookup(const char* path, set<Address, AddrComp>& addr)
       currdir = &(s->second.m_mDirectory);
    }
 
-   stack<SNode*> scanmap;
+   cout << "HAHAH " << s->second.m_strName << endl;
 
-   for (map<string, SNode>::iterator i = currdir->begin(); i != currdir->end(); ++ i)
-      scanmap.push(&(i->second));
+   stack<SNode*> scanmap;
+   scanmap.push(&(s->second));
 
    while (!scanmap.empty())
    {
@@ -131,6 +131,7 @@ int Index::lookup(const char* path, set<Address, AddrComp>& addr)
       }
       else
       {
+         cout << "insert loc " << n->m_sLocation.size();
          for (set<Address>::iterator i = n->m_sLocation.begin(); i != n->m_sLocation.end(); ++ i)
             addr.insert(*i);
       }
@@ -151,6 +152,8 @@ int Index::create(const char* path, bool isdir)
    map<string, SNode>::iterator s;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
+      cout << "CREATE " << *d << " " << currdir->size() << endl;
+
       s = currdir->find(*d);
       if (s == currdir->end())
       {
@@ -217,14 +220,19 @@ int Index::remove(const char* path, bool recursive)
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   for (vector<string>::iterator d = dir.begin(); ; )
    {
       s = currdir->find(*d);
       if (s == currdir->end())
          return -1;
 
+      if (++ d == dir.end())
+         break;
+
       currdir = &(s->second.m_mDirectory);
    }
+
+   cout << "REMOVE " << s->first << endl;
 
    if (s->second.m_bIsDir)
    {

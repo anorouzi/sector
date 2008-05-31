@@ -552,14 +552,23 @@ void* Master::process(void* s)
                break;
             }
 
+cout << "DELETE FILE 105 " << msg->getData() << endl;
+
             set<Address, AddrComp> addr;
-            self->m_Metadata.lookup(msg->getData(), addr);
+            string filename = msg->getData();
+            self->m_Metadata.lookup(filename.c_str(), addr);
+
+cout << "WIERD " << addr.size() << endl;
 
             for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
             {
+               cout << "deleting " << i->m_strIP << " " << i->m_iPort << endl;
                self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, msg);
             }
 
+            self->m_Metadata.remove(filename.c_str());
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
 
             break;
@@ -585,6 +594,8 @@ void* Master::process(void* s)
 
             SNode attr;
             int r = self->m_Metadata.lookup(path, attr);
+
+            cout << "shit it " <<  r << endl;
 
             Address addr;
 

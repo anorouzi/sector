@@ -10,6 +10,8 @@ int main(int argc, char** argv)
    Sector::login("test", "xxx");
 
    Sector::mkdir("test");
+   Sector::remove("test/guide.dat");
+   Sector::remove("test/guide.dat.idx");
 
    const int fn = 1;
 
