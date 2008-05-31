@@ -30,7 +30,7 @@ stop_all: stop_all.cpp
 	$(C++) stop_all.cpp -o stop_all $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o *.so *.a start_master start_all
+	rm -f *.o *.so *.a start_master start_all stop_all
 
 install:
 	mv libmaster.so libmaster.a ../lib

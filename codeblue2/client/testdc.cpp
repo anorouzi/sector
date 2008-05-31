@@ -8,9 +8,16 @@ int main(int argc, char** argv)
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 
+   const int fn = 1;
+
    vector<string> files;
-   files.insert(files.end(), "stream.dat");
-   //files.insert(files.end(), "rand2.dat");
+   for (int i = 0; i < fn; ++ i)
+   {
+      char filename[256];
+      sprintf(filename, "test/sort_input.%d.dat", i);
+      files.insert(files.end(), filename);
+      cout << "INPUT " << filename << endl;
+   }
 
    SphereStream s;
    if (s.init(files) < 0)
@@ -99,10 +106,3 @@ int main(int argc, char** argv)
 
    return 0;
 }
-
-
-// user defined process
-
-//int myProc(const char* unit, const int& rows, const int64_t* index, char* result, int& rsize, int& rrows, int64_t* rindex, int& bid, const char* param, const int& psize)
-//{
-//}

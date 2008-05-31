@@ -2,6 +2,8 @@
 #include <unistd.h>
 #include <iostream>
 #include <stdint.h>
+#include "../../common/sphere.h"
+
 using namespace std;
 
 extern "C"
@@ -30,16 +32,14 @@ int hash(const Key* k, const int& n)
    return (k->v1 >> (32 - n));
 }
 
-int sorthash(const char* unit, const int& rows, const int64_t& index, char* result, int& rsize, int& rrows, int64_t* rindex, int& bid, const char* param, const int& psize)
+int sorthash(const SInput* input, SOutput* output, SFile* file)
 {
-   memcpy(result, unit, 100);
-   *rindex = 0;
-   *(rindex + 1) = 100;
-
-   rsize = 100;
-   rrows = 1;
-
-   bid = hash((Key*)unit, *(int*)param);
+   memcpy(output->m_pcResult, input->m_pcUnit, 100);
+   *(output->m_pllIndex) = 0;
+   *(output->m_pllIndex + 1) = 100;
+   output->m_iResSize = 100;
+   output->m_iRows = 1;
+   output->m_iBucketID = hash((Key*)input->m_pcUnit, *(int*)input->m_pcParam);
 
    return 0;
 }

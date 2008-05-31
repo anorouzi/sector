@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/30/2008
 *****************************************************************************/
 
 
@@ -114,8 +114,6 @@ int Index::lookup(const char* path, set<Address, AddrComp>& addr)
       currdir = &(s->second.m_mDirectory);
    }
 
-   cout << "HAHAH " << s->second.m_strName << endl;
-
    stack<SNode*> scanmap;
    scanmap.push(&(s->second));
 
@@ -131,7 +129,6 @@ int Index::lookup(const char* path, set<Address, AddrComp>& addr)
       }
       else
       {
-         cout << "insert loc " << n->m_sLocation.size();
          for (set<Address>::iterator i = n->m_sLocation.begin(); i != n->m_sLocation.end(); ++ i)
             addr.insert(*i);
       }
@@ -152,8 +149,6 @@ int Index::create(const char* path, bool isdir)
    map<string, SNode>::iterator s;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
-      cout << "CREATE " << *d << " " << currdir->size() << endl;
-
       s = currdir->find(*d);
       if (s == currdir->end())
       {
@@ -232,8 +227,6 @@ int Index::remove(const char* path, bool recursive)
       currdir = &(s->second.m_mDirectory);
    }
 
-   cout << "REMOVE " << s->first << endl;
-
    if (s->second.m_bIsDir)
    {
       if (recursive)
@@ -260,7 +253,6 @@ int Index::eraseCopy(const char* path, const Address& loc)
 
 int Index::update(const char* fileinfo, const Address& loc)
 {
-   cout << "index update " << fileinfo << endl;
    SNode sn;
    sn.deserialize(fileinfo);
 
@@ -271,14 +263,10 @@ int Index::update(const char* fileinfo, const Address& loc)
    sn.m_strName = filename;
    dir.erase(dir.begin() + dir.size() - 1);
 
-   cout << "file updated 111 " << filename << endl;
-
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
-      cout << "DIR " << *d << endl;
-
       s = currdir->find(*d);
       if (s == currdir->end())
       {
@@ -294,12 +282,10 @@ int Index::update(const char* fileinfo, const Address& loc)
    s = currdir->find(filename);
    if (s == currdir->end())
    {
-      cout << "new file \n";
       (*currdir)[filename] = sn;
    }
    else
    {
-      cout << "new loc \n";
       s->second.m_llSize = sn.m_llSize;
       s->second.m_llTimeStamp = sn.m_llTimeStamp;
       s->second.m_sLocation.insert(loc);

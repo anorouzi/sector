@@ -3,6 +3,8 @@
 #include <vector>
 #include <algorithm>
 #include <stdint.h>
+#include "../../common/sphere.h"
+
 using namespace std;
 
 extern "C"
@@ -83,16 +85,18 @@ void sortbucket(const char* bucket)
    delete [] rec;
 }
 
-int sort(const char* unit, const int& rows, const int64_t& index, char* result, int& rsize, int& rrows, int64_t* rindex, int& bid, const char* param, const int& psize)
+int sort(const SInput* input, SOutput* output, SFile* file)
 {
-   string input = string(result) + unit;
+   string bucket = file->m_strHomeDir + input->m_pcUnit;
 
-   cout << "sorting " << input << endl;
+   cout << "sorting " << bucket << endl;
 
-   sortbucket(input.c_str());
+   sortbucket(bucket.c_str());
 
-   rsize = 0;
-   bid = 0;
+   output->m_iResSize = 0;
+   output->m_iBucketID = 0;
+
+   file->m_sstrFiles.insert(input->m_pcUnit);
 
    return 0;
 }
