@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/31/2008
 *****************************************************************************/
 
 
@@ -227,7 +227,8 @@ void* Slave::process(void* s)
             cout << "REMOVE  " << self->m_strHomeDir + msg->getData() << endl;
             char* path = msg->getData();
             self->m_LocalFile.remove(path, true);
-            ::remove((self->m_strHomeDir + path).c_str());
+            string sysrm = string("rm -rf ") + self->m_strHomeDir + path;
+            system(sysrm.c_str());
             self->m_GMP.sendto(ip, port, id, msg);
             break;
          }

@@ -188,7 +188,8 @@ int Master::run()
       }
 
       // check replica, create or remove replicas if necessary
-      checkReplica(m_Metadata.m_mDirectory, "/");
+      // BUG, fix this, sychronization protection needed
+      //checkReplica(m_Metadata.m_mDirectory, "/");
 
       sleep(60);
    }
@@ -507,7 +508,14 @@ void* Master::process(void* s)
                char buf[128];
                attr.serialize(buf);
                msg->setData(0, buf, strlen(buf) + 1);
-               msg->m_iDataLength = SectorMsg::m_iHdrSize + strlen(buf) + 1;
+
+               int c = 0;
+               for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+               {
+                  msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
+                  msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
+               }
+
                self->m_GMP.sendto(ip, port, id, msg);
             }
 
@@ -552,13 +560,9 @@ void* Master::process(void* s)
                break;
             }
 
-cout << "DELETE FILE 105 " << msg->getData() << endl;
-
             set<Address, AddrComp> addr;
             string filename = msg->getData();
             self->m_Metadata.lookup(filename.c_str(), addr);
-
-cout << "WIERD " << addr.size() << endl;
 
             for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
             {
@@ -566,7 +570,7 @@ cout << "WIERD " << addr.size() << endl;
                self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, msg);
             }
 
-            self->m_Metadata.remove(filename.c_str());
+            self->m_Metadata.remove(filename.c_str(), true);
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);

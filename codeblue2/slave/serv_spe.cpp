@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/01/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -77,7 +77,7 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
    // dynamically increase index buffer size
    while (m_vIndexLen[bucketid] + ilen >= m_vIndexPhyLen[bucketid])
    {
-      int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 1024];
+      int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 256];
       if (NULL != m_vIndex[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vIndex[bucketid], m_vIndexLen[bucketid] * 8);
@@ -89,7 +89,7 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
          m_vIndexLen[bucketid] = 1;
       }
       m_vIndex[bucketid] = tmp;
-      m_vIndexPhyLen[bucketid] += 1024;
+      m_vIndexPhyLen[bucketid] += 256;
    }
 
    int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid] - 1;
@@ -102,14 +102,14 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
    // dynamically increase index buffer size
    while (m_vDataLen[bucketid] + dlen > m_vDataPhyLen[bucketid])
    {
-      char* tmp = new char[m_vDataPhyLen[bucketid] + 16777216];
+      char* tmp = new char[m_vDataPhyLen[bucketid] + 65536];
       if (NULL != m_vData[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vData[bucketid], m_vDataLen[bucketid]);
          delete [] m_vData[bucketid];
       }
       m_vData[bucketid] = tmp;
-      m_vDataPhyLen[bucketid] += 16777216;
+      m_vDataPhyLen[bucketid] += 65536;
    }
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
@@ -248,6 +248,7 @@ void* Slave::SPEHandler(void* p)
       rindex = new int64_t[totalrows + 2];
 
       SInput input;
+      input.m_pcUnit = NULL;
       input.m_pcParam = (char*)param;
       input.m_iPSize = psize;
       SOutput output;
@@ -255,6 +256,7 @@ void* Slave::SPEHandler(void* p)
       output.m_iBufSize = size;
       output.m_pllIndex = rindex;
       output.m_iIndSize = totalrows + 2;
+      output.m_iBucketID = 0;
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
 
@@ -270,11 +272,9 @@ void* Slave::SPEHandler(void* p)
          input.m_pcUnit = block + index[i] - index[0];
          input.m_iRows = unitrows;
          input.m_pllIndex = index + i;
-cout << "LOOP " << unitrows << endl;
+
          process(&input, &output, &file);
-         if (buckets <= 0)
-            output.m_iBucketID = 0;
-cout << "done\n";
+
          result.addData(output.m_iBucketID, output.m_pllIndex, output.m_iRows, output.m_pcResult, output.m_iResSize);
 
          gettimeofday(&t4, 0);
@@ -292,7 +292,7 @@ cout << "done\n";
 
       if (0 == unitrows)
       {
-         file.m_sstrFiles.insert(datafile);
+         input.m_pcUnit = block;
          process(&input, &output, &file);
          result.addData(output.m_iBucketID, output.m_pllIndex, output.m_iRows, output.m_pcResult, output.m_iResSize);
       }

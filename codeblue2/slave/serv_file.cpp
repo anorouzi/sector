@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/30/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/01/2008
 *****************************************************************************/
 
 
@@ -62,6 +62,7 @@ void* Slave::fileHandler(void* p)
    int64_t wb = 0;
 
    int32_t response = 0;
+   bool change = false;
 
    while (run)
    {
@@ -150,6 +151,8 @@ void* Slave::fileHandler(void* p)
 
             ofs.close();
 
+            change = true;
+
             break;
          }
 
@@ -208,6 +211,8 @@ void* Slave::fileHandler(void* p)
 
             ofs.close();
 
+            change = true;
+
             break;
          }
 
@@ -233,7 +238,8 @@ void* Slave::fileHandler(void* p)
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
 
    //report to master the task is completed
-   self->report(0, sname);
+   if (change)
+      self->report(0, sname);
 
    datachn->send((char*)&cmd, 4);
    datachn->close();

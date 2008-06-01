@@ -53,7 +53,7 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
    keyinit();
 
    //10GB = 100 * 100000000
-   for (int i = 0; i < 1000; ++ i)
+   for (long long int i = 0; i < 1000; ++ i)
    {
       keygen(record);
       ofs.write(record, 100);
@@ -63,7 +63,7 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
 
    ofstream idx((file->m_strHomeDir + filename + ".idx").c_str(), ios::binary);
 
-   for (int i = 0; i < 1001; ++ i)
+   for (long long int i = 0; i < 1001; ++ i)
    {
       long long int d = i * 100;
       idx.write((char*)&d, 8);

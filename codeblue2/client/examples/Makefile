@@ -12,4 +12,4 @@ sorthash.so: sorthash.cpp
 	$(C++) -shared -fPIC -o $@ $^ -lstdc++
 
 clean:
-	rm -f randwriter sort.so sorthash.so
+	rm -f randwriter.so sort.so sorthash.so

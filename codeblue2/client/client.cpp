@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/31/2008
 *****************************************************************************/
 
 
@@ -174,6 +174,17 @@ int Client::stat(const string& path, SNode& attr)
       return -1;
 
    attr.deserialize(msg.getData());
+
+   int n = (msg.m_iDataLength - SectorMsg::m_iHdrSize - 128) / 68;
+   char* al = msg.getData() + 128;
+
+   for (int i = 0; i < n; ++ i)
+   {
+      Address addr;
+      addr.m_strIP = al + 68 * i;
+      addr.m_iPort = *(int32_t*)(al + 68 * i + 64);
+      attr.m_sLocation.insert(addr);
+   }
 
    return 1;
 }

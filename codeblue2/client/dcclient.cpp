@@ -272,7 +272,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    prepareOutput();
 
    m_iProgress = 0;
-   m_iAvgRunTime = 300;
+   m_iAvgRunTime = 3600;
    m_iTotalDS = m_vpDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
@@ -400,7 +400,7 @@ int SphereProcess::checkSPE()
          int rtime = t.tv_sec - s->m_StartTime.tv_sec;
          int utime = t.tv_sec - s->m_LastUpdateTime.tv_sec;
 
-         if ((rtime > 8 * m_iAvgRunTime) && (utime > 300))
+         if ((rtime > 8 * m_iAvgRunTime) && (utime > 600))
          {
             // dismiss this SPE and release its job
             s->m_pDS->m_iStatus = 0;
