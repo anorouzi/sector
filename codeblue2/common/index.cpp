@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/30/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/02/2008
 *****************************************************************************/
 
 
@@ -255,6 +255,7 @@ int Index::update(const char* fileinfo, const Address& loc)
 {
    SNode sn;
    sn.deserialize(fileinfo);
+   sn.m_sLocation.insert(loc);
 
    vector<string> dir;
    parsePath(sn.m_strName.c_str(), dir);
