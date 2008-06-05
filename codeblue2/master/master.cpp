@@ -662,7 +662,11 @@ void* Master::process(void* s)
                client.m_strIP = ip;
                client.m_iPort = port;
                set<int> empty;
-               self->m_SlaveList.chooseIONode(empty, client, rwx, sn);
+               if (self->m_SlaveList.chooseIONode(empty, client, rwx, sn) < 0)
+               {
+                  self->reject(ip, port, id, -1);
+                  break;
+               }
 
                addr.m_strIP = sn.m_strIP;
                addr.m_iPort = sn.m_iPort;
