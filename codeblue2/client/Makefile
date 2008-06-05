@@ -9,7 +9,7 @@ endif
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload ls
+all: libclient.so libclient.a testfs testdc download upload ls rm
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -35,8 +35,11 @@ upload: upload.cpp
 ls: ls.cpp
 	$(C++) ls.cpp -o ls $(CCFLAGS) $(LDFLAGS)
 
+rm: rm.cpp
+	$(C++) rm.cpp -o rm $(CCFLAGS) $(LDFLAGS)
+
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload ls
+	rm -f *.o *.so *.a testfs testdc download upload ls rm
 
 install:
 	mv libclient.so libclient.a ../lib

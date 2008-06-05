@@ -39,12 +39,6 @@ int main(int argc, char** argv)
    delete [] idx;
    guide.close();
 
-   SNode attr;
-   Sector::stat("test/guide.dat.idx", attr);
-   cout << attr.m_strName << " " << attr.m_llSize << endl;
-//   return 1;
-
-
    // write files to each node
    vector<string> files;
    files.insert(files.end(), "test/guide.dat");
@@ -95,13 +89,6 @@ int main(int argc, char** argv)
 
    myproc.close();
 
-
-
-/*
-   SNode attr;
-   Sector::stat("test/guide.dat", attr);
-   cout << attr.m_strName << " " << attr.m_llSize << endl;
-*/
    Sector::logout();
    Sector::close();
 
