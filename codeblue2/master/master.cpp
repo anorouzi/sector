@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -91,10 +91,12 @@ bool ActiveUser::match(const string& path, int32_t rwx)
 
 Master::Master()
 {
+   pthread_mutex_init(&m_MetaLock, NULL);
 }
 
 Master::~Master()
 {
+   pthread_mutex_destroy(&m_MetaLock);
 }
 
 int Master::init()
@@ -102,7 +104,8 @@ int Master::init()
    // read configuration from master.conf
    m_SysConfig.init("master.conf");
 
-   // check local directory
+
+   // check local directories, create them is not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
    DIR* test = opendir((m_strHomeDir + ".metadata").c_str());
    if (NULL == test)
@@ -120,15 +123,11 @@ int Master::init()
    }
    closedir(test);
 
-   test = opendir((m_strHomeDir + ".tmp").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
-         return -4;
-   }
-   closedir(test);
 
+   // load slave list and addresses
+   loadSlaveAddr("slaves.list");
 
+   // add "slave" as a special user
    m_mActiveUser.clear();
    ActiveUser au;
    au.m_strName = "slave";
@@ -136,7 +135,7 @@ int Master::init()
    au.m_vstrReadList.insert(au.m_vstrReadList.begin(), "/");
    m_mActiveUser[au.m_iKey] = au;
 
-
+   // running...
    m_Status = RUNNING;
 
    // start service thread
@@ -168,28 +167,40 @@ int Master::run()
          SectorMsg msg;
          msg.setType(1);
 
-         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0)
-         {
-            //remote start
-            //system("ssh xxx")
-         }
-         else
+         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) > 0)
          {
             i->second.m_llLastUpdateTime = CTimer::getTime();
+            i->second.m_iRetryNum = 0;
          }
-
-         if (CTimer::getTime() - i->second.m_llLastUpdateTime > 600)
+         else if (++ i->second.m_iRetryNum > 10)
          {
+            cout << "detect slave drop " << i->second.m_strIP << endl;
+
             Address addr;
             addr.m_strIP = i->second.m_strIP;
             addr.m_iPort = i->second.m_iPort;
+            pthread_mutex_lock(&m_MetaLock);
             m_Metadata.substract(m_Metadata.m_mDirectory, addr);
+            pthread_mutex_unlock(&m_MetaLock);
+
+            map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);
+            if (sa != m_mSlaveAddrRec.end())
+            {
+                cout << "restart slave ... " << endl;
+                // kill and restart the slave
+                system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
+                system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+            }
          }
       }
 
       // check replica, create or remove replicas if necessary
-      // BUG, fix this, sychronization protection needed
-      //checkReplica(m_Metadata.m_mDirectory, "/");
+      vector<string> replica;
+      pthread_mutex_lock(&m_MetaLock);
+      checkReplica(m_Metadata.m_mDirectory, "/", replica);
+      pthread_mutex_unlock(&m_MetaLock);
+      //for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
+      //   createReplica(*r);
 
       sleep(60);
    }
@@ -277,8 +288,8 @@ void* Master::serviceEx(void* p)
             sn.m_llMaxDiskSpace = -1;
             sn.m_llUsedDiskSpace = 0;
             sn.m_llLastUpdateTime = CTimer::getTime();
+            sn.m_iRetryNum = 0;
             sn.m_iCurrWorkLoad = 0;
-            sn.m_strExecDir = "";
 
             Address addr;
             addr.m_strIP = ip;
@@ -292,12 +303,15 @@ void* Master::serviceEx(void* p)
 
             ofstream meta((self->m_strHomeDir + ".metadata/" + ip).c_str());
             meta.write(buf, size);
+            delete [] buf;
             meta.close();
             map<string, SNode> branch;
             ifstream ifs((self->m_strHomeDir + ".metadata/" + ip).c_str());
             Index::deserialize(ifs, branch, addr);
             ifs.close();
+            pthread_mutex_lock(&self->m_MetaLock);
             Index::merge(self->m_Metadata.m_mDirectory, branch);
+            pthread_mutex_unlock(&self->m_MetaLock);
 
             sn.m_llUsedDiskSpace = Index::getTotalDataSize(branch);
             s->recv((char*)&(sn.m_llMaxDiskSpace), 8);
@@ -438,14 +452,22 @@ void* Master::process(void* s)
          case 1: // slave reports transaction status
          {
             //int transid = *(int32_t*)msg->getData();
+            string path = msg->getData() + 4;
 
             cout << "get report " << msg->getData() + 4 << endl;
 
             Address addr;
             addr.m_strIP = ip;
             addr.m_iPort = port;
-            self->m_Metadata.update(msg->getData() + 4, addr);
+            pthread_mutex_lock(&self->m_MetaLock);
+            int n = self->m_Metadata.update(path.c_str(), addr);
+            pthread_mutex_unlock(&self->m_MetaLock);
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
+
+            //if ((n > 0) && (n < self->m_SysConfig.m_iReplicaNum))
+            //   self->createReplica(path);
 
             break;
          }
@@ -469,7 +491,9 @@ void* Master::process(void* s)
             }
 
             vector<string> filelist;
+            pthread_mutex_lock(&self->m_MetaLock);
             self->m_Metadata.list(msg->getData(), filelist);
+            pthread_mutex_unlock(&self->m_MetaLock);
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             int size = 0;
@@ -497,7 +521,10 @@ void* Master::process(void* s)
             }
 
             SNode attr;
-            if (self->m_Metadata.lookup(msg->getData(), attr) < 0)
+            pthread_mutex_lock(&self->m_MetaLock);
+            int r = self->m_Metadata.lookup(msg->getData(), attr);
+            pthread_mutex_unlock(&self->m_MetaLock);
+            if (r < 0)
             {
                msg->setType(-msg->getType());
                msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -531,7 +558,9 @@ void* Master::process(void* s)
                break;
             }
 
+            pthread_mutex_lock(&self->m_MetaLock);
             self->m_Metadata.create(msg->getData(), true);
+            pthread_mutex_unlock(&self->m_MetaLock);
             self->m_GMP.sendto(ip, port, id, msg);
 
             break;
@@ -562,7 +591,9 @@ void* Master::process(void* s)
 
             set<Address, AddrComp> addr;
             string filename = msg->getData();
+            pthread_mutex_lock(&self->m_MetaLock);
             self->m_Metadata.lookup(filename.c_str(), addr);
+            pthread_mutex_unlock(&self->m_MetaLock);
 
             for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
             {
@@ -570,7 +601,9 @@ void* Master::process(void* s)
                self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, msg);
             }
 
+            pthread_mutex_lock(&self->m_MetaLock);
             self->m_Metadata.remove(filename.c_str(), true);
+            pthread_mutex_unlock(&self->m_MetaLock);
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
@@ -603,9 +636,9 @@ void* Master::process(void* s)
             }
 
             SNode attr;
+            pthread_mutex_lock(&self->m_MetaLock);
             int r = self->m_Metadata.lookup(path, attr);
-
-            cout << "shit it " <<  r << endl;
+            pthread_mutex_unlock(&self->m_MetaLock);
 
             Address addr;
 
@@ -619,7 +652,9 @@ void* Master::process(void* s)
                }
 
                // otherwise, create a new file for write
+               pthread_mutex_lock(&self->m_MetaLock);
                self->m_Metadata.create(path);
+               pthread_mutex_unlock(&self->m_MetaLock);
 
                // choose a slave node for the new file
                SlaveNode sn;
@@ -798,42 +833,74 @@ void* Master::processEx(void* p)
    return NULL;
 }
 
-void Master::checkReplica(map<string, SNode>& currdir, const string& currpath)
+void Master::checkReplica(map<string, SNode>& currdir, const string& currpath, vector<string>& replica)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
       if (!i->second.m_bIsDir)
       {
          if (int(i->second.m_sLocation.size()) < m_SysConfig.m_iReplicaNum)
-         {
-            // choose a node for replica
-            // using a random node, should fix this later
-            SlaveNode sn;
-            if (m_SlaveList.chooseReplicaNode(i->second.m_sLocation, sn) > 0)
-               createReplica(sn.m_strIP.c_str(), sn.m_iPort, currpath + "/" + i->second.m_strName);
-         }
+            replica.insert(replica.end(), currpath + "/" + i->second.m_strName);
       }
       else
       {
           string path = currpath + "/" + i->second.m_strName;
-          checkReplica(i->second.m_mDirectory, path);
+          checkReplica(i->second.m_mDirectory, path, replica);
       }
    }
 }
 
-int Master::createReplica(const char* ip, int port, const string& path)
+int Master::createReplica(const string& path)
 {
+   SNode attr;
+   pthread_mutex_lock(&m_MetaLock);
+   int r = m_Metadata.lookup(path.c_str(), attr);
+   pthread_mutex_unlock(&m_MetaLock);
+
+   if (r < 0)
+      return r;
+
+   SlaveNode sn;
+   if (m_SlaveList.chooseReplicaNode(attr.m_sLocation, sn) < 0)
+      return -1;
+
    SectorMsg msg;
    msg.setType(111);
    msg.setData(0, path.c_str(), path.length() + 1);
    msg.m_iDataLength = SectorMsg::m_iHdrSize + path.length() + 1;
-   m_GMP.rpc(ip, port, &msg, &msg);
+   m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg);
 
    return 0;
 }
 
-int Master::removeReplica(const char* ip, int port, const string& path)
+int Master::removeReplica(const string& path)
 {
 
    return 0;
+}
+
+void Master::loadSlaveAddr(string file)
+{   
+   ifstream ifs(file.c_str());
+
+   if (ifs.bad() || ifs.fail())
+      return;
+
+   while (!ifs.eof())
+   {
+      char line[256];
+      line[0] = '\0';
+      ifs.getline(line, 256);
+      if (strlen(line) == 0)
+         continue;
+
+      SlaveAddr sa;
+      sa.m_strAddr = line;
+      sa.m_strAddr = sa.m_strAddr.substr(0, sa.m_strAddr.find(' '));
+      sa.m_strBase = line;
+      sa.m_strBase = sa.m_strBase.substr(sa.m_strBase.find(' ') + 1, sa.m_strBase.length());
+      string ip = sa.m_strAddr.substr(sa.m_strAddr.find('@') + 1, sa.m_strAddr.length());
+
+      m_mSlaveAddrRec[ip] = sa;
+   }
 }

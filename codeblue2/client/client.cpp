@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 
@@ -90,7 +90,7 @@ int Client::login(const string& username, const string& password)
    strcpy(buf, username.c_str());
    secconn.send(buf, 64);
    strcpy(buf, password.c_str());
-   secconn.send(buf, 64);
+   secconn.send(buf, 128);
 
    int32_t port = m_GMP.getPort();
    secconn.send((char*)&port, 4);

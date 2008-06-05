@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 #include <unistd.h>
@@ -202,10 +202,26 @@ int SSLTransport::close()
 
 int SSLTransport::send(const char* data, const int& size)
 {
-   return SSL_write(m_pSSL, data, size);
+   int ts = size;
+   while (ts > 0)
+   {
+      int s = SSL_write(m_pSSL, data + size - ts, ts);
+      if (s < 0)
+         return s;
+      ts -= s;
+   }
+   return size;
 }
 
 int SSLTransport::recv(char* data, const int& size)
 {
-   return SSL_read(m_pSSL, data, size);
+   int tr = size;
+   while (tr > 0)
+   {
+      int r = SSL_read(m_pSSL, data + size - tr, tr);
+      if (r < 0)
+         return r;
+      tr -= r;
+   }
+   return size;
 }

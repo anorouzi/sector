@@ -116,6 +116,7 @@ private:
 
 private:
    int createDir(const string& path);
+   int createSysDir();
 
 private:
    void report(const int32_t& transid, const string& path);

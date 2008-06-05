@@ -47,10 +47,9 @@ struct SlaveNode
    int64_t m_llUsedDiskSpace;
 
    int64_t m_llLastUpdateTime;
+   int m_iRetryNum;
+
    int m_iCurrWorkLoad;
-
-   std::string m_strExecDir;
-
    int m_iStatus;
 
    int m_iClusterID;

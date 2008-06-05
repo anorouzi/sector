@@ -1,6 +1,6 @@
 #include "dcclient.h"
 #include <iostream>
-
+#include <cmath>
 using namespace std;
 
 int main(int argc, char** argv)
@@ -9,14 +9,15 @@ int main(int argc, char** argv)
    Sector::login("test", "xxx");
 
    const int fn = 1;
-
+   const int32_t N = (int)log2(fn * 50.0f);
+   const int rn = (int)pow(2.0f, N);
+   
    vector<string> files;
    for (int i = 0; i < fn; ++ i)
    {
       char filename[256];
       sprintf(filename, "test/sort_input.%d.dat", i);
       files.insert(files.end(), filename);
-      cout << "INPUT " << filename << endl;
    }
 
    SphereStream s;
@@ -28,7 +29,7 @@ int main(int argc, char** argv)
 
    SphereStream temp;
    temp.setOutputPath("test", "stream_sort_bucket");
-   temp.init(4);
+   temp.init(rn);
 
    SphereProcess myproc;
 
@@ -39,8 +40,7 @@ int main(int argc, char** argv)
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   int n = 2;
-   if (myproc.run(s, temp, "sorthash", 1, (char*)&n, sizeof(int)) < 0)
+   if (myproc.run(s, temp, "sorthash", 1, (char*)&N, 4) < 0)
    {
       cout << "failed to find any computing resources." << endl;
       return -1;

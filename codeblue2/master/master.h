@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/19/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 
@@ -63,6 +63,12 @@ public:
    std::vector<string> m_vstrExecList;
 };
 
+struct SlaveAddr
+{
+   string m_strAddr;
+   string m_strBase;
+};
+
 class Master
 {
 public:
@@ -91,9 +97,9 @@ private:
    inline void reject(char* ip, int port, int id, int32_t code);
 
 private:
-   void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath);
-   int createReplica(const char* ip, int port, const string& path);
-   int removeReplica(const char* ip, int port, const string& path);
+   void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath, std::vector<std::string>& replica);
+   int createReplica(const string& path);
+   int removeReplica(const string& path);
 
 private:
    CGMP m_GMP;
@@ -109,10 +115,15 @@ private:
    std::map<int, ActiveUser> m_mActiveUser;
 
    Index m_Metadata;
+   pthread_mutex_t m_MetaLock;
 
    SlaveList m_SlaveList;
 
    enum Status {INIT, RUNNING, STOPPED} m_Status;
+
+private:
+   std::map<string, SlaveAddr> m_mSlaveAddrRec;
+   void loadSlaveAddr(string file);
 };
 
 #endif

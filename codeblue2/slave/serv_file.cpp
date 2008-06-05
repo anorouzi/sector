@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 
@@ -294,33 +294,22 @@ void* Slave::copy(void* p)
    if (datachn.recv((char*)&size, 8) < 0)
       return NULL;
 
-   //create a new directory in case it does not exist
-   self->createDir(filename.substr(0, filename.rfind('/')));
+   //copy to .tmp first, then move to real location
+   self->createDir(string(".tmp") + filename.substr(0, filename.rfind('/')));
 
    ofstream ofs;
-   ofs.open((self->m_strHomeDir + filename).c_str(), ios::out | ios::binary | ios::trunc);
+   ofs.open((self->m_strHomeDir + ".tmp" + filename).c_str(), ios::out | ios::binary | ios::trunc);
    if (datachn.recvfile(ofs, offset, size) < 0)
-      unlink(filename.c_str());
+      unlink((self->m_strHomeDir + ".tmp" + filename).c_str());
 
    ofs.close();
+
+   //utime: update timestamp according to the original copy
+
+   self->createDir(filename.substr(0, filename.rfind('/')));
+   system((string("mv ") + self->m_strHomeDir + ".tmp" + filename + " " + self->m_strHomeDir + filename).c_str());
 
    self->report(0, filename);
 
    return NULL;
-}
-
-int Slave::createDir(const string& path)
-{
-   vector<string> dir;
-   Index::parsePath(path.c_str(), dir);
-
-   string currpath = m_strHomeDir;
-   for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
-   {
-      currpath += *i;
-      ::mkdir(currpath.c_str(), S_IRWXU);
-      currpath += "/";
-   }
-
-   return 1;
 }

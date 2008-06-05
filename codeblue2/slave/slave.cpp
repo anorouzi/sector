@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 
@@ -72,29 +72,11 @@ int Slave::init(const char* base)
    m_strHomeDir = m_SysConfig.m_strHomeDir;
 
    // check local directory
-   DIR* test = opendir((m_strHomeDir + ".metadata").c_str());
-   if (NULL == test)
+   if (createSysDir() < 0)
    {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
-         return -4;
+      cerr << "unable to create system directory " << m_strHomeDir << endl;
+      return -1;
    }
-   closedir(test);
-
-   test = opendir((m_strHomeDir + ".sphere").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0))
-         return -4;
-   }
-   closedir(test);
-
-   test = opendir((m_strHomeDir + ".tmp").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
-         return -4;
-   }
-   closedir(test);
 
    cout << "scaning " << m_strHomeDir << endl;
    m_LocalFile.scan(m_strHomeDir.c_str(), m_LocalFile.m_mDirectory);
@@ -286,7 +268,7 @@ void* Slave::process(void* s)
 
             ::mkdir(path, S_IRWXU);
 
-            ofstream ofs((string(path) + "/" + lib).c_str());
+            ofstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
             ofs.write(msg->getData() + 64, libsize);
             ofs.close();
 
@@ -368,16 +350,13 @@ void* Slave::process(void* s)
 
 void Slave::report(const int32_t& transid, const string& filename)
 {
-   SectorMsg msg;
-   msg.setType(1);
-   msg.setKey(0);
-   msg.setData(0, (char*)&transid, 4);
+   struct stat s;
+   if (-1 == stat((m_strHomeDir + filename).c_str(), &s))
+      return;
 
    SNode sn;
    sn.m_strName = filename;
    sn.m_bIsDir = 0;
-   struct stat s;
-   stat((m_strHomeDir + filename).c_str(), &s);
    sn.m_llTimeStamp = s.st_mtime;
    ifstream ifs((m_strHomeDir + filename).c_str());
    ifs.seekg(0, ios::end);
@@ -392,9 +371,68 @@ void Slave::report(const int32_t& transid, const string& filename)
    addr.m_iPort = 0;
    m_LocalFile.update(buf, addr);
 
+   SectorMsg msg;
+   msg.setType(1);
+   msg.setKey(0);
+   msg.setData(0, (char*)&transid, 4);
    msg.setData(4, buf, strlen(buf) + 1);
 
    cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
 
    m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg);
+}
+
+int Slave::createDir(const string& path)
+{
+   vector<string> dir;
+   Index::parsePath(path.c_str(), dir);
+
+   string currpath = m_strHomeDir;
+   for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
+   {
+      currpath += *i;
+      if (1- ::mkdir(currpath.c_str(), S_IRWXU))
+         return -1;
+      currpath += "/";
+   }
+
+   return 1;
+}
+
+int Slave::createSysDir()
+{
+   // check local directory
+   DIR* test = opendir(m_strHomeDir.c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (createDir(m_strHomeDir) < 0))
+         return -1;
+   }
+   closedir(test);
+
+   test = opendir((m_strHomeDir + ".metadata").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+
+   test = opendir((m_strHomeDir + ".sphere").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+
+   test = opendir((m_strHomeDir + ".tmp").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+
+   return 0;
 }

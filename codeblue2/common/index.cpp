@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
 *****************************************************************************/
 
 
@@ -284,15 +284,21 @@ int Index::update(const char* fileinfo, const Address& loc)
    if (s == currdir->end())
    {
       (*currdir)[filename] = sn;
+      return 1;
    }
    else
    {
-      s->second.m_llSize = sn.m_llSize;
-      s->second.m_llTimeStamp = sn.m_llTimeStamp;
+      // check size/timestamp, reject name conflicts
+      if (s->second.m_llSize != sn.m_llSize)
+         return -1;
+
+      //s->second.m_llSize = sn.m_llSize;
+      //s->second.m_llTimeStamp = sn.m_llTimeStamp;
       s->second.m_sLocation.insert(loc);
+      return s->second.m_sLocation.size();
    }
 
-   return 1;
+   return 0;
 }
 
 int Index::lock(const char* path, int mode)
@@ -601,42 +607,43 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch)
       {
          if (i->second.m_bIsDir && s->second.m_bIsDir)
          {
-            if (merge(s->second.m_mDirectory, i->second.m_mDirectory) < 0)
-               goto EXIT;
+            // directories with same name
+            merge(s->second.m_mDirectory, i->second.m_mDirectory);
          }
-         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir))
+         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) && (i->second.m_llSize != s->second.m_llSize))
          {
-            //set_union(s->second.m_sLocation.begin(), s->second.m_sLocation.end(), i->second.m_sLocation.begin(), i->second.m_sLocation.end(), s->second.m_sLocation.begin());
-
+            // files with same name, size, timestamp, ...
             for (set<Address>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
                s->second.m_sLocation.insert(*a);
          }
          else
          {
-            // conflicts, exit
-            goto EXIT;
+            // conflicts, skip this branch dir
          }
       }
    }
 
    return 0;
-
-EXIT:
-   return -1;
 }
 
 int Index::substract(map<string, SNode>& currdir, const Address& addr)
 {
+   vector<string> tbd;
+
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
       if (!i->second.m_bIsDir)
       {
          i->second.m_sLocation.erase(addr);
-         // if empty, remove *i
+         if (i->second.m_sLocation.empty())
+            tbd.insert(tbd.end(), i->first);
       }
       else
          substract(i->second.m_mDirectory, addr);
    }
+
+   for (vector<string>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
+      currdir.erase(*i);
 
    return 0;
 }
