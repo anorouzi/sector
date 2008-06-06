@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 #include "security.h"
@@ -312,115 +312,74 @@ void* SServer::process(void* p)
    SServer* self = ((Param*)p)->sserver;
    SSLTransport* s = ((Param*)p)->ssl;
 
-   while (true)
+   int32_t cmd;
+   if (s->recv((char*)&cmd, 4) <= 0)
+      goto EXIT;
+
+   switch (cmd)
    {
-      int32_t cmd;
-      if (s->recv((char*)&cmd, 4) <= 0)
-         break;
-
-      switch (cmd)
+      case 1: // slave node join
       {
-         case 1: // slave node join
-         {
-            char ip[64];
-            if (s->recv(ip, 64) <= 0)
-               goto EXIT;
-
-            int32_t res = self->m_ACL.match(ip);
-            if (s->send((char*)&res, 4) <= 0)
-               goto EXIT;
-
-            break;
-         }
-
-         case 2: // user login
-         {
-            char user[64];
-            if (s->recv(user, 64) <= 0)
-               goto EXIT;
-            char password[128];
-            if (s->recv(password, 128) <= 0)
-               goto EXIT;
-            char ip[64];
-            if (s->recv(ip, 64) <= 0)
-               goto EXIT;
-
-            int32_t key;
-            User* u;
-            if ((u = self->m_Shadow.match(user, password, ip)) != NULL)
-               key = self->generateKey();
-            else
-               key = -1;
-
-            if (s->send((char*)&key, 4) <= 0)
-               goto EXIT;
-
-            if (key > 0)
-            {
-               string buf;
-               int32_t size;
-
-               size = u->serialize(u->m_vstrReadList, buf);
-               if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
-                  goto EXIT;
-
-               size = u->serialize(u->m_vstrWriteList, buf);
-               if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
-                  goto EXIT;
-
-               size = u->serialize(u->m_vstrExecList, buf);
-               if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
-                  goto EXIT;
-            }
-
-            break;
-         }
-
-         default:
-            s->close();
+         char ip[64];
+         if (s->recv(ip, 64) <= 0)
             goto EXIT;
-            break;
+
+         int32_t res = self->m_ACL.match(ip);
+         if (s->send((char*)&res, 4) <= 0)
+            goto EXIT;
+
+          break;
       }
+
+      case 2: // user login
+      {
+         char user[64];
+         if (s->recv(user, 64) <= 0)
+            goto EXIT;
+         char password[128];
+         if (s->recv(password, 128) <= 0)
+            goto EXIT;
+         char ip[64];
+         if (s->recv(ip, 64) <= 0)
+            goto EXIT;
+
+         int32_t key;
+         User* u;
+         if ((u = self->m_Shadow.match(user, password, ip)) != NULL)
+            key = self->generateKey();
+         else
+            key = -1;
+
+         if (s->send((char*)&key, 4) <= 0)
+            goto EXIT;
+
+         if (key > 0)
+         {
+            string buf;
+            int32_t size;
+
+            size = u->serialize(u->m_vstrReadList, buf);
+            if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
+               goto EXIT;
+
+            size = u->serialize(u->m_vstrWriteList, buf);
+            if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
+               goto EXIT;
+
+            size = u->serialize(u->m_vstrExecList, buf);
+            if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
+               goto EXIT;
+         }
+
+         break;
+      }
+
+      default:
+         goto EXIT;
    }
 
 EXIT:
+   s->close();
    delete (Param*)p;
    return NULL;
-}
-
-
-int SClient::init(const char* cert)
-{
-   SSLTransport::init();
-
-   m_SSL.initClientCTX(cert);
-   m_SSL.open(NULL, 0);
-
-   return 1;
-}
-
-void SClient::close()
-{
-   m_SSL.close();
-
-   SSLTransport::destroy();
-}
-
-int SClient::connect(char* ip, int port)
-{
-   return m_SSL.connect(ip, port);
-}
-
-int SClient::sendReq(const char* name, const char* password)
-{
-   char buf[256];
-   strcpy(buf, name);
-   strcpy(buf + 64, password);
-
-   return m_SSL.send(buf, 64 + 128);
-}
-
-int SClient::recvRes(int32_t& code)
-{
-   return m_SSL.recv((char*)&code, 4);
 }

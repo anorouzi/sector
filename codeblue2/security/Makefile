@@ -9,7 +9,7 @@ endif
 
 OBJS = security.o ssltransport.o
 
-all: libsecurity.so libsecurity.a sslserver sslclient sserver sclient
+all: libsecurity.so libsecurity.a sslserver sslclient sserver
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -23,9 +23,6 @@ libsecurity.a: $(OBJS)
 sserver: sserver.cpp
 	$(C++) sserver.cpp -o sserver $(CCFLAGS) $(LDFLAGS)
 
-sclient: sclient.cpp
-	$(C++) sclient.cpp -o sclient $(CCFLAGS) $(LDFLAGS)
-
 sslserver: sslserver.cpp
 	$(C++) sslserver.cpp -o sslserver $(CCFLAGS) $(LDFLAGS)
 
@@ -33,7 +30,7 @@ sslclient: sslclient.cpp
 	$(C++) sslclient.cpp -o sslclient $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o *.so *.a sserver sclient sslserver sslclient
+	rm -f *.o *.so *.a sserver sslserver sslclient
 
 install:
 	mv libsecurity.so libsecurity.a ../lib
