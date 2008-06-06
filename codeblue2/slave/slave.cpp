@@ -229,7 +229,8 @@ void* Slave::process(void* s)
             p->client_ip = msg->getData();
             p->client_data_port = *(int*)(msg->getData() + 64);
             p->mode = *(int*)(msg->getData() + 68);
-            p->filename = msg->getData() + 72;
+            p->transid = *(int*)(msg->getData() + 72);
+            p->filename = msg->getData() + 76;
 
             pthread_t file_handler;
             pthread_create(&file_handler, NULL, fileHandler, p);
@@ -348,7 +349,7 @@ void* Slave::process(void* s)
    return NULL;
 }
 
-void Slave::report(const int32_t& transid, const string& filename)
+void Slave::report(const int32_t& transid, const string& filename, const bool change)
 {
    struct stat s;
    if (-1 == stat((m_strHomeDir + filename).c_str(), &s))
@@ -375,7 +376,9 @@ void Slave::report(const int32_t& transid, const string& filename)
    msg.setType(1);
    msg.setKey(0);
    msg.setData(0, (char*)&transid, 4);
-   msg.setData(4, buf, strlen(buf) + 1);
+   int c = change ? 1 : 0;
+   msg.setData(4, (char*)&c, 4);
+   msg.setData(8, buf, strlen(buf) + 1);
 
    cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
 

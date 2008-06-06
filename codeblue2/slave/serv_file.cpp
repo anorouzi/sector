@@ -41,6 +41,7 @@ void* Slave::fileHandler(void* p)
    string ip = ((Param2*)p)->client_ip;
    int port = ((Param2*)p)->client_data_port;
    int mode = ((Param2*)p)->mode;
+   int transid = ((Param2*)p)->transid;
    delete (Param2*)p;
 
    int32_t cmd;
@@ -152,7 +153,6 @@ void* Slave::fileHandler(void* p)
             ofs.close();
 
             change = true;
-
             break;
          }
 
@@ -212,7 +212,6 @@ void* Slave::fileHandler(void* p)
             ofs.close();
 
             change = true;
-
             break;
          }
 
@@ -238,8 +237,7 @@ void* Slave::fileHandler(void* p)
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
 
    //report to master the task is completed
-   if (change)
-      self->report(0, sname);
+   self->report(transid, sname, change);
 
    datachn->send((char*)&cmd, 4);
    datachn->close();
@@ -262,7 +260,8 @@ void* Slave::copy(void* p)
    int port = 0;
    datachn.open(port);
 
-   int mode = 1;
+   // replicate is an exclusive operation
+   int mode = 2;
 
    msg.setData(0, (char*)&port, 4);
    msg.setData(4, (char*)&mode, 4);
@@ -309,7 +308,7 @@ void* Slave::copy(void* p)
    self->createDir(filename.substr(0, filename.rfind('/')));
    system((string("mv ") + self->m_strHomeDir + ".tmp" + filename + " " + self->m_strHomeDir + filename).c_str());
 
-   self->report(0, filename);
+   self->report(0, filename, true);
 
    return NULL;
 }

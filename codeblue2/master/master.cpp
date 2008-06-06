@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -199,8 +199,12 @@ int Master::run()
       pthread_mutex_lock(&m_MetaLock);
       checkReplica(m_Metadata.m_mDirectory, "/", replica);
       pthread_mutex_unlock(&m_MetaLock);
-      //for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
-      //   createReplica(*r);
+      for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
+      {
+         if (m_TransManager.getTotalTrans() > m_SlaveList.getTotalSlaves())
+            break;
+         createReplica(*r);
+      }
 
       sleep(60);
    }
@@ -451,20 +455,35 @@ void* Master::process(void* s)
 
          case 1: // slave reports transaction status
          {
-            //int transid = *(int32_t*)msg->getData();
-            string path = msg->getData() + 4;
+            int transid = *(int32_t*)msg->getData();
+            bool change = *(int32_t*)(msg->getData() + 4);
+            string path = msg->getData() + 8;
 
-            cout << "get report " << msg->getData() + 4 << endl;
+            cout << "get report " << transid << " " << change << " " << path << endl;
 
-            Address addr;
-            addr.m_strIP = ip;
-            addr.m_iPort = port;
-            pthread_mutex_lock(&self->m_MetaLock);
-            int n = self->m_Metadata.update(path.c_str(), addr);
-            pthread_mutex_unlock(&self->m_MetaLock);
+            int nc = -1;
+            if (change)
+            {
+               Address addr;
+               addr.m_strIP = ip;
+               addr.m_iPort = port;
+               pthread_mutex_lock(&self->m_MetaLock);
+               nc = self->m_Metadata.update(path.c_str(), addr);
+               pthread_mutex_unlock(&self->m_MetaLock);
+            }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
+
+            Transaction t;
+            if ((self->m_TransManager.retrieve(transid, t) >= 0) && (nc != 0))
+            {
+               pthread_mutex_lock(&self->m_MetaLock);
+               self->m_Metadata.unlock(path.c_str(), t.m_iMode);
+               pthread_mutex_unlock(&self->m_MetaLock);
+            }
+
+            self->m_TransManager.update(transid);
 
             //if ((n > 0) && (n < self->m_SysConfig.m_iReplicaNum))
             //   self->createReplica(path);
@@ -641,6 +660,8 @@ void* Master::process(void* s)
             pthread_mutex_unlock(&self->m_MetaLock);
 
             Address addr;
+            int transid;
+            SlaveNode sn;
 
             if (r < 0)
             {
@@ -657,7 +678,6 @@ void* Master::process(void* s)
                pthread_mutex_unlock(&self->m_MetaLock);
 
                // choose a slave node for the new file
-               SlaveNode sn;
                Address client;
                client.m_strIP = ip;
                client.m_iPort = port;
@@ -674,7 +694,6 @@ void* Master::process(void* s)
             else
             {
                // choose a slave node with the requested file
-               SlaveNode sn;
                Address client;
                client.m_strIP = ip;
                client.m_iPort = port;
@@ -682,20 +701,26 @@ void* Master::process(void* s)
 
                addr.m_strIP = sn.m_strIP;
                addr.m_iPort = sn.m_iPort;
+
+               pthread_mutex_lock(&self->m_MetaLock);
+               r = self->m_Metadata.lock(path, rwx);
+               pthread_mutex_unlock(&self->m_MetaLock);
+               if (r < 0)
+               {
+                  self->reject(ip, port, id, -2);
+                  break;
+               }
             }
 
-            //if (self->m_Metadata.lock(path, rwx) < 0)
-            //{
-            //   self->reject(ip, port, id, -2);
-            //   break;
-            //}
+            transid = self->m_TransManager.insert(sn.m_iNodeID, path, rwx, user->m_strName, msg->getType());
 
             // send infomation back to the client
 
             msg->setData(0, ip, strlen(ip) + 1);
             msg->setData(64, (char*)&(dataport), 4);
             msg->setData(68, (char*)&(mode), 4);
-            msg->setData(72, path, strlen(path) + 1);
+            msg->setData(72, (char*)&(transid), 4);
+            msg->setData(76, path, strlen(path) + 1);
 
             self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
             dataport = *(int32_t*)(msg->getData());

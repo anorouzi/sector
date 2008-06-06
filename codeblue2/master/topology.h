@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 
@@ -80,6 +80,9 @@ public:
    int chooseIONode(std::set<int>& loclist, const Address& client, const int& io, SlaveNode& sn);
    int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn);
    int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn);
+
+public:
+   int getTotalSlaves();
 
 public:
    std::map<Address, int, AddrComp> m_mAddrList;

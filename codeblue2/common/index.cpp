@@ -155,6 +155,7 @@ int Index::create(const char* path, bool isdir)
          SNode n;
          n.m_strName = *d;
          n.m_bIsDir = false;
+         n.m_iReadLock = n.m_iWriteLock = 0;
          (*currdir)[*d] = n;
          s = currdir->find(*d);;
 
@@ -274,6 +275,7 @@ int Index::update(const char* fileinfo, const Address& loc)
          SNode n;
          n.m_strName = *d;
          n.m_bIsDir = false;
+         n.m_iReadLock = n.m_iWriteLock = 0;
          (*currdir)[*d] = n;
          s = currdir->find(*d);;
       }
@@ -284,7 +286,7 @@ int Index::update(const char* fileinfo, const Address& loc)
    if (s == currdir->end())
    {
       (*currdir)[filename] = sn;
-      return 1;
+      return 0;
    }
    else
    {
@@ -295,10 +297,10 @@ int Index::update(const char* fileinfo, const Address& loc)
       //s->second.m_llSize = sn.m_llSize;
       //s->second.m_llTimeStamp = sn.m_llTimeStamp;
       s->second.m_sLocation.insert(loc);
-      return s->second.m_sLocation.size();
+      return s->second.m_sLocation.size() - 1;
    }
 
-   return 0;
+   return -1;
 }
 
 int Index::lock(const char* path, int mode)
@@ -378,7 +380,7 @@ int Index::unlock(const char* path, int mode)
    if (2 == mode)
    {
       for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
-         (*i)->second.m_iWriteLock --;
+            (*i)->second.m_iWriteLock --;
    }
 
    // read
@@ -437,6 +439,8 @@ int SNode::deserialize(const char* buf)
 
    tmp = tmp + strlen(tmp) + 1;
    m_llSize = atoll(tmp);
+
+   m_iReadLock = m_iWriteLock = 0;
 
    return 0;
 }

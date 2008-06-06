@@ -71,3 +71,8 @@ int TransManager::update(int transid)
    m_mTransList.erase(transid);
    return 0;
 }
+
+int TransManager::getTotalTrans()
+{
+   return m_mTransList.size();
+}

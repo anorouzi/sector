@@ -74,6 +74,7 @@ private:
       string filename;		// filename
       Transport* datachn;	// data channel
       int mode;			// file access mode
+      int transid;		// transaction ID
       string client_ip;		// client IP
       int client_data_port;	// client data channel port
    };
@@ -119,7 +120,7 @@ private:
    int createSysDir();
 
 private:
-   void report(const int32_t& transid, const string& path);
+   void report(const int32_t& transid, const string& path, const bool change = true);
 
 private:
    CGMP m_GMP;

@@ -309,7 +309,7 @@ void* Slave::SPEHandler(void* p)
 
       // report new files
       for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
-         self->report(0, *i);
+         self->report(0, *i, true);
 
       delete [] index;
       delete [] block;
@@ -467,7 +467,7 @@ void* Slave::SPEShuffler(void* p)
    {
       char tmp[64];
       sprintf(tmp, "%s.%d", localfile.c_str(), *i);
-      self->report(0, tmp);
+      self->report(0, tmp, true);
    }
 
    return NULL;
@@ -571,7 +571,7 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
       ofs.close();
 
       // report the result file to master
-      report(0, localfile);
+      report(0, localfile, true);
 
       // send back result file/record size
       int32_t size = result.m_vDataLen[0];

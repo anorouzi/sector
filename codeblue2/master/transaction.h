@@ -55,6 +55,9 @@ public:
    int retrieve(int transid, Transaction& trans);
    int update(int transid);
 
+public:
+   int getTotalTrans();
+
 private:
    std::map<int, Transaction> m_mTransList;
    int m_iTransID;

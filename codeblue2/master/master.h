@@ -38,6 +38,7 @@ written by
 #include <vector>
 #include <ssltransport.h>
 #include <topology.h>
+#include <transaction.h>
 
 struct SysStat
 {
@@ -118,6 +119,8 @@ private:
    pthread_mutex_t m_MetaLock;
 
    SlaveList m_SlaveList;
+
+   TransManager m_TransManager;
 
    enum Status {INIT, RUNNING, STOPPED} m_Status;
 

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/19/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -159,4 +159,9 @@ int SlaveList::chooseIONode(std::set<Address, AddrComp>& loclist, const Address&
    }
 
    return chooseIONode(avail, client, io, sn);
+}
+
+int SlaveList::getTotalSlaves()
+{
+   return m_mSlaveList.size();
 }
