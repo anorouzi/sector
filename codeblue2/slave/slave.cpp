@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 
@@ -394,7 +394,7 @@ int Slave::createDir(const string& path)
    for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
    {
       currpath += *i;
-      if (1- ::mkdir(currpath.c_str(), S_IRWXU))
+      if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
          return -1;
       currpath += "/";
    }

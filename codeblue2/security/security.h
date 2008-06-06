@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 #ifndef __SECURITY_H__
@@ -127,24 +127,6 @@ private:
    SSLTransport m_SSL;
    ACL m_ACL;
    Shadow m_Shadow;
-};
-
-class SClient
-{
-public:
-   SClient() {}
-   ~SClient() {}
-
-public:
-   int init(const char* cert);
-   void close();
-
-   int connect(char* ip, int port);
-   int sendReq(const char* name, const char* password);
-   int recvRes(int32_t& code);
-
-private:
-   SSLTransport m_SSL;
 };
 
 #endif

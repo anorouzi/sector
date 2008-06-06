@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
 *****************************************************************************/
 
 
@@ -53,7 +53,8 @@ void* Slave::fileHandler(void* p)
       return NULL;
 
    //create a new directory in case it does not exist
-   self->createDir(sname.substr(0, sname.rfind('/')));
+   if (mode > 1)
+      self->createDir(sname.substr(0, sname.rfind('/')));
 
    cout << "connected\n";
 
@@ -260,7 +261,6 @@ void* Slave::copy(void* p)
    int port = 0;
    datachn.open(port);
 
-   // replicate is an exclusive operation
    int mode = 2;
 
    msg.setData(0, (char*)&port, 4);
