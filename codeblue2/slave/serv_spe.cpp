@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -102,14 +102,14 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
    // dynamically increase index buffer size
    while (m_vDataLen[bucketid] + dlen > m_vDataPhyLen[bucketid])
    {
-      char* tmp = new char[m_vDataPhyLen[bucketid] + 65536];
+      char* tmp = new char[m_vDataPhyLen[bucketid] + 16384];
       if (NULL != m_vData[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vData[bucketid], m_vDataLen[bucketid]);
          delete [] m_vData[bucketid];
       }
       m_vData[bucketid] = tmp;
-      m_vDataPhyLen[bucketid] += 65536;
+      m_vDataPhyLen[bucketid] += 16384;
    }
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
@@ -421,7 +421,10 @@ void* Slave::SPEShuffler(void* p)
          Transport* t = new Transport;
          int dataport = 0;
          int remoteport = *(int32_t*)(msg.getData() + 8);
-         t->open(dataport);
+         if (speip != self->m_strLocalHost)
+            t->open(dataport, true);
+         else
+            t->open(dataport, false);
 
          *(int32_t*)msg.getData() = dataport;
          msg.m_iDataLength = SectorMsg::m_iHdrSize + 4;
@@ -506,7 +509,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
       Transport datachn;
       int port = 0;
-      datachn.open(port);
+      datachn.open(port, true);
 
       msg.setData(0, (char*)&port, 4);
       int32_t mode = 1;
@@ -644,7 +647,10 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
          {
             Transport* t = new Transport;
             int dataport = 0;
-            t->open(dataport);
+            if (dstip != m_strLocalHost)
+               t->open(dataport, true);
+            else
+               t->open(dataport, false);
 
             msg.setData(8, (char*)&dataport, 4);
             msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;

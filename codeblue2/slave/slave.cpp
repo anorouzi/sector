@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
 *****************************************************************************/
 
 
@@ -107,6 +107,8 @@ int Slave::run()
 
    if (r < 0)
       return -1;
+
+   secconn.getLocalIP(m_strLocalHost);
 
    cout << "SEC CONN SET UP " << r << endl;
 
@@ -221,7 +223,7 @@ void* Slave::process(void* s)
 
             Transport* datachn = new Transport;
             int dataport = 0;
-            datachn->open(dataport);
+            datachn->open(dataport, true);
 
             Param2* p = new Param2;
             p->serv_instance = self;
@@ -283,7 +285,7 @@ void* Slave::process(void* s)
          {
             Transport* datachn = new Transport;
             int dataport = 0;
-            datachn->open(dataport);
+            datachn->open(dataport, true);
 
             Param4* p = new Param4;
             p->serv_instance = self;

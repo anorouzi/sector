@@ -6,6 +6,7 @@ using namespace std;
 int main()
 {
    system("nohup ./start_master > /dev/null &");
+   cout << "start master ...\n";
 
    ifstream ifs("slaves.list");
 
@@ -30,6 +31,8 @@ int main()
       addr = addr.substr(0, addr.find(' '));
 
       system((string("ssh ") + addr + " \"" + base + "/start_slave " + base + " &> /dev/null &\"").c_str());
+
+      cout << "start slave at " << addr << endl;
    }
 
    return 0;

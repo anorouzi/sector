@@ -203,7 +203,10 @@ int Master::run()
       {
          if (m_TransManager.getTotalTrans() > m_SlaveList.getTotalSlaves())
             break;
-         createReplica(*r);
+
+         // avoid replicate a file that is currently being replicated
+         if (m_sstrOnReplicate.find(*r) == m_sstrOnReplicate.end())
+            createReplica(*r);
       }
 
       sleep(60);
@@ -470,6 +473,9 @@ void* Master::process(void* s)
                pthread_mutex_lock(&self->m_MetaLock);
                nc = self->m_Metadata.update(path.c_str(), addr);
                pthread_mutex_unlock(&self->m_MetaLock);
+
+               if (nc > 0)
+                  self->m_sstrOnReplicate.erase(path);
             }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -484,9 +490,6 @@ void* Master::process(void* s)
             }
 
             self->m_TransManager.update(transid);
-
-            //if ((n > 0) && (n < self->m_SysConfig.m_iReplicaNum))
-            //   self->createReplica(path);
 
             break;
          }
@@ -899,12 +902,13 @@ int Master::createReplica(const string& path)
    msg.m_iDataLength = SectorMsg::m_iHdrSize + path.length() + 1;
    m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg);
 
+   m_sstrOnReplicate.insert(path);
+
    return 0;
 }
 
 int Master::removeReplica(const string& path)
 {
-
    return 0;
 }
 

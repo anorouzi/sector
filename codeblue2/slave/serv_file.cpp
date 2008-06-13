@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
 *****************************************************************************/
 
 
@@ -259,7 +259,7 @@ void* Slave::copy(void* p)
 
    Transport datachn;
    int port = 0;
-   datachn.open(port);
+   datachn.open(port, true);
 
    int mode = 2;
 

@@ -98,6 +98,8 @@ private:
    inline void reject(char* ip, int port, int id, int32_t code);
 
 private:
+   std::set<std::string> m_sstrOnReplicate;
+
    void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath, std::vector<std::string>& replica);
    int createReplica(const string& path);
    int removeReplica(const string& path);

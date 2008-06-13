@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
 *****************************************************************************/
 
 #include <unistd.h>
@@ -186,11 +186,11 @@ int SSLTransport::connect(const char* host, const int& port)
    X509* peer = SSL_get_peer_certificate(m_pSSL);
    char peer_CN[256];
    X509_NAME_get_text_by_NID(X509_get_subject_name(peer), NID_commonName, peer_CN, 256);
-   if (strcasecmp(peer_CN, host))
-   {
-      cerr << "server name does not match.\n";
-      return -1;
-   }
+   //if (strcasecmp(peer_CN, host))
+   //{
+   //   cerr << "server name does not match.\n";
+   //   return -1;
+   //}
 
    return 1;
 }
@@ -224,4 +224,19 @@ int SSLTransport::recv(char* data, const int& size)
       tr -= r;
    }
    return size;
+}
+
+int SSLTransport::getLocalIP(string& ip)
+{
+   sockaddr_in addr;
+   socklen_t size = sizeof(sockaddr_in);
+
+   if (getsockname(m_iSocket, (sockaddr*)&addr, &size) < 0)
+      return -1;
+
+   char tmp[64];
+
+   ip = inet_ntop(AF_INET, &(addr.sin_addr), tmp, 64);
+
+   return 1;
 }

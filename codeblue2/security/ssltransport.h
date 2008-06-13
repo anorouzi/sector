@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
 *****************************************************************************/
 
 #ifndef __SSL_TRANSPORT_H__
@@ -32,6 +32,7 @@ written by
 #include "openssl/bio.h"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
+#include <string>
 
 class SSLTransport
 {
@@ -55,6 +56,8 @@ public:
 
    int send(const char* data, const int& size);
    int recv(char* data, const int& size);
+
+   int getLocalIP(std::string& ip);
 
 private:
    SSL_CTX* m_pCTX;

@@ -6,6 +6,12 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
+   if (3 != argc)
+   {
+      cout << "usage: testfs <ip> <port>" << endl;
+      return 0;
+   }
+
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 
