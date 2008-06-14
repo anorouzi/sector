@@ -390,8 +390,6 @@ void* Slave::SPEShuffler(void* p)
 
       fileid.insert(bucket);
 
-      cout << "RECV BUCKET " << bucket << endl;
-
       char tmp[64];
       sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
       ofstream datafile(tmp, ios::app);
@@ -422,9 +420,9 @@ void* Slave::SPEShuffler(void* p)
          int dataport = 0;
          int remoteport = *(int32_t*)(msg.getData() + 8);
          if (speip != self->m_strLocalHost)
-            t->open(dataport, true);
+            t->open(dataport, true, true);
          else
-            t->open(dataport, false);
+            t->open(dataport, true, false);
 
          *(int32_t*)msg.getData() = dataport;
          msg.m_iDataLength = SectorMsg::m_iHdrSize + 4;
@@ -509,7 +507,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
       Transport datachn;
       int port = 0;
-      datachn.open(port, true);
+      datachn.open(port, true, true);
 
       msg.setData(0, (char*)&port, 4);
       int32_t mode = 1;
@@ -614,8 +612,6 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
          // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
          int i = r % buckets;
 
-         cout << "SEND RES " << i << " " << result.m_vDataLen[i] << endl;
-
          if (0 == result.m_vDataLen[i])
             continue;
 
@@ -648,9 +644,9 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
             Transport* t = new Transport;
             int dataport = 0;
             if (dstip != m_strLocalHost)
-               t->open(dataport, true);
+               t->open(dataport, true, true);
             else
-               t->open(dataport, false);
+               t->open(dataport, true, false);
 
             msg.setData(8, (char*)&dataport, 4);
             msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;

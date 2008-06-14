@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/14/2008
 *****************************************************************************/
 
 
@@ -223,7 +223,7 @@ void* Slave::process(void* s)
 
             Transport* datachn = new Transport;
             int dataport = 0;
-            datachn->open(dataport, true);
+            datachn->open(dataport, true, true);
 
             Param2* p = new Param2;
             p->serv_instance = self;
@@ -285,7 +285,7 @@ void* Slave::process(void* s)
          {
             Transport* datachn = new Transport;
             int dataport = 0;
-            datachn->open(dataport, true);
+            datachn->open(dataport, true, true);
 
             Param4* p = new Param4;
             p->serv_instance = self;
