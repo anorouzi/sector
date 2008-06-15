@@ -1143,18 +1143,16 @@ void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr, const UDPSOCKET* udpso
 {
    CGuard cg(m_ControlLock);
 
-   if (u->m_bReuseAddr)
+   if ((u->m_bReuseAddr) && (NULL != addr))
    {
-      int port = 0;
-      if (NULL != addr)
-         port = (AF_INET == u->m_iIPversion) ? ntohs(((sockaddr_in*)addr)->sin_port) : ntohs(((sockaddr_in6*)addr)->sin6_port);
+      int port = (AF_INET == u->m_iIPversion) ? ntohs(((sockaddr_in*)addr)->sin_port) : ntohs(((sockaddr_in6*)addr)->sin6_port);
 
       // find a reusable address
       for (vector<CMultiplexer>::iterator i = m_vMultiplexer.begin(); i != m_vMultiplexer.end(); ++ i)
       {
          if ((i->m_iIPversion == u->m_iIPversion) && (i->m_iMSS == u->m_iMSS) && i->m_bReusable)
          {
-            if ((0 == port) || (i->m_iPort == port))
+            if (i->m_iPort == port)
             {
                // reuse the existing multiplexer
                ++ i->m_iRefCount;

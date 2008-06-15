@@ -102,14 +102,14 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
    // dynamically increase index buffer size
    while (m_vDataLen[bucketid] + dlen > m_vDataPhyLen[bucketid])
    {
-      char* tmp = new char[m_vDataPhyLen[bucketid] + 16384];
+      char* tmp = new char[m_vDataPhyLen[bucketid] + 65536];
       if (NULL != m_vData[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vData[bucketid], m_vDataLen[bucketid]);
          delete [] m_vData[bucketid];
       }
       m_vData[bucketid] = tmp;
-      m_vDataPhyLen[bucketid] += 16384;
+      m_vDataPhyLen[bucketid] += 65536;
    }
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
@@ -374,7 +374,7 @@ void* Slave::SPEShuffler(void* p)
 
    // data channels
    map<Address, Transport*, AddrComp> DataChn;
-
+   int reuseport = 0;
    set<int> fileid;
 
    while (true)
@@ -417,12 +417,19 @@ void* Slave::SPEShuffler(void* p)
       else
       {
          Transport* t = new Transport;
-         int dataport = 0;
+         int dataport;
          int remoteport = *(int32_t*)(msg.getData() + 8);
-         if (speip != self->m_strLocalHost)
+	 if (speip != self->m_strLocalHost)
+         {
+            dataport = reuseport;
             t->open(dataport, true, true);
+            reuseport = dataport;
+         }
          else
+         {
+            dataport = 0;
             t->open(dataport, true, false);
+         }
 
          *(int32_t*)msg.getData() = dataport;
          msg.m_iDataLength = SectorMsg::m_iHdrSize + 4;
@@ -607,6 +614,8 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
       delete [] sarray;
       delete [] rarray;
 
+      int reuseport = 0;
+
       for (int r = speid; r < buckets + speid; ++ r)
       {
          // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
@@ -642,11 +651,18 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
          else
          {
             Transport* t = new Transport;
-            int dataport = 0;
+            int dataport;
             if (dstip != m_strLocalHost)
+            {
+               dataport = reuseport;
                t->open(dataport, true, true);
+               reuseport = dataport;
+            }
             else
-               t->open(dataport, true, false);
+            {
+               dataport = 0;
+               t->open(dataport, true, true);
+            }
 
             msg.setData(8, (char*)&dataport, 4);
             msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
