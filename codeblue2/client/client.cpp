@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/17/2008
 *****************************************************************************/
 
 
@@ -81,8 +81,6 @@ int Client::login(const string& username, const string& password)
    if (r < 0)
       return -1;
 
-   cout << "SEC CONN SET UP " << r << endl;
-
    int cmd = 2;
    secconn.send((char*)&cmd, 4);
 
@@ -95,8 +93,6 @@ int Client::login(const string& username, const string& password)
    int32_t port = m_GMP.getPort();
    secconn.send((char*)&port, 4);
    secconn.recv((char*)&m_iKey, 4);
-
-   cout << "RECV RES " << m_iKey << endl;
 
    secconn.close();
    SSLTransport::destroy();
@@ -136,8 +132,6 @@ int Client::list(const string& path, vector<SNode>& attr)
    msg.setType(101);
    msg.setKey(m_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
-
-   cout << "LS " << m_strServerIP << " " <<  m_iServerPort << endl;
 
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
