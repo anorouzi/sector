@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/14/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/17/2008
 *****************************************************************************/
 
 
@@ -47,7 +47,7 @@ Slave::~Slave()
 int Slave::init(const char* base)
 {
    if (NULL != base)
-     m_strBase = base;
+      m_strBase = base;
 
    string conf = m_strBase + "/slave.conf";
 
@@ -60,7 +60,10 @@ int Slave::init(const char* base)
    m_strMasterHost = m_SysConfig.m_strMasterHost;
    struct hostent* masterip = gethostbyname(m_strMasterHost.c_str());
    if (NULL == masterip)
+   {
+      cerr << "incorect master address\n";
       return -1;
+   }
    char buf[64];
    m_strMasterIP = inet_ntop(AF_INET, masterip->h_addr_list[0], buf, 64);
    m_iMasterPort = m_SysConfig.m_iMasterPort;
@@ -98,7 +101,7 @@ int Slave::run()
    // join the server
    SSLTransport::init();
 
-   string cert = m_strBase += "/master_node.cert";
+   string cert = m_strBase + "/master_node.cert";
 
    SSLTransport secconn;
    secconn.initClientCTX(cert.c_str());
@@ -106,7 +109,10 @@ int Slave::run()
    int r = secconn.connect(m_strMasterHost.c_str(), m_iMasterPort);
 
    if (r < 0)
+   {
+      cerr << "unable to set up secure channel to the master\n";
       return -1;
+   }
 
    secconn.getLocalIP(m_strLocalHost);
 
@@ -193,6 +199,13 @@ void* Slave::process(void* s)
          case 3: // stop
          {
             // stop the slave node
+            break;
+         }
+
+         case 103: // mkdir
+         {
+            self->createDir(msg->getData());
+            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 

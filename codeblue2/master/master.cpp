@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/17/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -579,6 +579,27 @@ void* Master::process(void* s)
                self->reject(ip, port, id, -1);
                break;
             }
+
+            SNode attr;
+            if (self->m_Metadata.lookup(msg->getData(), attr) >= 0)
+            {
+               // directory already exist
+               self->reject(ip, port, id, -2);
+               break;
+            }
+
+            Address client;
+            client.m_strIP = ip;
+            client.m_iPort = port;
+            set<int> empty;
+            SlaveNode sn;
+            if (self->m_SlaveList.chooseIONode(empty, client, rwx, sn) < 0)
+            {
+               self->reject(ip, port, id, -1);
+               break;
+            }
+
+            self->m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, msg, msg);
 
             pthread_mutex_lock(&self->m_MetaLock);
             self->m_Metadata.create(msg->getData(), true);

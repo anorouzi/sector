@@ -9,9 +9,9 @@ int main(int argc, char** argv)
    int res;
 
    if (argc > 1)
-      s.init(argv[1]);
+      res = s.init(argv[1]);
    else
-      s.init();
+      res = s.init();
 
    if (res < 0)
    {
