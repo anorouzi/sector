@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/17/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/21/2008
 *****************************************************************************/
 
 
@@ -136,6 +136,9 @@ int Client::list(const string& path, vector<SNode>& attr)
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
 
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
    string filelist = msg.getData();
 
    unsigned int s = 0;
@@ -165,7 +168,7 @@ int Client::stat(const string& path, SNode& attr)
       return -1;
 
    if (msg.getType() < 0)
-      return -1;
+      return *(int32_t*)(msg.getData());
 
    attr.deserialize(msg.getData());
 
@@ -196,7 +199,7 @@ int Client::mkdir(const string& path)
       return -1;
 
    if (msg.getType() < 0)
-      return -1;
+      return *(int32_t*)(msg.getData());
 
    return 1;
 }
@@ -214,7 +217,7 @@ int Client::move(const string& oldpath, const string& newpath)
       return -1;
 
    if (msg.getType() < 0)
-      return -1;
+      return *(int32_t*)(msg.getData());
 
    return 1;
 }
@@ -232,7 +235,7 @@ int Client::remove(const string& path)
       return -1;
 
    if (msg.getType() < 0)
-      return -1;
+      return *(int32_t*)(msg.getData());
 
    return 1;
 }

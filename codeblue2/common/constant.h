@@ -32,6 +32,15 @@ written by
 enum IOMODE {READ = 1, WRITE = 2, EXEC = 4};
 
 // ERROR codes
-const int E... = -1;
+struct SectorError
+{
+   static const int E_UNKNOWN = -1;		// unknown error
+   static const int E_PERMISSION = -1001;	// no permission for IO
+   static const int E_EXIST = -1002;		// file/dir already exist
+   static const int E_NOEXIST = -1003;		// file/dir not found
+   static const int E_BUSY = -1004;		// file busy
+   static const int E_SECURITY = -2000;		// security check failed
+   static const int E_RESOURCE = -3000;		// no available resources
+};
 
 #endif

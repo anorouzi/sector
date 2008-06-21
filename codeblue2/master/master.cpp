@@ -30,6 +30,7 @@ written by
 #include <ssltransport.h>
 #include "master.h"
 #include <dirent.h>
+#include <constant.h>
 #include <iostream>
 #include <stack>
 
@@ -421,7 +422,7 @@ void* Master::process(void* s)
       map<int, ActiveUser>::iterator i = self->m_mActiveUser.find(key);
       if (i == self->m_mActiveUser.end())
       {
-         self->reject(ip, port, id, -1);
+         self->reject(ip, port, id, SectorError::E_SECURITY);
          continue;
       }
 
@@ -431,7 +432,7 @@ void* Master::process(void* s)
       {
          if ((user->m_strIP != ip) || (user->m_iPort != port))
          {
-            self->reject(ip, port, id, -1);
+            self->reject(ip, port, id, SectorError::E_SECURITY);
             continue;
          }
       }
@@ -442,13 +443,13 @@ void* Master::process(void* s)
          addr.m_iPort = port;
          if (self->m_SlaveList.m_mAddrList.end() == self->m_SlaveList.m_mAddrList.find(addr))
          {
-            self->reject(ip, port, id, -1);
+            self->reject(ip, port, id, SectorError::E_SECURITY);
             continue;
          }
       }
       else
       {
-         self->reject(ip, port, id, -1);
+         self->reject(ip, port, id, SectorError::E_SECURITY);
          continue;
       }
 
@@ -508,7 +509,7 @@ void* Master::process(void* s)
             int rwx = 1;
             if (!user->match(msg->getData(), rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -538,7 +539,7 @@ void* Master::process(void* s)
             int rwx = 1;
             if (!user->match(msg->getData(), rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -576,7 +577,7 @@ void* Master::process(void* s)
             int rwx = 2;
             if (!user->match(msg->getData(), rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -584,7 +585,7 @@ void* Master::process(void* s)
             if (self->m_Metadata.lookup(msg->getData(), attr) >= 0)
             {
                // directory already exist
-               self->reject(ip, port, id, -2);
+               self->reject(ip, port, id, SectorError::E_EXIST);
                break;
             }
 
@@ -595,7 +596,7 @@ void* Master::process(void* s)
             SlaveNode sn;
             if (self->m_SlaveList.chooseIONode(empty, client, rwx, sn) < 0)
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_RESOURCE);
                break;
             }
 
@@ -614,7 +615,7 @@ void* Master::process(void* s)
             int rwx = 2;
             if (!user->match(msg->getData(), rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -628,7 +629,7 @@ void* Master::process(void* s)
             int rwx = 2;
             if (!user->match(msg->getData(), rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -674,7 +675,7 @@ void* Master::process(void* s)
             int rwx = mode;
             if (!user->match(path, rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -692,7 +693,7 @@ void* Master::process(void* s)
                // file does not exist
                if (mode == 1)
                {
-                  self->reject(ip, port, id, -1);
+                  self->reject(ip, port, id, SectorError::E_NOEXIST);
                   break;
                }
 
@@ -708,7 +709,7 @@ void* Master::process(void* s)
                set<int> empty;
                if (self->m_SlaveList.chooseIONode(empty, client, rwx, sn) < 0)
                {
-                  self->reject(ip, port, id, -1);
+                  self->reject(ip, port, id, SectorError::E_RESOURCE);
                   break;
                }
 
@@ -731,7 +732,7 @@ void* Master::process(void* s)
                pthread_mutex_unlock(&self->m_MetaLock);
                if (r < 0)
                {
-                  self->reject(ip, port, id, -2);
+                  self->reject(ip, port, id, SectorError::E_BUSY);
                   break;
                }
             }
@@ -765,7 +766,7 @@ void* Master::process(void* s)
             int rwx = 4;
             if (!user->match("", rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -798,7 +799,7 @@ void* Master::process(void* s)
             int rwx = 4;
             if (!user->match("", rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -820,7 +821,7 @@ void* Master::process(void* s)
             int rwx = 4;
             if (!user->match("", rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -843,7 +844,7 @@ void* Master::process(void* s)
             int rwx = 4;
             if (!user->match("", rwx))
             {
-               self->reject(ip, port, id, -1);
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
             }
 
@@ -863,7 +864,7 @@ void* Master::process(void* s)
 
          default:
          {
-            self->reject(ip, port, id, -1);
+            self->reject(ip, port, id, SectorError::E_UNKNOWN);
             break;
          }
       }

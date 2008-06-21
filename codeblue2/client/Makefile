@@ -9,7 +9,7 @@ endif
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload ls rm mkdir
+all: libclient.so libclient.a testfs testdc download upload ls rm mkdir sectorfs
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -41,8 +41,11 @@ rm: rm.cpp
 mkdir: mkdir.cpp
 	$(C++) mkdir.cpp -o mkdir $(CCFLAGS) $(LDFLAGS)
 
+sectorfs: sectorfs.cpp
+	$(C++) sectorfs.cpp -o sectorfs $(CCFLAGS) $(LDFLAGS)
+
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir
+	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sectorfs
 
 install:
 	mv libclient.so libclient.a ../lib
