@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/17/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/23/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -202,7 +202,7 @@ int Master::run()
       pthread_mutex_unlock(&m_MetaLock);
       for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
       {
-         if (m_TransManager.getTotalTrans() > m_SlaveList.getTotalSlaves())
+         if ((m_TransManager.getTotalTrans() >= m_SlaveList.getTotalSlaves()) || (m_sstrOnReplicate.size() >= m_SlaveList.getTotalSlaves()))
             break;
 
          // avoid replicate a file that is currently being replicated
