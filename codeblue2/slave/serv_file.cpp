@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/14/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
 *****************************************************************************/
 
 
@@ -261,7 +261,7 @@ void* Slave::copy(void* p)
    int port = 0;
    datachn.open(port, true, true);
 
-   int mode = 2;
+   int mode = 3;
 
    msg.setData(0, (char*)&port, 4);
    msg.setData(4, (char*)&mode, 4);
@@ -302,6 +302,11 @@ void* Slave::copy(void* p)
       unlink((self->m_strHomeDir + ".tmp" + filename).c_str());
 
    ofs.close();
+
+   cmd = 5;
+   datachn.send((char*)&cmd, 4);
+   datachn.recv((char*)&cmd, 4);
+   datachn.close();
 
    //utime: update timestamp according to the original copy
 

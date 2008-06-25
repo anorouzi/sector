@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -134,6 +134,7 @@ int Master::init()
    au.m_strName = "slave";
    au.m_iKey = 0;
    au.m_vstrReadList.insert(au.m_vstrReadList.begin(), "/");
+   au.m_vstrWriteList.insert(au.m_vstrWriteList.begin(), "/");
    m_mActiveUser[au.m_iKey] = au;
 
    // running...
@@ -160,8 +161,13 @@ int Master::run()
 {
    while (m_Status == RUNNING)
    {
+      sleep(60);
+
       // check each slave node
       // if probe fails, remove the metadata about the data on the node, and create new replicas
+
+      vector<int> tbrid;
+      vector<SlaveAddr> tbsaddr;
 
       for (map<int, SlaveNode>::iterator i = m_SlaveList.m_mSlaveList.begin(); i != m_SlaveList.m_mSlaveList.end(); ++ i)
       {
@@ -177,6 +183,10 @@ int Master::run()
          {
             cout << "detect slave drop " << i->second.m_strIP << endl;
 
+            // to be removed
+            tbrid.insert(tbrid.end(), i->first);
+
+            // remove the data in that 
             Address addr;
             addr.m_strIP = i->second.m_strIP;
             addr.m_iPort = i->second.m_iPort;
@@ -184,15 +194,32 @@ int Master::run()
             m_Metadata.substract(m_Metadata.m_mDirectory, addr);
             pthread_mutex_unlock(&m_MetaLock);
 
+            // to be restarted
             map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);
             if (sa != m_mSlaveAddrRec.end())
-            {
-                cout << "restart slave ... " << endl;
-                // kill and restart the slave
-                system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
-                system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
-            }
+               tbsaddr.insert(tbsaddr.end(), sa->second);
          }
+      }
+
+      // remove from slave list
+      for (vector<int>::iterator i = tbrid.begin(); i != tbrid.end(); ++ i)
+      {
+         m_SlaveList.remove(*i);
+      }
+
+      // restart dead slaves
+      if (tbsaddr.size() > 0)
+      {
+         for (vector<SlaveAddr>::iterator i = tbsaddr.begin(); i != tbsaddr.end(); ++ i)
+         {
+             cout << "restart slave ... " << endl;
+             // kill and restart the slave
+             system((string("ssh ") + i->m_strAddr + " killall -9 start_slave").c_str());
+             system((string("ssh ") + i->m_strAddr + " \"" + i->m_strBase + "/start_slave " + i->m_strBase + " &> /dev/null &\"").c_str());
+         }
+
+         // do not check replicas at this time because files on the restarted slave have not been counted yet
+         continue;
       }
 
       // check replica, create or remove replicas if necessary
@@ -209,8 +236,6 @@ int Master::run()
          if (m_sstrOnReplicate.find(*r) == m_sstrOnReplicate.end())
             createReplica(*r);
       }
-
-      sleep(60);
    }
 
    return 1;
@@ -476,7 +501,11 @@ void* Master::process(void* s)
                pthread_mutex_unlock(&self->m_MetaLock);
 
                if (nc > 0)
-                  self->m_sstrOnReplicate.erase(path);
+               {
+                  SNode attr;
+                  attr.deserialize(path.c_str());
+                  self->m_sstrOnReplicate.erase(attr.m_strName);
+               }
             }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -922,7 +951,12 @@ int Master::createReplica(const string& path)
    msg.setType(111);
    msg.setData(0, path.c_str(), path.length() + 1);
    msg.m_iDataLength = SectorMsg::m_iHdrSize + path.length() + 1;
-   m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg);
+
+   if (m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0)
+      return -1;
+
+   if (msg.getData() < 0)
+      return -1;
 
    m_sstrOnReplicate.insert(path);
 
