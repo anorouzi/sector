@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/21/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
 *****************************************************************************/
 
 
@@ -56,7 +56,10 @@ int Client::init(const string& server, const int& port)
 
    struct hostent* serverip = gethostbyname(server.c_str());
    if (NULL == serverip)
+   {
+      cerr << "incorrect host name.\n";
       return -1;
+   }
 
    m_strServerHost = server;
    char buf[64];
@@ -76,10 +79,12 @@ int Client::login(const string& username, const string& password)
    SSLTransport secconn;
    secconn.initClientCTX("master_node.cert");
    secconn.open(NULL, 0);
-   int r = secconn.connect(m_strServerHost.c_str(), m_iServerPort);
 
-   if (r < 0)
+   if (secconn.connect(m_strServerHost.c_str(), m_iServerPort) < 0)
+   {
+      cerr << "cannot set up secure connection to the master.\n";
       return -1;
+   }
 
    int cmd = 2;
    secconn.send((char*)&cmd, 4);

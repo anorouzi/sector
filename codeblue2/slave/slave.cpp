@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/17/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
 *****************************************************************************/
 
 
@@ -110,29 +110,28 @@ int Slave::run()
 
    if (r < 0)
    {
-      cerr << "unable to set up secure channel to the master\n";
+      cerr << "unable to set up secure channel to the master.\n";
       return -1;
    }
 
    secconn.getLocalIP(m_strLocalHost);
-
-   cout << "SEC CONN SET UP " << r << endl;
 
    int cmd = 1;
    secconn.send((char*)&cmd, 4);
    int res = -1;
    secconn.recv((char*)&res, 4);
 
-   cout << "RECV RES " << res << endl;
+   if (res < 0)
+   {
+      cerr << "slave node not in security ACL.\n";
+      return -1;
+   }
 
-   if (res > 0)
-      secconn.send((char*)&m_iLocalPort, 4);
+   secconn.send((char*)&m_iLocalPort, 4);
 
    struct stat s;
    stat((m_strHomeDir + ".metadata/metadata.txt").c_str(), &s);
    int32_t size = s.st_size;
-
-   cout << "meta size " << size << endl;
 
    ifstream meta((m_strHomeDir + ".metadata/metadata.txt").c_str());
    char* buf = new char[size];
@@ -150,9 +149,6 @@ int Slave::run()
 
    secconn.close();
    SSLTransport::destroy();
-
-   if (res < 0)
-      return res;
 
    while (true)
    {
