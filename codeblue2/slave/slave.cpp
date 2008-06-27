@@ -123,7 +123,7 @@ int Slave::run()
 
    if (res < 0)
    {
-      cerr << "slave node not in security ACL.\n";
+      cerr << "security check failed.\n";
       return -1;
    }
 
@@ -419,8 +419,20 @@ int Slave::createSysDir()
    DIR* test = opendir(m_strHomeDir.c_str());
    if (NULL == test)
    {
-      if ((errno != ENOENT) || (createDir(m_strHomeDir) < 0))
+      if (errno != ENOENT)
          return -1;
+
+      vector<string> dir;
+      Index::parsePath(m_strHomeDir.c_str(), dir);
+
+      string currpath = "/";
+      for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
+      {
+         currpath += *i;
+         if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
+            return -1;
+         currpath += "/";
+      }
    }
    closedir(test);
 

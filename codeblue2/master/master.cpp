@@ -112,7 +112,10 @@ int Master::init()
    if (NULL == test)
    {
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
-         return -4;
+      {
+         cerr << "unable to create home directory.\n";
+         return -1;
+      }
    }
    closedir(test);
 
@@ -120,7 +123,10 @@ int Master::init()
    if (NULL == test)
    {
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0))
-         return -4;
+      {
+         cerr << "unable to create home directory.\n";
+         return -1;
+      }
    }
    closedir(test);
 
@@ -147,7 +153,10 @@ int Master::init()
 
    // start GMP
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
-      return -5;
+   {
+      cerr << "cannot initialize GMP.\n";
+      return -1;
+   }
 
    // start management/process thread
    pthread_t msgserver;
@@ -221,7 +230,7 @@ int Master::run()
          // do not check replicas at this time because files on the restarted slave have not been counted yet
          continue;
       }
-
+/*
       // check replica, create or remove replicas if necessary
       vector<string> replica;
       pthread_mutex_lock(&m_MetaLock);
@@ -236,6 +245,7 @@ int Master::run()
          if (m_sstrOnReplicate.find(*r) == m_sstrOnReplicate.end())
             createReplica(*r);
       }
+*/
    }
 
    return 1;
@@ -351,6 +361,12 @@ void* Master::serviceEx(void* p)
             s->recv((char*)&(sn.m_iClusterID), 4);
 
             self->m_SlaveList.insert(sn);
+
+            cout << "slave join " << ip << endl;
+         }
+         else
+         {
+            cout << "slave join failed " << ip << endl;
          }
 
          break;
@@ -413,6 +429,12 @@ void* Master::serviceEx(void* p)
             }
 
             self->m_mActiveUser[au.m_iKey] = au;
+
+            cout << "user login " << user << endl;
+         }
+         else
+         {
+            cout << "user login failed " << user << endl;
          }
 
          s->send((char*)&key, 4);

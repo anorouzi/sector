@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
 *****************************************************************************/
 
 
@@ -40,6 +40,7 @@ int Client::m_iServerPort = 0;
 CGMP Client::m_GMP;
 int32_t Client::m_iKey = 0;
 int Client::m_iCount = 0;
+int Client::m_iReusePort = 0;
 
 Client::Client()
 {

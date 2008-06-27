@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
 *****************************************************************************/
 
 
@@ -154,10 +154,12 @@ int Index::create(const char* path, bool isdir)
       {
          SNode n;
          n.m_strName = *d;
-         n.m_bIsDir = false;
+         n.m_bIsDir = true;
+         n.m_llTimeStamp = 0;
+         n.m_llSize = 0;
          n.m_iReadLock = n.m_iWriteLock = 0;
          (*currdir)[*d] = n;
-         s = currdir->find(*d);;
+         s = currdir->find(*d);
 
          found = false;
       }
@@ -274,11 +276,16 @@ int Index::update(const char* fileinfo, const Address& loc)
       {
          SNode n;
          n.m_strName = *d;
-         n.m_bIsDir = false;
+         n.m_bIsDir = true;
+         n.m_llTimeStamp = sn.m_llTimeStamp;
+         n.m_llSize = 0;
          n.m_iReadLock = n.m_iWriteLock = 0;
          (*currdir)[*d] = n;
          s = currdir->find(*d);;
       }
+
+      s->second.m_llTimeStamp = sn.m_llTimeStamp;
+
       currdir = &(s->second.m_mDirectory);
    }
 
@@ -291,11 +298,11 @@ int Index::update(const char* fileinfo, const Address& loc)
    else
    {
       // check size/timestamp, reject name conflicts
-      if (s->second.m_llSize != sn.m_llSize)
-         return -1;
+      //if (s->second.m_llSize != sn.m_llSize)
+      //   ... check number of replicas here
 
-      //s->second.m_llSize = sn.m_llSize;
-      //s->second.m_llTimeStamp = sn.m_llTimeStamp;
+      s->second.m_llSize = sn.m_llSize;
+      s->second.m_llTimeStamp = sn.m_llTimeStamp;
       s->second.m_sLocation.insert(loc);
       return s->second.m_sLocation.size() - 1;
    }

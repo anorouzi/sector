@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
 *****************************************************************************/
 
 
@@ -40,8 +40,9 @@ int SectorFile::open(const string& filename, const int& mode)
    msg.setType(110); // open the file
    msg.setKey(m_iKey);
 
-   int port = 0;
-   m_DataChn.open(port);
+   int port = m_iReusePort;
+   m_DataChn.open(port, true, true);
+   m_iReusePort = port;
 
    msg.setData(0, (char*)&port, 4);
    msg.setData(4, (char*)&mode, 4);

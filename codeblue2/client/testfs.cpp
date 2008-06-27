@@ -15,9 +15,8 @@ int main(int argc, char** argv)
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 
+   Sector::remove("test");
    Sector::mkdir("test");
-   Sector::remove("test/guide.dat");
-   Sector::remove("test/guide.dat.idx");
 
    const int fn = 1;
 
@@ -89,7 +88,6 @@ int main(int argc, char** argv)
 
          if (myproc.checkProgress() == 100)
             break;
-         continue;
       }
    }
 

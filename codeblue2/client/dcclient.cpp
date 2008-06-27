@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/24/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -189,25 +189,27 @@ int SphereProcess::loadOperator(const char* library)
 {
    struct stat st;
    if (::stat(library, &st) < 0)
+   {
+      cerr << "loadOperator: no library found.\n";
       return -1;
+   }
 
    int size = st.st_size;
 
    ifstream lib;
    lib.open(library, ios::binary);
    if (lib.bad())
+   {
+      cerr << "loadOperator: bad file.\n";
       return -1;
+   }
 
    char* buf = new char[size];
    lib.read(buf, size);
    lib.close();
 
    vector<string> dir;
-   if (Index::parsePath(library, dir) < 0)
-   {
-      delete [] buf;
-      return 0;
-   }
+   Index::parsePath(library, dir);
 
    SectorMsg msg;
    msg.setType(201);
@@ -223,7 +225,10 @@ int SphereProcess::loadOperator(const char* library)
    int r = m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg);
 
    if ((r < 0) || (msg.getType() < 0))
+   {
+      cerr << "loadOpterator: failed.\n";
       return -1;
+   }
 
    return 0;
 }
@@ -253,18 +258,27 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
    if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+   {
+      cerr << "unable to locate any SPE.\n";
       return -1;
+   }
 
    m_iSPENum = (msg.m_iDataLength - 4) / 68;
    if (0 == m_iSPENum)
+   {
+      cerr << "no available SPE found.\n";
       return -1;
+   }
 
    cout << m_iSPENum << " SPE found" << endl;
 
    prepareSPE(msg.getData());
 
    if (segmentData() <= 0)
+   {
+      cerr << "data segmentation error.\n";
       return -1;
+   }
 
    if (m_iOutputType == -1)
       m_pOutput->init(m_vpDS.size());
@@ -521,8 +535,9 @@ int SphereProcess::prepareSPE(const char* spenodes)
          spe.m_strIP = spenodes + i * 68;
          spe.m_iPort = *(int32_t*)(spenodes + i * 68 + 64);
 
-         int port = 0;
-         spe.m_DataChn.open(port);
+         int port = m_iReusePort;
+         spe.m_DataChn.open(port, true, true);
+         m_iReusePort = port;
 
          SectorMsg msg;
          msg.setType(203); // start processing engine

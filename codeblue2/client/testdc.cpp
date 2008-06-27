@@ -34,7 +34,7 @@ int main(int argc, char** argv)
    }
 
    SphereStream temp;
-   temp.setOutputPath("test", "stream_sort_bucket");
+   temp.setOutputPath("test/sorted", "stream_sort_bucket");
    temp.init(rn);
 
    SphereProcess myproc;
@@ -52,6 +52,9 @@ int main(int argc, char** argv)
       return -1;
    }
 
+   timeval t1, t2;
+   gettimeofday(&t1, 0);
+   t2 = t1;
    while (true)
    {
       SphereResult* res;
@@ -66,7 +69,13 @@ int main(int argc, char** argv)
 
          if (myproc.checkProgress() == 100)
             break;
-         continue;
+      }
+
+      gettimeofday(&t2, 0);
+      if (t2.tv_sec - t1.tv_sec > 60)
+      {
+         cout << "PROGRESS: " << myproc.checkProgress() << endl;
+         t1 = t2;
       }
    }
 
@@ -82,6 +91,8 @@ int main(int argc, char** argv)
       return -1;
    }
 
+   gettimeofday(&t1, 0);
+   t2 = t1;
    while (true)
    {
       SphereResult* res;
@@ -96,7 +107,13 @@ int main(int argc, char** argv)
 
          if (myproc.checkProgress() == 100)
             break;
-         continue;
+      }
+
+      gettimeofday(&t2, 0);
+      if (t2.tv_sec - t1.tv_sec > 60)
+      {
+         cout << "PROGRESS: " << myproc.checkProgress() << endl;
+         t1 = t2;
       }
    }
 
