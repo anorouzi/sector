@@ -74,7 +74,7 @@ int main(int argc, char** argv)
       gettimeofday(&t2, 0);
       if (t2.tv_sec - t1.tv_sec > 60)
       {
-         cout << "PROGRESS: " << myproc.checkProgress() << endl;
+         cout << "PROGRESS: " << myproc.checkProgress() << "%" << endl;
          t1 = t2;
       }
    }
@@ -112,7 +112,7 @@ int main(int argc, char** argv)
       gettimeofday(&t2, 0);
       if (t2.tv_sec - t1.tv_sec > 60)
       {
-         cout << "PROGRESS: " << myproc.checkProgress() << endl;
+         cout << "PROGRESS: " << myproc.checkProgress() << "%" << endl;
          t1 = t2;
       }
    }

@@ -53,7 +53,7 @@ int SectorFile::open(const string& filename, const int& mode)
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
    if (msg.getType() < 0)
-      return -1;
+      return *(int32_t*)(msg.getData());
 
    cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
 
