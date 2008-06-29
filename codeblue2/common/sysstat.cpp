@@ -32,9 +32,11 @@ written by
 
 using namespace std;
 
+const int SysStat::g_iSize = 40;
+
 int SysStat::serialize(char* buf, int& size)
 {
-   if (size < m_iSize)
+   if (size < g_iSize)
       return -1;
 
    *(int64_t*)buf = m_llStartTime;
@@ -50,7 +52,7 @@ int SysStat::serialize(char* buf, int& size)
 
 int SysStat::deserialize(char* buf, const int& size)
 {
-   if (size < m_iSize)
+   if (size < g_iSize)
       return -1;
 
    m_llStartTime = *(int64_t*)buf;

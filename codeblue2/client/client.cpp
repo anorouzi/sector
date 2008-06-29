@@ -267,7 +267,7 @@ int Client::sysinfo(SysStat& sys)
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
-   sys.deserialize(msg.getData(), SysStat::m_iSize);
+   sys.deserialize(msg.getData(), SysStat::g_iSize);
 
    return 0;
 }

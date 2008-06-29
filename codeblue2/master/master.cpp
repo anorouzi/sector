@@ -559,8 +559,8 @@ void* Master::process(void* s)
 
          case 3: // stat
          {
-            char* buf = new char[SysStat::m_iSize];
-            int size = SysStat::m_iSize;
+            char* buf = new char[SysStat::g_iSize];
+            int size = SysStat::g_iSize;
             self->m_SysStat.serialize(buf, size);
 
             msg->setData(0, buf, size);

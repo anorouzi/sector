@@ -51,7 +51,7 @@ public:
    void print();
 
 public:
-   static const int m_iSize = 40;
+   static const int g_iSize;
 };
 
 #endif

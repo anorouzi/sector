@@ -14,7 +14,7 @@ int main(int argc, char** argv)
    Sector::init(argv[1], atoi(argv[2]));
 
    char password[128];
-   cout << "Please input password for root user:";
+   cout << "Please input password for root user: ";
    cin >> password;
    if (Sector::login("root", password) < 0)
    {
