@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/28/2008
 *****************************************************************************/
 
 
@@ -33,19 +33,13 @@ written by
 #include <gmp.h>
 #include <transport.h>
 #include <log.h>
+#include <sysstat.h>
 #include <conf.h>
 #include <index.h>
 #include <vector>
 #include <ssltransport.h>
 #include <topology.h>
 #include <transaction.h>
-
-struct SysStat
-{
-   int64_t m_llTotalDiskSpace;
-   int64_t m_llTotalUsedSpace;
-   int64_t m_llTotalSlaves;
-};
 
 class ActiveUser
 {
@@ -113,6 +107,7 @@ private:
 
    CAccessLog m_AccessLog;
    CPerfLog m_PerfLog;
+   SysStat m_SysStat;
 
    int m_iMaxActiveUser;
    std::map<int, ActiveUser> m_mActiveUser;

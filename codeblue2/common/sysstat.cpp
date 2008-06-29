@@ -26,52 +26,49 @@ written by
    Yunhong Gu [gu@lac.uic.edu], last updated 06/28/2008
 *****************************************************************************/
 
+#include "sysstat.h"
+#include <time.h>
+#include <iostream>
 
-#ifndef __SECTOR_CLIENT_H__
-#define __SECTOR_CLIENT_H__
+using namespace std;
 
-#include <gmp.h>
-#include <index.h>
-#include <sysstat.h>
-
-class Client
+int SysStat::serialize(char* buf, int& size)
 {
-public:
-   Client();
-   virtual ~Client();
+   if (size < m_iSize)
+      return -1;
 
-public:
-   static int init(const string& server, const int& port);
-   static int login(const string& username, const string& password);
-   static void logout();
-   static int close();
+   *(int64_t*)buf = m_llStartTime;
+   *(int64_t*)(buf + 8) = m_llTotalDiskSpace;
+   *(int64_t*)(buf + 16) = m_llTotalUsedSpace;
+   *(int64_t*)(buf + 24) = m_llTotalFileNum;
+   *(int64_t*)(buf + 32) = m_llTotalSlaves;
 
-   static int list(const string& path, vector<SNode>& attr);
-   static int stat(const string& path, SNode& attr);
+   size = 40;
 
-   static int mkdir(const string& path);
-   static int move(const string& oldpath, const string& newpath);
-   static int remove(const string& path);
+   return 0;
+}
 
-   static int sysinfo(SysStat& sys);
+int SysStat::deserialize(char* buf, const int& size)
+{
+   if (size < m_iSize)
+      return -1;
 
-protected:
-   static string revisePath(const string& path);
+   m_llStartTime = *(int64_t*)buf;
+   m_llTotalDiskSpace = *(int64_t*)(buf + 8);
+   m_llTotalUsedSpace = *(int64_t*)(buf + 16);
+   m_llTotalFileNum = *(int64_t*)(buf + 24);
+   m_llTotalSlaves = *(int64_t*)(buf + 32);
 
-protected:
-   static string m_strServerHost;
-   static string m_strServerIP;
-   static int m_iServerPort;
-   static CGMP m_GMP;
-   static int32_t m_iKey;
+   return 0;
+}
 
-private:
-   static int m_iCount;
-
-protected:
-   static int m_iReusePort;
-};
-
-typedef Client Sector;
-
-#endif
+void SysStat::print()
+{
+   cout << "Sector System Information:" << endl;
+   time_t st = m_llStartTime;
+   cout << "Running since " << ctime(&st);
+   cout << "Total Disk Size " << m_llTotalDiskSpace << endl;
+   cout << "Total File Size " << m_llTotalUsedSpace << endl;
+   cout << "Total Number of Files " << m_llTotalFileNum << endl;
+   cout << "Total Number of Slave Nodes " << m_llTotalSlaves << endl;
+}

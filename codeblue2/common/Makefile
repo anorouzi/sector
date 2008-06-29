@@ -3,7 +3,7 @@ include ../Makefile.common
 CCFLAGS +=
 LDFLAGS +=
 
-OBJS = conf.o index.o log.o
+OBJS = conf.o index.o log.o sysstat.o
 
 all: libcommon.so libcommon.a
 

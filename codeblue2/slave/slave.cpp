@@ -150,6 +150,8 @@ int Slave::run()
    secconn.close();
    SSLTransport::destroy();
 
+   cout << "Slave initialized. Running.\n";
+
    while (true)
    {
       // send keep alive to server

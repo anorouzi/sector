@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -252,4 +252,22 @@ string Client::revisePath(const string& path)
       return "/" + path;
 
    return path;
+}
+
+int Client::sysinfo(SysStat& sys)
+{
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(3);
+   msg.m_iDataLength = SectorMsg::m_iHdrSize;
+
+   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+      return -1;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   sys.deserialize(msg.getData(), SysStat::m_iSize);
+
+   return 0;
 }

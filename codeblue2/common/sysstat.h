@@ -27,51 +27,31 @@ written by
 *****************************************************************************/
 
 
-#ifndef __SECTOR_CLIENT_H__
-#define __SECTOR_CLIENT_H__
+#ifndef __SECTOR_SYSSTAT_H__
+#define __SECTOR_SYSSTAT_H__
 
-#include <gmp.h>
-#include <index.h>
-#include <sysstat.h>
+#include <stdint.h>
 
-class Client
+class SysStat
 {
 public:
-   Client();
-   virtual ~Client();
+   int64_t m_llStartTime;
+
+   int64_t m_llTotalDiskSpace;
+   int64_t m_llTotalUsedSpace;
+
+   int64_t m_llTotalFileNum;
+
+   int64_t m_llTotalSlaves;
 
 public:
-   static int init(const string& server, const int& port);
-   static int login(const string& username, const string& password);
-   static void logout();
-   static int close();
+   int serialize(char* buf, int& size);
+   int deserialize(char* buf, const int& size);
 
-   static int list(const string& path, vector<SNode>& attr);
-   static int stat(const string& path, SNode& attr);
+   void print();
 
-   static int mkdir(const string& path);
-   static int move(const string& oldpath, const string& newpath);
-   static int remove(const string& path);
-
-   static int sysinfo(SysStat& sys);
-
-protected:
-   static string revisePath(const string& path);
-
-protected:
-   static string m_strServerHost;
-   static string m_strServerIP;
-   static int m_iServerPort;
-   static CGMP m_GMP;
-   static int32_t m_iKey;
-
-private:
-   static int m_iCount;
-
-protected:
-   static int m_iReusePort;
+public:
+   static const int m_iSize = 40;
 };
-
-typedef Client Sector;
 
 #endif

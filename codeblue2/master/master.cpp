@@ -163,6 +163,10 @@ int Master::init()
    pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
 
+   m_SysStat.m_llStartTime = time(NULL);
+
+   cout << "Master initialized. Running.\n";
+
    return 1;
 }
 
@@ -550,6 +554,18 @@ void* Master::process(void* s)
          {
             self->m_mActiveUser.erase(key);
             self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 3: // stat
+         {
+            char* buf = new char[SysStat::m_iSize];
+            int size = SysStat::m_iSize;
+            self->m_SysStat.serialize(buf, size);
+
+            msg->setData(0, buf, size);
+            self->m_GMP.sendto(ip, port, id, msg);            
+
             break;
          }
 
