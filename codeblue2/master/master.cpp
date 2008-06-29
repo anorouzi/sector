@@ -332,8 +332,6 @@ void* Master::serviceEx(void* p)
             SlaveNode sn;
             sn.m_strIP = ip;
             s->recv((char*)&sn.m_iPort, 4);
-            sn.m_llMaxDiskSpace = -1;
-            sn.m_llUsedDiskSpace = 0;
             sn.m_llLastUpdateTime = CTimer::getTime();
             sn.m_iRetryNum = 0;
             sn.m_iCurrWorkLoad = 0;
@@ -559,6 +557,10 @@ void* Master::process(void* s)
 
          case 3: // stat
          {
+            self->m_SysStat.m_llTotalDiskSpace = self->m_SlaveList.getTotalDiskSpace();
+            self->m_SysStat.m_llTotalSlaves = self->m_SlaveList.getTotalSlaves();
+            self->m_SysStat.m_llTotalUsedSpace = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
+
             char* buf = new char[SysStat::g_iSize];
             int size = SysStat::g_iSize;
             self->m_SysStat.serialize(buf, size);

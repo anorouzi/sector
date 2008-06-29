@@ -187,8 +187,12 @@ int MasterConf::init(const string& path)
 
 int SlaveConf::init(const string& path)
 {
+   m_strMasterHost = "";
+   m_iMasterPort = 0;
    m_llMaxDataSize = -1;
    m_iMaxServiceNum = 2;
+   m_strLocalIP = "";
+   m_strPublicIP = "";
    
    ConfParser parser;
    Param param;
@@ -227,7 +231,7 @@ int SlaveConf::init(const string& path)
             m_strHomeDir += "/";
       }
       else if ("MAX_DATA_SIZE" == param.m_strName)
-         m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str());
+         m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str()) * 1024 * 1024;
       else if ("MAX_SERVICE_INSTANCE" == param.m_strName)
          m_iMaxServiceNum = atoi(param.m_vstrValue[0].c_str());
       else if ("LOCAL_ADDRESS" == param.m_strName)

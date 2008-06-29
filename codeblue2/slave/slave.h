@@ -65,7 +65,8 @@ public:
 
 public:
    int init(const char* base = NULL);
-   int run();
+   int connect();
+   void run();
 
 private:
    struct Param2
@@ -105,7 +106,6 @@ private:
       CGMP* gmp;		// GMP
    };
 
-   static void* process(void* s);
    static void* fileHandler(void* p2);
    static void* copy(void* p2);
    static void* SPEHandler(void* p4);

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/29/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -164,4 +164,15 @@ int SlaveList::chooseIONode(std::set<Address, AddrComp>& loclist, const Address&
 int SlaveList::getTotalSlaves()
 {
    return m_mSlaveList.size();
+}
+
+int64_t SlaveList::getTotalDiskSpace()
+{
+   int64_t size = 0;
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      size += i->second.m_llMaxDiskSpace;
+   }
+
+   return size;
 }

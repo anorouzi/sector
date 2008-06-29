@@ -69,8 +69,8 @@ void SysStat::print()
    cout << "Sector System Information:" << endl;
    time_t st = m_llStartTime;
    cout << "Running since " << ctime(&st);
-   cout << "Total Disk Size " << m_llTotalDiskSpace << endl;
-   cout << "Total File Size " << m_llTotalUsedSpace << endl;
+   cout << "Total Disk Size " << m_llTotalDiskSpace / 1024 / 1024 << " MB" << endl;
+   cout << "Total File Size " << m_llTotalUsedSpace / 1024 /1024 << " MB" << endl;
    cout << "Total Number of Files " << m_llTotalFileNum << endl;
    cout << "Total Number of Slave Nodes " << m_llTotalSlaves << endl;
 }

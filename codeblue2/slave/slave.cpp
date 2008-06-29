@@ -32,6 +32,7 @@ written by
 #include <iostream>
 #include <dirent.h>
 #include <netdb.h>
+#include <sys/vfs.h>
 
 using namespace std;
 
@@ -50,13 +51,20 @@ int Slave::init(const char* base)
       m_strBase = base;
 
    string conf = m_strBase + "/slave.conf";
-
    if (m_SysConfig.init(conf) < 0)
    {
       cerr << "unable to initialize from configuration file; quit.\n";
       return -1;
    }
 
+   // calculate total available disk size
+   struct statfs64 slavefs;
+   statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+   int64_t totaldisk = slavefs.f_blocks * slavefs.f_bsize;
+   if ((m_SysConfig.m_llMaxDataSize < 0) || (m_SysConfig.m_llMaxDataSize > totaldisk))
+      m_SysConfig.m_llMaxDataSize = totaldisk;
+
+   // obtain master IP address
    m_strMasterHost = m_SysConfig.m_strMasterHost;
    struct hostent* masterip = gethostbyname(m_strMasterHost.c_str());
    if (NULL == masterip)
@@ -68,6 +76,7 @@ int Slave::init(const char* base)
    m_strMasterIP = inet_ntop(AF_INET, masterip->h_addr_list[0], buf, 64);
    m_iMasterPort = m_SysConfig.m_iMasterPort;
 
+   // init GMP
    m_GMP.init(0);
    m_iLocalPort = m_GMP.getPort();
 
@@ -88,15 +97,10 @@ int Slave::init(const char* base)
    m_LocalFile.serialize(ofs, m_LocalFile.m_mDirectory, 1);
    ofs.close();
 
-   // start the slave...
-   pthread_t msgserver;
-   pthread_create(&msgserver, NULL, process, this);
-   pthread_detach(msgserver);
-
    return 1;
 }
 
-int Slave::run()
+int Slave::connect()
 {
    // join the server
    SSLTransport::init();
@@ -152,45 +156,34 @@ int Slave::run()
 
    cout << "Slave initialized. Running.\n";
 
-   while (true)
-   {
-      // send keep alive to server
-
-      sleep(10);
-   }
-
    return 1;
 }
 
-void* Slave::process(void* s)
+void Slave::run()
 {
-   Slave* self = (Slave*)s;
-
    char ip[64];
    int port;
    int32_t id;
    SectorMsg* msg = new SectorMsg;
    msg->resize(65536);
 
-   cout << "slave process " << self->m_iLocalPort << endl;
+   cout << "slave process " << m_iLocalPort << endl;
 
    while (true)
    {
-      self->m_GMP.recvfrom(ip, port, id, msg);
+      m_GMP.recvfrom(ip, port, id, msg);
 
-      cout << "recv cmd " << ip << " " << port << " " << self->m_strMasterIP << " " << self->m_iMasterPort << endl;
+      cout << "recv cmd " << ip << " " << port << " type " << msg->getType() << endl;
 
       // a slave only accepts commands from the master
-      if ((self->m_strMasterIP != ip) || (self->m_iMasterPort != port))
+      if ((m_strMasterIP != ip) || (m_iMasterPort != port))
           continue;
-
-      cout << "type " << (msg->getType()) << endl;
 
       switch (msg->getType())
       {
          case 1: // probe
          {
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
@@ -202,8 +195,8 @@ void* Slave::process(void* s)
 
          case 103: // mkdir
          {
-            self->createDir(msg->getData());
-            self->m_GMP.sendto(ip, port, id, msg);
+            createDir(msg->getData());
+            m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
@@ -211,20 +204,20 @@ void* Slave::process(void* s)
          {
             char* oldpath = msg->getData();
             char* newpath = msg->getData() + 64;
-            self->m_LocalFile.move(oldpath, newpath);
-            ::rename((self->m_strHomeDir + oldpath).c_str(), (self->m_strHomeDir + newpath).c_str());
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_LocalFile.move(oldpath, newpath);
+            ::rename((m_strHomeDir + oldpath).c_str(), (m_strHomeDir + newpath).c_str());
+            m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
          case 105: // remove dir/file
          {
-            cout << "REMOVE  " << self->m_strHomeDir + msg->getData() << endl;
+            cout << "REMOVE  " << m_strHomeDir + msg->getData() << endl;
             char* path = msg->getData();
-            self->m_LocalFile.remove(path, true);
-            string sysrm = string("rm -rf ") + self->m_strHomeDir + path;
+            m_LocalFile.remove(path, true);
+            string sysrm = string("rm -rf ") + m_strHomeDir + path;
             system(sysrm.c_str());
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
@@ -237,7 +230,7 @@ void* Slave::process(void* s)
             datachn->open(dataport, true, true);
 
             Param2* p = new Param2;
-            p->serv_instance = self;
+            p->serv_instance = this;
             p->datachn = datachn;
             p->client_ip = msg->getData();
             p->client_data_port = *(int*)(msg->getData() + 64);
@@ -252,7 +245,7 @@ void* Slave::process(void* s)
             msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
 
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -260,14 +253,14 @@ void* Slave::process(void* s)
          case 111: // create a replica to local
          {
             Param2* p = new Param2;
-            p->serv_instance = self;
+            p->serv_instance = this;
             p->filename = msg->getData();
 
             pthread_t replica_handler;
             pthread_create(&replica_handler, NULL, copy, p);
             pthread_detach(replica_handler);
 
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -278,7 +271,7 @@ void* Slave::process(void* s)
             int libsize = msg->m_iDataLength - SectorMsg::m_iHdrSize - 64;
 
             char path[128];
-            sprintf(path, "%s/.sphere/%d", self->m_strHomeDir.c_str(), msg->getKey());
+            sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), msg->getKey());
 
             ::mkdir(path, S_IRWXU);
 
@@ -287,7 +280,7 @@ void* Slave::process(void* s)
             ofs.close();
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -299,7 +292,7 @@ void* Slave::process(void* s)
             datachn->open(dataport, true, true);
 
             Param4* p = new Param4;
-            p->serv_instance = self;
+            p->serv_instance = this;
             p->datachn = datachn;
             p->client_ip = msg->getData();
             p->client_ctrl_port = *(int32_t*)(msg->getData() + 64);
@@ -326,7 +319,7 @@ void* Slave::process(void* s)
             msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
 
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -337,7 +330,7 @@ void* Slave::process(void* s)
             gmp->init();
 
             Param5* p = new Param5;
-            p->serv_instance = self;
+            p->serv_instance = this;
             p->client_ip = ip;
             p->client_ctrl_port = port;
             p->dsnum = *(int32_t*)(msg->getData() + 68);
@@ -351,7 +344,7 @@ void* Slave::process(void* s)
 
             *(int32_t*)msg->getData() = gmp->getPort();
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-            self->m_GMP.sendto(ip, port, id, msg);
+            m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -359,7 +352,6 @@ void* Slave::process(void* s)
    }
 
    delete msg;
-   return NULL;
 }
 
 void Slave::report(const int32_t& transid, const string& filename, const bool change)
