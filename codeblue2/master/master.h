@@ -102,11 +102,9 @@ private:
    CGMP m_GMP;
 
    MasterConf m_SysConfig;
-
    std::string m_strHomeDir;
 
-   CAccessLog m_AccessLog;
-   CPerfLog m_PerfLog;
+   SectorLog m_SectorLog;
    SysStat m_SysStat;
 
    int m_iMaxActiveUser;

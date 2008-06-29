@@ -7,7 +7,7 @@ else
    LDFLAGS += -lmaster -lsecurity -lrpc -ludt -lcommon
 endif
 
-OBJS = topology.o transaction.o master.o
+OBJS = topology.o transaction.o log.o master.o
 
 all: libmaster.so libmaster.a start_master start_all stop_all
 

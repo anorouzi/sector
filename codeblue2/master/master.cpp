@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/29/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -97,6 +97,7 @@ Master::Master()
 
 Master::~Master()
 {
+   m_SectorLog.close();
    pthread_mutex_destroy(&m_MetaLock);
 }
 
@@ -165,7 +166,8 @@ int Master::init()
 
    m_SysStat.m_llStartTime = time(NULL);
 
-   cout << "Master initialized. Running.\n";
+   m_SectorLog.init("sector.log");
+   m_SectorLog.insert("Sector started.");
 
    return 1;
 }
@@ -194,7 +196,9 @@ int Master::run()
          }
          else if (++ i->second.m_iRetryNum > 10)
          {
-            cout << "detect slave drop " << i->second.m_strIP << endl;
+            char text[64];
+            sprintf(text, "Detect slave drop %s.", i->second.m_strIP.c_str());
+            m_SectorLog.insert(text);
 
             // to be removed
             tbrid.insert(tbrid.end(), i->first);
@@ -225,10 +229,13 @@ int Master::run()
       {
          for (vector<SlaveAddr>::iterator i = tbsaddr.begin(); i != tbsaddr.end(); ++ i)
          {
-             cout << "restart slave ... " << endl;
-             // kill and restart the slave
-             system((string("ssh ") + i->m_strAddr + " killall -9 start_slave").c_str());
-             system((string("ssh ") + i->m_strAddr + " \"" + i->m_strBase + "/start_slave " + i->m_strBase + " &> /dev/null &\"").c_str());
+            char text[64];
+            sprintf(text, "Restart slave %s %s.", i->m_strAddr.c_str(), i->m_strBase.c_str());
+            m_SectorLog.insert(text);
+
+            // kill and restart the slave
+            system((string("ssh ") + i->m_strAddr + " killall -9 start_slave").c_str());
+            system((string("ssh ") + i->m_strAddr + " \"" + i->m_strBase + "/start_slave " + i->m_strBase + " &> /dev/null &\"").c_str());
          }
 
          // do not check replicas at this time because files on the restarted slave have not been counted yet
@@ -364,11 +371,15 @@ void* Master::serviceEx(void* p)
 
             self->m_SlaveList.insert(sn);
 
-            cout << "slave join " << ip << endl;
+            char text[64];
+            sprintf(text, "Slave node join %s.", ip.c_str());
+            self->m_SectorLog.insert(text);
          }
          else
          {
-            cout << "slave join failed " << ip << endl;
+            char text[64];
+            sprintf(text, "Slave node join rejected %s.", ip.c_str());
+            self->m_SectorLog.insert(text);
          }
 
          break;
@@ -432,11 +443,15 @@ void* Master::serviceEx(void* p)
 
             self->m_mActiveUser[au.m_iKey] = au;
 
-            cout << "user login " << user << endl;
+            char text[64];
+            sprintf(text, "User login %s from %s", user, ip.c_str());
+            self->m_SectorLog.insert(text);
          }
          else
          {
-            cout << "user login failed " << user << endl;
+            char text[64];
+            sprintf(text, "User login rejected %s from %s", user, ip.c_str());
+            self->m_SectorLog.insert(text);
          }
 
          s->send((char*)&key, 4);
