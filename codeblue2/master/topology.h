@@ -33,6 +33,7 @@ written by
 #include <string>
 #include <set>
 #include <map>
+#include <vector>
 #include <index.h>
 
 struct SlaveNode
@@ -51,9 +52,6 @@ struct SlaveNode
 
    int m_iCurrWorkLoad;
    int m_iStatus;
-
-   int m_iLocationID;		// data center
-   int m_iClusterID;		// rack
 };
 
 struct Cluster
@@ -64,7 +62,35 @@ struct Cluster
    int m_llTotalDiskSpace;
    int m_llUsedDiskSpace;
 
+   std::map<int, Cluster> m_mSubCluster;
    std::set<int> m_sNodes;
+};
+
+class Topology
+{
+public:
+   Topology();
+   ~Topology();
+
+public:
+   int init(const char* topoconf);
+   int lookup(const char* ip, std::vector<int>& path);
+
+private:
+   int parseIPRange(const char* ip, int& digit, int& mask);
+   int parseTopo(const char* topo, std::vector<int>& tm);
+
+private:
+   int m_iLevel;
+
+   struct TopoMap
+   {
+      int m_iIP;
+      int m_iMask;
+      std::vector<int> m_viPath;
+   };
+
+   std::vector<TopoMap> m_vTopoMap;
 };
 
 class SlaveList
@@ -73,6 +99,8 @@ public:
    SlaveList(): m_iNodeID(0) {}
 
 public:
+   int init(const char* topoconf);
+
    int insert(SlaveNode& sn);
    int remove(int nodeid);
 
@@ -89,7 +117,9 @@ public:
 public:
    std::map<Address, int, AddrComp> m_mAddrList;
    std::map<int, SlaveNode> m_mSlaveList;
-   std::map<int, Cluster> m_mCluster;
+
+   Topology m_Topology;
+   Cluster m_Cluster;
 
 private:
    int m_iNodeID;

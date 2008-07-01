@@ -23,14 +23,172 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2008
 *****************************************************************************/
 
 #include <topology.h>
 #include <unistd.h>
 #include <sys/time.h>
-
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <fstream>
+#include <iostream>
 using namespace std;
+
+Topology::Topology():
+m_iLevel(1)
+{
+}
+
+Topology::~Topology()
+{
+}
+
+int Topology::init(const char* topoconf)
+{
+   ifstream ifs(topoconf);
+
+   if (ifs.bad() || ifs.fail())
+      return -1;
+
+   char line[128];
+   while (!ifs.eof())
+   {
+      ifs.getline(line, 128);
+
+      if ((strlen(line) == 0) || (line[0] == '#'))
+         continue;
+
+      // 192.168.136.0/24	/1/1
+
+      unsigned int p = 0;
+      for (; p < strlen(line); ++ p)
+      {
+         if ((line[p] == ' ') || (line[p] == '\t'))
+            break;
+      }
+
+      string ip = string(line).substr(0, p);
+
+      for (; p < strlen(line); ++ p)
+      {
+         if ((line[p] != ' ') && (line[p] != '\t'))
+            break;
+      }
+
+      string topo = string(line).substr(p + 1, strlen(line));
+
+      TopoMap tm;
+      if (parseIPRange(ip.c_str(), tm.m_iIP, tm.m_iMask) < 0)
+         return -1;
+      if (parseTopo(topo.c_str(), tm.m_viPath) <= 0)
+         return -1;
+
+      m_vTopoMap.insert(m_vTopoMap.end(), tm);
+
+      if (m_iLevel < tm.m_viPath.size())
+         m_iLevel = tm.m_viPath.size();
+   }
+
+   ifs.close();
+
+   return m_vTopoMap.size();
+}
+
+int Topology::lookup(const char* ip, vector<int>& path)
+{
+   in_addr addr;
+   if (inet_pton(AF_INET, ip, &addr) < 0)
+      return -1;
+
+   int digitip = addr.s_addr;
+
+   for (vector<TopoMap>::iterator i = m_vTopoMap.begin(); i != m_vTopoMap.end(); ++ i)
+   {
+      if ((digitip & i->m_iMask) == (i->m_iIP & i->m_iMask))
+      {
+         path = i->m_viPath;
+         return 0;
+      }
+   }
+
+   for (int i = 0; i < m_iLevel; ++ i)
+      path.insert(path.end(), 0);
+
+   return -1;
+}
+
+int Topology::parseIPRange(const char* ip, int& digit, int& mask)
+{
+   char buf[128];
+   unsigned int i = 0;
+   for (unsigned int n = strlen(ip); i < n; ++ i)
+   {
+      if ('/' == ip[i])
+         break;
+
+      buf[i] = ip[i];
+   }
+   buf[i] = '\0';
+
+   in_addr addr;
+   if (inet_pton(AF_INET, buf, &addr) < 0)
+      return -1;
+
+   digit = addr.s_addr;
+   mask = 0xFFFFFFFF;
+
+   if (i == strlen(ip))
+      return 0;
+
+   if ('/' != ip[i])
+      return -1;
+   ++ i;
+
+   int j = 0;
+   for (unsigned int n = strlen(ip); i < n; ++ i, ++ j)
+      buf[j] = ip[i];
+   buf[j] = '\0';
+
+   char* p;
+   unsigned int bit = strtol(buf, &p, 10);
+
+   if ((p == buf) || (bit > 32) || (bit < 0))
+      return -1;
+
+   if (bit < 32)
+       mask = ((unsigned int)1 << bit) - 1;
+
+   return 0;
+}
+
+int Topology::parseTopo(const char* topo, vector<int>& tm)
+{
+   char buf[32];
+   strncpy(buf, topo, 32);
+   int size = strlen(buf);
+
+   for (int i = 0; i < size; ++ i)
+   {
+      if (buf[i] == '/')
+         buf[i] = '\0';
+   }
+
+   for (int i = 0; i < size; )
+   {
+      tm.insert(tm.end(), atoi(buf + i));
+      i += strlen(buf + i) + 1;
+   }
+
+   return tm.size();
+}
+
+
+int SlaveList::init(const char* topoconf)
+{
+   return m_Topology.init(topoconf);
+}
 
 int SlaveList::insert(SlaveNode& sn)
 {
@@ -38,49 +196,76 @@ int SlaveList::insert(SlaveNode& sn)
 
    m_mSlaveList[sn.m_iNodeID] = sn;
 
-   int cid = sn.m_iClusterID;
-
-   map<int, Cluster>::iterator i = m_mCluster.find(cid);
-
-   if (i != m_mCluster.end())
-   {
-      i->second.m_sNodes.insert(sn.m_iNodeID);
-   }
-   else
-   {
-      Cluster c;
-      c.m_iClusterID = cid;
-      c.m_sNodes.insert(sn.m_iNodeID);
-      m_mCluster[cid] = c;
-   }
-
    Address addr;
    addr.m_strIP = sn.m_strIP;
    addr.m_iPort = sn.m_iPort;
    m_mAddrList[addr] = sn.m_iNodeID;
+
+   vector<int> path;
+   m_Topology.lookup(sn.m_strIP.c_str(), path);
+   map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
+   map<int, Cluster>::iterator pc;
+   for (vector<int>::iterator i = path.begin(); i != path.end(); ++ i)
+   {
+      if ((pc = sc->find(*i)) == sc->end())
+      {
+         Cluster c;
+         c.m_iClusterID = *i;
+         c.m_iTotalNodes = 0;
+         c.m_llTotalDiskSpace = 0;
+         c.m_llUsedDiskSpace = 0;
+
+         (*sc)[*i] = c;
+
+         pc = sc->find(*i);
+      }
+
+      pc->second.m_iTotalNodes ++;
+      pc->second.m_llTotalDiskSpace += sn.m_llMaxDiskSpace;
+      pc->second.m_llUsedDiskSpace += sn.m_llUsedDiskSpace;
+
+      sc = &(pc->second.m_mSubCluster);
+   }
+
+   pc->second.m_sNodes.insert(sn.m_iNodeID);
 
    return 1;
 }
 
 int SlaveList::remove(int nodeid)
 {
-   map<int, SlaveNode>::iterator i = m_mSlaveList.find(nodeid);
+   map<int, SlaveNode>::iterator sn = m_mSlaveList.find(nodeid);
 
-   if (i == m_mSlaveList.end())
+   if (sn == m_mSlaveList.end())
       return -1;
 
-   int cid = i->second.m_iClusterID;
-
-   m_mCluster[cid].m_sNodes.erase(nodeid);
-   if (m_mCluster[cid].m_sNodes.empty())
-     m_mCluster.erase(cid);
-
    Address addr;
-   addr.m_strIP = i->second.m_strIP;
-   addr.m_iPort = i->second.m_iPort;
+   addr.m_strIP = sn->second.m_strIP;
+   addr.m_iPort = sn->second.m_iPort;
    m_mAddrList.erase(addr);
 
-   m_mSlaveList.erase(i);
+   vector<int> path;
+   m_Topology.lookup(sn->second.m_strIP.c_str(), path);
+   map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
+   map<int, Cluster>::iterator pc;
+   for (vector<int>::iterator i = path.begin(); i != path.end(); ++ i)
+   {
+      if ((pc = sc->find(*i)) == sc->end())
+      {
+         // something wrong
+         break;
+      }
+
+      pc->second.m_iTotalNodes --;
+      pc->second.m_llTotalDiskSpace -= sn->second.m_llMaxDiskSpace;
+      pc->second.m_llUsedDiskSpace -= sn->second.m_llUsedDiskSpace;
+
+      sc = &(pc->second.m_mSubCluster);
+   }
+
+   pc->second.m_sNodes.erase(nodeid);
+
+   m_mSlaveList.erase(sn);
 
    return 1;
 }

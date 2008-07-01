@@ -148,9 +148,6 @@ int Slave::connect()
    // send total available disk space
    secconn.send((char*)&(m_SysConfig.m_llMaxDataSize), 8);
 
-   // send cluster ID
-   secconn.send((char*)&(m_SysConfig.m_iClusterID), 4);
-
    secconn.close();
    SSLTransport::destroy();
 

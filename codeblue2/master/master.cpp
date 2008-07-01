@@ -103,9 +103,19 @@ Master::~Master()
 
 int Master::init()
 {
-   // read configuration from master.conf
-   m_SysConfig.init("master.conf");
+   m_SectorLog.init("sector.log");
 
+   // read configuration from master.conf
+   if (m_SysConfig.init("master.conf") < 0)
+   {
+      m_SectorLog.insert("unable to read/parse configuration file.");
+      return -1;
+   }
+
+   if (m_SlaveList.init("topology.conf"))
+   {
+      m_SectorLog.insert("Warning: no topology configuration found.");
+   }
 
    // check local directories, create them is not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
@@ -166,7 +176,6 @@ int Master::init()
 
    m_SysStat.m_llStartTime = time(NULL);
 
-   m_SectorLog.init("sector.log");
    m_SectorLog.insert("Sector started.");
 
    return 1;
@@ -367,7 +376,6 @@ void* Master::serviceEx(void* p)
 
             sn.m_llUsedDiskSpace = Index::getTotalDataSize(branch);
             s->recv((char*)&(sn.m_llMaxDiskSpace), 8);
-            s->recv((char*)&(sn.m_iClusterID), 4);
 
             self->m_SlaveList.insert(sn);
 
