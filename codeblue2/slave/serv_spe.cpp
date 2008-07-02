@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/01/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -215,6 +215,7 @@ void* Slave::SPEHandler(void* p)
       int size = 0;
       char* block = NULL;
       int unitrows = (rows != -1) ? rows : totalrows;
+      int progress = 0;
 
       cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
 
@@ -225,7 +226,13 @@ void* Slave::SPEHandler(void* p)
          {
             delete [] index;
             delete [] block;
-            // acknowlege error here...
+
+            progress = -1;
+            msg.setData(4, (char*)&progress, 4);
+            msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
+            int id = 0;
+            self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
+
             continue;
          }
       }
@@ -260,7 +267,6 @@ void* Slave::SPEHandler(void* p)
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
 
-      int progress = 0;
       result.clear();
       gettimeofday(&t3, 0);
 

@@ -41,6 +41,7 @@ struct SectorError
    static const int E_BUSY = -1004;		// file busy
    static const int E_SECURITY = -2000;		// security check failed
    static const int E_RESOURCE = -3000;		// no available resources
+   static const int E_TIMEDOUT = -4000;		// timeout
 };
 
 #endif

@@ -23,10 +23,12 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/01/2008
 *****************************************************************************/
 
 #include "dcclient.h"
+#include <constant.h>
+#include <errno.h>
 #include <iostream>
 
 using namespace std;
@@ -344,9 +346,16 @@ void* SphereProcess::run(void* param)
 
       int progress = *(int32_t*)(msg.getData() + 4);
       gettimeofday(&s->m_LastUpdateTime, 0);
-      if (progress <= s->m_iProgress)
+      if (progress < 0)
+      {
+         //error, quit this segment on the SPE
+         s->m_pDS->m_iStatus = 0;
+         s->m_pDS->m_iSPEID = -1;
+         s->m_iStatus = 0;
          continue;
-      s->m_iProgress = progress;
+      }
+      if (progress > s->m_iProgress)
+         s->m_iProgress = progress;
       if (progress < 100)
          continue;
 
@@ -475,9 +484,18 @@ int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wai
       if (!wait || (m_iProgress == m_iTotalDS) || (0 == m_iTotalSPE))
          return -1;
 
+      struct timeval now;
+      struct timespec timeout;
+
+      gettimeofday(&now, 0);
+      timeout.tv_sec = now.tv_sec + 10;
+
       pthread_mutex_lock(&m_ResLock);
-      pthread_cond_wait(&m_ResCond, &m_ResLock);
+      int retcode = pthread_cond_timedwait(&m_ResCond, &m_ResLock, &timeout);
       pthread_mutex_unlock(&m_ResLock);
+
+      if (retcode == ETIMEDOUT)
+         return SectorError::E_TIMEDOUT;
    }
 
    for (vector<DS*>::iterator i = m_vpDS.begin(); i != m_vpDS.end(); ++ i)

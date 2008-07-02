@@ -112,7 +112,7 @@ int Master::init()
       return -1;
    }
 
-   if (m_SlaveList.init("topology.conf"))
+   if (m_SlaveList.init("topology.conf") < 0)
    {
       m_SectorLog.insert("Warning: no topology configuration found.");
    }
