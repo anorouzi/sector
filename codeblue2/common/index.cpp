@@ -621,7 +621,7 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch)
             // directories with same name
             merge(s->second.m_mDirectory, i->second.m_mDirectory);
          }
-         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) && (i->second.m_llSize != s->second.m_llSize))
+         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) && (i->second.m_llSize == s->second.m_llSize))
          {
             // files with same name, size, timestamp, ...
             for (set<Address>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)

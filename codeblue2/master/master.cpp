@@ -657,6 +657,7 @@ void* Master::process(void* s)
                {
                   msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
                   msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
+                  ++ c;
                }
 
                self->m_GMP.sendto(ip, port, id, msg);
