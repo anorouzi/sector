@@ -14,7 +14,9 @@ int main(int argc, char** argv)
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 
-   const int fn = 1;
+   SysStat sys;
+   Sector::sysinfo(sys);
+   const int fn = sys.m_llTotalSlaves;
    const int32_t N = (int)log2(fn * 50.0f);
    const int rn = (int)pow(2.0f, N);
    
@@ -39,8 +41,10 @@ int main(int argc, char** argv)
 
    SphereProcess myproc;
 
-   myproc.loadOperator("./examples/sorthash.so");
-   myproc.loadOperator("./examples/sort.so");
+   if (myproc.loadOperator("./examples/sorthash.so") < 0)
+      return -1;
+   if (myproc.loadOperator("./examples/sort.so") < 0)
+      return -1;
 
    timeval t;
    gettimeofday(&t, 0);

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
 *****************************************************************************/
 
 
@@ -673,6 +673,22 @@ int64_t Index::getTotalDataSize(std::map<std::string, SNode>& currdir)
 
    return size;
 }
+
+int64_t Index::getTotalFileNum(std::map<std::string, SNode>& currdir)
+{
+   int64_t num = 0;
+
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      if (!i->second.m_bIsDir)
+         num ++;
+      else
+         num += getTotalFileNum(i->second.m_mDirectory);
+   }
+
+   return num;
+}
+
 
 int Index::parsePath(const char* path, std::vector<string>& result)
 {

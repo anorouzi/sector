@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
 *****************************************************************************/
 
 
@@ -249,9 +249,10 @@ void Slave::run()
 
          case 111: // create a replica to local
          {
-            Param2* p = new Param2;
+            Param3* p = new Param3;
             p->serv_instance = this;
-            p->filename = msg->getData();
+            p->timestamp = *(int64_t*)msg->getData();
+            p->filename = msg->getData() + 8;
 
             pthread_t replica_handler;
             pthread_create(&replica_handler, NULL, copy, p);

@@ -222,13 +222,11 @@ int SphereProcess::loadOperator(const char* library)
 
    delete [] buf;
 
-   cout << "load op " << m_strServerIP << " " << m_iServerPort << endl;
-
    int r = m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg);
 
    if ((r < 0) || (msg.getType() < 0))
    {
-      cerr << "loadOpterator: failed.\n";
+      cerr << "loadOpterator: failed to load " << library << endl;
       return -1;
    }
 

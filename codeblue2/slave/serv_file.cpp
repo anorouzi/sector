@@ -23,12 +23,13 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
 *****************************************************************************/
 
 
 #include <slave.h>
 #include <iostream>
+#include <utime.h>
 
 using namespace std;
 
@@ -249,9 +250,10 @@ void* Slave::fileHandler(void* p)
 
 void* Slave::copy(void* p)
 {
-   Slave* self = ((Param2*)p)->serv_instance;
-   string filename = ((Param2*)p)->filename;
-   delete (Param2*)p;
+   Slave* self = ((Param3*)p)->serv_instance;
+   time_t ts = ((Param3*)p)->timestamp;
+   string filename = ((Param3*)p)->filename;
+   delete (Param3*)p;
 
    SectorMsg msg;
    msg.setType(110); // open the file
@@ -261,8 +263,7 @@ void* Slave::copy(void* p)
    int port = 0;
    datachn.open(port, true, true);
 
-   int mode = 3;
-
+   int mode = 1;
    msg.setData(0, (char*)&port, 4);
    msg.setData(4, (char*)&mode, 4);
    msg.setData(8, filename.c_str(), filename.length() + 1);
@@ -309,6 +310,10 @@ void* Slave::copy(void* p)
    datachn.close();
 
    //utime: update timestamp according to the original copy
+   utimbuf ut;
+   ut.actime = ts;
+   ut.modtime = ts;
+   utime((self->m_strHomeDir + ".tmp" + filename).c_str(), &ut);
 
    self->createDir(filename.substr(0, filename.rfind('/')));
    system((string("mv ") + self->m_strHomeDir + ".tmp" + filename + " " + self->m_strHomeDir + filename).c_str());

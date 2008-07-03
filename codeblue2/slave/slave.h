@@ -80,6 +80,13 @@ private:
       int client_data_port;	// client data channel port
    };
 
+   struct Param3
+   {
+      Slave* serv_instance;
+      string filename;
+      time_t timestamp;
+   };
+
    struct Param4
    {
       Slave* serv_instance;	// self
@@ -107,7 +114,7 @@ private:
    };
 
    static void* fileHandler(void* p2);
-   static void* copy(void* p2);
+   static void* copy(void* p3);
    static void* SPEHandler(void* p4);
    static void* SPEShuffler(void* p5);
 

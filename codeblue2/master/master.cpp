@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -151,7 +151,7 @@ int Master::init()
    au.m_strName = "slave";
    au.m_iKey = 0;
    au.m_vstrReadList.insert(au.m_vstrReadList.begin(), "/");
-   au.m_vstrWriteList.insert(au.m_vstrWriteList.begin(), "/");
+   //au.m_vstrWriteList.insert(au.m_vstrWriteList.begin(), "/");
    m_mActiveUser[au.m_iKey] = au;
 
    // running...
@@ -578,11 +578,12 @@ void* Master::process(void* s)
             break;
          }
 
-         case 3: // stat
+         case 3: // sysinfo
          {
             self->m_SysStat.m_llTotalDiskSpace = self->m_SlaveList.getTotalDiskSpace();
             self->m_SysStat.m_llTotalSlaves = self->m_SlaveList.getTotalSlaves();
             self->m_SysStat.m_llTotalUsedSpace = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
+            self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
 
             char* buf = new char[SysStat::g_iSize];
             int size = SysStat::g_iSize;
@@ -1012,8 +1013,8 @@ int Master::createReplica(const string& path)
 
    SectorMsg msg;
    msg.setType(111);
-   msg.setData(0, path.c_str(), path.length() + 1);
-   msg.m_iDataLength = SectorMsg::m_iHdrSize + path.length() + 1;
+   msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
+   msg.setData(8, path.c_str(), path.length() + 1);
 
    if (m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0)
       return -1;

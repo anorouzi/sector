@@ -18,7 +18,9 @@ int main(int argc, char** argv)
    Sector::remove("test");
    Sector::mkdir("test");
 
-   const int fn = 1;
+   SysStat sys;
+   Sector::sysinfo(sys);
+   const int fn = sys.m_llTotalSlaves;
 
    SectorFile guide;
    if (guide.open("test/guide.dat", 2) < 0)
@@ -59,7 +61,9 @@ int main(int argc, char** argv)
    output.init(0);
 
    SphereProcess myproc;
-   myproc.loadOperator("./examples/randwriter.so");
+   if (myproc.loadOperator("./examples/randwriter.so") < 0)
+      return -1;
+
    myproc.setMinUnitSize(4);
    myproc.setMaxUnitSize(4);
 
