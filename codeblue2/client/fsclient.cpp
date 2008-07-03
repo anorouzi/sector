@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
 *****************************************************************************/
 
 
@@ -74,25 +74,6 @@ int SectorFile::read(char* buf, const int64_t& offset, const int64_t& size)
       return -1;
 
    if (m_DataChn.recv(buf, size) < 0)
-      return -1;
-
-   return 1;
-}
-
-int SectorFile::readridx(char* index, const int64_t& offset, const int64_t& rows)
-{
-   char req[20];
-   *(int32_t*)req = 6; // cmd readrows
-   *(int64_t*)(req + 4) = offset;
-   *(int64_t*)(req + 12) = rows;
-   int32_t response = -1;
-
-   if (m_DataChn.send(req, 20) < 0)
-      return -1;
-   if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
-      return -1;
-
-   if (m_DataChn.recv(index, (rows + 1) * 8) < 0)
       return -1;
 
    return 1;

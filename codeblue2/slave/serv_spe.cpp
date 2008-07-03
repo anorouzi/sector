@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -490,27 +490,67 @@ void* Slave::SPEShuffler(void* p)
 int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block)
 {
    SNode sn;
+   string idxfile = datafile + ".idx";
 
-   if (m_LocalFile.lookup(datafile.c_str(), sn) > 0)
+   //read index
+   if (m_LocalFile.lookup(idxfile.c_str(), sn) > 0)
    {
-      cout << "data file found " << datafile << endl;
-
       ifstream idx;
-      idx.open((m_strHomeDir + datafile + ".idx").c_str());
+      idx.open((m_strHomeDir + idxfile).c_str());
       idx.seekg(offset * 8);
       idx.read((char*)index, (totalrows + 1) * 8);
       idx.close();
+   }
+   else
+   {
+      SectorMsg msg;
+      msg.setType(110); // open the index file
+      msg.setKey(0);
 
-      size = index[totalrows] - index[0];
-      block = new char[size];
+      Transport datachn;
+      int port = 0;
+      datachn.open(port, true, true);
 
+      msg.setData(0, (char*)&port, 4);
+      int32_t mode = 1;
+      msg.setData(4, (char*)&mode, 4);
+      msg.setData(8, idxfile.c_str(), idxfile.length() + 1);
+
+      if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+         return -1;
+      if (msg.getType() < 0)
+         return -1;
+
+      cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
+
+      if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
+         return -1;
+
+      char req[20];
+      *(int32_t*)req = 1;
+      *(int64_t*)(req + 4) = offset * 8;
+      *(int64_t*)(req + 12) = (totalrows + 1) * 8;
+      int32_t response = -1;
+
+      if (datachn.send(req, 20) < 0)
+         return -1;
+      if ((datachn.recv((char*)&response, 4) < 0) || (-1 == response))
+         return -1;
+      if (datachn.recv((char*)index, (totalrows + 1) * 8) < 0)
+         return -1;
+   }
+
+   size = index[totalrows] - index[0];
+   block = new char[size];
+
+   // read data file
+   if (m_LocalFile.lookup(datafile.c_str(), sn) > 0)
+   {
       ifstream ifs;
       ifs.open((m_strHomeDir + datafile).c_str());
       ifs.seekg(index[0]);
       ifs.read(block, size);
       ifs.close();
-
-      return totalrows;
    }
    else
    {
@@ -537,39 +577,21 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
          return -1;
 
-      int32_t cmd = 6;
-      int32_t response = -1;
-
       char req[20];
-      *(int32_t*)req = cmd;
-      *(int64_t*)(req + 4) = offset;
-      *(int64_t*)(req + 12) = totalrows;
-
-      if (datachn.send(req, 20) < 0)
-         return -1;
-      if ((datachn.recv((char*)&response, 4) < 0) || (-1 == response))
-         return -1;
-      if (datachn.recv((char*)index, (totalrows + 1) * 8) < 0)
-         return -1;
-
       *(int32_t*)req = 1; // cmd read
       *(int64_t*)(req + 4) = index[0];
       *(int64_t*)(req + 12) = index[totalrows] - index[0];
-      response = -1;
+      int32_t response = -1;
 
       if (datachn.send(req, 20) < 0)
          return -1;
       if ((datachn.recv((char*)&response, 4) < 0) || (-1 == response))
          return -1;
-
-      block = new char[index[totalrows] - index[0]];
       if (datachn.recv(block, index[totalrows] - index[0]) < 0)
          return -1;
-
-      return totalrows;
    }
 
-   return 0;
+   return totalrows;
 }
 
 int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Address, Transport*, AddrComp>* outputchn)

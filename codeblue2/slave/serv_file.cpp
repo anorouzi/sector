@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
 *****************************************************************************/
 
 
@@ -81,7 +81,7 @@ void* Slave::fileHandler(void* p)
             if (0 != (mode & 2))
                response = 0;
          }
-         else if ((1 == cmd) || (3 == cmd) || (6 == cmd))
+         else if ((1 == cmd) || (3 == cmd))
          {
             if (0 != (mode & 1))
                response = 0;
@@ -108,25 +108,6 @@ void* Slave::fileHandler(void* p)
             ifstream ifs(filename.c_str(), ios::in | ios::binary);
 
             if (datachn->sendfile(ifs, param[0], param[1]) < 0)
-               run = false;
-
-            ifs.close();
-
-            break;
-         }
-
-      case 6: // readridx
-         {
-            int64_t param[2];
-            if (datachn->recv((char*)param, 8 * 2) < 0)
-            {
-               run = false;
-               break;
-            }
-
-            ifstream ifs((filename + ".idx").c_str(), ios::in | ios::binary);
-
-            if (datachn->sendfile(ifs, param[0] * 8, (param[1] + 1) * 8) < 0)
                run = false;
 
             ifs.close();
