@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -250,7 +250,7 @@ int Master::run()
          // do not check replicas at this time because files on the restarted slave have not been counted yet
          continue;
       }
-/*
+
       // check replica, create or remove replicas if necessary
       vector<string> replica;
       pthread_mutex_lock(&m_MetaLock);
@@ -265,7 +265,6 @@ int Master::run()
          if (m_sstrOnReplicate.find(*r) == m_sstrOnReplicate.end())
             createReplica(*r);
       }
-*/
    }
 
    return 1;
@@ -553,6 +552,8 @@ void* Master::process(void* s)
                   attr.deserialize(path.c_str());
                   self->m_sstrOnReplicate.erase(attr.m_strName);
                }
+
+               //TODO: update used disk space of the slave node
             }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -737,6 +738,8 @@ void* Master::process(void* s)
             {
                cout << "deleting " << i->m_strIP << " " << i->m_iPort << endl;
                self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, msg);
+
+               //TODO: update used disk space of the slave node
             }
 
             pthread_mutex_lock(&self->m_MetaLock);

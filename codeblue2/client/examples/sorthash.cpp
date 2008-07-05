@@ -9,16 +9,6 @@ using namespace std;
 extern "C"
 {
 
-// unit: input data stream
-// rows: number of rows
-// index: input rows index
-// result: result data stream
-// rsize: result size
-// rrows: number of output rows
-// rindex: output rows index
-// param: parameters
-// psize: size of the parameter
-
 struct Key
 {
    uint32_t v1;

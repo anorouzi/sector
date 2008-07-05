@@ -689,7 +689,7 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
             else
             {
                dataport = 0;
-               t->open(dataport, true, true);
+               t->open(dataport, true, false);
             }
 
             msg.setData(8, (char*)&dataport, 4);

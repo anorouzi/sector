@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/04/2008
 *****************************************************************************/
 
 #ifndef __SPHERE_CLIENT_H__
@@ -72,16 +72,16 @@ public:
 
 struct SphereResult
 {
-   int m_iResID;
+   int m_iResID;		// result ID
 
-   char* m_pcData;
-   int m_iDataLen;
-   int64_t* m_pllIndex;
-   int m_iIndexLen;
+   char* m_pcData;		// result data
+   int m_iDataLen;		// result data length
+   int64_t* m_pllIndex;		// result data index
+   int m_iIndexLen;		// result data index length
 
-   string m_strOrigFile;
-   int64_t m_llOrigStartRec;
-   int64_t m_llOrigEndRec;
+   string m_strOrigFile;	// original input file
+   int64_t m_llOrigStartRec;	// first record of the original input file
+   int64_t m_llOrigEndRec;	// last record of the original input file
 
    string m_strIP;
    int m_iPort;
@@ -106,8 +106,10 @@ public:
    int checkProgress();
    int close();
 
-   void setMinUnitSize(int size) {m_iMinUnitSize = size;}
-   void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}
+   inline void setMinUnitSize(int size) {m_iMinUnitSize = size;}
+   inline void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}
+
+   inline void setProcNumPerNode(int num) {m_iCore = num;}
 
 private:
    string m_strOperator;
@@ -151,15 +153,17 @@ private:
 
    int m_iProgress;		// progress, 0..100
    int m_iAvgRunTime;		// average running time, in seconds
-   int m_iTotalDS;
-   int m_iTotalSPE;
+   int m_iTotalDS;		// total number of data segments
+   int m_iTotalSPE;		// total number of SPEs
    int m_iAvailRes;
 
    pthread_mutex_t m_ResLock;
    pthread_cond_t m_ResCond;
 
-   int m_iMinUnitSize;
-   int m_iMaxUnitSize;
+   int m_iMinUnitSize;		// minimum data segment size
+   int m_iMaxUnitSize;		// maximum data segment size, must be smaller than physical memory
+
+   int m_iCore;			// number of processing instances on each node
 
 private:
    int prepareSPE(const char* spenodes);

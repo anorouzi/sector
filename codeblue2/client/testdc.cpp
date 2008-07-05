@@ -88,7 +88,7 @@ int main(int argc, char** argv)
 
    SphereStream output;
    output.init(0);
-
+   myproc.setProcNumPerNode(2);
    if (myproc.run(temp, output, "sort", 0, NULL, 0) < 0)
    {
       cout << "failed to find any computing resources." << endl;

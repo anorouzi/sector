@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/04/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -158,7 +158,8 @@ int SphereStream::setSeg(const int64_t& start, const int64_t& end)
 //
 SphereProcess::SphereProcess():
 m_iMinUnitSize(1000000),
-m_iMaxUnitSize(64000000)
+m_iMaxUnitSize(256000000),
+m_iCore(1)
 {
    m_strOperator = "";
    m_pcParam = NULL;
@@ -538,11 +539,10 @@ int SphereProcess::prepareSPE(const char* spenodes)
    for (int i = 0; i < m_iSPENum; ++ i)
    {
       // start multiple SPEs per node
-      int core = 1;
-      for (int j = 0; j < core; ++ j)
+      for (int j = 0; j < m_iCore; ++ j)
       {
          SPE spe;
-         spe.m_uiID = i * core + j;
+         spe.m_uiID = i * m_iCore + j;
          spe.m_pDS = NULL;
          spe.m_iStatus = 0;
          spe.m_iProgress = 0;
