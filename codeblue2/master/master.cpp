@@ -112,7 +112,7 @@ int Master::init()
       return -1;
    }
 
-   if (m_SlaveList.init("topology.conf") < 0)
+   if (m_SlaveManager.init("topology.conf") < 0)
    {
       m_SectorLog.insert("Warning: no topology configuration found.");
    }
@@ -193,7 +193,7 @@ int Master::run()
       vector<int> tbrid;
       vector<SlaveAddr> tbsaddr;
 
-      for (map<int, SlaveNode>::iterator i = m_SlaveList.m_mSlaveList.begin(); i != m_SlaveList.m_mSlaveList.end(); ++ i)
+      for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
       {
          SectorMsg msg;
          msg.setType(1);
@@ -230,7 +230,7 @@ int Master::run()
       // remove from slave list
       for (vector<int>::iterator i = tbrid.begin(); i != tbrid.end(); ++ i)
       {
-         m_SlaveList.remove(*i);
+         m_SlaveManager.remove(*i);
       }
 
       // restart dead slaves
@@ -258,7 +258,7 @@ int Master::run()
       pthread_mutex_unlock(&m_MetaLock);
       for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
       {
-         if ((m_TransManager.getTotalTrans() >= m_SlaveList.getTotalSlaves()) || (m_sstrOnReplicate.size() >= m_SlaveList.getTotalSlaves()))
+         if ((m_TransManager.getTotalTrans() >= m_SlaveManager.getTotalSlaves()) || (m_sstrOnReplicate.size() >= m_SlaveManager.getTotalSlaves()))
             break;
 
          // avoid replicate a file that is currently being replicated
@@ -376,7 +376,7 @@ void* Master::serviceEx(void* p)
             sn.m_llUsedDiskSpace = Index::getTotalDataSize(branch);
             s->recv((char*)&(sn.m_llMaxDiskSpace), 8);
 
-            self->m_SlaveList.insert(sn);
+            self->m_SlaveManager.insert(sn);
 
             char text[64];
             sprintf(text, "Slave node join %s.", ip.c_str());
@@ -512,7 +512,7 @@ void* Master::process(void* s)
          Address addr;
          addr.m_strIP = ip;
          addr.m_iPort = port;
-         if (self->m_SlaveList.m_mAddrList.end() == self->m_SlaveList.m_mAddrList.find(addr))
+         if (self->m_SlaveManager.m_mAddrList.end() == self->m_SlaveManager.m_mAddrList.find(addr))
          {
             self->reject(ip, port, id, SectorError::E_SECURITY);
             continue;
@@ -581,8 +581,8 @@ void* Master::process(void* s)
 
          case 3: // sysinfo
          {
-            self->m_SysStat.m_llTotalDiskSpace = self->m_SlaveList.getTotalDiskSpace();
-            self->m_SysStat.m_llTotalSlaves = self->m_SlaveList.getTotalSlaves();
+            self->m_SysStat.m_llTotalDiskSpace = self->m_SlaveManager.getTotalDiskSpace();
+            self->m_SysStat.m_llTotalSlaves = self->m_SlaveManager.getTotalSlaves();
             self->m_SysStat.m_llTotalUsedSpace = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
 
@@ -689,7 +689,7 @@ void* Master::process(void* s)
             client.m_iPort = port;
             set<int> empty;
             SlaveNode sn;
-            if (self->m_SlaveList.chooseIONode(empty, client, rwx, sn) < 0)
+            if (self->m_SlaveManager.chooseIONode(empty, client, rwx, sn) < 0)
             {
                self->reject(ip, port, id, SectorError::E_RESOURCE);
                break;
@@ -804,7 +804,7 @@ void* Master::process(void* s)
                client.m_strIP = ip;
                client.m_iPort = port;
                set<int> empty;
-               if (self->m_SlaveList.chooseIONode(empty, client, rwx, sn) < 0)
+               if (self->m_SlaveManager.chooseIONode(empty, client, rwx, sn) < 0)
                {
                   self->reject(ip, port, id, SectorError::E_RESOURCE);
                   break;
@@ -819,7 +819,7 @@ void* Master::process(void* s)
                Address client;
                client.m_strIP = ip;
                client.m_iPort = port;
-               self->m_SlaveList.chooseIONode(attr.m_sLocation, client, rwx, sn);
+               self->m_SlaveManager.chooseIONode(attr.m_sLocation, client, rwx, sn);
 
                addr.m_strIP = sn.m_strIP;
                addr.m_iPort = sn.m_iPort;
@@ -879,7 +879,7 @@ void* Master::process(void* s)
             ofs.write(msg->getData() + 64, libsize);
             ofs.close();
 
-            for (map<int, SlaveNode>::iterator i = self->m_SlaveList.m_mSlaveList.begin(); i != self->m_SlaveList.m_mSlaveList.end(); ++ i)
+            for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
             {
                msg->m_iDataLength = SectorMsg::m_iHdrSize + libsize + 64;
                self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, msg, msg);
@@ -901,7 +901,7 @@ void* Master::process(void* s)
             }
 
             int c = 0;
-            for (map<int, SlaveNode>::iterator i = self->m_SlaveList.m_mSlaveList.begin(); i != self->m_SlaveList.m_mSlaveList.end(); ++ i)
+            for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
             {
                msg->setData(c * 68, i->second.m_strIP.c_str(), i->second.m_strIP.length() + 1);
                msg->setData(c * 68 + 64, (char*)&(i->second.m_iPort), 4);
@@ -1012,7 +1012,7 @@ int Master::createReplica(const string& path)
       return r;
 
    SlaveNode sn;
-   if (m_SlaveList.chooseReplicaNode(attr.m_sLocation, sn) < 0)
+   if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn) < 0)
       return -1;
 
    SectorMsg msg;

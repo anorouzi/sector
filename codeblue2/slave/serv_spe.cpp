@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -350,8 +350,8 @@ void* Slave::SPEHandler(void* p)
 void* Slave::SPEShuffler(void* p)
 {
    Slave* self = ((Param5*)p)->serv_instance;
-   string ip = ((Param5*)p)->client_ip;
-   //int port = ((Param5*)p)->client_ctrl_port;
+   string client_ip = ((Param5*)p)->client_ip;
+   int client_port = ((Param5*)p)->client_ctrl_port;
    string path = ((Param5*)p)->path;
    string localfile = ((Param5*)p)->filename;
    int dsnum = ((Param5*)p)->dsnum;
@@ -391,6 +391,10 @@ void* Slave::SPEShuffler(void* p)
       int msgid;
       if (gmp->recvfrom(speip, speport, msgid, &msg) < 0)
          continue;
+
+      // client releases the task
+      if ((speip == client_ip) && (speport == client_port))
+         break;
 
       int bucket = *(int32_t*)msg.getData();
 
@@ -538,6 +542,11 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
          return -1;
       if (datachn.recv((char*)index, (totalrows + 1) * 8) < 0)
          return -1;
+
+      int32_t cmd = 5;
+      datachn.send((char*)&cmd, 4);
+      datachn.recv((char*)&cmd, 4);
+      datachn.close();
    }
 
    size = index[totalrows] - index[0];
@@ -589,6 +598,11 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
          return -1;
       if (datachn.recv(block, index[totalrows] - index[0]) < 0)
          return -1;
+
+      int32_t cmd = 5;
+      datachn.send((char*)&cmd, 4);
+      datachn.recv((char*)&cmd, 4);
+      datachn.close();
    }
 
    return totalrows;

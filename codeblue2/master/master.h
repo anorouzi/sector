@@ -113,7 +113,7 @@ private:
    Index m_Metadata;
    pthread_mutex_t m_MetaLock;
 
-   SlaveList m_SlaveList;
+   SlaveManager m_SlaveManager;
 
    TransManager m_TransManager;
 

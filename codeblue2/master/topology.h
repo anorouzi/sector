@@ -52,6 +52,8 @@ struct SlaveNode
 
    int m_iCurrWorkLoad;
    int m_iStatus;
+
+   std::vector<int> m_viPath;
 };
 
 struct Cluster
@@ -68,6 +70,8 @@ struct Cluster
 
 class Topology
 {
+friend class SlaveManager;
+
 public:
    Topology();
    ~Topology();
@@ -76,12 +80,14 @@ public:
    int init(const char* topoconf);
    int lookup(const char* ip, std::vector<int>& path);
 
+   int match(std::vector<int>& p1, std::vector<int>& p2);
+
 private:
    int parseIPRange(const char* ip, int& digit, int& mask);
    int parseTopo(const char* topo, std::vector<int>& tm);
 
 private:
-   int m_iLevel;
+   unsigned int m_uiLevel;
 
    struct TopoMap
    {
@@ -93,10 +99,10 @@ private:
    std::vector<TopoMap> m_vTopoMap;
 };
 
-class SlaveList
+class SlaveManager
 {
 public:
-   SlaveList(): m_iNodeID(0) {}
+   SlaveManager(): m_iNodeID(0) {}
 
 public:
    int init(const char* topoconf);

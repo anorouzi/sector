@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -37,7 +37,7 @@ written by
 using namespace std;
 
 Topology::Topology():
-m_iLevel(1)
+m_uiLevel(1)
 {
 }
 
@@ -87,8 +87,8 @@ int Topology::init(const char* topoconf)
 
       m_vTopoMap.insert(m_vTopoMap.end(), tm);
 
-      if (m_iLevel < tm.m_viPath.size())
-         m_iLevel = tm.m_viPath.size();
+      if (m_uiLevel < tm.m_viPath.size())
+         m_uiLevel = tm.m_viPath.size();
    }
 
    ifs.close();
@@ -113,10 +113,21 @@ int Topology::lookup(const char* ip, vector<int>& path)
       }
    }
 
-   for (int i = 0; i < m_iLevel; ++ i)
+   for (unsigned int i = 0; i < m_uiLevel; ++ i)
       path.insert(path.end(), 0);
 
    return -1;
+}
+
+int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
+{
+   for (unsigned int i = 0; i < m_uiLevel; ++ i)
+   {
+      if (p1[i] != p2[i])
+         return i;
+   }
+
+   return m_uiLevel;
 }
 
 int Topology::parseIPRange(const char* ip, int& digit, int& mask)
@@ -185,12 +196,12 @@ int Topology::parseTopo(const char* topo, vector<int>& tm)
 }
 
 
-int SlaveList::init(const char* topoconf)
+int SlaveManager::init(const char* topoconf)
 {
    return m_Topology.init(topoconf);
 }
 
-int SlaveList::insert(SlaveNode& sn)
+int SlaveManager::insert(SlaveNode& sn)
 {
    sn.m_iNodeID = m_iNodeID ++;
 
@@ -201,11 +212,10 @@ int SlaveList::insert(SlaveNode& sn)
    addr.m_iPort = sn.m_iPort;
    m_mAddrList[addr] = sn.m_iNodeID;
 
-   vector<int> path;
-   m_Topology.lookup(sn.m_strIP.c_str(), path);
+   m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
    map<int, Cluster>::iterator pc;
-   for (vector<int>::iterator i = path.begin(); i != path.end(); ++ i)
+   for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i)
    {
       if ((pc = sc->find(*i)) == sc->end())
       {
@@ -232,7 +242,7 @@ int SlaveList::insert(SlaveNode& sn)
    return 1;
 }
 
-int SlaveList::remove(int nodeid)
+int SlaveManager::remove(int nodeid)
 {
    map<int, SlaveNode>::iterator sn = m_mSlaveList.find(nodeid);
 
@@ -270,25 +280,50 @@ int SlaveList::remove(int nodeid)
    return 1;
 }
 
-int SlaveList::chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn)
+int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn)
 {
-   set<int> avail;
+   vector< set<int> > avail;
+   avail.resize(m_Topology.m_uiLevel + 1);
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      if (loclist.find(i->first) == loclist.end())
-         avail.insert(i->first);
+      int l = 0;
+      for (set<int>::iterator j = loclist.begin(); j != loclist.end(); ++ j)
+      {
+         if (i->first == *j)
+         {
+            l = -1;
+            break;
+         }
+
+         int tmpl = m_Topology.match(i->second.m_viPath, m_mSlaveList[*j].m_viPath);
+         if (tmpl > l)
+            l = tmpl;
+      }
+
+      if (l >= 0)
+         avail[l].insert(i->first);
    }
 
-   if (avail.empty())
+   set<int> candidate;
+   for (unsigned int i = 0; i <= m_Topology.m_uiLevel; ++ i)
+   {
+      if (avail[i].size() > 0)
+      {
+         candidate = avail[i];
+         break;
+      }
+   }
+
+   if (candidate.empty())
       return -1;
 
    timeval t;
    gettimeofday(&t, 0);
    srand(t.tv_usec);
 
-   int r = int(avail.size() * rand() / (RAND_MAX + 1.0));
+   int r = int(candidate.size() * rand() / (RAND_MAX + 1.0));
 
-   set<int>::iterator n = avail.begin();
+   set<int>::iterator n = candidate.begin();
    for (int i = 0; i < r; ++ i)
       n ++;
 
@@ -297,7 +332,7 @@ int SlaveList::chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn)
    return 1;
 }
 
-int SlaveList::chooseIONode(std::set<int>& loclist, const Address& client, const int& io, SlaveNode& sn)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, const int& io, SlaveNode& sn)
 {
    set<int> avail;
 
@@ -324,34 +359,34 @@ int SlaveList::chooseIONode(std::set<int>& loclist, const Address& client, const
    return 1;
 }
 
-int SlaveList::chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn)
+int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn)
 {
-   set<int> avail;
+   set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
-      avail.insert(m_mAddrList[*i]);
+      locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseReplicaNode(avail, sn);
+   return chooseReplicaNode(locid, sn);
 }
 
-int SlaveList::chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn)
 {
-   set<int> avail;
+   set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
-      avail.insert(m_mAddrList[*i]);
+      locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(avail, client, io, sn);
+   return chooseIONode(locid, client, io, sn);
 }
 
-int SlaveList::getTotalSlaves()
+int SlaveManager::getTotalSlaves()
 {
    return m_mSlaveList.size();
 }
 
-int64_t SlaveList::getTotalDiskSpace()
+int64_t SlaveManager::getTotalDiskSpace()
 {
    int64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
