@@ -35,6 +35,7 @@ written by
 #include <map>
 #include <vector>
 #include <index.h>
+#include <stdint.h>
 
 struct SlaveNode
 {
@@ -44,8 +45,8 @@ struct SlaveNode
    int m_iPort;
    std::string m_strPublicIP;
 
-   int64_t m_llMaxDiskSpace;
-   int64_t m_llUsedDiskSpace;
+   int64_t m_llAvailDiskSpace;
+   int64_t m_llTotalFileSize;
 
    int64_t m_llLastUpdateTime;
    int m_iRetryNum;
@@ -61,8 +62,8 @@ struct Cluster
    int m_iClusterID;
 
    int m_iTotalNodes;
-   int m_llTotalDiskSpace;
-   int m_llUsedDiskSpace;
+   int m_llAvailDiskSpace;
+   int m_llTotalFileSize;
 
    std::map<int, Cluster> m_mSubCluster;
    std::set<int> m_sNodes;
@@ -117,8 +118,8 @@ public:
    int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn);
 
 public:
-   int getTotalSlaves();
-   int64_t getTotalDiskSpace();
+   unsigned int getTotalSlaves();
+   uint64_t getTotalDiskSpace();
 
 public:
    std::map<Address, int, AddrComp> m_mAddrList;

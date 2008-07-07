@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/06/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -187,10 +187,31 @@ int Master::run()
    {
       sleep(60);
 
+      // check each users, remove inactive ones
+      vector<int> tbru;
+
+      for (map<int, ActiveUser>::iterator i = m_mActiveUser.begin(); i != m_mActiveUser.end(); ++ i)
+      {
+         if (0 == i->first)
+            continue;
+
+         if (CTimer::getTime() - i->second.m_llLastRefreshTime > 30 * 60 * 1000000LL)
+            tbru.insert(tbru.end(), i->first);
+      }
+
+      // remove from slave list
+      for (vector<int>::iterator i = tbru.begin(); i != tbru.end(); ++ i)
+      {
+         char text[64];
+         sprintf(text, "User %s timeout. Kicked out.", m_mActiveUser[*i].m_strName.c_str());
+         m_SectorLog.insert(text);
+
+         m_mActiveUser.erase(*i);
+      }
+
       // check each slave node
       // if probe fails, remove the metadata about the data on the node, and create new replicas
-
-      vector<int> tbrid;
+      vector<int> tbrs;
       vector<SlaveAddr> tbsaddr;
 
       for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
@@ -201,6 +222,7 @@ int Master::run()
          if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) > 0)
          {
             i->second.m_llLastUpdateTime = CTimer::getTime();
+            i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
             i->second.m_iRetryNum = 0;
          }
          else if (++ i->second.m_iRetryNum > 10)
@@ -210,7 +232,7 @@ int Master::run()
             m_SectorLog.insert(text);
 
             // to be removed
-            tbrid.insert(tbrid.end(), i->first);
+            tbrs.insert(tbrs.end(), i->first);
 
             // remove the data in that 
             Address addr;
@@ -228,10 +250,8 @@ int Master::run()
       }
 
       // remove from slave list
-      for (vector<int>::iterator i = tbrid.begin(); i != tbrid.end(); ++ i)
-      {
+      for (vector<int>::iterator i = tbrs.begin(); i != tbrs.end(); ++ i)
          m_SlaveManager.remove(*i);
-      }
 
       // restart dead slaves
       if (tbsaddr.size() > 0)
@@ -373,8 +393,8 @@ void* Master::serviceEx(void* p)
             Index::merge(self->m_Metadata.m_mDirectory, branch);
             pthread_mutex_unlock(&self->m_MetaLock);
 
-            sn.m_llUsedDiskSpace = Index::getTotalDataSize(branch);
-            s->recv((char*)&(sn.m_llMaxDiskSpace), 8);
+            sn.m_llTotalFileSize = Index::getTotalDataSize(branch);
+            s->recv((char*)&(sn.m_llAvailDiskSpace), 8);
 
             self->m_SlaveManager.insert(sn);
 
@@ -506,6 +526,8 @@ void* Master::process(void* s)
             self->reject(ip, port, id, SectorError::E_SECURITY);
             continue;
          }
+
+         user->m_llLastRefreshTime = CTimer::getTime();
       }
       else if (key == 0)
       {
@@ -581,9 +603,9 @@ void* Master::process(void* s)
 
          case 3: // sysinfo
          {
-            self->m_SysStat.m_llTotalDiskSpace = self->m_SlaveManager.getTotalDiskSpace();
+            self->m_SysStat.m_llAvailDiskSpace = self->m_SlaveManager.getTotalDiskSpace();
             self->m_SysStat.m_llTotalSlaves = self->m_SlaveManager.getTotalSlaves();
-            self->m_SysStat.m_llTotalUsedSpace = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
+            self->m_SysStat.m_llTotalFileSize = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
 
             char* buf = new char[SysStat::g_iSize];

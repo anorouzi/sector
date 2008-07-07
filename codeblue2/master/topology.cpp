@@ -222,8 +222,8 @@ int SlaveManager::insert(SlaveNode& sn)
          Cluster c;
          c.m_iClusterID = *i;
          c.m_iTotalNodes = 0;
-         c.m_llTotalDiskSpace = 0;
-         c.m_llUsedDiskSpace = 0;
+         c.m_llAvailDiskSpace = 0;
+         c.m_llTotalFileSize = 0;
 
          (*sc)[*i] = c;
 
@@ -231,8 +231,8 @@ int SlaveManager::insert(SlaveNode& sn)
       }
 
       pc->second.m_iTotalNodes ++;
-      pc->second.m_llTotalDiskSpace += sn.m_llMaxDiskSpace;
-      pc->second.m_llUsedDiskSpace += sn.m_llUsedDiskSpace;
+      pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace;
+      pc->second.m_llTotalFileSize += sn.m_llTotalFileSize;
 
       sc = &(pc->second.m_mSubCluster);
    }
@@ -267,8 +267,8 @@ int SlaveManager::remove(int nodeid)
       }
 
       pc->second.m_iTotalNodes --;
-      pc->second.m_llTotalDiskSpace -= sn->second.m_llMaxDiskSpace;
-      pc->second.m_llUsedDiskSpace -= sn->second.m_llUsedDiskSpace;
+      pc->second.m_llAvailDiskSpace -= sn->second.m_llAvailDiskSpace;
+      pc->second.m_llTotalFileSize -= sn->second.m_llTotalFileSize;
 
       sc = &(pc->second.m_mSubCluster);
    }
@@ -381,17 +381,17 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
    return chooseIONode(locid, client, io, sn);
 }
 
-int SlaveManager::getTotalSlaves()
+unsigned int SlaveManager::getTotalSlaves()
 {
    return m_mSlaveList.size();
 }
 
-int64_t SlaveManager::getTotalDiskSpace()
+uint64_t SlaveManager::getTotalDiskSpace()
 {
-   int64_t size = 0;
+   uint64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      size += i->second.m_llMaxDiskSpace;
+      size += i->second.m_llAvailDiskSpace;
    }
 
    return size;

@@ -127,7 +127,7 @@ private:
    int createSysDir();
 
 private:
-   void report(const int32_t& transid, const string& path, const bool change = true);
+   int report(const int32_t& transid, const string& path, const bool change = true);
 
 private:
    CGMP m_GMP;

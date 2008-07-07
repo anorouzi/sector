@@ -371,7 +371,7 @@ void* SphereProcess::run(void* param)
    {
       i->m_DataChn.close();
 
-      if (->m_iShufflerPort > 0)
+      if (i->m_iShufflerPort > 0)
       {
          SectorMsg msg;
          int32_t cmd = -1;

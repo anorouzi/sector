@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/06/2008
 *****************************************************************************/
 
 
@@ -56,13 +56,6 @@ int Slave::init(const char* base)
       cerr << "unable to initialize from configuration file; quit.\n";
       return -1;
    }
-
-   // calculate total available disk size
-   struct statfs64 slavefs;
-   statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
-   int64_t totaldisk = slavefs.f_blocks * slavefs.f_bsize;
-   if ((m_SysConfig.m_llMaxDataSize < 0) || (m_SysConfig.m_llMaxDataSize > totaldisk))
-      m_SysConfig.m_llMaxDataSize = totaldisk;
 
    // obtain master IP address
    m_strMasterHost = m_SysConfig.m_strMasterHost;
@@ -145,8 +138,11 @@ int Slave::connect()
    secconn.send((char*)&size, 4);
    secconn.send(buf, size);
 
-   // send total available disk space
-   secconn.send((char*)&(m_SysConfig.m_llMaxDataSize), 8);
+   // calculate total available disk size
+   struct statfs64 slavefs;
+   statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+   int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
+   secconn.send((char*)&(availdisk), 8);
 
    secconn.close();
    SSLTransport::destroy();
@@ -180,6 +176,11 @@ void Slave::run()
       {
          case 1: // probe
          {
+            // calculate total available disk size
+            struct statfs64 slavefs;
+            statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+            int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
+            msg->setData(0, (char*)&availdisk, 8);
             m_GMP.sendto(ip, port, id, msg);
             break;
          }
@@ -352,11 +353,11 @@ void Slave::run()
    delete msg;
 }
 
-void Slave::report(const int32_t& transid, const string& filename, const bool change)
+int Slave::report(const int32_t& transid, const string& filename, const bool change)
 {
    struct stat s;
    if (-1 == stat((m_strHomeDir + filename).c_str(), &s))
-      return;
+      return -1;
 
    SNode sn;
    sn.m_strName = filename;
@@ -385,7 +386,13 @@ void Slave::report(const int32_t& transid, const string& filename, const bool ch
 
    cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
 
-   m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg);
+   if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+      return -1;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)msg.getData();
+
+   return 1;
 }
 
 int Slave::createDir(const string& path)

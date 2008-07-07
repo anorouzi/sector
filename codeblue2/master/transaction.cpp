@@ -72,7 +72,7 @@ int TransManager::update(int transid)
    return 0;
 }
 
-int TransManager::getTotalTrans()
+unsigned int TransManager::getTotalTrans()
 {
    return m_mTransList.size();
 }

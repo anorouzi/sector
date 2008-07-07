@@ -56,7 +56,7 @@ public:
    int update(int transid);
 
 public:
-   int getTotalTrans();
+   unsigned int getTotalTrans();
 
 private:
    std::map<int, Transaction> m_mTransList;

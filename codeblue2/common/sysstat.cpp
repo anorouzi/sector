@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/06/2008
 *****************************************************************************/
 
 #include "sysstat.h"
@@ -40,8 +40,8 @@ int SysStat::serialize(char* buf, int& size)
       return -1;
 
    *(int64_t*)buf = m_llStartTime;
-   *(int64_t*)(buf + 8) = m_llTotalDiskSpace;
-   *(int64_t*)(buf + 16) = m_llTotalUsedSpace;
+   *(int64_t*)(buf + 8) = m_llAvailDiskSpace;
+   *(int64_t*)(buf + 16) = m_llTotalFileSize;
    *(int64_t*)(buf + 24) = m_llTotalFileNum;
    *(int64_t*)(buf + 32) = m_llTotalSlaves;
 
@@ -56,8 +56,8 @@ int SysStat::deserialize(char* buf, const int& size)
       return -1;
 
    m_llStartTime = *(int64_t*)buf;
-   m_llTotalDiskSpace = *(int64_t*)(buf + 8);
-   m_llTotalUsedSpace = *(int64_t*)(buf + 16);
+   m_llAvailDiskSpace = *(int64_t*)(buf + 8);
+   m_llTotalFileSize = *(int64_t*)(buf + 16);
    m_llTotalFileNum = *(int64_t*)(buf + 24);
    m_llTotalSlaves = *(int64_t*)(buf + 32);
 
@@ -69,8 +69,8 @@ void SysStat::print()
    cout << "Sector System Information:" << endl;
    time_t st = m_llStartTime;
    cout << "Running since " << ctime(&st);
-   cout << "Total Disk Size " << m_llTotalDiskSpace / 1024 / 1024 << " MB" << endl;
-   cout << "Total File Size " << m_llTotalUsedSpace / 1024 /1024 << " MB" << endl;
+   cout << "Available Disk Size " << m_llAvailDiskSpace / 1024 / 1024 << " MB" << endl;
+   cout << "Total File Size " << m_llTotalFileSize / 1024 /1024 << " MB" << endl;
    cout << "Total Number of Files " << m_llTotalFileNum << endl;
    cout << "Total Number of Slave Nodes " << m_llTotalSlaves << endl;
 }
