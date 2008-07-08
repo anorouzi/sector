@@ -30,7 +30,7 @@ int main()
       string addr = line;
       addr = addr.substr(0, addr.find(' '));
 
-      system((string("ssh ") + addr + " \"" + base + "/start_slave " + base + " &> /dev/null &\"").c_str());
+      system((string("ssh ") + addr + " \"" + base + "/start_slave " + base + " &> /dev/null &\" &").c_str());
 
       cout << "start slave at " << addr << endl;
    }

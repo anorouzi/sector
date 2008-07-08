@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
 *****************************************************************************/
 
 
@@ -42,7 +42,7 @@ public:
 
 public:
    void init(const int& n);
-   void addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen);
+   void addData(const int& bucketid, const char* data, const int64_t& len);
    void clear();
 
 public:
@@ -127,7 +127,7 @@ private:
    int createSysDir();
 
 private:
-   int report(const int32_t& transid, const string& path, const bool change = true);
+   int report(const int32_t& transid, const string& path, const int& change = 0);
 
 private:
    CGMP m_GMP;

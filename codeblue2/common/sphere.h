@@ -53,7 +53,7 @@ struct SOutput
    int m_iIndSize;		// size of the index structure
    int m_iRows;			// number of records/rows
 
-   int m_iBucketID;		// bucket ID
+   int* m_piBucketID;		// bucket ID
 };
 
 struct SFile

@@ -72,8 +72,6 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
    idx.close();
 
    output->m_iRows = 0;
-   output->m_iResSize = 0;
-   output->m_iBucketID = 0;
 
    file->m_sstrFiles.insert(filename);
    file->m_sstrFiles.insert(string(filename) + ".idx");

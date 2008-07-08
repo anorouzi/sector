@@ -29,7 +29,7 @@ int sorthash(const SInput* input, SOutput* output, SFile* file)
    *(output->m_pllIndex + 1) = 100;
    output->m_iResSize = 100;
    output->m_iRows = 1;
-   output->m_iBucketID = hash((Key*)input->m_pcUnit, *(int*)input->m_pcParam);
+   *output->m_piBucketID = hash((Key*)input->m_pcUnit, *(int*)input->m_pcParam);
 
    return 0;
 }

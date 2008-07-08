@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/06/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -559,24 +559,36 @@ void* Master::process(void* s)
             cout << "get report " << transid << " " << change << " " << path << endl;
 
             int nc = -1;
-            if (change)
-            {
-               Address addr;
-               addr.m_strIP = ip;
-               addr.m_iPort = port;
-               pthread_mutex_lock(&self->m_MetaLock);
-               nc = self->m_Metadata.update(path.c_str(), addr);
-               pthread_mutex_unlock(&self->m_MetaLock);
+            Address addr;
+            addr.m_strIP = ip;
+            addr.m_iPort = port;
 
-               if (nc > 0)
-               {
+            switch (change)
+            {
+               case 1: // new file
+                  pthread_mutex_lock(&self->m_MetaLock);
+                  nc = self->m_Metadata.update(path.c_str(), addr);
+                  pthread_mutex_unlock(&self->m_MetaLock);
+                  break;
+
+               case 2: // modification of an existing file
+                  pthread_mutex_lock(&self->m_MetaLock);
+                  nc = self->m_Metadata.update(path.c_str(), addr);
+                  pthread_mutex_unlock(&self->m_MetaLock);
+                  break;
+
+               case 3: // new replication
+                  pthread_mutex_lock(&self->m_MetaLock);
+                  nc = self->m_Metadata.update(path.c_str(), addr);
+                  pthread_mutex_unlock(&self->m_MetaLock);
+
                   SNode attr;
                   attr.deserialize(path.c_str());
                   self->m_sstrOnReplicate.erase(attr.m_strName);
-               }
 
-               //TODO: update used disk space of the slave node
+                  break;
             }
+            //TODO: update used disk space of the slave node
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
@@ -596,8 +608,13 @@ void* Master::process(void* s)
 
          case 2: // client logout
          {
+            char text[64];
+            sprintf(text, "User logout %s from %s.", user->m_strName.c_str(), ip);
+            self->m_SectorLog.insert(text);
+
             self->m_mActiveUser.erase(key);
             self->m_GMP.sendto(ip, port, id, msg);
+
             break;
          }
 
@@ -665,9 +682,7 @@ void* Master::process(void* s)
             pthread_mutex_unlock(&self->m_MetaLock);
             if (r < 0)
             {
-               msg->setType(-msg->getType());
-               msg->m_iDataLength = SectorMsg::m_iHdrSize;
-               self->m_GMP.sendto(ip, port, id, msg);
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
             }
             else
             {
@@ -717,11 +732,13 @@ void* Master::process(void* s)
                break;
             }
 
-            self->m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, msg, msg);
+            int msgid = 0;
+            self->m_GMP.sendto(sn.m_strIP.c_str(), sn.m_iPort, msgid, msg);
 
             pthread_mutex_lock(&self->m_MetaLock);
             self->m_Metadata.create(msg->getData(), true);
             pthread_mutex_unlock(&self->m_MetaLock);
+
             self->m_GMP.sendto(ip, port, id, msg);
 
             break;
@@ -759,7 +776,8 @@ void* Master::process(void* s)
             for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
             {
                cout << "deleting " << i->m_strIP << " " << i->m_iPort << endl;
-               self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, msg);
+               int msgid = 0;
+               self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
 
                //TODO: update used disk space of the slave node
             }

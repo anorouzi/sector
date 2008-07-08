@@ -65,7 +65,7 @@ void* Slave::fileHandler(void* p)
    int64_t wb = 0;
 
    int32_t response = 0;
-   bool change = false;
+   int change = 0;
 
    while (run)
    {
@@ -135,7 +135,7 @@ void* Slave::fileHandler(void* p)
 
             ofs.close();
 
-            change = true;
+            change = 2;
             break;
          }
 
@@ -194,7 +194,7 @@ void* Slave::fileHandler(void* p)
 
             ofs.close();
 
-            change = true;
+            change = 1;
             break;
          }
 
@@ -299,7 +299,7 @@ void* Slave::copy(void* p)
    self->createDir(filename.substr(0, filename.rfind('/')));
    system((string("mv ") + self->m_strHomeDir + ".tmp" + filename + " " + self->m_strHomeDir + filename).c_str());
 
-   self->report(0, filename, true);
+   self->report(0, filename, 3);
 
    return NULL;
 }

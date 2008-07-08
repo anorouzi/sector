@@ -95,8 +95,7 @@ int sort(const SInput* input, SOutput* output, SFile* file)
 
    sortbucket(bucket.c_str());
 
-   output->m_iResSize = 0;
-   output->m_iBucketID = 0;
+   output->m_iRows = 0;
 
    file->m_sstrFiles.insert(input->m_pcUnit);
 

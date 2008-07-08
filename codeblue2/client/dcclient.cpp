@@ -159,7 +159,8 @@ int SphereStream::setSeg(const int64_t& start, const int64_t& end)
 SphereProcess::SphereProcess():
 m_iMinUnitSize(1000000),
 m_iMaxUnitSize(256000000),
-m_iCore(1)
+m_iCore(1),
+m_bDataMove(true)
 {
    m_strOperator = "";
    m_pcParam = NULL;
@@ -413,7 +414,8 @@ int SphereProcess::checkSPE()
                continue;
 
             // if a file is processed via pass by filename, it must be processed on its original location
-            if (0 != m_iRows)
+            // also, this depends on if the source data is allowed to move
+            if ((0 != m_iRows) && (m_bDataMove))
                dss = d;
 
             if ((*d)->m_pLoc->find(sn) != (*d)->m_pLoc->end())
@@ -581,7 +583,7 @@ int SphereProcess::prepareSPE(const char* spenodes)
          msg.setData(152, m_pcParam, m_iParamSize);
          msg.m_iDataLength = SectorMsg::m_iHdrSize + 152 + m_iParamSize;
 
-         if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+         if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {
             cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
             spe.m_DataChn.close();
@@ -704,7 +706,8 @@ int SphereProcess::prepareOutput()
 
             cout << "request shuffler " << loc.m_strIP << " " << loc.m_iPort << endl;
 
-            m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg);
+            if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+               continue;
 
             s->m_iShufflerPort = *(int32_t*)msg.getData();
          }

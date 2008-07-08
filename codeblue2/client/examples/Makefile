@@ -1,15 +1,19 @@
 C++ = g++
+CCFLAGS = -shared -fPIC -g
 
-all: randwriter.so sort.so sorthash.so
+all: randwriter.so sort.so sorthash.so wordbucket.so
 
 randwriter.so: randwriter.cpp
-	$(C++) -shared -fPIC -o $@ $^ -lstdc++
+	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
 
 sort.so: sort.cpp
-	$(C++) -shared -fPIC -o $@ $^ -lstdc++
+	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
 
 sorthash.so: sorthash.cpp
-	$(C++) -shared -fPIC -o $@ $^ -lstdc++
+	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+
+wordbucket.so: wordbucket.cpp
+	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
 
 clean:
-	rm -f randwriter.so sort.so sorthash.so
+	rm -f randwriter.so sort.so sorthash.so wordbucket.so

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/26/2008
+   Yunhong Gu, last updated 07/03/2008
 *****************************************************************************/
 
 #ifdef WIN32
@@ -577,8 +577,6 @@ void CRcvUList::remove(const CUDT* u)
    if (!n->m_bOnList)
       return;
 
-   n->m_bOnList = false;
-
    if (NULL == n->m_pPrev)
    {
       // n is the first node
@@ -587,22 +585,22 @@ void CRcvUList::remove(const CUDT* u)
          m_pLast = NULL;
       else
          m_pUList->m_pPrev = NULL;
-
-      n->m_pNext = n->m_pPrev = NULL;
-
-      return;
-   }
-
-   n->m_pPrev->m_pNext = n->m_pNext;
-   if (NULL == n->m_pNext)
-   {
-      // n is the last node
-      m_pLast = n->m_pPrev;
    }
    else
-      n->m_pNext->m_pPrev = n->m_pPrev;
+   {
+      n->m_pPrev->m_pNext = n->m_pNext;
+      if (NULL == n->m_pNext)
+      {
+         // n is the last node
+         m_pLast = n->m_pPrev;
+      }
+      else
+         n->m_pNext->m_pPrev = n->m_pPrev;
+   }
 
    n->m_pNext = n->m_pPrev = NULL;
+
+   n->m_bOnList = false;
 }
 
 void CRcvUList::update(const CUDT* u)
@@ -751,17 +749,16 @@ CRendezvousQueue::~CRendezvousQueue()
    m_vRendezvousID.clear();
 }
 
-void CRendezvousQueue::insert(const UDTSOCKET& id, const int& ipv, const sockaddr* addr, CUDT* u)
+void CRendezvousQueue::insert(const UDTSOCKET& id, const int& ipv, const sockaddr* addr)
 {
    CGuard vg(m_RIDVectorLock);
 
    CRL r;
    r.m_iID = id;
-   r.m_iPeerID = 0;
    r.m_iIPversion = ipv;
    r.m_pPeerAddr = (AF_INET == ipv) ? (sockaddr*)new sockaddr_in : (sockaddr*)new sockaddr_in6;
    memcpy(r.m_pPeerAddr, addr, (AF_INET == ipv) ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
-   r.m_pUDT = u;
+
    m_vRendezvousID.insert(m_vRendezvousID.end(), r);
 }
 
@@ -783,18 +780,18 @@ void CRendezvousQueue::remove(const UDTSOCKET& id)
       }
 }
 
-bool CRendezvousQueue::retrieve(const sockaddr* addr, UDTSOCKET& id, const UDTSOCKET& peerid, CUDT*& u)
+bool CRendezvousQueue::retrieve(const sockaddr* addr, UDTSOCKET& id)
 {
    CGuard vg(m_RIDVectorLock);
 
    for (vector<CRL>::iterator i = m_vRendezvousID.begin(); i != m_vRendezvousID.end(); ++ i)
-      if (CIPAddress::ipcmp(addr, i->m_pPeerAddr, i->m_iIPversion) && ((0 == i->m_iPeerID) || (peerid == i->m_iPeerID)))
+   {
+      if (CIPAddress::ipcmp(addr, i->m_pPeerAddr, i->m_iIPversion) && ((0 == id) || (id == i->m_iID)))
       {
          id = i->m_iID;
-         i->m_iPeerID = peerid;
-         u = i->m_pUDT;
          return true;
       }
+   }
 
    return false;
 }
@@ -940,13 +937,8 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
       {
          if (NULL != self->m_pListener)
             ((CUDT*)self->m_pListener)->listen(addr, unit->m_Packet);
-         else if (self->m_pRendezvousQueue->retrieve(addr, id, ((CHandShake*)unit->m_Packet.m_pcData)->m_iID, u))
-         {
-            if (u->m_bConnected && !u->m_bBroken)
-               u->processCtrl(unit->m_Packet);
-            else
-               self->storePkt(id, unit->m_Packet.clone());
-         }
+         else if (self->m_pRendezvousQueue->retrieve(addr, id))
+            self->storePkt(id, unit->m_Packet.clone());
       }
       else if (id > 0)
       {
@@ -963,7 +955,7 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
                self->m_pRcvUList->update(u);
             }
          }
-         else
+         else if (self->m_pRendezvousQueue->retrieve(addr, id))
             self->storePkt(id, unit->m_Packet.clone());
       }
 

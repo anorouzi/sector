@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/23/2008
+   Yunhong Gu, last updated 07/04/2008
 *****************************************************************************/
 
 #ifdef WIN32
@@ -264,7 +264,7 @@ UDTSOCKET CUDTUnited::newSocket(const int& af, const int& type)
 
 int CUDTUnited::newConnection(const UDTSOCKET listen, const sockaddr* peer, CHandShake* hs)
 {
-   CUDTSocket* ns;
+   CUDTSocket* ns = NULL;
    CUDTSocket* ls = locate(listen);
 
    // if this connection has already been processed
@@ -418,10 +418,8 @@ int CUDTUnited::newConnection(const UDTSOCKET listen, const sockaddr* peer, CHan
    if (error > 0)
    {
       ns->m_pUDT->close();
-      delete ns->m_pUDT;
-      if (error > 1)
-         m_Sockets.erase(ns->m_SocketID);
-      delete ns;
+      ns->m_Status = CUDTSocket::CLOSED;
+      ns->m_TimeStamp = CTimer::getTime();
 
       return -1;
    }
@@ -512,7 +510,7 @@ int CUDTUnited::bind(UDTSOCKET u, UDPSOCKET udpsock)
    sockaddr_in name4;
    sockaddr_in6 name6;
    sockaddr* name;
-   int namelen;
+   socklen_t namelen;
 
    if (AF_INET == s->m_iIPversion)
    {
@@ -525,7 +523,7 @@ int CUDTUnited::bind(UDTSOCKET u, UDPSOCKET udpsock)
       name = (sockaddr*)&name6;
    }
 
-   if (-1 == getsockname(udpsock, name, &namelen))
+   if (-1 == ::getsockname(udpsock, name, &namelen))
       throw CUDTException(5, 3);
 
    s->m_pUDT->open();
@@ -1078,15 +1076,12 @@ void CUDTUnited::removeSocket(const UDTSOCKET u)
       #else
          WaitForSingleObject(i->second->m_AcceptLock, INFINITE);
       #endif
-      // if it is a listener, remove all un-accepted sockets in its queue
+      // if it is a listener, close all un-accepted sockets in its queue and remove them later
       for (set<UDTSOCKET>::iterator q = i->second->m_pQueuedSockets->begin(); q != i->second->m_pQueuedSockets->end(); ++ q)
       {
          m_Sockets[*q]->m_pUDT->close();
-         delete m_Sockets[*q];
-         m_Sockets.erase(*q);
-
-         if (m != m_vMultiplexer.end())
-            m->m_iRefCount --;
+         m_Sockets[*q]->m_TimeStamp = CTimer::getTime();
+         m_Sockets[*q]->m_Status = CUDTSocket::CLOSED;
       }
       #ifndef WIN32
          pthread_mutex_unlock(&(i->second->m_AcceptLock));

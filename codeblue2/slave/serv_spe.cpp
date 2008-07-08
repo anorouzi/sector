@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -69,13 +69,13 @@ void SPEResult::init(const int& n)
       *i = NULL;
 }
 
-void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t& ilen, const char* data, const int64_t& dlen)
+void SPEResult::addData(const int& bucketid, const char* data, const int64_t& len)
 {
-   if ((bucketid >= m_iBucketNum) || (bucketid < 0) || (ilen <= 0) || (dlen <= 0))
+   if ((bucketid >= m_iBucketNum) || (bucketid < 0) || (len <= 0))
       return;
 
    // dynamically increase index buffer size
-   while (m_vIndexLen[bucketid] + ilen >= m_vIndexPhyLen[bucketid])
+   while (m_vIndexLen[bucketid] + 1 >= m_vIndexPhyLen[bucketid])
    {
       int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 256];
       if (NULL != m_vIndex[bucketid])
@@ -92,15 +92,11 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
       m_vIndexPhyLen[bucketid] += 256;
    }
 
-   int64_t* p = m_vIndex[bucketid] + m_vIndexLen[bucketid] - 1;
-   int64_t start = *p;
-   for (int i = 1; i <= ilen; ++ i)
-      *(++ p) = index[i] + start;
-
-   m_vIndexLen[bucketid] += ilen;
+   m_vIndex[bucketid][m_vIndexLen[bucketid]] = m_vIndex[bucketid][m_vIndexLen[bucketid] - 1] + len;
+   m_vIndexLen[bucketid] ++;
 
    // dynamically increase index buffer size
-   while (m_vDataLen[bucketid] + dlen > m_vDataPhyLen[bucketid])
+   while (m_vDataLen[bucketid] + len > m_vDataPhyLen[bucketid])
    {
       char* tmp = new char[m_vDataPhyLen[bucketid] + 65536];
       if (NULL != m_vData[bucketid])
@@ -112,8 +108,8 @@ void SPEResult::addData(const int& bucketid, const int64_t* index, const int64_t
       m_vDataPhyLen[bucketid] += 65536;
    }
 
-   memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, dlen);
-   m_vDataLen[bucketid] += dlen;
+   memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, len);
+   m_vDataLen[bucketid] += len;
 }
 
 void SPEResult::clear()
@@ -252,7 +248,17 @@ void* Slave::SPEHandler(void* p)
       rdata = new char[size];
 
       int64_t* rindex = NULL;
-      rindex = new int64_t[totalrows + 2];
+      int* rbucket = NULL;
+      if (totalrows < 65536)
+      {
+         rindex = new int64_t[65536];
+         rbucket = new int[65536];
+      }
+      else
+      {
+         rindex = new int64_t[totalrows + 2];
+         rbucket = new int[totalrows + 2];
+      }
 
       SInput input;
       input.m_pcUnit = NULL;
@@ -262,8 +268,8 @@ void* Slave::SPEHandler(void* p)
       output.m_pcResult = rdata;
       output.m_iBufSize = size;
       output.m_pllIndex = rindex;
-      output.m_iIndSize = totalrows + 2;
-      output.m_iBucketID = 0;
+      output.m_iIndSize = (totalrows < 65536) ? 65536 : totalrows + 2;
+      output.m_piBucketID = rbucket;
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
 
@@ -281,7 +287,8 @@ void* Slave::SPEHandler(void* p)
 
          process(&input, &output, &file);
 
-         result.addData(output.m_iBucketID, output.m_pllIndex, output.m_iRows, output.m_pcResult, output.m_iResSize);
+         for (int r = 0; r < output.m_iRows; ++ r)
+            result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
 
          gettimeofday(&t4, 0);
          if (t4.tv_sec - t3.tv_sec > 1)
@@ -299,8 +306,11 @@ void* Slave::SPEHandler(void* p)
       if (0 == unitrows)
       {
          input.m_pcUnit = block;
+
          process(&input, &output, &file);
-         result.addData(output.m_iBucketID, output.m_pllIndex, output.m_iRows, output.m_pcResult, output.m_iResSize);
+
+         for (int r = 0; r < output.m_iRows; ++ r)
+            result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
       }
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
@@ -321,6 +331,7 @@ void* Slave::SPEHandler(void* p)
       delete [] block;
       delete [] rdata;
       delete [] rindex;
+      delete [] rbucket;
 
       index = NULL;
       block = NULL;

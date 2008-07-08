@@ -93,6 +93,8 @@ public:
    SphereProcess();
    ~SphereProcess();
 
+   int close();
+
    int loadOperator(const char* library);
 
    int run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param = NULL, const int& size = 0);
@@ -104,12 +106,11 @@ public:
 
    int read(SphereResult*& res, const bool& inorder = false, const bool& wait = true);
    int checkProgress();
-   int close();
 
    inline void setMinUnitSize(int size) {m_iMinUnitSize = size;}
    inline void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}
-
    inline void setProcNumPerNode(int num) {m_iCore = num;}
+   inline void setDataMoveAttr(bool move) {}
 
 private:
    string m_strOperator;
@@ -162,8 +163,8 @@ private:
 
    int m_iMinUnitSize;		// minimum data segment size
    int m_iMaxUnitSize;		// maximum data segment size, must be smaller than physical memory
-
    int m_iCore;			// number of processing instances on each node
+   bool m_bDataMove;		// if source data is allowed to move for Sphere process
 
 private:
    int prepareSPE(const char* spenodes);

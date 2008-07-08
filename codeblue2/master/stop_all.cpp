@@ -30,7 +30,7 @@ int main()
 
       cout << "stoping slave node at " << addr << endl;
 
-      system((string("ssh ") + addr + " killall -9 start_slave").c_str());
+      system((string("ssh ") + addr + " killall -9 start_slave &").c_str());
    }
 
    return 0;

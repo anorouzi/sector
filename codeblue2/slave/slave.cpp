@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/06/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
 *****************************************************************************/
 
 
@@ -194,7 +194,7 @@ void Slave::run()
          case 103: // mkdir
          {
             createDir(msg->getData());
-            m_GMP.sendto(ip, port, id, msg);
+
             break;
          }
 
@@ -204,7 +204,7 @@ void Slave::run()
             char* newpath = msg->getData() + 64;
             m_LocalFile.move(oldpath, newpath);
             ::rename((m_strHomeDir + oldpath).c_str(), (m_strHomeDir + newpath).c_str());
-            m_GMP.sendto(ip, port, id, msg);
+
             break;
          }
 
@@ -215,7 +215,7 @@ void Slave::run()
             m_LocalFile.remove(path, true);
             string sysrm = string("rm -rf ") + m_strHomeDir + path;
             system(sysrm.c_str());
-            m_GMP.sendto(ip, port, id, msg);
+
             break;
          }
 
@@ -353,7 +353,7 @@ void Slave::run()
    delete msg;
 }
 
-int Slave::report(const int32_t& transid, const string& filename, const bool change)
+int Slave::report(const int32_t& transid, const string& filename, const int& change)
 {
    struct stat s;
    if (-1 == stat((m_strHomeDir + filename).c_str(), &s))
@@ -380,8 +380,7 @@ int Slave::report(const int32_t& transid, const string& filename, const bool cha
    msg.setType(1);
    msg.setKey(0);
    msg.setData(0, (char*)&transid, 4);
-   int c = change ? 1 : 0;
-   msg.setData(4, (char*)&c, 4);
+   msg.setData(4, (char*)&change, 4);
    msg.setData(8, buf, strlen(buf) + 1);
 
    cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
