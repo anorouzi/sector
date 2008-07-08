@@ -174,10 +174,7 @@ int Client::stat(const string& path, SNode& attr)
       return -1;
 
    if (msg.getType() < 0)
-{
-     cout << "hoho " << *(int32_t*)(msg.getData()) << endl;
       return *(int32_t*)(msg.getData());
-}
 
    attr.deserialize(msg.getData());
 
