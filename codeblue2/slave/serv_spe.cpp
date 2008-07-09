@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -75,9 +75,10 @@ void SPEResult::addData(const int& bucketid, const char* data, const int64_t& le
       return;
 
    // dynamically increase index buffer size
-   while (m_vIndexLen[bucketid] + 1 >= m_vIndexPhyLen[bucketid])
+   if (m_vIndexLen[bucketid] >= m_vIndexPhyLen[bucketid])
    {
       int64_t* tmp = new int64_t[m_vIndexPhyLen[bucketid] + 256];
+
       if (NULL != m_vIndex[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vIndex[bucketid], m_vIndexLen[bucketid] * 8);
@@ -99,6 +100,7 @@ void SPEResult::addData(const int& bucketid, const char* data, const int64_t& le
    while (m_vDataLen[bucketid] + len > m_vDataPhyLen[bucketid])
    {
       char* tmp = new char[m_vDataPhyLen[bucketid] + 65536];
+
       if (NULL != m_vData[bucketid])
       {
          memcpy((char*)tmp, (char*)m_vData[bucketid], m_vDataLen[bucketid]);
@@ -235,7 +237,7 @@ void* Slave::SPEHandler(void* p)
       else
       {
          // store file name in "process" parameter
-         block = new char[64];
+         block = new char[datafile.length() + 1];
          strcpy(block, datafile.c_str());
          size = datafile.length() + 1;
          totalrows = 0;
@@ -306,9 +308,7 @@ void* Slave::SPEHandler(void* p)
       if (0 == unitrows)
       {
          input.m_pcUnit = block;
-
          process(&input, &output, &file);
-
          for (int r = 0; r < output.m_iRows; ++ r)
             result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
       }
@@ -348,10 +348,11 @@ void* Slave::SPEHandler(void* p)
 
    delete [] param;
    delete [] dataseg;
+   delete [] outputloc;
 
    for (map<Address, Transport*, AddrComp>::iterator i = OutputChn.begin(); i != OutputChn.end(); ++ i)
    {
-      i->second->close();
+      //i->second->close();
       delete i->second;
    }
 
@@ -365,16 +366,16 @@ void* Slave::SPEShuffler(void* p)
    int client_port = ((Param5*)p)->client_ctrl_port;
    string path = ((Param5*)p)->path;
    string localfile = ((Param5*)p)->filename;
-   int dsnum = ((Param5*)p)->dsnum;
+   int bucketnum = ((Param5*)p)->bucket;
    CGMP* gmp = ((Param5*)p)->gmp;
    delete (Param5*)p;
 
-   cout << "SPE Shuffler " << path << " " << localfile << " " << dsnum << endl;
+   cout << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << endl;
 
    ::mkdir((self->m_strHomeDir + path).c_str(), S_IRWXU);
 
    // remove old result data files
-   for (int i = 0; i < dsnum; ++ i)
+   for (int i = 0; i < bucketnum; ++ i)
    {
       char tmp[64];
       sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
@@ -385,7 +386,7 @@ void* Slave::SPEShuffler(void* p)
 
    // index file initial offset
    vector<int64_t> offset;
-   offset.resize(dsnum);
+   offset.resize(bucketnum);
    for (vector<int64_t>::iterator i = offset.begin(); i != offset.end(); ++ i)
       *i = 0;
 
@@ -408,7 +409,6 @@ void* Slave::SPEShuffler(void* p)
          break;
 
       int bucket = *(int32_t*)msg.getData();
-
       fileid.insert(bucket);
 
       char tmp[64];
@@ -468,6 +468,7 @@ void* Slave::SPEShuffler(void* p)
       chn->recv(data, len);
       datafile.write(data, len);
       delete [] data;
+
       chn->recv((char*)&len, 4);
       int64_t* index = new int64_t[len];
       chn->recv((char*)index, len * 8);
@@ -661,6 +662,7 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
          else
             rarray[i] = 0;
       }
+
       // send back size and recnum information
       datachn->send((char*)sarray, buckets * 4);
       datachn->send((char*)rarray, buckets * 4);

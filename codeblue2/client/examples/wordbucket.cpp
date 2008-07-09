@@ -22,7 +22,7 @@ int wordbucket(const SInput* input, SOutput* output, SFile* file)
    cout << "processing " << html << endl;
 
    output->m_iRows = 0;
-   *(output->m_pllIndex) = 0;
+   output->m_pllIndex[0] = 0;
 
    ifstream ifs(html.c_str());
    if (ifs.bad() || ifs.fail())
@@ -66,11 +66,12 @@ int wordbucket(const SInput* input, SOutput* output, SFile* file)
          else if ((0 == delim[*p]) && (NULL != token))
          {
             *p = '\0';
-             wordset.insert(token);
-             token = NULL;
+            wordset.insert(token);
+            token = NULL;
          }
       }
    }
+   delete [] buffer;
 
    for(set<string>::iterator i = wordset.begin(); i != wordset.end(); ++ i)
    {

@@ -105,9 +105,6 @@ int SphereStream::init(const vector<string>& files)
       m_vLocation[lp ++] = fattr.m_sLocation;
    }
 
-   if (!indexfound)
-      cout << "warning: no record index found!\n";
-
    m_llEnd = m_llRecNum;
 
    m_iStatus = 1;
@@ -697,8 +694,7 @@ int SphereProcess::prepareOutput()
 
             msg.setData(0, loc.m_strIP.c_str(), loc.m_strIP.length() + 1);
             msg.setData(64, (char*)&(loc.m_iPort), 4);
-            int32_t dsnum = m_vpDS.size();
-            msg.setData(68, (char*)&dsnum, 4);
+            msg.setData(68, (char*)&(m_pOutput->m_iFileNum), 4);
             msg.setData(72, m_pOutput->m_strPath.c_str(), m_pOutput->m_strPath.length() + 1);
             msg.setData(136, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
 

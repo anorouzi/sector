@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 
@@ -307,7 +307,7 @@ void Slave::run()
                memcpy(p->param, msg->getData() + 152, p->psize);
             }
             else
-              p->param = NULL;
+               p->param = NULL;
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << endl;
 
@@ -332,7 +332,7 @@ void Slave::run()
             p->serv_instance = this;
             p->client_ip = msg->getData();
             p->client_ctrl_port = *(int32_t*)(msg->getData() + 64);
-            p->dsnum = *(int32_t*)(msg->getData() + 68);
+            p->bucket = *(int32_t*)(msg->getData() + 68);
             p->path = msg->getData() + 72;
             p->filename = msg->getData() + 136;
             p->gmp = gmp;

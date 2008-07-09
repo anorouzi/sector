@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 
@@ -109,7 +109,7 @@ private:
       int client_ctrl_port;     // client GMP port
       string path;		// output path
       string filename;		// SPE output file name
-      int dsnum;		// number of data segments (results to expect)
+      int bucket;		// number of buckets
       CGMP* gmp;		// GMP
    };
 
