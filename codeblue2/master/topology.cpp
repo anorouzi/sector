@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -348,7 +348,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, const i
    gettimeofday(&t, 0);
    srand(t.tv_usec);
 
-   int r = int(loclist.size() * rand() / (RAND_MAX + 1.0));
+   int r = int(avail.size() * rand() / (RAND_MAX + 1.0));
 
    set<int>::iterator n = avail.begin();
    for (int i = 0; i < r; ++ i)
