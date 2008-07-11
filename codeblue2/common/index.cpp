@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 
@@ -37,27 +37,37 @@ written by
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
+#include <constant.h>
 
 using namespace std;
 
 int Index::list(const char* path, std::vector<string>& filelist)
 {
    vector<string> dir;
-   if (parsePath(path, dir) <= 0)
-      return -3;
+   if (parsePath(path, dir) < 0)
+      return SectorError::E_INVALID;
 
    map<string, SNode>* currdir = &m_mDirectory;
+   unsigned int depth = 1;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
       map<string, SNode>::iterator s = currdir->find(*d);
       if (s == currdir->end())
-         return -1;
+         return SectorError::E_NOEXIST;
 
       if (!s->second.m_bIsDir)
-         return -2;
+      {
+         if (depth != dir.size())
+            return SectorError::E_NOEXIST;
+
+         char buf[128];
+         s->second.serialize(buf);
+         filelist.insert(filelist.end(), buf);
+         return 1;
+      }
 
       currdir = &(s->second.m_mDirectory);
+      depth ++;
    }
 
    filelist.clear();
@@ -254,7 +264,7 @@ int Index::eraseCopy(const char* path, const Address& loc)
    return 0;
 }
 
-int Index::update(const char* fileinfo, const Address& loc)
+int Index::update(const char* fileinfo, const Address& loc, const int& type, set<Address, AddrComp>& tbr)
 {
    SNode sn;
    sn.deserialize(fileinfo);
@@ -274,6 +284,12 @@ int Index::update(const char* fileinfo, const Address& loc)
       s = currdir->find(*d);
       if (s == currdir->end())
       {
+         if ((type == 3) || (type == 2))
+         {
+            // this is for new files only
+            return -1;
+         }
+
          SNode n;
          n.m_strName = *d;
          n.m_bIsDir = true;
@@ -292,19 +308,58 @@ int Index::update(const char* fileinfo, const Address& loc)
    s = currdir->find(filename);
    if (s == currdir->end())
    {
+      if ((type == 3) || (type == 2))
+      {
+         // this is for new files only
+         return -1;
+      }
+
       (*currdir)[filename] = sn;
-      return 0;
+      return 1;
    }
    else
    {
-      // check size/timestamp, reject name conflicts
-      //if (s->second.m_llSize != sn.m_llSize)
-      //   ... check number of replicas here
+      if (type == 1)
+      {
+         // file exist
+         return -1;
+      }
 
-      s->second.m_llSize = sn.m_llSize;
-      s->second.m_llTimeStamp = sn.m_llTimeStamp;
-      s->second.m_sLocation.insert(loc);
-      return s->second.m_sLocation.size() - 1;
+      if (type == 2)
+      {
+         // modification to an existing copy
+         if (s->second.m_sLocation.find(loc) == s->second.m_sLocation.end())
+            return -1;
+
+         if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
+         {
+            tbr = s->second.m_sLocation;
+            tbr.erase(loc);
+            s->second.m_sLocation.clear();
+
+            s->second.m_llSize = sn.m_llSize;
+            s->second.m_llTimeStamp = sn.m_llTimeStamp;
+            s->second.m_sLocation.insert(loc);
+         }
+
+         return s->second.m_sLocation.size();
+      }
+
+      if (type == 3)
+      {
+         // a new replica
+         if (s->second.m_sLocation.find(loc) != s->second.m_sLocation.end())
+            return -1;
+
+         if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
+         {
+            tbr.insert(loc);
+            return -1;
+         }
+
+         s->second.m_sLocation.insert(loc);
+         return s->second.m_sLocation.size();
+      }
    }
 
    return -1;

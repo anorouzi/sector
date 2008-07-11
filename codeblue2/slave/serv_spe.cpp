@@ -129,6 +129,7 @@ void* Slave::SPEHandler(void* p)
 {
    Slave* self = ((Param4*)p)->serv_instance;
    Transport* datachn = ((Param4*)p)->datachn;
+   const int transid = ((Param4*)p)->transid;
    const string ip = ((Param4*)p)->client_ip;
    const int ctrlport = ((Param4*)p)->client_ctrl_port;
    const int dataport = ((Param4*)p)->client_data_port;
@@ -274,6 +275,7 @@ void* Slave::SPEHandler(void* p)
       output.m_piBucketID = rbucket;
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
+      file.m_strLibDir = self->m_strHomeDir + ".sphere/" + path + "/";
 
       result.clear();
       gettimeofday(&t3, 0);
@@ -356,12 +358,15 @@ void* Slave::SPEHandler(void* p)
       delete i->second;
    }
 
+   self->reportSphere(transid);
+
    return NULL;
 }
 
 void* Slave::SPEShuffler(void* p)
 {
    Slave* self = ((Param5*)p)->serv_instance;
+   int transid = ((Param5*)p)->transid;
    string client_ip = ((Param5*)p)->client_ip;
    int client_port = ((Param5*)p)->client_ctrl_port;
    string path = ((Param5*)p)->path;
@@ -496,9 +501,13 @@ void* Slave::SPEShuffler(void* p)
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
    {
       char tmp[64];
-      sprintf(tmp, "%s.%d", localfile.c_str(), *i);
-      self->report(0, tmp, true);
+      sprintf(tmp, "%s.%d", (path + "/" + localfile).c_str(), *i);
+      self->report(0, tmp, 1);
+      sprintf(tmp, "%s.%d.idx", (path + "/" + localfile).c_str(), *i);
+      self->report(0, tmp, 1);
    }
+
+   self->reportSphere(transid);
 
    return NULL;
 }

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -32,7 +32,7 @@ written by
 using namespace std;
 
 TransManager::TransManager():
-m_iTransID(0)
+m_iTransID(1)
 {
 }
 
@@ -40,14 +40,15 @@ TransManager::~TransManager()
 {
 }
 
-int TransManager::insert(const int slave, const string& file, const int mode, const string& user, const int cmd)
+int TransManager::insert(const int slave, const int type, const int key, const int cmd, const std::string& file, const int mode)
 {
    Transaction t;
    t.m_iTransID = m_iTransID ++;
+   t.m_iType = type;
    t.m_llStartTime = CTimer::getTime();
    t.m_strFile = file;
    t.m_iMode = mode;
-   t.m_strUser = user;
+   t.m_iUserKey = key;
    t.m_iCommand = cmd;
 
    m_mTransList[t.m_iTransID] = t;
@@ -70,6 +71,21 @@ int TransManager::update(int transid)
 {
    m_mTransList.erase(transid);
    return 0;
+}
+
+int TransManager::getUserTrans(const int key, set<int> transid)
+{
+   transid.clear();
+
+   for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
+   {
+      if (key == i->second.m_iUserKey)
+      {
+         transid.insert(i->first);
+      }
+   }
+
+   return transid.size();
 }
 
 unsigned int TransManager::getTotalTrans()

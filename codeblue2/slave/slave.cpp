@@ -308,8 +308,9 @@ void Slave::run()
             }
             else
                p->param = NULL;
+            p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
-            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << endl;
+            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << " " << p->transid << endl;
 
             pthread_t spe_handler;
             pthread_create(&spe_handler, NULL, SPEHandler, p);
@@ -336,6 +337,7 @@ void Slave::run()
             p->path = msg->getData() + 72;
             p->filename = msg->getData() + 136;
             p->gmp = gmp;
+            p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
             pthread_t spe_shuffler;
             pthread_create(&spe_shuffler, NULL, SPEShuffler, p);
@@ -374,7 +376,8 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    Address addr;
    addr.m_strIP = "127.0.0.1";
    addr.m_iPort = 0;
-   m_LocalFile.update(buf, addr);
+   set<Address, AddrComp> nothing;
+   m_LocalFile.update(buf, addr, change, nothing);
 
    SectorMsg msg;
    msg.setType(1);
@@ -384,6 +387,24 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    msg.setData(8, buf, strlen(buf) + 1);
 
    cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
+
+   if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+      return -1;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)msg.getData();
+
+   return 1;
+}
+
+int Slave::reportSphere(const int& transid)
+{
+   SectorMsg msg;
+   msg.setType(1);
+   msg.setKey(0);
+   msg.setData(0, (char*)&transid, 4);
+
+   cout << "reportSphere " << m_strMasterIP << " " << m_iMasterPort << " " << transid << endl;
 
    if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
       return -1;

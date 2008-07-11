@@ -46,11 +46,11 @@ struct SInput
 struct SOutput
 {
    char* m_pcResult;		// buffer to store the result
-   int m_iBufSize;		// size of the buffer
+   int m_iBufSize;		// size of the physical buffer: constant
    int m_iResSize;		// size of the result
 
    int64_t* m_pllIndex;		// record index of the result
-   int m_iIndSize;		// size of the index structure
+   int m_iIndSize;		// size of the index structure (physical buffer size): constant
    int m_iRows;			// number of records/rows
 
    int* m_piBucketID;		// bucket ID
@@ -58,7 +58,8 @@ struct SOutput
 
 struct SFile
 {
-   std::string m_strHomeDir;		// Sector data home directory
+   std::string m_strHomeDir;		// Sector data home directory: constant
+   std::string m_strLibDir;		// the directory that stores the library files available to the current process: constant
    std::set<std::string> m_sstrFiles; 	// list of modified files
 };
 

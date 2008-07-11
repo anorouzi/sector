@@ -3,7 +3,7 @@ PASSWORD
 	xxx
 
 #directories that the user can read, one per line
-#default is none, which means the user cannot read anything, same for write and exec
+#default is none, which means the user cannot read anything, same for write
 READ_PERMISSION
 	/test
 	/angle
@@ -14,9 +14,10 @@ WRITE_PERMISSION
 	/angle
 	/
 
-#directories that the user can process the data
+#if the user is allowed to run Sphere process, default is false.
+#All capital letters "TRUE" must be used, otherwise it will be treated as false
 EXEC_PERMISSION
-	/
+	TRUE
 
 #list of IP addresses from which the user is allowed to login. 
 #this field must exist, otherwise the user will not be able to login

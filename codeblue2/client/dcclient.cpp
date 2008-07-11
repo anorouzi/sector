@@ -656,7 +656,7 @@ int SphereProcess::segmentData()
    }
    else
    {
-      // data segementation error
+      cerr << "You have specified the number of records to be processed each time, but there is no record index found.\n";
       return -1;
    }
 

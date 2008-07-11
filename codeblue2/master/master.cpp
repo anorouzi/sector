@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -78,12 +78,6 @@ bool ActiveUser::match(const string& path, int32_t rwx)
             break;
          }
       }
-   }
-
-   if ((rwx & 4) != 0)
-   {
-      if (!m_vstrExecList.empty())
-         rwx ^= 4;
    }
 
    return (rwx == 0);
@@ -278,7 +272,7 @@ int Master::run()
       pthread_mutex_unlock(&m_MetaLock);
       for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
       {
-         if ((m_TransManager.getTotalTrans() >= m_SlaveManager.getTotalSlaves()) || (m_sstrOnReplicate.size() >= m_SlaveManager.getTotalSlaves()))
+         if (m_TransManager.getTotalTrans() + m_sstrOnReplicate.size() >= m_SlaveManager.getTotalSlaves())
             break;
 
          // avoid replicate a file that is currently being replicated
@@ -459,14 +453,9 @@ void* Master::serviceEx(void* p)
                delete [] buf;
             }
 
-            secconn.recv((char*)&size, 4);
-            if (size > 0)
-            {
-               buf = new char[size];
-               secconn.recv(buf, size);
-               au.deserialize(au.m_vstrExecList, buf);
-               delete [] buf;
-            }
+            int32_t exec;
+            secconn.recv((char*)&exec, 4);
+            au.m_bExec = exec;
 
             self->m_mActiveUser[au.m_iKey] = au;
 
@@ -553,55 +542,57 @@ void* Master::process(void* s)
          case 1: // slave reports transaction status
          {
             int transid = *(int32_t*)msg->getData();
-            bool change = *(int32_t*)(msg->getData() + 4);
+
+            Transaction t;
+            int find = self->m_TransManager.retrieve(transid, t);
+            if ((find >= 0) && (t.m_iType == 1))
+            {
+               msg->m_iDataLength = SectorMsg::m_iHdrSize;
+               self->m_GMP.sendto(ip, port, id, msg);
+               self->m_TransManager.update(transid);
+               break;
+            }
+
+            int change = *(int32_t*)(msg->getData() + 4);
             string path = msg->getData() + 8;
 
-            cout << "get report " << transid << " " << change << " " << path << endl;
-
-            int nc = -1;
             Address addr;
             addr.m_strIP = ip;
             addr.m_iPort = port;
 
-            switch (change)
+            set<Address, AddrComp> tbr;
+            pthread_mutex_lock(&self->m_MetaLock);
+            self->m_Metadata.update(path.c_str(), addr, change, tbr);
+            pthread_mutex_unlock(&self->m_MetaLock);
+
+            for (set<Address, AddrComp>::iterator i = tbr.begin(); i != tbr.end(); ++ i)
             {
-               case 1: // new file
-                  pthread_mutex_lock(&self->m_MetaLock);
-                  nc = self->m_Metadata.update(path.c_str(), addr);
-                  pthread_mutex_unlock(&self->m_MetaLock);
-                  break;
-
-               case 2: // modification of an existing file
-                  pthread_mutex_lock(&self->m_MetaLock);
-                  nc = self->m_Metadata.update(path.c_str(), addr);
-                  pthread_mutex_unlock(&self->m_MetaLock);
-                  break;
-
-               case 3: // new replication
-                  pthread_mutex_lock(&self->m_MetaLock);
-                  nc = self->m_Metadata.update(path.c_str(), addr);
-                  pthread_mutex_unlock(&self->m_MetaLock);
-
-                  SNode attr;
-                  attr.deserialize(path.c_str());
-                  self->m_sstrOnReplicate.erase(attr.m_strName);
-
-                  break;
+               SectorMsg dmsg;
+               dmsg.setData(0, path.c_str(), path.length() + 1);
+               int msgid = 0;
+               self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, &dmsg);
             }
+
+            if (change == 3)
+            {
+               SNode attr;
+               attr.deserialize(path.c_str());
+               self->m_sstrOnReplicate.erase(attr.m_strName);
+            }
+
             //TODO: update used disk space of the slave node
 
-            msg->m_iDataLength = SectorMsg::m_iHdrSize;
-            self->m_GMP.sendto(ip, port, id, msg);
-
-            Transaction t;
-            if ((self->m_TransManager.retrieve(transid, t) >= 0) && (nc != 0))
+            if (find >= 0)
             {
                pthread_mutex_lock(&self->m_MetaLock);
                self->m_Metadata.unlock(path.c_str(), t.m_iMode);
                pthread_mutex_unlock(&self->m_MetaLock);
+
+               self->m_TransManager.update(transid);
             }
 
-            self->m_TransManager.update(transid);
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
+            self->m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -630,7 +621,12 @@ void* Master::process(void* s)
             self->m_SysStat.serialize(buf, size);
 
             msg->setData(0, buf, size);
-            self->m_GMP.sendto(ip, port, id, msg);            
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            if (user->m_strName == "root")
+            {
+               //TODO: send current users, current transactions
+            }
 
             break;
          }
@@ -726,7 +722,7 @@ void* Master::process(void* s)
             client.m_iPort = port;
             set<int> empty;
             SlaveNode sn;
-            if (self->m_SlaveManager.chooseIONode(empty, client, rwx, sn) < 0)
+            if (self->m_SlaveManager.chooseIONode(empty, client, 2, sn) < 0)
             {
                self->reject(ip, port, id, SectorError::E_RESOURCE);
                break;
@@ -775,7 +771,6 @@ void* Master::process(void* s)
 
             for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
             {
-               cout << "deleting " << i->m_strIP << " " << i->m_iPort << endl;
                int msgid = 0;
                self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
 
@@ -805,8 +800,6 @@ void* Master::process(void* s)
             else
                strcpy(path, msg->getData() + 8);
 
-            cout << "open file " << ip << " " << port << " " << dataport << " " << mode << " " << path << " " << key << endl;
-
             // check user's permission on that file
 
             int rwx = mode;
@@ -822,7 +815,6 @@ void* Master::process(void* s)
             pthread_mutex_unlock(&self->m_MetaLock);
 
             Address addr;
-            int transid;
             SlaveNode sn;
 
             if (r < 0)
@@ -844,7 +836,7 @@ void* Master::process(void* s)
                client.m_strIP = ip;
                client.m_iPort = port;
                set<int> empty;
-               if (self->m_SlaveManager.chooseIONode(empty, client, rwx, sn) < 0)
+               if (self->m_SlaveManager.chooseIONode(empty, client, mode, sn) < 0)
                {
                   self->reject(ip, port, id, SectorError::E_RESOURCE);
                   break;
@@ -859,7 +851,7 @@ void* Master::process(void* s)
                Address client;
                client.m_strIP = ip;
                client.m_iPort = port;
-               self->m_SlaveManager.chooseIONode(attr.m_sLocation, client, rwx, sn);
+               self->m_SlaveManager.chooseIONode(attr.m_sLocation, client, mode, sn);
 
                addr.m_strIP = sn.m_strIP;
                addr.m_iPort = sn.m_iPort;
@@ -874,7 +866,7 @@ void* Master::process(void* s)
                }
             }
 
-            transid = self->m_TransManager.insert(sn.m_iNodeID, path, rwx, user->m_strName, msg->getType());
+            int transid = self->m_TransManager.insert(sn.m_iNodeID, 0, key, msg->getType(), path, mode);
 
             // send infomation back to the client
 
@@ -900,8 +892,7 @@ void* Master::process(void* s)
 
          case 201: // upload spe
          {
-            int rwx = 4;
-            if (!user->match("", rwx))
+            if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
@@ -933,8 +924,7 @@ void* Master::process(void* s)
 
          case 202: // locate SPEs
          {
-            int rwx = 4;
-            if (!user->match("", rwx))
+            if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
@@ -955,8 +945,7 @@ void* Master::process(void* s)
 
          case 203: // start spe
          {
-            int rwx = 4;
-            if (!user->match("", rwx))
+            if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
@@ -966,8 +955,11 @@ void* Master::process(void* s)
             addr.m_strIP = msg->getData();
             addr.m_iPort = *(int32_t*)(msg->getData() + 64);
 
+            int transid = self->m_TransManager.insert(self->m_SlaveManager.m_mAddrList[addr], 1, key, msg->getType(), "", 0);
+
             msg->setData(0, ip, strlen(ip) + 1);
             msg->setData(64, (char*)&port, 4);
+            msg->setData(msg->m_iDataLength - SectorMsg::m_iHdrSize, (char*)&transid, 4);
 
             self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
 
@@ -978,8 +970,7 @@ void* Master::process(void* s)
 
          case 204: // start shuffler
          {
-            int rwx = 4;
-            if (!user->match("", rwx))
+            if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
@@ -989,8 +980,11 @@ void* Master::process(void* s)
             addr.m_strIP = msg->getData();
             addr.m_iPort = *(int32_t*)(msg->getData() + 64);
 
+            int transid = self->m_TransManager.insert(self->m_SlaveManager.m_mAddrList[addr], 1, key, msg->getType(), "", 0);
+
             msg->setData(0, ip, strlen(ip) + 1);
             msg->setData(64, (char*)&port, 4);
+            msg->setData(msg->m_iDataLength - SectorMsg::m_iHdrSize, (char*)&transid, 4);
 
             self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
 

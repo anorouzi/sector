@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 #include "security.h"
@@ -36,6 +36,7 @@ written by
 #include <signal.h>
 #include <conf.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
 using namespace std;
 
@@ -149,6 +150,10 @@ int User::init(const char* name, const char* ufile)
 {
    m_iID = 0;
    m_strName = name;
+   m_strPassword = "";
+   m_vstrReadList.clear();
+   m_vstrWriteList.clear();
+   m_bExec = false;
    m_llQuota = -1;
 
    ConfParser parser;
@@ -169,7 +174,10 @@ int User::init(const char* name, const char* ufile)
       else if ("WRITE_PERMISSION" == param.m_strName)
          m_vstrWriteList = param.m_vstrValue;
       else if ("EXEC_PERMISSION" == param.m_strName)
-         m_vstrExecList = param.m_vstrValue;
+      {
+         if (param.m_vstrValue[0] == "TRUE")
+            m_bExec = true;
+      }
       else if ("ACL" == param.m_strName)
       {
          for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
@@ -191,8 +199,8 @@ int User::serialize(const vector<string>& input, string& buf)
    buf = "";
    for (vector<string>::const_iterator i = input.begin(); i != input.end(); ++ i)
    {
-     buf.append(*i);
-     buf.append(";");
+      buf.append(*i);
+      buf.append(";");
    }
 
    return buf.length() + 1;
@@ -212,6 +220,14 @@ int Shadow::init(const string& path)
    {
       // skip "." and ".."
       if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
+      {
+         free(namelist[i]);
+         continue;
+      }
+
+      struct stat s;
+      stat(namelist[i]->d_name, &s);
+      if (S_ISDIR(s.st_mode))
       {
          free(namelist[i]);
          continue;
@@ -366,8 +382,8 @@ void* SServer::process(void* p)
             if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
                goto EXIT;
 
-            size = u->serialize(u->m_vstrExecList, buf);
-            if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
+            int exec = u->m_bExec ? 1 : 0;
+            if (s->send((char*)&exec, 4) <= 0)
                goto EXIT;
          }
 

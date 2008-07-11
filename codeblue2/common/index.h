@@ -91,7 +91,7 @@ public:
    int remove(const char* path, bool recursive = false);
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
-   int update(const char* fileinfo, const Address& addr);
+   int update(const char* fileinfo, const Address& addr, const int& type, std::set<Address, AddrComp>& tbr);
 
 public:
    int lock(const char* path, int mode);

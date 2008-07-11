@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/10/2008
 *****************************************************************************/
 
 
@@ -91,6 +91,7 @@ private:
    {
       Slave* serv_instance;	// self
       Transport* datachn;	// data channel
+      int transid;		// transaction id
       string client_ip;		// client IP
       int client_ctrl_port;	// client GMP port
       int client_data_port;	// client data port
@@ -105,6 +106,7 @@ private:
    struct Param5
    {
       Slave* serv_instance;     // self
+      int transid;		// transaction id
       string client_ip;         // client IP
       int client_ctrl_port;     // client GMP port
       string path;		// output path
@@ -128,6 +130,7 @@ private:
 
 private:
    int report(const int32_t& transid, const string& path, const int& change = 0);
+   int reportSphere(const int32_t& transid);
 
 private:
    CGMP m_GMP;

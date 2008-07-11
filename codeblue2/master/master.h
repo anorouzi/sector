@@ -55,7 +55,7 @@ public:
    int64_t m_llLastRefreshTime;
    std::vector<string> m_vstrReadList;
    std::vector<string> m_vstrWriteList;
-   std::vector<string> m_vstrExecList;
+   bool m_bExec;
 };
 
 struct SlaveAddr

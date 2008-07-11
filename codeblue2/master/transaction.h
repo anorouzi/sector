@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
 *****************************************************************************/
 
 
@@ -35,13 +35,14 @@ written by
 
 struct Transaction
 {
-   int m_iTransID;
+   int m_iTransID;		// unique id
+   int m_iType;			// 0: file, 1: sphere
    int64_t m_llStartTime;
-   std::string m_strFile;
-   int m_iMode;
-   int m_iSlaveID;
-   std::string m_strUser;
-   int m_iCommand;
+   std::string m_strFile;	// if type = 0, this is the file being accessed
+   int m_iMode;			// if type = 0, this is the file access mode
+   int m_iSlaveID;		// slave id
+   int m_iUserKey;		// user key
+   int m_iCommand;		// user's command, 110, 201, etc.
 };
 
 class TransManager
@@ -51,9 +52,10 @@ public:
    ~TransManager();
 
 public:
-   int insert(const int slave, const std::string& file, const int mode, const std::string& user, const int cmd);
+   int insert(const int slave, const int type, const int key, const int cmd, const std::string& file, const int mode);
    int retrieve(int transid, Transaction& trans);
    int update(int transid);
+   int getUserTrans(const int key, std::set<int> transid);
 
 public:
    unsigned int getTotalTrans();
