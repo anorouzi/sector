@@ -9,7 +9,7 @@ endif
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload ls rm mkdir sysinfo sectorfs rindex
+all: libclient.so libclient.a testfs testdc download upload ls rm mkdir sysinfo sectorfs rindex example
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -50,8 +50,12 @@ sectorfs: sectorfs.cpp
 rindex: rindex.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
+example:
+	cd ./examples; make; cd ../
+
 clean:
 	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs
+	rm -f ./examples/*.so
 
 install:
 	mv libclient.so libclient.a ../lib

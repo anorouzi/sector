@@ -40,6 +40,9 @@ struct SectorError
    static const int E_NOEXIST = -1003;		// file/dir not found
    static const int E_BUSY = -1004;		// file busy
    static const int E_SECURITY = -2000;		// security check failed
+   static const int E_ACCOUNT = -2001;		// account does not exist
+   static const int E_PASSWORD = -2002;		// incorrect password
+   static const int E_ACL = -2003;		// visit from unallowd IP address
    static const int E_RESOURCE = -3000;		// no available resources
    static const int E_TIMEDOUT = -4000;		// timeout
    static const int E_INVALID = -5000;		// invalid parameter

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2008
 *****************************************************************************/
 
 #include "security.h"
@@ -226,7 +226,8 @@ int Shadow::init(const string& path)
       }
 
       struct stat s;
-      stat(namelist[i]->d_name, &s);
+      stat((path + "/" + namelist[i]->d_name).c_str(), &s);
+
       if (S_ISDIR(s.st_mode))
       {
          free(namelist[i]);

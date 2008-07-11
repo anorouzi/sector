@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -1054,13 +1054,28 @@ int Master::createReplica(const string& path)
    msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
    msg.setData(8, path.c_str(), path.length() + 1);
 
-   if (m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0)
-      return -1;
-
-   if (msg.getData() < 0)
+   if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return -1;
 
    m_sstrOnReplicate.insert(path);
+
+   // replicate index file to the same location
+   string idx = path + ".idx";
+   pthread_mutex_lock(&m_MetaLock);
+   r = m_Metadata.lookup(idx.c_str(), attr);
+   pthread_mutex_unlock(&m_MetaLock);
+
+   if (r < 0)
+      return 0;
+
+   msg.setType(111);
+   msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
+   msg.setData(8, path.c_str(), idx.length() + 1);
+
+   if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
+      return 0;
+
+   m_sstrOnReplicate.insert(idx);
 
    return 0;
 }

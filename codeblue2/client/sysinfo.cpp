@@ -18,7 +18,7 @@ int main(int argc, char** argv)
    cin >> password;
    if (Sector::login("root", password) < 0)
    {
-      cerr << "incorrect password\n";
+      cerr << "login failed. check password or IP ACL.\n";
       return -1;
    }
 

@@ -206,8 +206,8 @@ int SSLTransport::send(const char* data, const int& size)
    while (ts > 0)
    {
       int s = SSL_write(m_pSSL, data + size - ts, ts);
-      if (s < 0)
-         return s;
+      if (s <= 0)
+         return -1;
       ts -= s;
    }
    return size;
@@ -219,8 +219,8 @@ int SSLTransport::recv(char* data, const int& size)
    while (tr > 0)
    {
       int r = SSL_read(m_pSSL, data + size - tr, tr);
-      if (r < 0)
-         return r;
+      if (r <= 0)
+         return -1;
       tr -= r;
    }
    return size;
