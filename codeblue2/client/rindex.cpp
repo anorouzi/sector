@@ -70,10 +70,12 @@ int main(int argc, char** argv)
    cout << "stage 1 accomplished " << t.tv_sec << endl;
 
 /*
+   //NOT FINISHED. PROCESS EACH BUCKET AND GENERATE INDEX
+
    SphereStream output;
    output.init(0);
    myproc.setProcNumPerNode(2);
-   if (myproc.run(temp, output, "sort", 0, NULL, 0) < 0)
+   if (myproc.run(temp, output, "index", 0, NULL, 0) < 0)
    {
       cout << "failed to find any computing resources." << endl;
       return -1;

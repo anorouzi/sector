@@ -123,6 +123,7 @@ private:
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
    int SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Address, Transport*, AddrComp>* outputchn);
+   int acceptLibrary(const int& key, Transport* datachn);
 
 private:
    int createDir(const string& path);

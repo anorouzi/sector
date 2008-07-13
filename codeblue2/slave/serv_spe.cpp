@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/12/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -146,7 +146,7 @@ void* Slave::SPEHandler(void* p)
    cout << "rendezvous connect " << ip << " " << dataport << endl;
    if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
-
+   cout << "connected\n";
    // read outupt parameters
    int buckets;
    if (datachn->recv((char*)&buckets, 4) < 0)
@@ -172,6 +172,8 @@ void* Slave::SPEHandler(void* p)
 
 
    // initialize processing function
+   self->acceptLibrary(key, datachn);
+
    char path[64];
    sprintf(path, "%d", key);
    void* handle = dlopen((self->m_strHomeDir + ".sphere/" + path + "/" + function + ".so").c_str(), RTLD_LAZY);
@@ -749,4 +751,33 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
    }
 
    return 1;
+}
+
+int Slave::acceptLibrary(const int& key, Transport* datachn)
+{
+   int32_t size = -1;
+
+   datachn->recv((char*)&size, 4);
+
+   while (size > 0)
+   {
+      char lib[64];
+      datachn->recv(lib, size);
+      datachn->recv((char*)&size, 4);
+      char* buf = new char[size];
+      datachn->recv(buf, size);
+
+      char path[128];
+      sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
+
+      ::mkdir(path, S_IRWXU);
+
+      ofstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
+      ofs.write(buf, size);
+      ofs.close();
+
+      datachn->recv((char*)&size, 4);
+   }
+
+   return 0;
 }

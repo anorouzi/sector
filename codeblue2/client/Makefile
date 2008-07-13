@@ -54,7 +54,7 @@ example:
 	cd ./examples; make; cd ../
 
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs
+	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs rindex
 	rm -f ./examples/*.so
 
 install:

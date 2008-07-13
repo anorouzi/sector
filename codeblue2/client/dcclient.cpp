@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/12/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -195,8 +195,6 @@ int SphereProcess::loadOperator(const char* library)
       return -1;
    }
 
-   int size = st.st_size;
-
    ifstream lib;
    lib.open(library, ios::binary);
    if (lib.bad())
@@ -204,30 +202,41 @@ int SphereProcess::loadOperator(const char* library)
       cerr << "loadOperator: bad file.\n";
       return -1;
    }
-
-   char* buf = new char[size];
-   lib.read(buf, size);
    lib.close();
+
+   // TODO : check ".so"
 
    vector<string> dir;
    Index::parsePath(library, dir);
 
-   SectorMsg msg;
-   msg.setType(201);
-   msg.setKey(m_iKey);
-   msg.resize(size + SectorMsg::m_iHdrSize + 64);
-   msg.setData(0, dir[dir.size() - 1].c_str(), dir[dir.size() - 1].length() + 1);
-   msg.setData(64, buf, size);
+   OP op;
+   op.m_strLibrary = dir[dir.size() - 1];
+   op.m_strLibPath = library;
+   op.m_iSize = st.st_size;
 
-   delete [] buf;
+   return 0;
+}
 
-   int r = m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg);
-
-   if ((r < 0) || (msg.getType() < 0))
+int SphereProcess::loadOperator(SPE& s)
+{
+   for (vector<OP>::iterator i = m_vOP.begin(); i != m_vOP.end(); ++ i)
    {
-      cerr << "loadOpterator: failed to load " << library << endl;
-      return -1;
+      int32_t size = i->m_strLibrary.length() + 1;
+      s.m_DataChn.send((char*)&size, 4);
+      s.m_DataChn.send(i->m_strLibrary.c_str(), size);
+
+      ifstream lib;
+      lib.open(i->m_strLibPath.c_str(), ios::binary);
+      char* buf = new char[i->m_iSize];
+      lib.read(buf, i->m_iSize);
+      lib.close();
+
+      s.m_DataChn.send((char*)&(i->m_iSize), 4);
+      s.m_DataChn.send(buf, i->m_iSize);
    }
+
+   int32_t size = -1;
+   s.m_DataChn.send((char*)&size, 4);
 
    return 0;
 }
@@ -367,7 +376,8 @@ void* SphereProcess::run(void* param)
    // disconnect all SPEs and close all Shufflers
    for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
    {
-      i->m_DataChn.close();
+      if (i->m_iStatus >= 0)
+         i->m_DataChn.close();
 
       if (i->m_iShufflerPort > 0)
       {
@@ -452,11 +462,18 @@ int SphereProcess::startSPE(SPE& s, DS* d)
 {
    int res = 0;
 
+   if (s.m_iStatus == -1)
+   {
+      // start an SPE at real time
+      if (connectSPE(s) < 0)
+         return -1;
+   }
+
    pthread_mutex_lock(&m_ResLock);
 
    s.m_pDS = d;
 
-   char* dataseg = new char[80];
+   char dataseg[80];
 
    strcpy(dataseg, s.m_pDS->m_strDataFile.c_str());
    *(int64_t*)(dataseg + 64) = s.m_pDS->m_llOffset;
@@ -464,6 +481,7 @@ int SphereProcess::startSPE(SPE& s, DS* d)
 
    if (s.m_DataChn.send(dataseg, 80) > 0)
    {
+cout << "send data seg\n";
       d->m_iSPEID = s.m_uiID;
       d->m_iStatus = 1;
       s.m_iStatus = 1;
@@ -555,50 +573,78 @@ int SphereProcess::prepareSPE(const char* spenodes)
          SPE spe;
          spe.m_uiID = i * m_iCore + j;
          spe.m_pDS = NULL;
-         spe.m_iStatus = 0;
+         spe.m_iStatus = -1;
          spe.m_iProgress = 0;
          spe.m_iShufflerPort = 0;
 
          spe.m_strIP = spenodes + i * 68;
          spe.m_iPort = *(int32_t*)(spenodes + i * 68 + 64);
 
-         int port = m_iReusePort;
-         spe.m_DataChn.open(port, true, true);
-         m_iReusePort = port;
-
-         SectorMsg msg;
-         msg.setType(203); // start processing engine
-         msg.setKey(m_iKey);
-         msg.setData(0, spe.m_strIP.c_str(), spe.m_strIP.length() + 1);
-         msg.setData(64, (char*)&(spe.m_iPort), 4);
-         msg.setData(68, (char*)&(spe.m_uiID), 4);
-         msg.setData(72, (char*)&port, 4);
-         msg.setData(76, (char*)&m_iKey, 4);
-         msg.setData(80, m_strOperator.c_str(), m_strOperator.length() + 1);
-         msg.setData(144, (char*)&m_iRows, 4);
-         msg.setData(148, (char*)&m_iParamSize, 4);
-         msg.setData(152, m_pcParam, m_iParamSize);
-         msg.m_iDataLength = SectorMsg::m_iHdrSize + 152 + m_iParamSize;
-
-         if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
-         {
-            cout << "failed: " << spe.m_strIP << " " << spe.m_iPort << endl;
-            spe.m_DataChn.close();
-            continue;
-         }
-         cout << "connect SPE " << spe.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
-
-         if (spe.m_DataChn.connect(spe.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
-         {
-            spe.m_DataChn.close();
-            continue;
-         }
-
          m_vSPE.insert(m_vSPE.end(), spe);
       }
    }
 
    return m_vSPE.size();
+}
+
+int SphereProcess::connectSPE(SPE& s)
+{
+   if (s.m_iStatus >= 0)
+      return 0;
+
+   int port = m_iReusePort;
+   s.m_DataChn.open(port, true, true);
+   m_iReusePort = port;
+
+   SectorMsg msg;
+   msg.setType(203); // start processing engine
+   msg.setKey(m_iKey);
+   msg.setData(0, s.m_strIP.c_str(), s.m_strIP.length() + 1);
+   msg.setData(64, (char*)&(s.m_iPort), 4);
+   msg.setData(68, (char*)&(s.m_uiID), 4);
+   msg.setData(72, (char*)&port, 4);
+   msg.setData(76, (char*)&m_iKey, 4);
+   msg.setData(80, m_strOperator.c_str(), m_strOperator.length() + 1);
+   msg.setData(144, (char*)&m_iRows, 4);
+   msg.setData(148, (char*)&m_iParamSize, 4);
+   msg.setData(152, m_pcParam, m_iParamSize);
+   msg.m_iDataLength = SectorMsg::m_iHdrSize + 152 + m_iParamSize;
+
+   if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+   {
+      cerr << "failed: " << s.m_strIP << " " << s.m_iPort << endl;
+      s.m_DataChn.close();
+      return -1;
+   }
+   cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
+
+   if (s.m_DataChn.connect(s.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
+   {
+      s.m_DataChn.close();
+      return -1;
+   }
+   cout << "connected\n";
+
+   int size;
+   if (m_iOutputType > 0)
+      size = 4 + m_pOutput->m_iFileNum * 72;
+   else if (m_iOutputType < 0)
+      size = 4 + 64;
+   else
+      size = 4;
+
+   if (s.m_DataChn.send(m_pOutputLoc, size) < 0)
+   {
+      s.m_DataChn.close();
+      s.m_iStatus = -1;
+      return -1;
+   }
+
+   loadOperator(s);
+
+   s.m_iStatus = 0;
+
+   return 1;
 }
 
 int SphereProcess::segmentData()
@@ -665,13 +711,14 @@ int SphereProcess::segmentData()
 
 int SphereProcess::prepareOutput()
 {
+   char* outputloc = NULL;
+
    // prepare output stream locations
-   m_pOutputLoc = NULL;
    if (m_iOutputType > 0)
    {
       SectorMsg msg;
 
-      m_pOutputLoc = new char[m_pOutput->m_iFileNum * 72];
+      outputloc = new char[m_pOutput->m_iFileNum * 72];
 
       vector<SPE>::iterator s = m_vSPE.begin();
 
@@ -708,9 +755,9 @@ int SphereProcess::prepareOutput()
             s->m_iShufflerPort = *(int32_t*)msg.getData();
          }
 
-         memcpy(m_pOutputLoc + i * 72, s->m_strIP.c_str(), 64);
-         *(int32_t*)(m_pOutputLoc + i * 72 + 64) = s->m_iPort;
-         *(int32_t*)(m_pOutputLoc + i * 72 + 68) = s->m_iShufflerPort;
+         memcpy(outputloc + i * 72, s->m_strIP.c_str(), 64);
+         *(int32_t*)(outputloc + i * 72 + 64) = s->m_iPort;
+         *(int32_t*)(outputloc + i * 72 + 68) = s->m_iShufflerPort;
 
          if (++ s == m_vSPE.end())
             s = m_vSPE.begin();
@@ -718,7 +765,6 @@ int SphereProcess::prepareOutput()
    }
 
    // prepare and submit output locations
-   char* outputloc;
    int size;
    if (m_iOutputType > 0)
       size = 4 + m_pOutput->m_iFileNum * 72;
@@ -726,30 +772,18 @@ int SphereProcess::prepareOutput()
       size = 4 + 64;
    else
       size = 4;
-   outputloc = new char[size];
+   m_pOutputLoc = new char[size];
 
-   *(int32_t*)outputloc = m_iOutputType;
+   *(int32_t*)m_pOutputLoc = m_iOutputType;
 
    if (m_iOutputType > 0)
-      memcpy(outputloc + 4, m_pOutputLoc, m_pOutput->m_iFileNum * 72);
+      memcpy(m_pOutputLoc + 4, outputloc, m_pOutput->m_iFileNum * 72);
    else if (m_iOutputType < 0)
    {
       //TODO: fix this
       char localname[64];
       localname[63] = '\0';
-      //sprintf(localname, "%s.%d", m_pOutput->m_strName.c_str(), d->m_iID);
-      memcpy(outputloc + 4, localname, strlen(localname) + 1);
-      //m_pOutput->m_vFiles[d->m_iID] = localname;
-   }
-
-   for (vector<SPE>::iterator s = m_vSPE.begin(); s != m_vSPE.end(); ++ s)
-   {
-      if (s->m_DataChn.send(outputloc, size) < 0)
-      {
-         s->m_DataChn.close();
-         s->m_iStatus = -1;
-         return -1;
-      }
+      memcpy(m_pOutputLoc + 4, localname, strlen(localname) + 1);
    }
 
    return m_pOutput->m_iFileNum;
