@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/12/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -52,57 +52,121 @@ SphereStream::~SphereStream()
 
 }
 
+int Client::dataInfo(const vector<string>& files, vector<string>& info)
+{
+   SectorMsg msg;
+   msg.setType(201);
+   msg.setKey(m_iKey);
+
+   int offset = 0;
+   int32_t size = -1;
+   for (vector<string>::const_iterator i = files.begin(); i != files.end(); ++ i)
+   {
+      string path = revisePath(*i);
+      size = path.length() + 1;
+      msg.setData(offset, (char*)&size, 4);
+      msg.setData(offset + 4, path.c_str(), size);
+      offset += 4 + size;
+   }
+
+   size = -1;
+   msg.setData(offset, (char*)&size, 4);
+
+   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+      return -1;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   char* buf = msg.getData();
+   size = msg.m_iDataLength;
+
+   while (size > 0)
+   {
+      info.insert(info.end(), buf);
+      size -= strlen(buf) + 1;
+      buf += strlen(buf) + 1;
+   }
+
+   return info.size();
+}
+
 int SphereStream::init(const vector<string>& files)
 {
-   m_iFileNum = files.size();
+   vector<string> datainfo;
+   int res = Client::dataInfo(files, datainfo);
+   if (res < 0)
+      return res;
+
+   m_iFileNum = datainfo.size();
    if (0 == m_iFileNum)
       return 0;
 
    m_iStatus = -1;
 
    m_vFiles.resize(m_iFileNum);
-   copy(files.begin(), files.end(), m_vFiles.begin());
-
    m_vSize.resize(m_iFileNum);
    m_vRecNum.resize(m_iFileNum);
+   m_vLocation.resize(m_iFileNum);
+   vector<string>::iterator f = m_vFiles.begin();
    vector<int64_t>::iterator s = m_vSize.begin();
    vector<int64_t>::iterator r = m_vRecNum.begin();
-
-   m_vLocation.resize(m_iFileNum);
-   int lp = 0;
+   vector< set<Address, AddrComp> >::iterator a = m_vLocation.begin();
 
    bool indexfound = true;
 
-   for (vector<string>::iterator i = m_vFiles.begin(); i != m_vFiles.end(); ++ i)
+   for (vector<string>::iterator i = datainfo.begin(); i != datainfo.end(); ++ i)
    {
-      SNode fattr, iattr;
-      if (Client::stat(*i, fattr) < 0)
-         return -1;
+      char buf[1024];
+      strcpy(buf, i->c_str());
+      buf[strlen(buf) + 2] = '\0';
 
-      *s = fattr.m_llSize;
+      int n = strlen(buf) + 1;
+      char* p = buf;
+      for (int j = 0; j < n; ++ j, ++ p)
+      {
+         if (*p == ' ')
+            *p = '\0';
+      }
+      p = buf;
+
+      *f = p;
+      p = p + strlen(p) + 1;
+      *s = atoll(p);
       m_llSize += *s;
+      p = p + strlen(p) + 1;
+      *r = atoi(p);
+      p = p + strlen(p) + 1;
 
-      // retrieve file size and index
-      if (Client::stat(*i + ".idx", iattr) < 0)
+      if (*r == -1)
       {
-          // no record index found
-          *r = -1;
-          m_llRecNum = -1;
-          indexfound = false;
+         // no record index found
+         m_llRecNum = -1;
+         indexfound = false;
       }
-      else
+      else if (indexfound)
       {
-         if (indexfound)
-         {
-            *r = iattr.m_llSize / 8 - 1;
-            m_llRecNum += *r;
-         }
+         m_llRecNum += *r;
       }
 
+      while (true)
+      {
+         if (strlen(p) == 0)
+            break;
+
+         Address addr;
+         addr.m_strIP = p;
+         p = p + strlen(p) + 1;
+         addr.m_iPort = atoi(p);
+         p = p + strlen(p) + 1;
+
+         a->insert(addr);
+      }
+
+      f ++;
       s ++;
       r ++;
-
-      m_vLocation[lp ++] = fattr.m_sLocation;
+      a ++;
    }
 
    m_llEnd = m_llRecNum;
@@ -214,6 +278,8 @@ int SphereProcess::loadOperator(const char* library)
    op.m_strLibPath = library;
    op.m_iSize = st.st_size;
 
+   m_vOP.insert(m_vOP.end(), op);
+
    return 0;
 }
 
@@ -277,8 +343,6 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
       cerr << "no available SPE found.\n";
       return -1;
    }
-
-   cout << m_iSPENum << " SPE found" << endl;
 
    prepareSPE(msg.getData());
 
@@ -473,15 +537,16 @@ int SphereProcess::startSPE(SPE& s, DS* d)
 
    s.m_pDS = d;
 
-   char dataseg[80];
+   int32_t size = 20 + s.m_pDS->m_strDataFile.length() + 1;
+   char* dataseg = new char[size];
 
-   strcpy(dataseg, s.m_pDS->m_strDataFile.c_str());
-   *(int64_t*)(dataseg + 64) = s.m_pDS->m_llOffset;
-   *(int64_t*)(dataseg + 72) = s.m_pDS->m_llSize;
+   *(int64_t*)(dataseg) = s.m_pDS->m_llOffset;
+   *(int64_t*)(dataseg + 8) = s.m_pDS->m_llSize;
+   *(int32_t*)(dataseg + 16) = s.m_pDS->m_iID;
+   strcpy(dataseg + 20, s.m_pDS->m_strDataFile.c_str());
 
-   if (s.m_DataChn.send(dataseg, 80) > 0)
+   if ((s.m_DataChn.send((char*)&size, 4) > 0) && (s.m_DataChn.send(dataseg, size) > 0))
    {
-cout << "send data seg\n";
       d->m_iSPEID = s.m_uiID;
       d->m_iStatus = 1;
       s.m_iStatus = 1;
@@ -490,6 +555,8 @@ cout << "send data seg\n";
       gettimeofday(&s.m_LastUpdateTime, 0);
       res = 1;
    }
+
+   delete [] dataseg;
 
    pthread_mutex_unlock(&m_ResLock);
 
@@ -605,10 +672,10 @@ int SphereProcess::connectSPE(SPE& s)
    msg.setData(72, (char*)&port, 4);
    msg.setData(76, (char*)&m_iKey, 4);
    msg.setData(80, m_strOperator.c_str(), m_strOperator.length() + 1);
-   msg.setData(144, (char*)&m_iRows, 4);
-   msg.setData(148, (char*)&m_iParamSize, 4);
-   msg.setData(152, m_pcParam, m_iParamSize);
-   msg.m_iDataLength = SectorMsg::m_iHdrSize + 152 + m_iParamSize;
+   int offset = 80 + m_strOperator.length() + 1;
+   msg.setData(offset, (char*)&m_iRows, 4);
+   msg.setData(offset + 4, (char*)&m_iParamSize, 4);
+   msg.setData(offset + 8, m_pcParam, m_iParamSize);
 
    if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
@@ -616,29 +683,26 @@ int SphereProcess::connectSPE(SPE& s)
       s.m_DataChn.close();
       return -1;
    }
-   cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
 
+   cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
    if (s.m_DataChn.connect(s.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
    {
       s.m_DataChn.close();
       return -1;
    }
-   cout << "connected\n";
 
-   int size;
+   // send output information
    if (m_iOutputType > 0)
-      size = 4 + m_pOutput->m_iFileNum * 72;
+      s.m_DataChn.send(m_pOutputLoc, 4 + m_pOutput->m_iFileNum * 72);
    else if (m_iOutputType < 0)
-      size = 4 + 64;
-   else
-      size = 4;
-
-   if (s.m_DataChn.send(m_pOutputLoc, size) < 0)
    {
-      s.m_DataChn.close();
-      s.m_iStatus = -1;
-      return -1;
+      s.m_DataChn.send(m_pOutputLoc, 4);
+      int size = strlen(m_pOutputLoc + 4) + 1;
+      s.m_DataChn.send((char*)&size, 4);
+      s.m_DataChn.send(m_pOutputLoc + 4, size);
    }
+   else
+      s.m_DataChn.send(m_pOutputLoc, 4);
 
    loadOperator(s);
 
@@ -724,9 +788,10 @@ int SphereProcess::prepareOutput()
 
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
       {
-         char tmp[64];
+         char* tmp = new char[m_pOutput->m_strPath.length() + m_pOutput->m_strName.length() + 64];
          sprintf(tmp, "%s/%s.%d", m_pOutput->m_strPath.c_str(), m_pOutput->m_strName.c_str(), i);
          m_pOutput->m_vFiles[i] = tmp;
+         delete [] tmp;
 
          Address loc;
          loc.m_strIP = s->m_strIP;
@@ -742,13 +807,16 @@ int SphereProcess::prepareOutput()
             msg.setData(0, loc.m_strIP.c_str(), loc.m_strIP.length() + 1);
             msg.setData(64, (char*)&(loc.m_iPort), 4);
             msg.setData(68, (char*)&(m_pOutput->m_iFileNum), 4);
-            msg.setData(72, m_pOutput->m_strPath.c_str(), m_pOutput->m_strPath.length() + 1);
-            msg.setData(136, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
-
-            msg.m_iDataLength = SectorMsg::m_iHdrSize + 136 + m_pOutput->m_strName.length() + 1;
+            int size = m_pOutput->m_strPath.length() + 1;
+            int offset = 72;
+            msg.setData(offset, (char*)&size, 4);
+            msg.setData(offset + 4, m_pOutput->m_strPath.c_str(), m_pOutput->m_strPath.length() + 1);
+            offset += 4 + size;
+            size = m_pOutput->m_strName.length() + 1;
+            msg.setData(offset, (char*)&size, 4);
+            msg.setData(offset + 4, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
 
             cout << "request shuffler " << loc.m_strIP << " " << loc.m_iPort << endl;
-
             if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
                continue;
 
@@ -769,7 +837,7 @@ int SphereProcess::prepareOutput()
    if (m_iOutputType > 0)
       size = 4 + m_pOutput->m_iFileNum * 72;
    else if (m_iOutputType < 0)
-      size = 4 + 64;
+      size = 4 + m_pOutput->m_strPath.length() + m_pOutput->m_strName.length() + 64;
    else
       size = 4;
    m_pOutputLoc = new char[size];
@@ -780,9 +848,8 @@ int SphereProcess::prepareOutput()
       memcpy(m_pOutputLoc + 4, outputloc, m_pOutput->m_iFileNum * 72);
    else if (m_iOutputType < 0)
    {
-      //TODO: fix this
-      char localname[64];
-      localname[63] = '\0';
+      char* localname = new char[m_pOutput->m_strPath.length() + m_pOutput->m_strName.length() + 64];
+      sprintf(localname, "%s/%s", m_pOutput->m_strPath.c_str(), m_pOutput->m_strName.c_str());
       memcpy(m_pOutputLoc + 4, localname, strlen(localname) + 1);
    }
 

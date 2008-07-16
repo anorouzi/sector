@@ -60,6 +60,7 @@ struct SFile
 {
    std::string m_strHomeDir;		// Sector data home directory: constant
    std::string m_strLibDir;		// the directory that stores the library files available to the current process: constant
+   std::string m_strTempDir;		// Sector temporary directory
    std::set<std::string> m_sstrFiles; 	// list of modified files
 };
 

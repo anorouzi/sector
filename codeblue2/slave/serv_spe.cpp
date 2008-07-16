@@ -147,6 +147,7 @@ void* Slave::SPEHandler(void* p)
    if (datachn->connect(ip.c_str(), dataport) < 0)
       return NULL;
    cout << "connected\n";
+
    // read outupt parameters
    int buckets;
    if (datachn->recv((char*)&buckets, 4) < 0)
@@ -162,8 +163,12 @@ void* Slave::SPEHandler(void* p)
    }
    else if (buckets < 0)
    {
-      outputloc = new char[64];
-      if (datachn->recv(outputloc, 64) < 0)
+      int32_t size = 0;
+      if (datachn->recv((char*)&size, 4) < 0)
+         return NULL;
+
+      outputloc = new char[size];
+      if (datachn->recv(outputloc, size) < 0)
          return NULL;
       localfile = outputloc;
    }
@@ -194,35 +199,38 @@ void* Slave::SPEHandler(void* p)
    msg.setType(1); // success, return result
    msg.setData(0, (char*)&(speid), 4);
 
-   char* dataseg = new char[80];
-
    SPEResult result;
    result.init(buckets);
 
    // processing...
    while (true)
    {
-      if (datachn->recv(dataseg, 80) < 0)
+      int size = 0;
+      if (datachn->recv((char*)&size, 4) < 0)
+         break;
+      char* dataseg = new char[size];
+      if (datachn->recv(dataseg, size) < 0)
          break;
 
       // read data segment parameters
-      string datafile = dataseg;
-      int64_t offset = *(int64_t*)(dataseg + 64);
-      int64_t totalrows = *(int64_t*)(dataseg + 72);
+      int64_t offset = *(int64_t*)(dataseg);
+      int64_t totalrows = *(int64_t*)(dataseg + 8);
+      int32_t dsid = *(int32_t*)(dataseg + 16);
+      string datafile = dataseg + 20;
+      delete [] dataseg;
+      cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
+
       int64_t* index = NULL;
       if (totalrows > 0)
          index = new int64_t[totalrows + 1];
-
-      int size = 0;
       char* block = NULL;
       int unitrows = (rows != -1) ? rows : totalrows;
       int progress = 0;
 
-      cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
-
       // read data
       if (0 != rows)
       {
+         size = 0;
          if (self->SPEReadData(datafile, offset, size, index, totalrows, block) <= 0)
          {
             delete [] index;
@@ -278,6 +286,7 @@ void* Slave::SPEHandler(void* p)
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
       file.m_strLibDir = self->m_strHomeDir + ".sphere/" + path + "/";
+      file.m_strTempDir = self->m_strHomeDir + ".tmp/";
 
       result.clear();
       gettimeofday(&t3, 0);
@@ -325,7 +334,11 @@ void* Slave::SPEHandler(void* p)
       self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
       cout << "sending data back... " << buckets << endl;
-      self->SPESendResult(speid, buckets, result, localfile, datachn, outputloc, &OutputChn);
+      char localfileid[64];
+      localfileid[0] = '\0';
+      if (buckets < 0)
+         sprintf(localfileid, ".%d", dsid);
+      self->SPESendResult(speid, buckets, result, localfile + localfileid, datachn, outputloc, &OutputChn);
 
       // report new files
       for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
@@ -351,7 +364,6 @@ void* Slave::SPEHandler(void* p)
    cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
 
    delete [] param;
-   delete [] dataseg;
    delete [] outputloc;
 
    for (map<Address, Transport*, AddrComp>::iterator i = OutputChn.begin(); i != OutputChn.end(); ++ i)
@@ -384,11 +396,12 @@ void* Slave::SPEShuffler(void* p)
    // remove old result data files
    for (int i = 0; i < bucketnum; ++ i)
    {
-      char tmp[64];
+      char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
       sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
       unlink(tmp);
       sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
       unlink(tmp);
+      delete [] tmp;
    }
 
    // index file initial offset
@@ -418,12 +431,12 @@ void* Slave::SPEShuffler(void* p)
       int bucket = *(int32_t*)msg.getData();
       fileid.insert(bucket);
 
-      char tmp[64];
+      char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
       sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
       ofstream datafile(tmp, ios::app);
-
       sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
       ofstream indexfile(tmp, ios::app);
+      delete [] tmp;
       int64_t start = offset[bucket];
       if (0 == start)
          indexfile.write((char*)&start, 8);
@@ -502,11 +515,12 @@ void* Slave::SPEShuffler(void* p)
    // report sphere output files
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
    {
-      char tmp[64];
+      char* tmp = new char[path.length() + localfile.length() + 64];
       sprintf(tmp, "%s.%d", (path + "/" + localfile).c_str(), *i);
       self->report(0, tmp, 1);
       sprintf(tmp, "%s.%d.idx", (path + "/" + localfile).c_str(), *i);
       self->report(0, tmp, 1);
+      delete [] tmp;
    }
 
    self->reportSphere(transid);
@@ -549,7 +563,6 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
          return -1;
 
       cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
-
       if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
          return -1;
 
@@ -605,7 +618,6 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
          return -1;
 
       cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
-
       if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
          return -1;
 
@@ -761,13 +773,13 @@ int Slave::acceptLibrary(const int& key, Transport* datachn)
 
    while (size > 0)
    {
-      char lib[64];
+      char* lib = new char[size];
       datachn->recv(lib, size);
       datachn->recv((char*)&size, 4);
       char* buf = new char[size];
       datachn->recv(buf, size);
 
-      char path[128];
+      char* path = new char[m_strHomeDir.length() + 64];
       sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
 
       ::mkdir(path, S_IRWXU);
@@ -777,6 +789,10 @@ int Slave::acceptLibrary(const int& key, Transport* datachn)
       ofs.close();
 
       datachn->recv((char*)&size, 4);
+
+      delete [] lib;
+      delete [] buf;
+      delete [] path;
    }
 
    return 0;

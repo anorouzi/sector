@@ -194,7 +194,7 @@ void* Slave::fileHandler(void* p)
 
             ofs.close();
 
-            change = 1;
+            change = 2;
             break;
          }
 

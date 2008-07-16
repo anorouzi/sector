@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2008
 *****************************************************************************/
 
 
@@ -48,14 +48,12 @@ int SectorFile::open(const string& filename, const int& mode)
    msg.setData(4, (char*)&mode, 4);
    msg.setData(8, m_strFileName.c_str(), m_strFileName.length() + 1);
 
-   cout << "open file " << m_strServerIP << " " << m_iServerPort << endl;
-
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
       return -1;
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
-   cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
+   cout << "open file " << filename << " " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
 
    return m_DataChn.connect(msg.getData(), *(int*)(msg.getData() + 68));
 }

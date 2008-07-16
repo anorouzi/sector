@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/14/2008
 *****************************************************************************/
 
 
@@ -264,26 +264,6 @@ void Slave::run()
             break;
          }
 
-         case 201: // prepare SPE operator
-         {
-            string lib = msg->getData();
-            int libsize = msg->m_iDataLength - SectorMsg::m_iHdrSize - 64;
-
-            char path[128];
-            sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), msg->getKey());
-
-            ::mkdir(path, S_IRWXU);
-
-            ofstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
-            ofs.write(msg->getData() + 64, libsize);
-            ofs.close();
-
-            msg->m_iDataLength = SectorMsg::m_iHdrSize;
-            m_GMP.sendto(ip, port, id, msg);
-
-            break;
-         }
-
          case 203: // processing engine
          {
             Transport* datachn = new Transport;
@@ -299,12 +279,13 @@ void Slave::run()
             p->client_data_port = *(int32_t*)(msg->getData() + 72);
             p->key = *(int32_t*)(msg->getData() + 76);
             p->function = msg->getData() + 80;
-            p->rows = *(int32_t*)(msg->getData() + 144);
-            p->psize = *(int32_t*)(msg->getData() + 148);
+            int offset = 80 + p->function.length() + 1;
+            p->rows = *(int32_t*)(msg->getData() + offset);
+            p->psize = *(int32_t*)(msg->getData() + offset + 4);
             if (p->psize > 0)
             {
                p->param = new char[p->psize];
-               memcpy(p->param, msg->getData() + 152, p->psize);
+               memcpy(p->param, msg->getData() + offset + 8, p->psize);
             }
             else
                p->param = NULL;
@@ -334,8 +315,8 @@ void Slave::run()
             p->client_ip = msg->getData();
             p->client_ctrl_port = *(int32_t*)(msg->getData() + 64);
             p->bucket = *(int32_t*)(msg->getData() + 68);
-            p->path = msg->getData() + 72;
-            p->filename = msg->getData() + 136;
+            p->path = msg->getData() + 76;
+            p->filename = msg->getData() + 76 + p->path.length() + 1 + 4;
             p->gmp = gmp;
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 

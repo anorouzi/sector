@@ -55,6 +55,8 @@ public:
 
    static int sysinfo(SysStat& sys);
 
+   static int dataInfo(const vector<string>& files, vector<string>& info);
+
 protected:
    static string revisePath(const string& path);
 

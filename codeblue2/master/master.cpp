@@ -791,19 +791,11 @@ void* Master::process(void* s)
          {
             int32_t dataport = *(int32_t*)(msg->getData());
             int32_t mode = *(int32_t*)(msg->getData() + 4);
-            char path[128];
-            if (*(msg->getData() + 8) != '/')
-            {
-               path[0] = '/';
-               strcpy(path + 1, msg->getData() + 8);
-            }
-            else
-               strcpy(path, msg->getData() + 8);
+            string path = msg->getData() + 8;
 
             // check user's permission on that file
-
             int rwx = mode;
-            if (!user->match(path, rwx))
+            if (!user->match(path.c_str(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
                break;
@@ -811,7 +803,7 @@ void* Master::process(void* s)
 
             SNode attr;
             pthread_mutex_lock(&self->m_MetaLock);
-            int r = self->m_Metadata.lookup(path, attr);
+            int r = self->m_Metadata.lookup(path.c_str(), attr);
             pthread_mutex_unlock(&self->m_MetaLock);
 
             Address addr;
@@ -828,7 +820,7 @@ void* Master::process(void* s)
 
                // otherwise, create a new file for write
                pthread_mutex_lock(&self->m_MetaLock);
-               self->m_Metadata.create(path);
+               self->m_Metadata.create(path.c_str());
                pthread_mutex_unlock(&self->m_MetaLock);
 
                // choose a slave node for the new file
@@ -857,7 +849,7 @@ void* Master::process(void* s)
                addr.m_iPort = sn.m_iPort;
 
                pthread_mutex_lock(&self->m_MetaLock);
-               r = self->m_Metadata.lock(path, rwx);
+               r = self->m_Metadata.lock(path.c_str(), rwx);
                pthread_mutex_unlock(&self->m_MetaLock);
                if (r < 0)
                {
@@ -874,7 +866,7 @@ void* Master::process(void* s)
             msg->setData(64, (char*)&(dataport), 4);
             msg->setData(68, (char*)&(mode), 4);
             msg->setData(72, (char*)&(transid), 4);
-            msg->setData(76, path, strlen(path) + 1);
+            msg->setData(76, path.c_str(), path.length() + 1);
 
             self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
             dataport = *(int32_t*)(msg->getData());
@@ -890,7 +882,7 @@ void* Master::process(void* s)
 
          // 200+ SPE
 
-         case 201: // upload spe
+         case 201: // prepare SPE input information
          {
             if (!user->m_bExec)
             {
@@ -898,25 +890,37 @@ void* Master::process(void* s)
                break;
             }
 
-            string lib = msg->getData();
-            int libsize = msg->m_iDataLength - SectorMsg::m_iHdrSize - 64;
-
-            char path[128];
-            sprintf(path, "%s/.sphere/%d", self->m_strHomeDir.c_str(), key);
-
-            ::mkdir(path, S_IRWXU);
-
-            ofstream ofs((string(path) + "/" + lib).c_str());
-            ofs.write(msg->getData() + 64, libsize);
-            ofs.close();
-
-            for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
+            vector<string> result;
+            char* req = msg->getData();
+            int32_t size = *(int32_t*)req;
+            int offset = 0;
+            bool notfound = false;
+            while (size != -1)
             {
-               msg->m_iDataLength = SectorMsg::m_iHdrSize + libsize + 64;
-               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, msg, msg);
+               if (self->m_Metadata.collectDataInfo(req + offset + 4, result) < 0)
+               {
+                  notfound = true;
+                  break;
+               }
+
+               offset += 4 + size;
+               size = *(int32_t*)(req + offset);
             }
 
-            msg->m_iDataLength = SectorMsg::m_iHdrSize;
+            if (notfound)
+            {
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
+               break;
+            }
+
+            offset = 0;
+            for (vector<string>::iterator i = result.begin(); i != result.end(); ++ i)
+            {
+               msg->setData(offset, i->c_str(), i->length() + 1);
+               offset += i->length() + 1;
+            }
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
             self->m_GMP.sendto(ip, port, id, msg);
 
             break;

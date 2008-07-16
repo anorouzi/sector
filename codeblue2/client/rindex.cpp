@@ -9,9 +9,7 @@ int main(int argc, char** argv)
    Sector::login("test", "xxx");
 
    vector<string> files;
-   files.insert(files.end(), "w3.html");
-   files.insert(files.end(), "w1.html");
-   files.insert(files.end(), "w2.html");
+   files.insert(files.end(), "/html");
 
    SphereStream s;
    if (s.init(files) < 0)

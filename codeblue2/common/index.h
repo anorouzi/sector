@@ -92,6 +92,7 @@ public:
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
    int update(const char* fileinfo, const Address& addr, const int& type, std::set<Address, AddrComp>& tbr);
+   int collectDataInfo(const char* file, std::vector<std::string>& result);
 
 public:
    int lock(const char* path, int mode);

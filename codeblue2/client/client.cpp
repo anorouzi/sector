@@ -91,9 +91,9 @@ int Client::login(const string& username, const string& password)
    secconn.send((char*)&cmd, 4);
 
    char buf[128];
-   strcpy(buf, username.c_str());
+   strncpy(buf, username.c_str(), 64);
    secconn.send(buf, 64);
-   strcpy(buf, password.c_str());
+   strncpy(buf, password.c_str(), 128);
    secconn.send(buf, 128);
 
    int32_t port = m_GMP.getPort();
@@ -212,6 +212,8 @@ int Client::mkdir(const string& path)
 
 int Client::move(const string& oldpath, const string& newpath)
 {
+   //THIS FUNCTION IS NOT FINISHED.
+
    string revised_path = revisePath(oldpath);
 
    SectorMsg msg;

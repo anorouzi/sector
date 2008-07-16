@@ -32,7 +32,7 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
 
    // mkdir
    string rname = input->m_pcParam;
-   int slash = rname.find('/', slash);
+   int slash = rname.find('/', 1);
    while (slash != string::npos)
    {
       ::mkdir((file->m_strHomeDir + rname.substr(0, slash)).c_str(), S_IRWXU);

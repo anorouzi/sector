@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2008
 *****************************************************************************/
 
 
@@ -328,10 +328,7 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type, set
       if (type == 2)
       {
          // modification to an existing copy
-         if (s->second.m_sLocation.find(loc) == s->second.m_sLocation.end())
-            return -1;
-
-         if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
+	 if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
          {
             tbr = s->second.m_sLocation;
             tbr.erase(loc);
@@ -363,6 +360,51 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type, set
    }
 
    return -1;
+}
+
+int Index::collectDataInfo(const char* file, vector<string>& result)
+{
+   vector<string> dir;
+   if (parsePath(file, dir) <= 0)
+      return -3;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin();;)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return -1;
+
+      if (++ d != dir.end())
+         currdir = &(s->second.m_mDirectory);
+      else
+         break;
+   }
+
+   if (!s->second.m_bIsDir)
+   {
+      string idx = *(dir.rbegin()) + ".idx";
+      int rows = -1;
+      map<string, SNode>::iterator i = currdir->find(idx);
+      if (i != currdir->end())
+         rows = i->second.m_llSize / 8 - 1;
+
+      char buf[1024];
+      sprintf(buf, "%s %lld %d", file, s->second.m_llSize, rows);
+
+      for (set<Address, AddrComp>::iterator i = s->second.m_sLocation.begin(); i != s->second.m_sLocation.end(); ++ i)
+         sprintf(buf + strlen(buf), " %s %d", i->m_strIP.c_str(), i->m_iPort);
+
+      result.insert(result.end(), buf);
+   }
+   else
+   {
+      for (map<string, SNode>::iterator i = s->second.m_mDirectory.begin(); i != s->second.m_mDirectory.end(); ++ i)
+         collectDataInfo((file + ("/" + i->first)).c_str(), result);
+   }
+
+   return result.size();
 }
 
 int Index::lock(const char* path, int mode)
@@ -747,12 +789,11 @@ int64_t Index::getTotalFileNum(std::map<std::string, SNode>& currdir)
    return num;
 }
 
-
 int Index::parsePath(const char* path, std::vector<string>& result)
 {
    result.clear();
 
-   char token[64];
+   char* token = new char[strlen(path) + 1];
    int tc = 0;
    for (unsigned int i = 0; i < strlen(path); ++ i)
    {
@@ -776,6 +817,8 @@ int Index::parsePath(const char* path, std::vector<string>& result)
       token[tc] = '\0';
       result.insert(result.end(), token);
    }
+
+   delete [] token;
 
    return result.size();
 }
