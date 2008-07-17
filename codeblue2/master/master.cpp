@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -221,9 +221,7 @@ int Master::run()
          }
          else if (++ i->second.m_iRetryNum > 10)
          {
-            char text[64];
-            sprintf(text, "Detect slave drop %s.", i->second.m_strIP.c_str());
-            m_SectorLog.insert(text);
+            m_SectorLog.insert(("Detect slave drop " + i->second.m_strIP + ".").c_str());
 
             // to be removed
             tbrs.insert(tbrs.end(), i->first);
@@ -252,9 +250,7 @@ int Master::run()
       {
          for (vector<SlaveAddr>::iterator i = tbsaddr.begin(); i != tbsaddr.end(); ++ i)
          {
-            char text[64];
-            sprintf(text, "Restart slave %s %s.", i->m_strAddr.c_str(), i->m_strBase.c_str());
-            m_SectorLog.insert(text);
+            m_SectorLog.insert(("Restart slave " + i->m_strAddr + " " + i->m_strBase).c_str());
 
             // kill and restart the slave
             system((string("ssh ") + i->m_strAddr + " killall -9 start_slave").c_str());
@@ -916,8 +912,10 @@ void* Master::process(void* s)
             offset = 0;
             for (vector<string>::iterator i = result.begin(); i != result.end(); ++ i)
             {
+cout << "SIZE " << i->c_str() << " " << offset << " " << i->length() << endl;
                msg->setData(offset, i->c_str(), i->length() + 1);
                offset += i->length() + 1;
+cout << "offset " << offset << endl;
             }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;

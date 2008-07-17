@@ -1229,7 +1229,6 @@ void CUDTUnited::updateMux(CUDT* u, const CUDTSocket* ls)
 #endif
 {
    CUDTUnited* self = (CUDTUnited*)p;
-return NULL;
 
    while (!self->m_bClosing)
    {

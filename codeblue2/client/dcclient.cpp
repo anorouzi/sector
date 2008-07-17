@@ -79,10 +79,11 @@ int Client::dataInfo(const vector<string>& files, vector<string>& info)
       return *(int32_t*)(msg.getData());
 
    char* buf = msg.getData();
-   size = msg.m_iDataLength;
+   size = msg.m_iDataLength - SectorMsg::m_iHdrSize;
 
    while (size > 0)
    {
+cout << "BUF " << buf << " " << strlen(buf) << " " << size << endl;
       info.insert(info.end(), buf);
       size -= strlen(buf) + 1;
       buf += strlen(buf) + 1;

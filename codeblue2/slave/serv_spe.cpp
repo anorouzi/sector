@@ -183,12 +183,15 @@ void* Slave::SPEHandler(void* p)
    sprintf(path, "%d", key);
    void* handle = dlopen((self->m_strHomeDir + ".sphere/" + path + "/" + function + ".so").c_str(), RTLD_LAZY);
    if (NULL == handle)
+   {
+      cerr << dlerror() << endl;
       return NULL;
+   }
    int (*process)(const SInput*, SOutput*, SFile*);
    process = (int (*) (const SInput*, SOutput*, SFile*) )dlsym(handle, function.c_str());
    if (NULL == process)
    {
-      cerr << dlerror() <<  endl;
+      cerr << dlerror() << endl;
       return NULL;
    }
 
@@ -782,17 +785,21 @@ int Slave::acceptLibrary(const int& key, Transport* datachn)
       char* path = new char[m_strHomeDir.length() + 64];
       sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
 
-      ::mkdir(path, S_IRWXU);
+      struct stat s;
+      if (stat(path, &s) < 0)
+      {
+         ::mkdir(path, S_IRWXU);
 
-      ofstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
-      ofs.write(buf, size);
-      ofs.close();
-
-      datachn->recv((char*)&size, 4);
+         ofstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
+         ofs.write(buf, size);
+         ofs.close();
+      }
 
       delete [] lib;
       delete [] buf;
       delete [] path;
+
+      datachn->recv((char*)&size, 4);
    }
 
    return 0;

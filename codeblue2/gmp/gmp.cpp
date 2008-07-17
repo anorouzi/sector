@@ -220,6 +220,8 @@ int CGMP::init(const int& port)
 
    m_bInit = true;
 
+   m_iUDTReusePort = 0;
+
    return 1;
 }
 
@@ -370,10 +372,10 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
 int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 {
    Transport t;
-   int dataport = 0;
-
-   if (t.open(dataport, false) < 0)
+   int dataport = m_iUDTReusePort;
+   if (t.open(dataport, false, true) < 0)
       return -1;
+   m_iUDTReusePort = dataport;
 
    if (t.connect(ip, port) < 0)
    {
@@ -577,6 +579,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
             delete (*j)->m_pMsg;
             delete (*j);
             self->m_lSndQueue.erase(j);
+
             continue;
          }
 
