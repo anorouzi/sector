@@ -912,10 +912,8 @@ void* Master::process(void* s)
             offset = 0;
             for (vector<string>::iterator i = result.begin(); i != result.end(); ++ i)
             {
-cout << "SIZE " << i->c_str() << " " << offset << " " << i->length() << endl;
                msg->setData(offset, i->c_str(), i->length() + 1);
                offset += i->length() + 1;
-cout << "offset " << offset << endl;
             }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;

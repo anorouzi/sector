@@ -83,7 +83,6 @@ int Client::dataInfo(const vector<string>& files, vector<string>& info)
 
    while (size > 0)
    {
-cout << "BUF " << buf << " " << strlen(buf) << " " << size << endl;
       info.insert(info.end(), buf);
       size -= strlen(buf) + 1;
       buf += strlen(buf) + 1;
