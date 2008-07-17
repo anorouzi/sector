@@ -21,17 +21,17 @@ struct Key
 
 bool comp(const Key& k1, const Key& k2)
 {
-   if (k1.v1 < k2.v1)
-      return true;
    if (k1.v1 > k2.v1)
-      return false;
-
-   if (k1.v2 < k2.v2)
       return true;
-   if (k1.v2 > k2.v2)
+   if (k1.v1 < k2.v1)
       return false;
 
-   if (k1.v3 < k2.v3)
+   if (k1.v2 > k2.v2)
+      return true;
+   if (k1.v2 < k2.v2)
+      return false;
+
+   if (k1.v3 > k2.v3)
       return true;
 
    return false;

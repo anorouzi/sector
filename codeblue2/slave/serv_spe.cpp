@@ -786,7 +786,7 @@ int Slave::acceptLibrary(const int& key, Transport* datachn)
       sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
 
       struct stat s;
-      if (stat(path, &s) < 0)
+      if (stat((string(path) + "/" + lib).c_str(), &s) < 0)
       {
          ::mkdir(path, S_IRWXU);
 

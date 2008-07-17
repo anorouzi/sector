@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/14/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/17/2008
 *****************************************************************************/
 
 
@@ -451,6 +451,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
+   system(("rm -r " + m_strHomeDir + ".sphere/*").c_str());
 
    test = opendir((m_strHomeDir + ".tmp").c_str());
    if (NULL == test)
@@ -459,6 +460,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
+   system(("rm -r " + m_strHomeDir + ".tmp/*").c_str());
 
    return 0;
 }
