@@ -297,7 +297,7 @@ void* Slave::copy(void* p)
    utime((self->m_strHomeDir + ".tmp" + filename).c_str(), &ut);
 
    self->createDir(filename.substr(0, filename.rfind('/')));
-   system((string("mv ") + self->m_strHomeDir + ".tmp" + filename + " " + self->m_strHomeDir + filename).c_str());
+   system((string("mv '") + self->m_strHomeDir + ".tmp" + filename + "' '" + self->m_strHomeDir + filename + "'").c_str());
 
    self->report(0, filename, 3);
 

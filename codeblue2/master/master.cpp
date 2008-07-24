@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/23/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -87,12 +87,16 @@ bool ActiveUser::match(const string& path, int32_t rwx)
 Master::Master()
 {
    pthread_mutex_init(&m_MetaLock, NULL);
+   pthread_mutex_init(&m_ReplicaLock, NULL);
+   pthread_cond_init(&m_ReplicaCond, NULL);
 }
 
 Master::~Master()
 {
    m_SectorLog.close();
    pthread_mutex_destroy(&m_MetaLock);
+   pthread_mutex_destroy(&m_ReplicaLock);
+   pthread_cond_destroy(&m_ReplicaCond);
 }
 
 int Master::init()
@@ -151,11 +155,6 @@ int Master::init()
    // running...
    m_Status = RUNNING;
 
-   // start service thread
-   pthread_t svcserver;
-   pthread_create(&svcserver, NULL, service, this);
-   pthread_detach(svcserver);
-
    // start GMP
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
    {
@@ -163,13 +162,22 @@ int Master::init()
       return -1;
    }
 
+   // start service thread
+   pthread_t svcserver;
+   pthread_create(&svcserver, NULL, service, this);
+   pthread_detach(svcserver);
+
    // start management/process thread
    pthread_t msgserver;
    pthread_create(&msgserver, NULL, process, this);
    pthread_detach(msgserver);
 
-   m_SysStat.m_llStartTime = time(NULL);
+   // start replica thread
+   pthread_t repserver;
+   pthread_create(&repserver, NULL, replica, this);
+   pthread_detach(repserver);
 
+   m_SysStat.m_llStartTime = time(NULL);
    m_SectorLog.insert("Sector started.");
 
    return 1;
@@ -262,19 +270,16 @@ int Master::run()
       }
 
       // check replica, create or remove replicas if necessary
-      vector<string> replica;
-      pthread_mutex_lock(&m_MetaLock);
-      checkReplica(m_Metadata.m_mDirectory, "/", replica);
-      pthread_mutex_unlock(&m_MetaLock);
-      for (vector<string>::iterator r = replica.begin(); r != replica.end(); ++ r)
+      pthread_mutex_lock(&m_ReplicaLock);
+      if (m_vstrToBeReplicated.empty())
       {
-         if (m_TransManager.getTotalTrans() + m_sstrOnReplicate.size() >= m_SlaveManager.getTotalSlaves())
-            break;
-
-         // avoid replicate a file that is currently being replicated
-         if (m_sstrOnReplicate.find(*r) == m_sstrOnReplicate.end())
-            createReplica(*r);
+         pthread_mutex_lock(&m_MetaLock);
+         checkReplica(m_Metadata.m_mDirectory, "/", m_vstrToBeReplicated);
+         pthread_mutex_unlock(&m_MetaLock);
       }
+      if (!m_vstrToBeReplicated.empty())
+         pthread_cond_signal(&m_ReplicaCond);
+      pthread_mutex_unlock(&m_ReplicaLock);
    }
 
    return 1;
@@ -589,6 +594,11 @@ void* Master::process(void* s)
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
+
+            pthread_mutex_lock(&self->m_ReplicaLock);
+            if (!self->m_vstrToBeReplicated.empty())
+               pthread_cond_signal(&self->m_ReplicaCond);
+            pthread_mutex_unlock(&self->m_ReplicaLock);
 
             break;
          }
@@ -1018,6 +1028,38 @@ void* Master::processEx(void* p)
    return NULL;
 }
 
+
+void* Master::replica(void* s)
+{
+   Master* self = (Master*)s;
+
+   while (self->m_Status == RUNNING)
+   {
+      pthread_mutex_lock(&self->m_ReplicaLock);
+
+      vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
+
+      for (; r != self->m_vstrToBeReplicated.end(); ++ r)
+      {
+         if (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() >= self->m_SlaveManager.getTotalSlaves())
+            break;
+
+         // avoid replicate a file that is currently being replicated
+         if (self->m_sstrOnReplicate.find(*r) == self->m_sstrOnReplicate.end())
+            self->createReplica(*r);
+      }
+
+      // remove those already been replicated
+      self->m_vstrToBeReplicated.erase(self->m_vstrToBeReplicated.begin(), r);
+
+      pthread_cond_wait(&self->m_ReplicaCond, &self->m_ReplicaLock);
+
+      pthread_mutex_unlock(&self->m_ReplicaLock);
+   }
+
+   return NULL;
+}
+
 void Master::checkReplica(map<string, SNode>& currdir, const string& currpath, vector<string>& replica)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
@@ -1070,7 +1112,7 @@ int Master::createReplica(const string& path)
 
    msg.setType(111);
    msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
-   msg.setData(8, path.c_str(), idx.length() + 1);
+   msg.setData(8, idx.c_str(), idx.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return 0;

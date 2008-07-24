@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/23/2008
 *****************************************************************************/
 
 
@@ -60,7 +60,7 @@ int Index::list(const char* path, std::vector<string>& filelist)
          if (depth != dir.size())
             return SectorError::E_NOEXIST;
 
-         char buf[128];
+         char buf[4096];
          s->second.serialize(buf);
          filelist.insert(filelist.end(), buf);
          return 1;
@@ -73,7 +73,7 @@ int Index::list(const char* path, std::vector<string>& filelist)
    filelist.clear();
    for (map<string, SNode>::iterator i = currdir->begin(); i != currdir->end(); ++ i)
    {
-      char buf[128];
+      char buf[4096];
       i->second.serialize(buf);
       filelist.insert(filelist.end(), buf);
    }
@@ -503,13 +503,14 @@ int Index::unlock(const char* path, int mode)
 
 int SNode::serialize(char* buf)
 {
-   sprintf(buf, "%s,%d,%lld,%lld", m_strName.c_str(), m_bIsDir, m_llTimeStamp, m_llSize);
+   int namelen = m_strName.length();
+   sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, m_llTimeStamp, m_llSize);
    return 0;
 }
 
 int SNode::deserialize(const char* buf)
 {
-   char buffer[128];
+   char buffer[4096];
    char* tmp = buffer;
 
    strcpy(tmp, buf);
@@ -521,6 +522,10 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
+   int namelen = atoi(tmp);
+
+   tmp = tmp + strlen(tmp) + 1;
+   tmp[namelen] = '\0';
    m_strName = tmp;
 
    tmp = tmp + strlen(tmp) + 1;
@@ -557,7 +562,7 @@ int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
-      char* buf = new char[128];
+      char* buf = new char[i->first.length() + 64];
       i->second.serialize(buf);
       ofs << level << " " << buf << endl;
       delete [] buf;
@@ -578,15 +583,16 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
 
    while (!ifs.eof())
    {
-      char tmp[128];
+      char tmp[4096];
+      tmp[4095] = 0;
       char* buf = tmp;
 
-      ifs.getline(buf, 128);
-
-      if (strlen(buf) <= 0)
+      ifs.getline(buf, 4096);
+      int len = strlen(buf);
+      if ((len <= 0) || (len >= 4095))
          continue;
 
-      for (int i = 0; i < 128; ++ i)
+      for (int i = 0; i < len; ++ i)
       {
          if (buf[i] == ' ')
             buf[i] = '\0';
@@ -596,6 +602,8 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
 
       SNode sn;
       sn.deserialize(buf + strlen(buf) + 1);
+      if (!sn.m_bIsDir)
+         sn.m_sLocation.insert(addr);
 
       if (level == currlevel)
       {
@@ -627,26 +635,6 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
       }
    }
 
-   // assign address to the file locations
-   stack<SNode*> scanmap;
-
-   for (map<string, SNode>::iterator i = metadata.begin(); i != metadata.end(); ++ i)
-      scanmap.push(&(i->second));
-
-   while (!scanmap.empty())
-   {
-      SNode* n = scanmap.top();
-      scanmap.pop();
-
-      if (n->m_bIsDir)
-      {
-         for (map<string, SNode>::iterator i = n->m_mDirectory.begin(); i != n->m_mDirectory.end(); ++ i)
-            scanmap.push(&(i->second));
-      }
-      else
-         n->m_sLocation.insert(addr);
-   }
-
    return 0;
 }
 
@@ -676,8 +664,22 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
          continue;
       }
 
+      // check file name
+      bool bad = false;
+      for (char *p = namelist[i]->d_name, *q = namelist[i]->d_name + strlen(namelist[i]->d_name); p != q; ++ p)
+      {
+         if ((*p == 10) || (*p == 13))
+         {
+            bad = true;
+            break;
+         }
+      }
+      if (bad)
+         continue;
+
       struct stat s;
-      stat((currdir + namelist[i]->d_name).c_str(), &s);
+      if (stat((currdir + namelist[i]->d_name).c_str(), &s) < 0)
+         continue;
 
       SNode sn;
       metadata[namelist[i]->d_name] = sn;

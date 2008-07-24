@@ -1,3 +1,5 @@
+#Note: all values must start with a "TAB"
+
 #user's password
 PASSWORD
 	xxx
@@ -19,11 +21,12 @@ WRITE_PERMISSION
 EXEC_PERMISSION
 	TRUE
 
-#list of IP addresses from which the user is allowed to login. 
+#list of IP addresses from which the user is allowed to login, one per line.
 #this field must exist, otherwise the user will not be able to login
 ACL
 	0.0.0.0/0
 
 #the user's quota, which is the size limit of all the directories he/she has the write permission
+#unit is MB
 QUOTA
 	1000000

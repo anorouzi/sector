@@ -47,8 +47,6 @@ public:
    int init(const int& num);
    void setOutputPath(const string& path, const string& name);
 
-   int setSeg(const int64_t& start, const int64_t& end);
-
 public:
    string m_strPath;
    string m_strName;

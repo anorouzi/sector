@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/21/2008
 *****************************************************************************/
 
 
@@ -92,6 +92,12 @@ private:
    inline void reject(char* ip, int port, int id, int32_t code);
 
 private:
+   static void* replica(void* s);
+
+   pthread_mutex_t m_ReplicaLock;
+   pthread_cond_t m_ReplicaCond;
+
+   std::vector<std::string> m_vstrToBeReplicated;
    std::set<std::string> m_sstrOnReplicate;
 
    void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath, std::vector<std::string>& replica);

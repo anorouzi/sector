@@ -208,14 +208,6 @@ void SphereStream::setOutputPath(const string& path, const string& name)
    m_strName = name;
 }
 
-int SphereStream::setSeg(const int64_t& start, const int64_t& end)
-{
-   m_llStart = start;
-   m_llEnd = end;
-
-   return 0;
-}
-
 //
 SphereProcess::SphereProcess():
 m_iMinUnitSize(1000000),
