@@ -332,7 +332,7 @@ void* Master::serviceEx(void* p)
    //int port = ((Param*)p)->port;
 
    SSLTransport secconn;
-   secconn.initClientCTX("security_server.cert");
+   secconn.initClientCTX("security_node.cert");
    secconn.open(NULL, 0);
    int r = secconn.connect(self->m_SysConfig.m_strSecServIP.c_str(), self->m_SysConfig.m_iSecServPort);
 

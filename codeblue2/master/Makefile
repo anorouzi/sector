@@ -34,3 +34,4 @@ clean:
 
 install:
 	mv libmaster.so libmaster.a ../lib
+	../security/ssl_cert_gen master

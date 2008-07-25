@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/25/2008
 *****************************************************************************/
 
 #include "security.h"
@@ -39,7 +39,7 @@ int main(int argc, char** argv)
    if (argc == 2)
       port = atoi(argv[1]);
 
-   if (ss.init(port, "host.cert", "host.key") < 0)
+   if (ss.init(port, "security_node.cert", "security_node.key") < 0)
    {
       cerr << "failed to initialize security server at port " << port << endl;
       return -1;

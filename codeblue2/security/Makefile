@@ -9,7 +9,7 @@ endif
 
 OBJS = security.o ssltransport.o
 
-all: libsecurity.so libsecurity.a sslserver sslclient sserver
+all: libsecurity.so libsecurity.a sslserver sslclient sserver ssl_cert_gen
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -29,8 +29,12 @@ sslserver: sslserver.cpp
 sslclient: sslclient.cpp
 	$(C++) sslclient.cpp -o sslclient $(CCFLAGS) $(LDFLAGS)
 
+ssl_cert_gen: ssl_cert_gen.cpp
+	$(C++) ssl_cert_gen.cpp -o ssl_cert_gen -lssl -lstdc++
+
 clean:
 	rm -f *.o *.so *.a sserver sslserver sslclient
 
 install:
 	mv libsecurity.so libsecurity.a ../lib
+	./ssl_cert_gen security
