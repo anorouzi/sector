@@ -54,6 +54,8 @@ public:
    vector<int32_t> m_vDataLen;
    vector<char*> m_vData;
    vector<int32_t> m_vDataPhyLen;
+
+   int64_t m_llTotalDataSize;
 };
 
 
@@ -122,12 +124,15 @@ private:
 
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
-   int SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Address, Transport*, AddrComp>* outputchn);
+   int sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset);
+   int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations, map<Address, Transport*, AddrComp>* outputchn);
+   int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, Transport* datachn);
    int acceptLibrary(const int& key, Transport* datachn);
 
 private:
    int createDir(const string& path);
    int createSysDir();
+   string reviseSysCmdPath(const string& path);
 
 private:
    int report(const int32_t& transid, const string& path, const int& change = 0);

@@ -213,7 +213,7 @@ void Slave::run()
             cout << "REMOVE  " << m_strHomeDir + msg->getData() << endl;
             char* path = msg->getData();
             m_LocalFile.remove(path, true);
-            string sysrm = string("rm -rf '") + m_strHomeDir + path + "'";
+            string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
             system(sysrm.c_str());
 
             break;
@@ -451,7 +451,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf '" + m_strHomeDir + ".sphere/*'").c_str());
+   system(("rm -rf '" + reviseSysCmdPath(m_strHomeDir) + ".sphere/*'").c_str());
 
    test = opendir((m_strHomeDir + ".tmp").c_str());
    if (NULL == test)
@@ -460,7 +460,20 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf '" + m_strHomeDir + ".tmp/*'").c_str());
+   system(("rm -rf '" + reviseSysCmdPath(m_strHomeDir) + ".tmp/*'").c_str());
 
    return 0;
+}
+
+string Slave::reviseSysCmdPath(const string& path)
+{
+   string rpath;
+   for (const char *p = path.c_str(), *q = path.c_str() + path.length(); p != q; ++ p)
+   {
+      if ((*p == 32) || (*p == 34) || (*p == 38) || (*p == 39))
+         rpath.append(1, char(92));
+      rpath.append(1, *p);
+   }
+
+   return rpath;
 }

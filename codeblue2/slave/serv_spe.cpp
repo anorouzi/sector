@@ -67,6 +67,8 @@ void SPEResult::init(const int& n)
       *i = NULL;
    for (vector<char*>::iterator i = m_vData.begin(); i != m_vData.end(); ++ i)
       *i = NULL;
+
+   m_llTotalDataSize = 0;
 }
 
 void SPEResult::addData(const int& bucketid, const char* data, const int64_t& len)
@@ -112,6 +114,8 @@ void SPEResult::addData(const int& bucketid, const char* data, const int64_t& le
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, len);
    m_vDataLen[bucketid] += len;
+
+   m_llTotalDataSize += len;
 }
 
 void SPEResult::clear()
@@ -123,6 +127,8 @@ void SPEResult::clear()
    }
    for (vector<int32_t>::iterator i = m_vDataLen.begin(); i != m_vDataLen.end(); ++ i)
       *i = 0;
+
+   m_llTotalDataSize = 0;
 }
 
 void* Slave::SPEHandler(void* p)
@@ -220,6 +226,9 @@ void* Slave::SPEHandler(void* p)
       int64_t totalrows = *(int64_t*)(dataseg + 8);
       int32_t dsid = *(int32_t*)(dataseg + 16);
       string datafile = dataseg + 20;
+      char localfileid[64];
+      sprintf(localfileid, ".%d", dsid);
+
       delete [] dataseg;
       cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
 
@@ -259,22 +268,17 @@ void* Slave::SPEHandler(void* p)
 
       // TODO: use dynamic size at run time!
       char* rdata = NULL;
-      if (size < 1000000)
-         size = 1000000;
+      if (size < 64000000)
+         size = 64000000;
       rdata = new char[size];
 
       int64_t* rindex = NULL;
       int* rbucket = NULL;
-      if (totalrows < 65536)
-      {
-         rindex = new int64_t[65536];
-         rbucket = new int[65536];
-      }
-      else
-      {
-         rindex = new int64_t[totalrows + 2];
-         rbucket = new int[totalrows + 2];
-      }
+      int rowsbuf = totalrows + 2;
+      if (rowsbuf < 65536)
+         rowsbuf = 65536;
+      rindex = new int64_t[rowsbuf];
+      rbucket = new int[rowsbuf];
 
       SInput input;
       input.m_pcUnit = NULL;
@@ -284,16 +288,34 @@ void* Slave::SPEHandler(void* p)
       output.m_pcResult = rdata;
       output.m_iBufSize = size;
       output.m_pllIndex = rindex;
-      output.m_iIndSize = (totalrows < 65536) ? 65536 : totalrows + 2;
+      output.m_iIndSize = rowsbuf;
       output.m_piBucketID = rbucket;
+      output.m_llOffset = 0;
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
       file.m_strLibDir = self->m_strHomeDir + ".sphere/" + path + "/";
       file.m_strTempDir = self->m_strHomeDir + ".tmp/";
 
+      int* sarray;
+      int* rarray;
+      if (buckets > 0)
+      {
+         sarray = new int[buckets];
+         rarray = new int[buckets];
+         for (int i = 0; i < buckets; ++ i)
+            sarray[i] = rarray[i] = 0; 
+      }
+      else
+      {
+         sarray = new int[1];
+         rarray = new int[1];
+         sarray[0] = rarray[0] = 0;
+      }
+
       result.clear();
       gettimeofday(&t3, 0);
 
+      // process data segments
       for (int i = 0; i < totalrows; i += unitrows)
       {
          if (unitrows > totalrows - i)
@@ -308,6 +330,23 @@ void* Slave::SPEHandler(void* p)
          for (int r = 0; r < output.m_iRows; ++ r)
             result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
 
+         if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
+         {
+            if (buckets == -1)
+               self->sendResultToFile(result, localfile + localfileid, sarray[0]);
+            else
+               self->sendResultToBuckets(speid, buckets, result, outputloc, &OutputChn);
+
+            for (int b = 0; b < buckets; ++ b)
+            {
+               sarray[b] += result.m_vDataLen[b];
+               if (result.m_vDataLen[b] > 0)
+                  rarray[b] += result.m_vIndexLen[b] - 1;
+            }
+
+            result.clear();
+         }
+
          gettimeofday(&t4, 0);
          if (t4.tv_sec - t3.tv_sec > 1)
          {
@@ -321,12 +360,48 @@ void* Slave::SPEHandler(void* p)
          }
       }
 
+      // process files
       if (0 == unitrows)
       {
          input.m_pcUnit = block;
-         process(&input, &output, &file);
-         for (int r = 0; r < output.m_iRows; ++ r)
-            result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+
+         while (output.m_llOffset >= 0)
+         {
+            process(&input, &output, &file);
+            for (int r = 0; r < output.m_iRows; ++ r)
+               result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+
+            if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
+            {
+               if (buckets == -1)
+                  self->sendResultToFile(result, localfile + localfileid, sarray[0]);
+               else
+                  self->sendResultToBuckets(speid, buckets, result, outputloc, &OutputChn);
+
+               for (int b = 0; b < buckets; ++ b)
+               {
+                  sarray[b] += result.m_vDataLen[b];
+                  if (result.m_vDataLen[b] > 0)
+                     rarray[b] += result.m_vIndexLen[b] - 1;
+               }
+
+               result.clear();
+            }
+         }
+      }
+
+      if (buckets == -1)
+      {
+         self->sendResultToFile(result, localfile + localfileid, sarray[0]);
+         self->report(0, localfile + localfileid, true);
+      }
+      else if (buckets > 0)
+         self->sendResultToBuckets(speid, buckets, result, outputloc, &OutputChn);
+      for (int b = 0; b < buckets; ++ b)
+      {
+         sarray[b] += result.m_vDataLen[b];
+         if (result.m_vDataLen[b] > 0)
+            rarray[b] += result.m_vIndexLen[b] - 1;
       }
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
@@ -337,11 +412,7 @@ void* Slave::SPEHandler(void* p)
       self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
       cout << "sending data back... " << buckets << endl;
-      char localfileid[64];
-      localfileid[0] = '\0';
-      if (buckets < 0)
-         sprintf(localfileid, ".%d", dsid);
-      self->SPESendResult(speid, buckets, result, localfile + localfileid, datachn, outputloc, &OutputChn);
+      self->sendResultToClient(buckets, sarray, rarray, result, datachn);
 
       // report new files
       for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
@@ -352,7 +423,8 @@ void* Slave::SPEHandler(void* p)
       delete [] rdata;
       delete [] rindex;
       delete [] rbucket;
-
+      delete [] sarray;
+      delete [] rarray;
       index = NULL;
       block = NULL;
    }
@@ -646,26 +718,36 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    return totalrows;
 }
 
-int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& result, const string& localfile, Transport* datachn, char* locations, map<Address, Transport*, AddrComp>* outputchn)
+int Slave::sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset)
+{
+   ofstream datafile, idxfile;
+   datafile.open((m_strHomeDir + localfile).c_str(), ios::app);
+   idxfile.open((m_strHomeDir + localfile + ".idx").c_str(), ios::app);
+
+   datafile.write(result.m_vData[0], result.m_vDataLen[0]);
+
+   if (offset == 0)
+      idxfile.write((char*)&offset, 8);
+   else
+   {
+      for (int i = 1; i <= result.m_vIndexLen[0]; ++ i)
+         result.m_vIndex[0][i] += offset;
+   }
+   idxfile.write((char*)(result.m_vIndex[0] + 1), (result.m_vIndexLen[0] - 1) * 8);
+
+   datafile.close();
+   idxfile.close();
+
+   return 0;
+}
+
+int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, Transport* datachn)
 {
    if (buckets == -1)
    {
-      ofstream ofs;
-      ofs.open((m_strHomeDir + localfile).c_str());
-      ofs.write(result.m_vData[0], result.m_vDataLen[0]);
-      ofs.close();
-      ofs.open((m_strHomeDir + localfile + ".idx").c_str());
-      ofs.write((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
-      ofs.close();
-
-      // report the result file to master
-      report(0, localfile, true);
-
       // send back result file/record size
-      int32_t size = result.m_vDataLen[0];
-      datachn->send((char*)&size, 4);
-      size = result.m_vIndexLen[0];
-      datachn->send((char*)&size, 4);
+      datachn->send((char*)sarray, 4);
+      datachn->send((char*)rarray, 4);
    }
    else if (buckets == 0)
    {
@@ -678,91 +760,83 @@ int Slave::SPESendResult(const int& speid, const int& buckets, const SPEResult& 
    }
    else
    {
-      int* sarray = new int[buckets];
-      int* rarray = new int[buckets];
-      for (int i = 0; i < buckets; ++ i)
-      {
-         sarray[i] = result.m_vDataLen[i];
-         if (sarray[i] > 0)
-            rarray[i] = result.m_vIndexLen[i] - 1;
-         else
-            rarray[i] = 0;
-      }
-
       // send back size and recnum information
       datachn->send((char*)sarray, buckets * 4);
       datachn->send((char*)rarray, buckets * 4);
-      delete [] sarray;
-      delete [] rarray;
+   }
 
-      int reuseport = 0;
+   return 0;
+}
 
-      for (int r = speid; r < buckets + speid; ++ r)
+int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations, map<Address, Transport*, AddrComp>* outputchn)
+{
+   int reuseport = 0;
+
+   for (int r = speid; r < buckets + speid; ++ r)
+   {
+      // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
+      int i = r % buckets;
+
+      if (0 == result.m_vDataLen[i])
+         continue;
+
+      char* dstip = locations + i * 72;
+      //int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
+      int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
+
+      SectorMsg msg;
+      msg.setData(0, (char*)&i, 4);
+      msg.setData(4, (char*)&speid, 4);
+
+      Transport* chn;
+
+      Address n;
+      n.m_strIP = dstip;
+      n.m_iPort = shufflerport;
+
+      map<Address, Transport*, AddrComp>::iterator c = outputchn->find(n);
+      if (c != outputchn->end())
       {
-         // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
-         int i = r % buckets;
+         // channel exists, send a message immediately followed by data, no response expected
+         msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
+         int id = 0;
+         m_GMP.sendto(dstip, shufflerport, id, &msg);
 
-         if (0 == result.m_vDataLen[i])
-            continue;
-
-         char* dstip = locations + i * 72;
-         //int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
-         int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
-
-         SectorMsg msg;
-         msg.setData(0, (char*)&i, 4);
-         msg.setData(4, (char*)&speid, 4);
-
-         Transport* chn;
-
-         Address n;
-         n.m_strIP = dstip;
-         n.m_iPort = shufflerport;
-
-         map<Address, Transport*, AddrComp>::iterator c = outputchn->find(n);
-         if (c != outputchn->end())
+         chn = c->second;
+      }
+      else
+      {
+         Transport* t = new Transport;
+         int dataport;
+         if (dstip != m_strLocalHost)
          {
-            // channel exists, send a message immediately followed by data, no response expected
-            msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
-            int id = 0;
-            m_GMP.sendto(dstip, shufflerport, id, &msg);
-
-            chn = c->second;
+            dataport = reuseport;
+            t->open(dataport, true, true);
+            reuseport = dataport;
          }
          else
          {
-            Transport* t = new Transport;
-            int dataport;
-            if (dstip != m_strLocalHost)
-            {
-               dataport = reuseport;
-               t->open(dataport, true, true);
-               reuseport = dataport;
-            }
-            else
-            {
-               dataport = 0;
-               t->open(dataport, true, false);
-            }
-
-            msg.setData(8, (char*)&dataport, 4);
-            msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
-
-            m_GMP.rpc(dstip, shufflerport, &msg, &msg);
-
-            t->connect(dstip, *(int32_t*)msg.getData());
-
-            (*outputchn)[n] = t;
-            chn = t;
+            dataport = 0;
+            t->open(dataport, true, false);
          }
 
-         int32_t size = result.m_vDataLen[i];
-         chn->send((char*)&size, 4);
-         chn->send(result.m_vData[i], size);
-         size = result.m_vIndexLen[i] - 1;
-         chn->send((char*)&size, 4);
-         chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
+         msg.setData(8, (char*)&dataport, 4);
+         msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
+
+         m_GMP.rpc(dstip, shufflerport, &msg, &msg);
+
+         t->connect(dstip, *(int32_t*)msg.getData());
+
+         (*outputchn)[n] = t;
+         chn = t;
       }
+
+      int32_t size = result.m_vDataLen[i];
+      chn->send((char*)&size, 4);
+      chn->send(result.m_vData[i], size);
+      size = result.m_vIndexLen[i] - 1;
+      chn->send((char*)&size, 4);
+      chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
    }
 
    return 1;
@@ -794,7 +868,7 @@ int Slave::acceptLibrary(const int& key, Transport* datachn)
          ofs.write(buf, size);
          ofs.close();
 
-         system((string("chmod +x '") + path + "/" + lib + "'").c_str());
+         system((string("chmod +x ") + reviseSysCmdPath(path) + "/" + reviseSysCmdPath(lib)).c_str());
       }
 
       delete [] lib;

@@ -8,6 +8,8 @@ using namespace std;
 
 extern "C"
 {
+// use extern "C" to let g++ use the C style function naming
+// otherwise the function would not be located in the dynamic library
 
 struct Key
 {
