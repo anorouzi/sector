@@ -57,6 +57,8 @@ struct SOutput
 
    int64_t m_llOffset;		// last data position (file offset) of the current processing
 				// file processing only. starts with 0 and the last process should set this to -1.
+
+   std::string m_strError;		// error text to be send back to client
 };
 
 struct SFile
