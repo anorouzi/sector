@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/17/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/31/2008
 *****************************************************************************/
 
 
@@ -62,7 +62,7 @@ int Slave::init(const char* base)
    struct hostent* masterip = gethostbyname(m_strMasterHost.c_str());
    if (NULL == masterip)
    {
-      cerr << "incorect master address\n";
+      cerr << "invalid master address " << m_strMasterHost << endl;
       return -1;
    }
    char buf[64];
@@ -451,7 +451,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf '" + reviseSysCmdPath(m_strHomeDir) + ".sphere/*'").c_str());
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
 
    test = opendir((m_strHomeDir + ".tmp").c_str());
    if (NULL == test)
@@ -460,7 +460,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf '" + reviseSysCmdPath(m_strHomeDir) + ".tmp/*'").c_str());
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".tmp/*").c_str());
 
    return 0;
 }

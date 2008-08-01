@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/01/2008
 *****************************************************************************/
 
 
@@ -34,19 +34,33 @@ written by
 
 using namespace std;
 
-int ConfParser::init(string path)
+int ConfParser::init(const string& path)
 {
    m_ConfFile.open(path.c_str());
 
    if (m_ConfFile.bad() || m_ConfFile.fail())
+   {
+      cerr << "unable to locate or open the configuration file: " << path << endl;
       return -1;
+   }
+
+   while (!m_ConfFile.eof())
+   {
+      char buf[1024];
+      m_ConfFile.getline(buf, 1024);
+      m_vstrLines.insert(m_vstrLines.end(), buf);
+   }
+
+   m_ConfFile.close();
+
+   m_ptrLine = m_vstrLines.begin();
+   m_iLineCount = 1;
 
    return 0;
 }
 
 void ConfParser::close()
 {
-   m_ConfFile.close();
 }
 
 int ConfParser::getNextParam(Param& param)
@@ -58,51 +72,67 @@ int ConfParser::getNextParam(Param& param)
    // < tab >...
    // < tab >valuen
 
+   if (m_ptrLine == m_vstrLines.end())
+      return -1;
+
    param.m_strName = "";
    param.m_vstrValue.clear();
 
-   while (!m_ConfFile.eof())
+   while (m_ptrLine != m_vstrLines.end())
    {
       char buf[1024];
-      string name;
+      strcpy(buf, m_ptrLine->c_str());
 
-      m_ConfFile.getline(buf, 1024);
-
-      // skip blank lines
-      if (0 == strlen(buf))
+      // skip blank lines and comments
+      if ((0 == strlen(buf)) || ('#' == buf[0]))
+      {
+         m_ptrLine ++;
+         m_iLineCount ++;
          continue;
-
-      // skip comments
-      if ('#' == buf[0])
-         continue;
+      }
 
       // no blanks or tabs in front of name line
       if ((' ' == buf[0]) || ('\t' == buf[0]))
+      {
+         cerr << "Configuration file parsing error at line " << m_iLineCount << ": " << buf << endl;
          return -1;
+      }
 
       char* str = buf;
       string token = "";
 
       if (NULL == (str = getToken(str, token)))
+      {
+         m_ptrLine ++;
+         m_iLineCount ++;
          continue;
+      }
       param.m_strName = token;
 
       // scan param values
-      while (!m_ConfFile.eof())
+      m_ptrLine ++;
+      m_iLineCount ++;
+      while (m_ptrLine != m_vstrLines.end())
       {
-         m_ConfFile.getline(buf, 1024);
+         strcpy(buf, m_ptrLine->c_str());
 
-         if ('\t' != buf[0])
+         if ((strlen(buf) == 0) || ('\t' != buf[0]))
             break;
 
          str = buf;
          if (NULL == (str = getToken(str, token)))
+         {
+            cerr << "Configuration file parsing error at line " << m_iLineCount << ": " << buf << endl;
             return -1;
+         }
 
          param.m_vstrValue.insert(param.m_vstrValue.end(), token);
+
+         m_ptrLine ++;
+         m_iLineCount ++;
       }
 
-      return 0;
+      return param.m_vstrValue.size();
    }
 
    return -1;
@@ -138,12 +168,9 @@ int MasterConf::init(const string& path)
    Param param;
 
    if (0 != parser.init(path))
-   {
-      cerr << "couldn't locate SECTOR configuration file. Please check " << path << endl;
       return -1;
-   }
 
-   while (0 == parser.getNextParam(param))
+   while (parser.getNextParam(param) >= 0)
    {
       if (param.m_vstrValue.empty())
          continue;
@@ -198,12 +225,9 @@ int SlaveConf::init(const string& path)
    Param param;
 
    if (0 != parser.init(path))
-   {
-      cerr << "couldn't locate SECTOR configuration file. Please check " << path << endl;
       return -1;
-   }
 
-   while (0 == parser.getNextParam(param))
+   while (parser.getNextParam(param) >= 0)
    {
       if (param.m_vstrValue.empty())
          continue;

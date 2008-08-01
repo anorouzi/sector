@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/01/2008
 *****************************************************************************/
 
 #include <unistd.h>
@@ -76,13 +76,13 @@ int SSLTransport::initServerCTX(const char* cert, const char* key)
    m_pCTX = SSL_CTX_new(SSLv23_server_method());
    if (m_pCTX == NULL)
    {
-      printf("Failed init CTX. Aborting.\n");
+      cerr << "Failed init CTX. Aborting.\n";
       return -1;
    }
 
    if (!SSL_CTX_use_certificate_file(m_pCTX, cert, SSL_FILETYPE_PEM) || !SSL_CTX_use_PrivateKey_file(m_pCTX, key, SSL_FILETYPE_PEM))
    {
-      ERR_print_errors_fp(stdout);
+      ERR_print_errors_fp(stderr);
       SSL_CTX_free(m_pCTX);
       return -1;
    }
@@ -96,7 +96,7 @@ int SSLTransport::initClientCTX(const char* cert)
 
    if(!SSL_CTX_load_verify_locations(m_pCTX, cert, NULL))
    {
-      fprintf(stderr, "Error loading trust store\n");
+      cerr << "Error loading trust store: " << cert << endl;
       SSL_CTX_free(m_pCTX);
       return -1;
    }
@@ -122,7 +122,10 @@ int SSLTransport::open(const char* ip, const int& port)
    ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 
    if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
+   {
+      cerr << "SSL socket unable to bind on address " << ip << " " << port << endl;
       return -1;
+   }
 
    return 0;
 }
@@ -162,13 +165,19 @@ int SSLTransport::connect(const char* host, const int& port)
    hostent* he = gethostbyname(host);
 
    if (NULL == he)
+   {
+      cerr << "SSL connect: invalid address " << host << " " << port << endl;
       return -1;
+   }
 
    addr.sin_addr.s_addr = ((in_addr*)he->h_addr)->s_addr;
    memset(addr.sin_zero, '\0', sizeof(addr.sin_zero));
 
    if (::connect(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
+   {
+      cerr << "SSL connect: unable to connect to server.\n";
       return -1;
+   }
 
    m_pSSL = SSL_new(m_pCTX);
    m_pBIO = BIO_new_socket(m_iSocket, BIO_NOCLOSE);

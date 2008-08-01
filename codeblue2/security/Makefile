@@ -33,7 +33,7 @@ ssl_cert_gen: ssl_cert_gen.cpp
 	$(C++) ssl_cert_gen.cpp -o ssl_cert_gen -lssl -lstdc++
 
 clean:
-	rm -f *.o *.so *.a sserver sslserver sslclient
+	rm -f *.o *.so *.a sserver sslserver sslclient ssl_cert_gen
 
 install:
 	mv libsecurity.so libsecurity.a ../lib
