@@ -19,7 +19,7 @@ int main(int argc, char** argv)
    const int fn = sys.m_llTotalSlaves;
    const int32_t N = (int)log2(fn * 50.0f);
    const int rn = (int)pow(2.0f, N);
-   
+
    vector<string> files;
    for (int i = 0; i < fn; ++ i)
    {

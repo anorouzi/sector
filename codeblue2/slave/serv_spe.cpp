@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/08/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -325,7 +325,16 @@ void* Slave::SPEHandler(void* p)
          input.m_iRows = unitrows;
          input.m_pllIndex = index + i;
 
+         // pass relative offset, from 0, to the processing function
+         int64_t uoff = input.m_pllIndex[0];
+         for (int p = 0; p <= unitrows; ++ p)
+            input.m_pllIndex[p] = input.m_pllIndex[p] - uoff;
+
          process(&input, &output, &file);
+
+         // restore the original offset
+         for (int p = 0; p <= unitrows; ++ p)
+            input.m_pllIndex[p] = input.m_pllIndex[p] + uoff;
 
          for (int r = 0; r < output.m_iRows; ++ r)
             result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);

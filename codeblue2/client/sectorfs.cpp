@@ -24,7 +24,7 @@ using namespace std;
 
 void parse(string &str, vector<string>& results, const string& delim=" ")
 {
-  int cutAt;
+  unsigned int cutAt;
   while((cutAt=str.find_first_of(delim))!=str.npos)
     {
       if(cutAt>0)
@@ -433,11 +433,7 @@ int main(int argc, char** argv)
   tcsetattr( STDIN_FILENO, TCSANOW, &oldt );
 
  
-  
-
- 
-  
- if (-1== Sector::login(user_name,pwd))
+ if (Sector::login(user_name,pwd) < 0)
    {
      cout<<"Wrong username or passwrd"<<endl;
      Sector::close();

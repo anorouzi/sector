@@ -26,7 +26,11 @@ int gen_idx(const SInput* input, SOutput* output, SFile* file)
    while (!in.eof())
    {
       in.getline(buf, 65536);
-      offset += strlen(buf);
+      offset = in.tellg();
+
+      if (offset < 0)
+         break;
+
       out.write((char*)&offset, 8);
    }
 

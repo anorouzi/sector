@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/04/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -500,6 +500,8 @@ int SphereProcess::checkSPE()
 
          if ((rtime > 8 * m_iAvgRunTime) && (utime > 600))
          {
+            cerr << "SPE timeout " << s->m_strIP << endl;
+
             // dismiss this SPE and release its job
             s->m_pDS->m_iStatus = 0;
             s->m_pDS->m_iSPEID = -1;
