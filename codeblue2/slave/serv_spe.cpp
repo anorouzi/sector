@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/08/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/12/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -114,7 +114,6 @@ void SPEResult::addData(const int& bucketid, const char* data, const int64_t& le
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, len);
    m_vDataLen[bucketid] += len;
-
    m_llTotalDataSize += len;
 }
 
@@ -475,7 +474,7 @@ void* Slave::SPEShuffler(void* p)
 
    cout << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << endl;
 
-   ::mkdir((self->m_strHomeDir + path).c_str(), S_IRWXU);
+   self->createDir(path);
 
    // remove old result data files
    for (int i = 0; i < bucketnum; ++ i)
