@@ -9,7 +9,7 @@ endif
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx example
+all: libclient.so libclient.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx mrsort example
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -53,11 +53,14 @@ wordcount: wordcount.cpp
 text.idx: text.idx.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
+mrsort: mrsort.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
 example:
 	cd ./examples; make; cd ../
 
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx
+	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx mrsort
 	rm -f ./examples/*.so
 
 install:

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/06/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -299,11 +299,12 @@ int SphereProcess::loadOperator(SPE& s)
    return 0;
 }
 
-int SphereProcess::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size)
+int SphereProcess::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size, const int& type)
 {
    pthread_mutex_lock(&m_RunLock);
    pthread_mutex_unlock(&m_RunLock);
 
+   m_iProcType = type;
    m_strOperator = op;
    m_pcParam = new char[size];
    memcpy(m_pcParam, param, size);
@@ -365,6 +366,11 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    return 0;
 }
 
+int SphereProcess::run_mr(const SphereStream& input, SphereStream& output, const string& mr, const int& rows, const char* param, const int& size)
+{
+   return run(input, output, mr, rows, param, size, 1);
+}
+
 int SphereProcess::close()
 {
    pthread_mutex_lock(&m_RunLock);
@@ -385,63 +391,85 @@ void* SphereProcess::run(void* param)
    // start initial round
    self->start();
 
-   while (self->m_iProgress < self->m_iTotalDS)
+   bool mapping = true;
+   while ((self->m_iProgress < self->m_iTotalDS) || (self->checkBucket() > 0))
    {
       if (0 == self->checkSPE())
          break;
 
+      if (mapping && (self->m_iProgress == self->m_iTotalDS))
+      {
+         // disconnect all SPEs and close all Shufflers
+         for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
+         {
+            if (i->m_iStatus >= 0)
+            i->m_DataChn.close();
+
+            if (i->m_iShufflerPort > 0)
+            {
+               SectorMsg msg;
+               int32_t cmd = -1;
+               msg.setData(0, (char*)&cmd, 4);
+               int id = 0;
+               self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iShufflerPort, id, &msg);
+            }
+         }
+
+         mapping = false;
+      }
+
       char ip[64];
       int port;
-      int id;
+      int tmp;
       SectorMsg msg;
-      if (self->m_GMP.recvfrom(ip, port, id, &msg, false) < 0)
+      if (self->m_GMP.recvfrom(ip, port, tmp, &msg, false) < 0)
          continue;
 
-      uint32_t speid = *(uint32_t*)(msg.getData());
-      vector<SPE>::iterator s = self->m_vSPE.begin();
-      for (; s != self->m_vSPE.end(); ++ s)
-         if (speid == s->m_uiID)
-            break;
+      int32_t id = *(uint32_t*)(msg.getData());
 
-      if (s->m_iStatus == -1)
-         continue;
-
-      int progress = *(int32_t*)(msg.getData() + 4);
-      gettimeofday(&s->m_LastUpdateTime, 0);
-      if (progress < 0)
+      if (id >= 0)
       {
-         //error, quit this segment on the SPE
-         s->m_pDS->m_iStatus = 0;
-         s->m_pDS->m_iSPEID = -1;
-         s->m_iStatus = 0;
-         continue;
+         uint32_t speid = id;
+         vector<SPE>::iterator s = self->m_vSPE.begin();
+         for (; s != self->m_vSPE.end(); ++ s)
+            if (speid == s->m_uiID)
+               break;
+
+         if (s->m_iStatus == -1)
+            continue;
+
+         int progress = *(int32_t*)(msg.getData() + 4);
+         gettimeofday(&s->m_LastUpdateTime, 0);
+         if (progress < 0)
+         {
+            //error, quit this segment on the SPE
+            s->m_pDS->m_iStatus = 0;
+            s->m_pDS->m_iSPEID = -1;
+            s->m_iStatus = 0;
+            continue;
+         }
+         if (progress > s->m_iProgress)
+            s->m_iProgress = progress;
+         if (progress < 100)
+            continue;
+
+         self->readResult(&(*s));
+
+         // one SPE completes!
+         timeval t;
+         gettimeofday(&t, 0);
+         self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec)) / 8;
       }
-      if (progress > s->m_iProgress)
-         s->m_iProgress = progress;
-      if (progress < 100)
-         continue;
-
-      self->readResult(&(*s));
-
-      // one SPE completes!
-      timeval t;
-      gettimeofday(&t, 0);
-      self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec)) / 8;
-   }
-
-   // disconnect all SPEs and close all Shufflers
-   for (vector<SPE>::iterator i = self->m_vSPE.begin(); i != self->m_vSPE.end(); ++ i)
-   {
-      if (i->m_iStatus >= 0)
-         i->m_DataChn.close();
-
-      if (i->m_iShufflerPort > 0)
+      else
       {
-         SectorMsg msg;
-         int32_t cmd = -1;
-         msg.setData(0, (char*)&cmd, 4);
-         int id = 0;
-         self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iShufflerPort, id, &msg);
+         int bucketid = id;
+         vector<BUCKET>::iterator b = self->m_vBucket.begin();
+         for (; b != self->m_vBucket.end(); ++ b)
+            if (bucketid == b->m_iID)
+               break;
+         if (b == self->m_vBucket.end())
+            continue;
+         b->m_iProgress = 100;
       }
    }
 
@@ -516,6 +544,18 @@ int SphereProcess::checkSPE()
    return m_iTotalSPE;
 }
 
+int SphereProcess::checkBucket()
+{
+   int count = 0;
+   for (vector<BUCKET>::iterator b = m_vBucket.begin(); b != m_vBucket.end(); ++ b)
+   {
+      if (b->m_iProgress == 100)
+         count ++;
+   }
+
+   return m_vBucket.size() - count;
+}
+
 int SphereProcess::startSPE(SPE& s, DS* d)
 {
    int res = 0;
@@ -563,6 +603,26 @@ int SphereProcess::checkProgress()
       return -1;
 
    return m_iProgress * 100 / m_iTotalDS;
+}
+
+int SphereProcess::checkMapProgress()
+{
+   return checkProgress();
+}
+
+int SphereProcess::checkReduceProgress()
+{
+   if (m_vBucket.empty())
+      return 100;
+
+   int count = 0;
+   for (vector<BUCKET>::iterator b = m_vBucket.begin(); b != m_vBucket.end(); ++ b)
+   {
+      if (b->m_iProgress == 100)
+         count ++;
+   }
+
+   return count * 100 / m_vBucket.size();   
 }
 
 int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wait)
@@ -670,6 +730,8 @@ int SphereProcess::connectSPE(SPE& s)
    msg.setData(offset, (char*)&m_iRows, 4);
    msg.setData(offset + 4, (char*)&m_iParamSize, 4);
    msg.setData(offset + 8, m_pcParam, m_iParamSize);
+   offset += 4 + 8 + m_iParamSize;
+   msg.setData(offset, (char*)&m_iProcType, 4);
 
    if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
@@ -777,8 +839,8 @@ int SphereProcess::prepareOutput()
       SectorMsg msg;
 
       outputloc = new char[m_pOutput->m_iFileNum * 72];
-
       vector<SPE>::iterator s = m_vSPE.begin();
+      int id = -1;
 
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
       {
@@ -801,20 +863,40 @@ int SphereProcess::prepareOutput()
             msg.setData(0, loc.m_strIP.c_str(), loc.m_strIP.length() + 1);
             msg.setData(64, (char*)&(loc.m_iPort), 4);
             msg.setData(68, (char*)&(m_pOutput->m_iFileNum), 4);
+            msg.setData(72, (char*)&id, 4);
             int size = m_pOutput->m_strPath.length() + 1;
-            int offset = 72;
+            int offset = 76;
             msg.setData(offset, (char*)&size, 4);
             msg.setData(offset + 4, m_pOutput->m_strPath.c_str(), m_pOutput->m_strPath.length() + 1);
             offset += 4 + size;
             size = m_pOutput->m_strName.length() + 1;
             msg.setData(offset, (char*)&size, 4);
             msg.setData(offset + 4, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
+            offset += 4 + size;
+            msg.setData(offset, (char*)&m_iKey, 4);
+            offset += 4;
+            msg.setData(offset, (char*)&m_iProcType, 4);
+            if (m_iProcType == 1)
+            {
+               offset += 4;
+               size = m_strOperator.length() + 1;
+               msg.setData(offset, (char*)&size, 4);
+               msg.setData(offset + 4, m_strOperator.c_str(), m_strOperator.length() + 1);
+            }
 
             cout << "request shuffler " << loc.m_strIP << " " << loc.m_iPort << endl;
             if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
                continue;
 
             s->m_iShufflerPort = *(int32_t*)msg.getData();
+
+            BUCKET b;
+            b.m_iID = id --;
+            b.m_strIP = loc.m_strIP;
+            b.m_iPort = *(int32_t*)msg.getData();
+            b.m_iProgress = 0;
+            gettimeofday(&b.m_LastUpdateTime, 0);
+            m_vBucket.insert(m_vBucket.end(), b);
          }
 
          memcpy(outputloc + i * 72, s->m_strIP.c_str(), 64);

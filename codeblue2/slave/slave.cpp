@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/16/2008
 *****************************************************************************/
 
 
@@ -289,6 +289,7 @@ void Slave::run()
             }
             else
                p->param = NULL;
+            p->type = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 8);
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << " " << p->transid << endl;
@@ -314,10 +315,23 @@ void Slave::run()
             p->serv_instance = this;
             p->client_ip = msg->getData();
             p->client_ctrl_port = *(int32_t*)(msg->getData() + 64);
-            p->bucket = *(int32_t*)(msg->getData() + 68);
-            p->path = msg->getData() + 76;
-            p->filename = msg->getData() + 76 + p->path.length() + 1 + 4;
+            p->bucketnum = *(int32_t*)(msg->getData() + 68);
+            p->bucketid = *(int32_t*)(msg->getData() + 72);
+            p->path = msg->getData() + 80;
+            int offset = 80 + p->path.length() + 1 + 4;
+
+            p->filename = msg->getData() + offset;
             p->gmp = gmp;
+
+            offset += p->filename.length() + 1;
+
+            p->key = *(int32_t*)(msg->getData() + offset);
+            p->type = *(int32_t*)(msg->getData() + offset + 4);
+            if (p->type == 1)
+            {
+               p->function = msg->getData() + offset + 4 + 4 + 4;
+            }
+
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
             pthread_t spe_shuffler;

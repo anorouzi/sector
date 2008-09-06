@@ -7,7 +7,7 @@ int main(int argc, char** argv)
 {
    if (3 != argc)
    {
-      cout << "usage: testfs <ip> <port>" << endl;
+      cout << "usage: testdc <ip> <port>" << endl;
       return 0;
    }
 

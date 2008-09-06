@@ -93,7 +93,8 @@ public:
 
    int loadOperator(const char* library);
 
-   int run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param = NULL, const int& size = 0);
+   int run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param = NULL, const int& size = 0, const int& type = 0);
+   int run_mr(const SphereStream& input, SphereStream& output, const string& mr, const int& rows, const char* param = NULL, const int& size = 0);
 
    // rows:
    // 	n (n > 0): n rows per time
@@ -102,6 +103,8 @@ public:
 
    int read(SphereResult*& res, const bool& inorder = false, const bool& wait = true);
    int checkProgress();
+   int checkMapProgress();
+   int checkReduceProgress();
 
    inline void setMinUnitSize(int size) {m_iMinUnitSize = size;}
    inline void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}
@@ -109,6 +112,8 @@ public:
    inline void setDataMoveAttr(bool move) {}
 
 private:
+   int m_iProcType;			// 0: sphere 1: mapreduce
+
    std::string m_strOperator;
    char* m_pcParam;
    int m_iParamSize;
@@ -148,6 +153,16 @@ private:
    };
    std::vector<SPE> m_vSPE;
 
+   struct BUCKET
+   {
+      int32_t m_iID;
+      std::string m_strIP;
+      int m_iPort;
+      int m_iProgress;
+      timeval m_LastUpdateTime;
+   };
+   std::vector<BUCKET> m_vBucket;
+
    int m_iProgress;		// progress, 0..100
    int m_iAvgRunTime;		// average running time, in seconds
    int m_iTotalDS;		// total number of data segments
@@ -183,7 +198,7 @@ private:
    int checkSPE();
    int startSPE(SPE& s, DS* d);
    int connectSPE(SPE& s);
-
+   int checkBucket();
    int readResult(SPE* s);
 };
 

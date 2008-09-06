@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/23/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/13/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -197,8 +197,9 @@ int Master::run()
          if (0 == i->first)
             continue;
 
-         if (CTimer::getTime() - i->second.m_llLastRefreshTime > 30 * 60 * 1000000LL)
-            tbru.insert(tbru.end(), i->first);
+         //TODO: update refresh time when client is active
+         //if (CTimer::getTime() - i->second.m_llLastRefreshTime > 30 * 60 * 1000000LL)
+         //   tbru.insert(tbru.end(), i->first);
       }
 
       // remove from slave list
@@ -226,6 +227,13 @@ int Master::run()
             i->second.m_llLastUpdateTime = CTimer::getTime();
             i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
             i->second.m_iRetryNum = 0;
+
+            if (i->second.m_llAvailDiskSpace < 10000000000LL)
+            {
+               char text[64];
+               sprintf(text, "Slave %s has less than 10GB available disk space left.", i->second.m_strIP.c_str());
+               m_SectorLog.insert(text);
+            }
          }
          else if (++ i->second.m_iRetryNum > 10)
          {

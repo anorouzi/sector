@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/13/2008
 *****************************************************************************/
 
 
@@ -34,6 +34,15 @@ written by
 #include <transport.h>
 #include <conf.h>
 #include <index.h>
+#include <sphere.h>
+
+
+typedef int (*SPHERE_PROCESS)(const SInput*, SOutput*, SFile*);
+typedef int (*MR_MAP)(const SInput*, SOutput*, SFile*);
+typedef int (*MR_PARTITION)(const char*, int, void*, int);
+typedef bool (*MR_COMPARE)(const char*, int, const char*, int);
+typedef int (*MR_REDUCE)(const SInput*, SOutput*, SFile*);
+
 
 class SPEResult
 {
@@ -56,6 +65,40 @@ public:
    vector<int32_t> m_vDataPhyLen;
 
    int64_t m_llTotalDataSize;
+};
+
+class SPEDestination
+{
+public:
+   SPEDestination();
+   ~SPEDestination();
+
+public:
+   void init(const int& buckets);
+
+public:
+   int* m_piSArray;
+   int* m_piRArray;
+   string m_strLocalFile;
+   char m_pcLocalFileID[64];
+   char* m_pcOutputLoc;
+   map<Address, Transport*, AddrComp> m_mOutputChn;
+};
+
+struct MRRecord
+{
+   char* m_pcData;
+   int m_iSize;
+
+   MR_COMPARE m_pCompRoutine;
+};
+
+struct ltrec
+{
+   bool operator()(const MRRecord& r1, const MRRecord& r2) const
+   {
+      return r1.m_pCompRoutine(r1.m_pcData, r1.m_iSize, r2.m_pcData, r2.m_iSize);
+   }
 };
 
 
@@ -99,10 +142,11 @@ private:
       int client_data_port;	// client data port
       int key;			// client key
       int speid;		// speid
-      string function;		// SPE operator
+      string function;		// SPE or Map operator
       int rows;                 // number of rows per processing: -1 means all in the block
       char* param;		// SPE parameter
       int psize;		// parameter size
+      int type;			// process type
    };
 
    struct Param5
@@ -113,8 +157,14 @@ private:
       int client_ctrl_port;     // client GMP port
       string path;		// output path
       string filename;		// SPE output file name
-      int bucket;		// number of buckets
+      int bucketnum;		// number of buckets
       CGMP* gmp;		// GMP
+      int key;			// client key
+      int bucketid;		// bucket id
+      int type;			// process type
+      string function;          // Reduce operator
+      char* param;              // Reduce parameter
+      int psize;                // parameter size
    };
 
    static void* fileHandler(void* p2);
@@ -127,7 +177,19 @@ private:
    int sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset);
    int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations, map<Address, Transport*, AddrComp>* outputchn);
    int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, Transport* datachn);
+
    int acceptLibrary(const int& key, Transport* datachn);
+   int openLibrary(const int& key, const string& lib, void*& lh);
+   int getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& process);
+   int getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITION& partition);
+   int getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, MR_REDUCE& reduce);
+   int closeLibrary(void* lh);
+
+   int sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red);
+   int reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize);
+
+   int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
+   int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);
 
 private:
    int createDir(const string& path);
