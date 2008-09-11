@@ -1,7 +1,7 @@
 C++ = g++
 CCFLAGS = -shared -fPIC -O3 -g
 
-all: randwriter.so sort.so sorthash.so wordbucket.so gen_idx.so mr_sort.so
+all: randwriter.so sort.so sorthash.so wordbucket.so gen_idx.so mr_sort.so mr_word.so
 
 randwriter.so: randwriter.cpp
 	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
@@ -21,5 +21,8 @@ gen_idx.so: gen_idx.cpp
 mr_sort.so: mr_sort.cpp
 	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
 
+mr_word.so: mr_word.cpp
+	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+
 clean:
-	rm -f randwriter.so sort.so sorthash.so wordbucket.so gen_idx.so
+	rm -f *.so

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/04/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/11/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -303,8 +303,8 @@ void* Slave::SPEHandler(void* p)
       int64_t* rindex = NULL;
       int* rbucket = NULL;
       int rowsbuf = totalrows + 2;
-      if (rowsbuf < 65536)
-         rowsbuf = 65536;
+      if (rowsbuf < 640000)
+         rowsbuf = 640000;
       rindex = new int64_t[rowsbuf];
       rbucket = new int[rowsbuf];
 
@@ -361,12 +361,12 @@ void* Slave::SPEHandler(void* p)
       if (0 == unitrows)
       {
          input.m_pcUnit = block;
+         input.m_iRows = -1;
+         input.m_pllIndex = NULL;
 
          while (output.m_llOffset >= 0)
          {
-            process(&input, &output, &file);
-            for (int r = 0; r < output.m_iRows; ++ r)
-               result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+            self->processData(input, output, file, result, process, map, partition);
 
             if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
                self->deliverResult(buckets, speid, result, dest);
@@ -556,15 +556,15 @@ void* Slave::SPEShuffler(void* p)
       self->openLibrary(key, function, lh);
       //if (NULL == lh)
       //   break;
-      
+
       MR_COMPARE comp = NULL;
       MR_REDUCE reduce = NULL;
       self->getReduceFunc(lh, function, comp, reduce);
 
       for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
       {
-         char* tmp = new char[path.length() + localfile.length() + 64];
-         sprintf(tmp, "%s.%d", (path + "/" + localfile).c_str(), *i);
+         char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
+         sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), *i);
 
          if (comp != NULL)
          {
@@ -963,12 +963,11 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    ifs.seekg(0, ios::end);
    int size = ifs.tellg();
    ifs.seekg(0, ios::beg);
-
    char* rec = new char[size];
    ifs.read(rec, size);
    ifs.close();
 
-   ifs.open(bucket.c_str());
+   ifs.open((bucket + ".idx").c_str());
    if (ifs.fail())
    {
       delete [] rec;
@@ -978,7 +977,6 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    ifs.seekg(0, ios::end);
    size = ifs.tellg();
    ifs.seekg(0, ios::beg);
-
    int64_t* idx = new int64_t[size / 8];
    ifs.read((char*)idx, size);
    ifs.close();
@@ -992,10 +990,24 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    {
       i->m_pcData = rec + idx[offset];
       i->m_iSize = idx[offset + 1] - idx[offset];
+      i->m_pCompRoutine = comp;
       offset ++;
    }
 
-   std::sort(vr.begin(), vr.end(), ltrec());
+   //std::sort(vr.begin(), vr.end(), ltrec());
+   for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end(); ++ i)
+   {
+      for (vector<MRRecord>::iterator j = i; j != vr.end(); ++ j)
+      {
+         ltrec comp;
+         if (!comp(*i, *j))
+         {
+            MRRecord tmp = *i;
+            *i = *j;
+            *j = tmp;
+         }
+      }
+   }
 
    if (red != NULL)
       reduce(vr, red, NULL, 0);
@@ -1046,7 +1058,7 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
    char* idata = new char[256000000];
    int64_t* iidx = new int64_t[1000000];
 
-   for (vector<MRRecord>::iterator i = vr.begin();;)
+   for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end();)
    {
       iidx[0] = 0;
       vector<MRRecord>::iterator curr = i;
@@ -1054,9 +1066,10 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
       iidx[1] = i->m_iSize;
       int offset = 1;
 
-      while (i != vr.end() && i->m_pCompRoutine(curr->m_pcData, curr->m_iSize, i->m_pcData, i->m_iSize))
+      i ++;
+      while ((i != vr.end()) && i->m_pCompRoutine(curr->m_pcData, curr->m_iSize, i->m_pcData, i->m_iSize))
       {
-         memcpy(idata+ iidx[offset], i->m_pcData, i->m_iSize);
+         memcpy(idata + iidx[offset], i->m_pcData, i->m_iSize);
          iidx[offset + 1] = iidx[offset] + i->m_iSize;
          offset ++;
          i ++;
@@ -1064,6 +1077,7 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
 
       input.m_pcUnit = idata;
       input.m_pllIndex = iidx;
+      input.m_iRows = offset;
       red(&input, &output, &file);
 
       //write result to the new file
@@ -1081,7 +1095,7 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
 int Slave::processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition)
 {
    // pass relative offset, from 0, to the processing function
-   int64_t uoff = input.m_pllIndex[0];
+   int64_t uoff = (input.m_pllIndex != NULL) ? input.m_pllIndex[0] : 0;
    for (int p = 0; p <= input.m_iRows; ++ p)
       input.m_pllIndex[p] = input.m_pllIndex[p] - uoff;
 
