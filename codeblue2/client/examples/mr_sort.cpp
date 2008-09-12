@@ -31,25 +31,26 @@ int mr_sort_partition(const char* record, int size, void* param, int psize)
    return (k->v1 >> (32 - n));
 }
 
-bool mr_sort_compare(const char* r1, int s1, const char* r2, int s2)
+int mr_sort_compare(const char* r1, int s1, const char* r2, int s2)
 {
    Key* k1 = (Key*)r1;
    Key* k2 = (Key*)r2;
 
    if (k1->v1 > k2->v1)
-      return true;
+      return 1;
    if (k1->v1 < k2->v1)
-      return false;
+      return -1;
 
    if (k1->v2 > k2->v2)
-      return true;
+      return 1;
    if (k1->v2 < k2->v2)
-      return false;
+      return -1;
 
    if (k1->v3 > k2->v3)
-      return true;
+      return 1;
+   if (k1->v3 < k2->v3)
 
-   return false;
+   return 0;
 }
 
 // for TeraSort, the reduce function does nothing

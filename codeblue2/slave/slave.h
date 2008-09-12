@@ -40,7 +40,7 @@ written by
 typedef int (*SPHERE_PROCESS)(const SInput*, SOutput*, SFile*);
 typedef int (*MR_MAP)(const SInput*, SOutput*, SFile*);
 typedef int (*MR_PARTITION)(const char*, int, void*, int);
-typedef bool (*MR_COMPARE)(const char*, int, const char*, int);
+typedef int (*MR_COMPARE)(const char*, int, const char*, int);
 typedef int (*MR_REDUCE)(const SInput*, SOutput*, SFile*);
 
 
@@ -97,7 +97,7 @@ struct ltrec
 {
    bool operator()(const MRRecord& r1, const MRRecord& r2) const
    {
-      return r1.m_pCompRoutine(r1.m_pcData, r1.m_iSize, r2.m_pcData, r2.m_iSize);
+      return (r1.m_pCompRoutine(r1.m_pcData, r1.m_iSize, r2.m_pcData, r2.m_iSize) <= 0);
    }
 };
 
@@ -186,7 +186,7 @@ private:
    int closeLibrary(void* lh);
 
    int sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red);
-   int reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize);
+   int reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, void* param, int psize);
 
    int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
    int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);

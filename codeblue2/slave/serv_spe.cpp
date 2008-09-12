@@ -1010,7 +1010,7 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    }
 
    if (red != NULL)
-      reduce(vr, red, NULL, 0);
+      reduce(vr, bucket, red, NULL, 0);
 
    ofstream sorted((bucket + ".sorted").c_str(), ios::trunc);
    ofstream sortedidx((bucket + ".sorted.idx").c_str(), ios::trunc);
@@ -1031,7 +1031,7 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    return 0;
 }
 
-int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
+int Slave::reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, void* param, int psize)
 {
    SInput input;
    input.m_pcUnit = NULL;
@@ -1058,6 +1058,10 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
    char* idata = new char[256000000];
    int64_t* iidx = new int64_t[1000000];
 
+   ofstream reduced((bucket + ".reduced").c_str(), ios::trunc);
+   ofstream reducedidx((bucket + ".reduced.idx").c_str(), ios::trunc);
+   int64_t roff = 0;
+
    for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end();)
    {
       iidx[0] = 0;
@@ -1067,7 +1071,7 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
       int offset = 1;
 
       i ++;
-      while ((i != vr.end()) && i->m_pCompRoutine(curr->m_pcData, curr->m_iSize, i->m_pcData, i->m_iSize))
+      while ((i != vr.end()) && (i->m_pCompRoutine(curr->m_pcData, curr->m_iSize, i->m_pcData, i->m_iSize) == 0))
       {
          memcpy(idata + iidx[offset], i->m_pcData, i->m_iSize);
          iidx[offset + 1] = iidx[offset] + i->m_iSize;
@@ -1080,8 +1084,17 @@ int Slave::reduce(vector<MRRecord>& vr, MR_REDUCE red, void* param, int psize)
       input.m_iRows = offset;
       red(&input, &output, &file);
 
-      //write result to the new file
+      for (int r = 0; r < output.m_iRows; ++ r)
+      {
+         cout << "RES: " << output.m_pcResult + output.m_pllIndex[r] << endl;
+         reduced.write(output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+         roff += output.m_pllIndex[r + 1] - output.m_pllIndex[r];
+         reducedidx.write((char*)&roff, 8);
+      }
    }
+
+   reduced.close();
+   reducedidx.close();
 
    delete [] output.m_pcResult;
    delete [] output.m_pllIndex;

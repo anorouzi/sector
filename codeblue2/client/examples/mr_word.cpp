@@ -94,7 +94,7 @@ int mr_word_partition(const char* record, int size, void* param, int psize)
    return record[0];
 }
 
-bool mr_word_compare(const char* r1, int s1, const char* r2, int s2)
+int mr_word_compare(const char* r1, int s1, const char* r2, int s2)
 {
    char* p1 = (char*)r1;
    char* p2 = (char*)r2;
@@ -105,7 +105,7 @@ bool mr_word_compare(const char* r1, int s1, const char* r2, int s2)
       ++ p2;
    *p2 = '\0';
 
-   bool res = strcmp(r1, r2);
+   int res = strcmp(r1, r2);
    *p1 = ' ';
    *p2 = ' ';
 
