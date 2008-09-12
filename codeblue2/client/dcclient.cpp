@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/06/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/11/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -301,6 +301,9 @@ int SphereProcess::loadOperator(SPE& s)
 
 int SphereProcess::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size, const int& type)
 {
+   if (input.m_llSize <= 0)
+      return 0;
+
    pthread_mutex_lock(&m_RunLock);
    pthread_mutex_unlock(&m_RunLock);
 
@@ -794,7 +797,12 @@ int SphereProcess::segmentData()
       if (avg > m_iMaxUnitSize)
          unitsize = m_pInput->m_llRecNum / (m_pInput->m_llSize / m_iMaxUnitSize);
       else if (avg < m_iMinUnitSize)
-         unitsize = m_pInput->m_llRecNum / (m_pInput->m_llSize / m_iMinUnitSize);
+      {
+         int n = m_pInput->m_llSize / m_iMinUnitSize;
+         if (m_pInput->m_llSize % m_iMinUnitSize != 0)
+            n ++;
+         unitsize = m_pInput->m_llRecNum / n;
+      }
       else
          unitsize = m_pInput->m_llRecNum / m_iSPENum;
 
