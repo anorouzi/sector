@@ -49,6 +49,7 @@ int mr_sort_compare(const char* r1, int s1, const char* r2, int s2)
    if (k1->v3 > k2->v3)
       return 1;
    if (k1->v3 < k2->v3)
+      return -1;
 
    return 0;
 }

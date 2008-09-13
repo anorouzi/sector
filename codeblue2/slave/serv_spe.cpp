@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/12/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -567,9 +567,9 @@ void* Slave::SPEShuffler(void* p)
          sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), *i);
 
          if (comp != NULL)
-         {
             self->sort(tmp, comp, reduce);
-         }
+
+         delete [] tmp;
       }
 
       self->closeLibrary(lh);
@@ -994,20 +994,7 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
       offset ++;
    }
 
-   //std::sort(vr.begin(), vr.end(), ltrec());
-   for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end(); ++ i)
-   {
-      for (vector<MRRecord>::iterator j = i; j != vr.end(); ++ j)
-      {
-         ltrec comp;
-         if (!comp(*i, *j))
-         {
-            MRRecord tmp = *i;
-            *i = *j;
-            *j = tmp;
-         }
-      }
-   }
+   std::sort(vr.begin(), vr.end(), ltrec());
 
    if (red != NULL)
       reduce(vr, bucket, red, NULL, 0);
@@ -1086,7 +1073,6 @@ int Slave::reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, voi
 
       for (int r = 0; r < output.m_iRows; ++ r)
       {
-         cout << "RES: " << output.m_pcResult + output.m_pllIndex[r] << endl;
          reduced.write(output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
          roff += output.m_pllIndex[r + 1] - output.m_pllIndex[r];
          reducedidx.write((char*)&roff, 8);

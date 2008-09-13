@@ -97,7 +97,7 @@ struct ltrec
 {
    bool operator()(const MRRecord& r1, const MRRecord& r2) const
    {
-      return (r1.m_pCompRoutine(r1.m_pcData, r1.m_iSize, r2.m_pcData, r2.m_iSize) <= 0);
+      return (r1.m_pCompRoutine(r1.m_pcData, r1.m_iSize, r2.m_pcData, r2.m_iSize) < 0);
    }
 };
 

@@ -795,7 +795,12 @@ int SphereProcess::segmentData()
       int64_t avg = m_pInput->m_llSize / m_iSPENum;
       int64_t unitsize;
       if (avg > m_iMaxUnitSize)
-         unitsize = m_pInput->m_llRecNum / (m_pInput->m_llSize / m_iMaxUnitSize);
+      {
+         int n = m_pInput->m_llSize / m_iMaxUnitSize;
+         if (m_pInput->m_llSize % m_iMaxUnitSize != 0)
+            n ++;
+         unitsize = m_pInput->m_llRecNum / n;
+      }
       else if (avg < m_iMinUnitSize)
       {
          int n = m_pInput->m_llSize / m_iMinUnitSize;

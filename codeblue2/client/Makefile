@@ -63,7 +63,7 @@ example:
 	cd ./examples; make; cd ../
 
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx mrsort
+	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx mrsort mrword
 	rm -f ./examples/*.so
 
 install:
