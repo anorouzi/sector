@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/13/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -280,28 +280,32 @@ int SlaveManager::remove(int nodeid)
    return 1;
 }
 
-int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn)
+int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 1);
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      int l = 0;
+      // only nodes with more than 10GB disk space are chosen
+      if (i->second.m_llAvailDiskSpace < (10000000000LL + filesize))
+         continue;
+
+      int level = 0;
       for (set<int>::iterator j = loclist.begin(); j != loclist.end(); ++ j)
       {
          if (i->first == *j)
          {
-            l = -1;
+            level = -1;
             break;
          }
 
          int tmpl = m_Topology.match(i->second.m_viPath, m_mSlaveList[*j].m_viPath);
-         if (tmpl > l)
-            l = tmpl;
+         if (tmpl > level)
+            level = tmpl;
       }
 
-      if (l >= 0)
-         avail[l].insert(i->first);
+      if (level >= 0)
+         avail[level].insert(i->first);
    }
 
    set<int> candidate;
@@ -341,7 +345,11 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, const i
    else
    {
       for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
-         avail.insert(i->first);
+      {
+         // only nodes with more than 10GB disk space are chosen
+         if (i->second.m_llAvailDiskSpace > 10000000000LL)
+            avail.insert(i->first);
+      }
    }
 
    timeval t;
@@ -359,7 +367,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, const i
    return 1;
 }
 
-int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn)
+int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
    set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -367,7 +375,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseReplicaNode(locid, sn);
+   return chooseReplicaNode(locid, sn, filesize);
 }
 
 int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn)

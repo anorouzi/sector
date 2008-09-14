@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/13/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -1096,7 +1096,7 @@ int Master::createReplica(const string& path)
       return r;
 
    SlaveNode sn;
-   if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn) < 0)
+   if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize) < 0)
       return -1;
 
    SectorMsg msg;

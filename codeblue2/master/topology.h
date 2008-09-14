@@ -112,9 +112,9 @@ public:
    int remove(int nodeid);
 
 public:
-   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn);
+   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
    int chooseIONode(std::set<int>& loclist, const Address& client, const int& io, SlaveNode& sn);
-   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn);
+   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
    int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn);
 
 public:
