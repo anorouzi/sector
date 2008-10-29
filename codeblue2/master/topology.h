@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/28/2008
 *****************************************************************************/
 
 
@@ -48,11 +48,14 @@ struct SlaveNode
    int64_t m_llAvailDiskSpace;
    int64_t m_llTotalFileSize;
 
+   int64_t m_llCurrMemUsed;
+   int64_t m_llCurrCPUUsed;
+
    int64_t m_llLastUpdateTime;
    int m_iRetryNum;
 
    int m_iCurrWorkLoad;
-   int m_iStatus;
+   int m_iStatus;		// 0: inactive 1: active-normal 2: active-disk full
 
    std::vector<int> m_viPath;
 };

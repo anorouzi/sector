@@ -101,6 +101,27 @@ struct ltrec
    }
 };
 
+class SlaveStat
+{
+public:
+   int64_t m_llTimeStamp;
+
+   int64_t m_llDataSize;
+   int64_t m_llAvailSize;
+   int64_t m_llCurrMemUsed;
+   int32_t m_llLastCPUTime;
+   int32_t m_llCurrCPUUsed;
+
+   int64_t m_llTotalInputData;
+   int64_t m_llTotalOutputData;
+
+   map<string, int64_t> m_mIndInput;
+   map<string, int64_t> m_mIndOutput;
+
+public:
+   void init();
+   void refresh();
+};
 
 class Slave
 {
@@ -218,6 +239,8 @@ private:
    Index m_LocalFile;
 
    string m_strBase;
+
+   SlaveStat m_SlaveStat;
 };
 
 #endif

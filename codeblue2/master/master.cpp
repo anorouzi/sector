@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/28/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -226,13 +226,24 @@ int Master::run()
          {
             i->second.m_llLastUpdateTime = CTimer::getTime();
             i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
+            i->second.m_llCurrMemUsed = *(int64_t*)(msg.getData() + 8);
+            i->second.m_llCurrCPUUsed = *(int64_t*)(msg.getData() + 16);
             i->second.m_iRetryNum = 0;
 
             if (i->second.m_llAvailDiskSpace < 10000000000LL)
             {
-               char text[64];
-               sprintf(text, "Slave %s has less than 10GB available disk space left.", i->second.m_strIP.c_str());
-               m_SectorLog.insert(text);
+               if (i->second.m_iStatus == 1)
+               {
+                  char text[64];
+                  sprintf(text, "Slave %s has less than 10GB available disk space left.", i->second.m_strIP.c_str());
+                  m_SectorLog.insert(text);
+                  i->second.m_iStatus = 2;
+               }
+            }
+            else
+            {
+               if (i->second.m_iStatus == 2)
+                  i->second.m_iStatus = 1;
             }
          }
          else if (++ i->second.m_iRetryNum > 10)
@@ -630,11 +641,12 @@ void* Master::process(void* s)
             self->m_SysStat.m_llTotalFileSize = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
 
-            char* buf = new char[SysStat::g_iSize];
-            int size = SysStat::g_iSize;
-            self->m_SysStat.serialize(buf, size);
+            char* buf = new char[SysStat::g_iSize + self->m_SlaveManager.m_mSlaveList.size() * 48];
+            int size = SysStat::g_iSize + self->m_SlaveManager.m_mSlaveList.size() * 48;
+            self->m_SysStat.serialize(buf, size, self->m_SlaveManager.m_mSlaveList);
 
             msg->setData(0, buf, size);
+            delete [] buf;
             self->m_GMP.sendto(ip, port, id, msg);
 
             if (user->m_strName == "root")

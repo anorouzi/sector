@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/16/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/28/2008
 *****************************************************************************/
 
 
@@ -33,6 +33,9 @@ written by
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/vfs.h>
+#include <unistd.h>
+#include <sys/times.h>
+#include "../udt/common.h"
 
 using namespace std;
 
@@ -147,6 +150,9 @@ int Slave::connect()
    secconn.close();
    SSLTransport::destroy();
 
+   // initialize slave statistics
+   m_SlaveStat.init();
+
    cout << "Slave initialized. Running.\n";
 
    return 1;
@@ -180,7 +186,12 @@ void Slave::run()
             struct statfs64 slavefs;
             statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
             int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
+
+            m_SlaveStat.refresh();
+
             msg->setData(0, (char*)&availdisk, 8);
+            msg->setData(8, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
+            msg->setData(16, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
             m_GMP.sendto(ip, port, id, msg);
             break;
          }
@@ -490,4 +501,53 @@ string Slave::reviseSysCmdPath(const string& path)
    }
 
    return rpath;
+}
+
+void SlaveStat::init()
+{
+   m_llTimeStamp = CTimer::getTime();
+   m_llCurrMemUsed = 0;
+   m_llLastCPUTime = 0;
+   m_llCurrCPUUsed = 0;
+   m_llTotalInputData = 0;
+   m_llTotalOutputData = 0;
+   m_mIndInput.clear();
+   m_mIndOutput.clear();
+}
+
+void SlaveStat::refresh()
+{
+   // LINUX only
+
+   m_llTimeStamp = CTimer::getTime();
+
+   int pid = getpid();
+
+   char memfile[64];
+   char cpufile[64];
+   sprintf(memfile, "/proc/%d/statm", pid);
+   sprintf(cpufile, "/proc/%d/stat", pid);
+
+   ifstream ifs;
+   ifs.open(memfile);
+   ifs >> m_llCurrMemUsed;
+   ifs.close();
+
+   /*
+   ifs.open(cpufile);
+   string tmp;
+   for (int i = 0; i < 14; ++ i)
+      ifs >> tmp;
+   int stime = atoi(tmp.c_str());
+   ifs >> tmp;
+   int utime = atoi(tmp.c_str());
+   m_llCPUUsed = (stime + utime) / 
+   ifs.close();
+   */
+
+   clock_t hz = sysconf(_SC_CLK_TCK);
+   tms cputime;
+   times(&cputime);
+   m_llLastCPUTime += m_llCurrCPUUsed;
+   m_llCurrCPUUsed = (cputime.tms_utime + cputime.tms_stime) / hz - m_llLastCPUTime;
 }

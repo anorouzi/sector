@@ -31,6 +31,7 @@ written by
 #define __SECTOR_SYSSTAT_H__
 
 #include <stdint.h>
+#include <../master/topology.h>
 
 class SysStat
 {
@@ -43,8 +44,10 @@ public:
 
    int64_t m_llTotalSlaves;
 
+   std::vector<SlaveNode> m_vSlaveList;
+
 public:
-   int serialize(char* buf, int& size);
+   int serialize(char* buf, int& size, std::map<int, SlaveNode>& sl);
    int deserialize(char* buf, const int& size);
 
    void print();

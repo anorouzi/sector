@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/18/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -204,6 +204,7 @@ int SlaveManager::init(const char* topoconf)
 int SlaveManager::insert(SlaveNode& sn)
 {
    sn.m_iNodeID = m_iNodeID ++;
+   sn.m_iStatus = 1;
 
    m_mSlaveList[sn.m_iNodeID] = sn;
 
