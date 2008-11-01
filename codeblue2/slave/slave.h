@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/13/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2008
 *****************************************************************************/
 
 
@@ -109,8 +109,8 @@ public:
    int64_t m_llDataSize;
    int64_t m_llAvailSize;
    int64_t m_llCurrMemUsed;
-   int32_t m_llLastCPUTime;
-   int32_t m_llCurrCPUUsed;
+   int64_t m_llLastCPUTime;
+   int64_t m_llCurrCPUUsed;
 
    int64_t m_llTotalInputData;
    int64_t m_llTotalOutputData;

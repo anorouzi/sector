@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/30/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -228,6 +228,8 @@ int Master::run()
             i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
             i->second.m_llCurrMemUsed = *(int64_t*)(msg.getData() + 8);
             i->second.m_llCurrCPUUsed = *(int64_t*)(msg.getData() + 16);
+            i->second.m_llTotalInputData = *(int64_t*)(msg.getData() + 24);
+            i->second.m_llTotalOutputData = *(int64_t*)(msg.getData() + 32);
             i->second.m_iRetryNum = 0;
 
             if (i->second.m_llAvailDiskSpace < 10000000000LL)
@@ -271,6 +273,9 @@ int Master::run()
       // remove from slave list
       for (vector<int>::iterator i = tbrs.begin(); i != tbrs.end(); ++ i)
          m_SlaveManager.remove(*i);
+
+      // update cluster statistics
+      m_SlaveManager.updateClusterStat(m_SlaveManager.m_Cluster);
 
       // restart dead slaves
       if (tbsaddr.size() > 0)
@@ -383,7 +388,6 @@ void* Master::serviceEx(void* p)
             s->recv((char*)&sn.m_iPort, 4);
             sn.m_llLastUpdateTime = CTimer::getTime();
             sn.m_iRetryNum = 0;
-            sn.m_iCurrWorkLoad = 0;
 
             Address addr;
             addr.m_strIP = ip;
@@ -409,8 +413,13 @@ void* Master::serviceEx(void* p)
 
             sn.m_llTotalFileSize = Index::getTotalDataSize(branch);
             s->recv((char*)&(sn.m_llAvailDiskSpace), 8);
+            sn.m_llCurrMemUsed = 0;
+            sn.m_llCurrCPUUsed = 0;
+            sn.m_llTotalInputData = 0;
+            sn.m_llTotalOutputData = 0;
 
             self->m_SlaveManager.insert(sn);
+            self->m_SlaveManager.updateClusterStat(self->m_SlaveManager.m_Cluster);
 
             char text[64];
             sprintf(text, "Slave node join %s.", ip.c_str());
@@ -641,9 +650,9 @@ void* Master::process(void* s)
             self->m_SysStat.m_llTotalFileSize = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
 
-            char* buf = new char[SysStat::g_iSize + self->m_SlaveManager.m_mSlaveList.size() * 48];
-            int size = SysStat::g_iSize + self->m_SlaveManager.m_mSlaveList.size() * 48;
-            self->m_SysStat.serialize(buf, size, self->m_SlaveManager.m_mSlaveList);
+            int size = SysStat::g_iSize + 8 + self->m_SlaveManager.m_mSlaveList.size() * 48 + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48;
+            char* buf = new char[size];
+            self->m_SysStat.serialize(buf, size, self->m_SlaveManager.m_mSlaveList, self->m_SlaveManager.m_Cluster);
 
             msg->setData(0, buf, size);
             delete [] buf;
@@ -653,6 +662,10 @@ void* Master::process(void* s)
             {
                //TODO: send current users, current transactions
             }
+
+            char text[64];
+            sprintf(text, "User %s run command sysinfo from IP %s.", user->m_strName.c_str(), ip);
+            self->m_SectorLog.insert(text);
 
             break;
          }
@@ -685,6 +698,10 @@ void* Master::process(void* s)
             msg->setData(size, "\0", 1);
 
             self->m_GMP.sendto(ip, port, id, msg);
+
+            char text[64];
+            sprintf(text, "User %s run command ls from IP %s.", user->m_strName.c_str(), ip);
+            self->m_SectorLog.insert(text);
 
             break;
          }
@@ -722,6 +739,10 @@ void* Master::process(void* s)
 
                self->m_GMP.sendto(ip, port, id, msg);
             }
+
+            char text[64];
+            sprintf(text, "User %s run command stat %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
+            self->m_SectorLog.insert(text);
 
             break;
          }
@@ -762,6 +783,10 @@ void* Master::process(void* s)
             pthread_mutex_unlock(&self->m_MetaLock);
 
             self->m_GMP.sendto(ip, port, id, msg);
+
+            char text[64];
+            sprintf(text, "User %s run command mkdir %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
+            self->m_SectorLog.insert(text);
 
             break;
          }
@@ -809,6 +834,10 @@ void* Master::process(void* s)
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
+
+            char text[64];
+            sprintf(text, "User %s run command delete %s from IP %s.", user->m_strName.c_str(), filename.c_str(), ip);
+            self->m_SectorLog.insert(text);
 
             break;
          }
@@ -902,6 +931,10 @@ void* Master::process(void* s)
             msg->setData(68, (char*)&dataport, 4);
 
             self->m_GMP.sendto(ip, port, id, msg);
+
+            char text[64];
+            sprintf(text, "User %s run command open %s from IP %s. Slave IP %s.", user->m_strName.c_str(), path.c_str(), ip, addr.m_strIP.c_str());
+            self->m_SectorLog.insert(text);
 
             break;
          }

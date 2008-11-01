@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -198,6 +198,13 @@ int Topology::parseTopo(const char* topo, vector<int>& tm)
 
 int SlaveManager::init(const char* topoconf)
 {
+   m_Cluster.m_iClusterID = 0;
+   m_Cluster.m_iTotalNodes = 0;
+   m_Cluster.m_llAvailDiskSpace = 0;
+   m_Cluster.m_llTotalFileSize = 0;
+   m_Cluster.m_llTotalInputData = 0;
+   m_Cluster.m_llTotalOutputData = 0;
+
    return m_Topology.init(topoconf);
 }
 
@@ -225,6 +232,8 @@ int SlaveManager::insert(SlaveNode& sn)
          c.m_iTotalNodes = 0;
          c.m_llAvailDiskSpace = 0;
          c.m_llTotalFileSize = 0;
+         c.m_llTotalInputData = 0;
+         c.m_llTotalOutputData = 0;
 
          (*sc)[*i] = c;
 
@@ -404,4 +413,40 @@ uint64_t SlaveManager::getTotalDiskSpace()
    }
 
    return size;
+}
+
+void SlaveManager::updateClusterStat(Cluster& c)
+{
+   if (c.m_mSubCluster.empty())
+   {
+      c.m_llAvailDiskSpace = 0;
+      c.m_llTotalFileSize = 0;
+      c.m_llTotalInputData = 0;
+      c.m_llTotalOutputData = 0;
+
+      for (set<int>::iterator i = c.m_sNodes.begin(); i != c.m_sNodes.end(); ++ i)
+      {
+         c.m_llAvailDiskSpace += m_mSlaveList[*i].m_llAvailDiskSpace;
+         c.m_llTotalFileSize += m_mSlaveList[*i].m_llTotalFileSize;
+         c.m_llTotalInputData += m_mSlaveList[*i].m_llTotalInputData;
+         c.m_llTotalOutputData += m_mSlaveList[*i].m_llTotalOutputData;
+      }
+   }
+   else
+   {
+      c.m_llAvailDiskSpace = 0;
+      c.m_llTotalFileSize = 0;
+      c.m_llTotalInputData = 0;
+      c.m_llTotalOutputData = 0;
+
+      for (map<int, Cluster>::iterator i = c.m_mSubCluster.begin(); i != c.m_mSubCluster.end(); ++ i)
+      {
+         updateClusterStat(i->second);
+
+         c.m_llAvailDiskSpace += i->second.m_llAvailDiskSpace;
+         c.m_llTotalFileSize += i->second.m_llTotalFileSize;
+         c.m_llTotalInputData += i->second.m_llTotalInputData;
+         c.m_llTotalOutputData += i->second.m_llTotalOutputData;
+      }
+   }
 }

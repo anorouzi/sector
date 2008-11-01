@@ -50,11 +50,11 @@ struct SlaveNode
 
    int64_t m_llCurrMemUsed;
    int64_t m_llCurrCPUUsed;
+   int64_t m_llTotalInputData;
+   int64_t m_llTotalOutputData;
 
    int64_t m_llLastUpdateTime;
    int m_iRetryNum;
-
-   int m_iCurrWorkLoad;
    int m_iStatus;		// 0: inactive 1: active-normal 2: active-disk full
 
    std::vector<int> m_viPath;
@@ -65,8 +65,11 @@ struct Cluster
    int m_iClusterID;
 
    int m_iTotalNodes;
-   int m_llAvailDiskSpace;
-   int m_llTotalFileSize;
+   int64_t m_llAvailDiskSpace;
+   int64_t m_llTotalFileSize;
+
+   int64_t m_llTotalInputData;
+   int64_t m_llTotalOutputData;
 
    std::map<int, Cluster> m_mSubCluster;
    std::set<int> m_sNodes;
@@ -123,6 +126,7 @@ public:
 public:
    unsigned int getTotalSlaves();
    uint64_t getTotalDiskSpace();
+   void updateClusterStat(Cluster& c);
 
 public:
    std::map<Address, int, AddrComp> m_mAddrList;

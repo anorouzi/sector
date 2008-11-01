@@ -112,6 +112,9 @@ void* Slave::fileHandler(void* p)
 
             ifs.close();
 
+            // update total sent data size
+            self->m_SlaveStat.m_llTotalOutputData += param[1];
+
             break;
          }
 
@@ -134,6 +137,9 @@ void* Slave::fileHandler(void* p)
                wb += param[1];
 
             ofs.close();
+
+            // update total received data size
+            self->m_SlaveStat.m_llTotalInputData += param[1];
 
             change = 2;
             break;
@@ -171,6 +177,9 @@ void* Slave::fileHandler(void* p)
 
             ifs.close();
 
+            // update total sent data size
+            self->m_SlaveStat.m_llTotalOutputData += size;
+
             break;
          }
 
@@ -193,6 +202,9 @@ void* Slave::fileHandler(void* p)
                wb += size;
 
             ofs.close();
+
+            // update total received data size
+            self->m_SlaveStat.m_llTotalInputData += size;
 
             change = 2;
             break;
@@ -284,6 +296,9 @@ void* Slave::copy(void* p)
       unlink((self->m_strHomeDir + ".tmp" + filename).c_str());
 
    ofs.close();
+
+   // update total received data size
+   self->m_SlaveStat.m_llTotalInputData += size;
 
    cmd = 5;
    datachn.send((char*)&cmd, 4);

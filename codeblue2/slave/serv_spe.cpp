@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/12/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 10/29/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -667,6 +667,9 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       datachn.send((char*)&cmd, 4);
       datachn.recv((char*)&cmd, 4);
       datachn.close();
+
+      // update total received data
+      m_SlaveStat.m_llTotalInputData += (totalrows + 1) * 8;
    }
 
    size = index[totalrows] - index[0];
@@ -722,6 +725,9 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       datachn.send((char*)&cmd, 4);
       datachn.recv((char*)&cmd, 4);
       datachn.close();
+
+      // update total received data
+      m_SlaveStat.m_llTotalInputData += index[totalrows] - index[0];
    }
 
    return totalrows;
@@ -846,6 +852,9 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       size = result.m_vIndexLen[i] - 1;
       chn->send((char*)&size, 4);
       chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
+
+      // update total sent data
+      m_SlaveStat.m_llTotalOutputData += result.m_vDataLen[i] + (result.m_vIndexLen[i] - 1) * 8;
    }
 
    return 1;
