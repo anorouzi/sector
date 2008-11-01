@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/30/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/01/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -205,9 +205,10 @@ int Master::run()
       // remove from slave list
       for (vector<int>::iterator i = tbru.begin(); i != tbru.end(); ++ i)
       {
-         char text[64];
+         char* text = new char[64 + m_mActiveUser[*i].m_strName.length()];
          sprintf(text, "User %s timeout. Kicked out.", m_mActiveUser[*i].m_strName.c_str());
          m_SectorLog.insert(text);
+         delete [] text;
 
          m_mActiveUser.erase(*i);
       }
@@ -239,6 +240,7 @@ int Master::run()
                   char text[64];
                   sprintf(text, "Slave %s has less than 10GB available disk space left.", i->second.m_strIP.c_str());
                   m_SectorLog.insert(text);
+
                   i->second.m_iStatus = 2;
                }
             }
@@ -422,13 +424,13 @@ void* Master::serviceEx(void* p)
             self->m_SlaveManager.updateClusterStat(self->m_SlaveManager.m_Cluster);
 
             char text[64];
-            sprintf(text, "Slave node join %s.", ip.c_str());
+            sprintf(text, "Slave node %s joined.", ip.c_str());
             self->m_SectorLog.insert(text);
          }
          else
          {
             char text[64];
-            sprintf(text, "Slave node join rejected %s.", ip.c_str());
+            sprintf(text, "Slave node %s join rejected.", ip.c_str());
             self->m_SectorLog.insert(text);
          }
 
@@ -488,14 +490,14 @@ void* Master::serviceEx(void* p)
 
             self->m_mActiveUser[au.m_iKey] = au;
 
-            char text[64];
-            sprintf(text, "User login %s from %s", user, ip.c_str());
+            char text[128];
+            sprintf(text, "User %s login from %s", user, ip.c_str());
             self->m_SectorLog.insert(text);
          }
          else
          {
-            char text[64];
-            sprintf(text, "User login rejected %s from %s", user, ip.c_str());
+            char text[128];
+            sprintf(text, "User %s login rejected from %s", user, ip.c_str());
             self->m_SectorLog.insert(text);
          }
 
@@ -633,8 +635,8 @@ void* Master::process(void* s)
 
          case 2: // client logout
          {
-            char text[64];
-            sprintf(text, "User logout %s from %s.", user->m_strName.c_str(), ip);
+            char text[128];
+            sprintf(text, "User %s logout from %s.", user->m_strName.c_str(), ip);
             self->m_SectorLog.insert(text);
 
             self->m_mActiveUser.erase(key);
@@ -663,7 +665,7 @@ void* Master::process(void* s)
                //TODO: send current users, current transactions
             }
 
-            char text[64];
+            char text[128];
             sprintf(text, "User %s run command sysinfo from IP %s.", user->m_strName.c_str(), ip);
             self->m_SectorLog.insert(text);
 
@@ -699,7 +701,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char text[64];
+            char text[128];
             sprintf(text, "User %s run command ls from IP %s.", user->m_strName.c_str(), ip);
             self->m_SectorLog.insert(text);
 
@@ -740,9 +742,10 @@ void* Master::process(void* s)
                self->m_GMP.sendto(ip, port, id, msg);
             }
 
-            char text[64];
-            sprintf(text, "User %s run command stat %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
+            char* text = new char [128 + strlen(msg->getData())];
+            sprintf(text, "User %s run command stat on file/director %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
             self->m_SectorLog.insert(text);
+            delete [] text;
 
             break;
          }
@@ -784,9 +787,10 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char text[64];
-            sprintf(text, "User %s run command mkdir %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
+            char* text = new char[128 + strlen(msg->getData())];
+            sprintf(text, "User %s created a new directory %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
             self->m_SectorLog.insert(text);
+            delete [] text;
 
             break;
          }
@@ -835,9 +839,10 @@ void* Master::process(void* s)
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char text[64];
-            sprintf(text, "User %s run command delete %s from IP %s.", user->m_strName.c_str(), filename.c_str(), ip);
+            char* text = new char[128 + filename.length()];
+            sprintf(text, "User %s deleted file/directory %s from IP %s.", user->m_strName.c_str(), filename.c_str(), ip);
             self->m_SectorLog.insert(text);
+            delete [] text;
 
             break;
          }
@@ -932,9 +937,10 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char text[64];
-            sprintf(text, "User %s run command open %s from IP %s. Slave IP %s.", user->m_strName.c_str(), path.c_str(), ip, addr.m_strIP.c_str());
+            char* text = new char[128 + path.length()];
+            sprintf(text, "User %s opened file %s from IP %s. Slave IP %s.", user->m_strName.c_str(), path.c_str(), ip, addr.m_strIP.c_str());
             self->m_SectorLog.insert(text);
+            delete [] text;
 
             break;
          }
