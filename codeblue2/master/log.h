@@ -44,6 +44,7 @@ public:
    void close();
 
    void insert(const char* text);
+   void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave);
 
 private:
    std::ofstream m_LogFile;

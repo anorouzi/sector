@@ -72,3 +72,11 @@ void SectorLog::insert(const char* text)
 
    pthread_mutex_unlock(&m_LogLock);
 }
+
+void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave)
+{
+   char* text = new char[128 + strlen(file)];
+   sprintf(text, "USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %s  SLAVE: %s", user, ip, cmd, file, res, slave);
+   insert(text);
+   delete [] text;
+}

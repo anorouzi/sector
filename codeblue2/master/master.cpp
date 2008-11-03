@@ -665,9 +665,7 @@ void* Master::process(void* s)
                //TODO: send current users, current transactions
             }
 
-            char text[128];
-            sprintf(text, "User %s run command sysinfo from IP %s.", user->m_strName.c_str(), ip);
-            self->m_SectorLog.insert(text);
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "sysinfo", "", "SUCCESS", "");
 
             break;
          }
@@ -680,6 +678,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "ls", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -701,9 +700,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char text[128];
-            sprintf(text, "User %s run command ls from IP %s.", user->m_strName.c_str(), ip);
-            self->m_SectorLog.insert(text);
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "ls", msg->getData(), "SUCCESS", "");
 
             break;
          }
@@ -724,6 +721,7 @@ void* Master::process(void* s)
             if (r < 0)
             {
                self->reject(ip, port, id, SectorError::E_NOEXIST);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "stat", msg->getData(), "REJECT", "");
             }
             else
             {
@@ -740,12 +738,9 @@ void* Master::process(void* s)
                }
 
                self->m_GMP.sendto(ip, port, id, msg);
-            }
 
-            char* text = new char [128 + strlen(msg->getData())];
-            sprintf(text, "User %s run command stat on file/director %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
-            self->m_SectorLog.insert(text);
-            delete [] text;
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "stat", msg->getData(), "SUCCESS", "");
+            }
 
             break;
          }
@@ -756,6 +751,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -764,6 +760,7 @@ void* Master::process(void* s)
             {
                // directory already exist
                self->reject(ip, port, id, SectorError::E_EXIST);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -787,10 +784,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char* text = new char[128 + strlen(msg->getData())];
-            sprintf(text, "User %s created a new directory %s from IP %s.", user->m_strName.c_str(), msg->getData(), ip);
-            self->m_SectorLog.insert(text);
-            delete [] text;
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", sn.m_strIP.c_str());
 
             break;
          }
@@ -801,6 +795,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
+
                break;
             }
 
@@ -815,6 +810,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -839,10 +835,7 @@ void* Master::process(void* s)
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char* text = new char[128 + filename.length()];
-            sprintf(text, "User %s deleted file/directory %s from IP %s.", user->m_strName.c_str(), filename.c_str(), ip);
-            self->m_SectorLog.insert(text);
-            delete [] text;
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", filename.c_str(), "SUCCESS", "");
 
             break;
          }
@@ -858,6 +851,7 @@ void* Master::process(void* s)
             if (!user->match(path.c_str(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -875,6 +869,7 @@ void* Master::process(void* s)
                if (mode == 1)
                {
                   self->reject(ip, port, id, SectorError::E_NOEXIST);
+                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                   break;
                }
 
@@ -891,6 +886,7 @@ void* Master::process(void* s)
                if (self->m_SlaveManager.chooseIONode(empty, client, mode, sn) < 0)
                {
                   self->reject(ip, port, id, SectorError::E_RESOURCE);
+                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                   break;
                }
 
@@ -914,6 +910,7 @@ void* Master::process(void* s)
                if (r < 0)
                {
                   self->reject(ip, port, id, SectorError::E_BUSY);
+                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", "");
                   break;
                }
             }
@@ -937,10 +934,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            char* text = new char[128 + path.length()];
-            sprintf(text, "User %s opened file %s from IP %s. Slave IP %s.", user->m_strName.c_str(), path.c_str(), ip, addr.m_strIP.c_str());
-            self->m_SectorLog.insert(text);
-            delete [] text;
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.m_strIP.c_str());
 
             break;
          }
