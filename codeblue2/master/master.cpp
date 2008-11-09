@@ -242,8 +242,10 @@ int Master::run()
             i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
             i->second.m_llCurrMemUsed = *(int64_t*)(msg.getData() + 8);
             i->second.m_llCurrCPUUsed = *(int64_t*)(msg.getData() + 16);
+            i->second.m_llTotalInputData = *(int64_t*)(msg.getData() + 24);
+            i->second.m_llTotalOutputData = *(int64_t*)(msg.getData() + 32);
 
-            char* p = msg.getData() + 24;
+            char* p = msg.getData() + 40;
             int n = *(int32_t*)p;
             p += 4;
             for (int j = 0; j < n; ++ j)
@@ -694,7 +696,7 @@ void* Master::process(void* s)
             self->m_SysStat.m_llTotalFileSize = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
 
-            int size = SysStat::g_iSize + 8 + self->m_SlaveManager.m_mSlaveList.size() * 48 + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48;
+            int size = SysStat::g_iSize + 8 + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48 + self->m_SlaveManager.m_mSlaveList.size() * 64;
             char* buf = new char[size];
             self->m_SysStat.serialize(buf, size, self->m_SlaveManager.m_mSlaveList, self->m_SlaveManager.m_Cluster);
 

@@ -192,10 +192,12 @@ void Slave::run()
             msg->setData(0, (char*)&availdisk, 8);
             msg->setData(8, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
             msg->setData(16, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
+            msg->setData(24, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
+            msg->setData(32, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
             int size = (m_SlaveStat.m_mSysIndInput.size() + m_SlaveStat.m_mSysIndOutput.size() + m_SlaveStat.m_mCliIndInput.size() + m_SlaveStat.m_mCliIndOutput.size()) * 24 + 16;
             char* buf = new char[size];
             m_SlaveStat.serializeIOStat(buf, size);
-            msg->setData(24, buf, size);
+            msg->setData(40, buf, size);
             delete [] buf;
             m_GMP.sendto(ip, port, id, msg);
             break;

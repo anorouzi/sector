@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
 *****************************************************************************/
 
 #include "sysstat.h"
@@ -36,7 +36,7 @@ const int SysStat::g_iSize = 40;
 
 int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c)
 {
-   if (size < g_iSize + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 48)
+   if (size < g_iSize + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 64)
       return -1;
 
    *(int64_t*)buf = m_llStartTime;
@@ -68,11 +68,13 @@ int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c
       *(int64_t*)(p + 24) = i->second.m_llTotalFileSize;
       *(int64_t*)(p + 32) = i->second.m_llCurrMemUsed;
       *(int64_t*)(p + 40) = i->second.m_llCurrCPUUsed;
+      *(int64_t*)(p + 48) = i->second.m_llTotalInputData;
+      *(int64_t*)(p + 56) = i->second.m_llTotalOutputData;
 
-      p += 48;
+      p += 64;
    }
 
-   size = 40 + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 48;
+   size = 40 + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 64;
 
    return 0;
 }
@@ -104,7 +106,7 @@ int SysStat::deserialize(char* buf, const int& size)
       p += 48;
    }
 
-   int n = (size - 40 - 8 - c * 48) / 48;
+   int n = (size - 40 - 8 - c * 48) / 64;
    m_vSlaveList.resize(n);
    p = buf + 40 + 8 + c * 48;
    for (vector<SlaveNode>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
@@ -114,8 +116,10 @@ int SysStat::deserialize(char* buf, const int& size)
       i->m_llTotalFileSize = *(int64_t*)(p + 24);
       i->m_llCurrMemUsed = *(int64_t*)(p + 32);
       i->m_llCurrCPUUsed = *(int64_t*)(p + 40);
+      i->m_llTotalInputData = *(int64_t*)(p + 48);
+      i->m_llTotalOutputData = *(int64_t*)(p + 56);
 
-      p += 48;
+      p += 64;
    }
 
    return 0;
@@ -123,11 +127,13 @@ int SysStat::deserialize(char* buf, const int& size)
 
 void SysStat::print()
 {
+   const int MB = 1024 * 1024;
+
    cout << "Sector System Information:" << endl;
    time_t st = m_llStartTime;
    cout << "Running since " << ctime(&st);
-   cout << "Available Disk Size " << m_llAvailDiskSpace / 1024 / 1024 << " MB" << endl;
-   cout << "Total File Size " << m_llTotalFileSize / 1024 /1024 << " MB" << endl;
+   cout << "Available Disk Size " << m_llAvailDiskSpace / MB << " MB" << endl;
+   cout << "Total File Size " << m_llTotalFileSize / MB << " MB" << endl;
    cout << "Total Number of Files " << m_llTotalFileNum << endl;
    cout << "Total Number of Slave Nodes " << m_llTotalSlaves << endl;
 
@@ -136,13 +142,13 @@ void SysStat::print()
    cout << "Total number of clusters " << m_vCluster.size() << endl;
    for (vector<Cluster>::iterator i = m_vCluster.begin(); i != m_vCluster.end(); ++ i)
    {
-      cout << i->m_iClusterID << " " << i->m_iTotalNodes << " " << i->m_llAvailDiskSpace << " " << i->m_llTotalFileSize << " " << i->m_llTotalInputData << " " << i->m_llTotalOutputData << endl;
+      cout << i->m_iClusterID << " " << i->m_iTotalNodes << " " << i->m_llAvailDiskSpace / MB << " " << i->m_llTotalFileSize / MB << " " << i->m_llTotalInputData / MB << " " << i->m_llTotalOutputData / MB << endl;
    }
 
    cout << "------------------------------------------------------------\n";
 
    for (vector<SlaveNode>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
    {
-      cout << i->m_strIP << " " << i->m_llAvailDiskSpace << " " << i->m_llTotalFileSize << " " << i->m_llCurrMemUsed << " " << i->m_llCurrCPUUsed << endl;
+      cout << i->m_strIP << " " << i->m_llAvailDiskSpace / MB << " " << i->m_llTotalFileSize / MB << " " << i->m_llCurrMemUsed << " " << i->m_llCurrCPUUsed << " " << i->m_llTotalInputData / MB << " " << i->m_llTotalOutputData / MB << endl;
    }
 }
