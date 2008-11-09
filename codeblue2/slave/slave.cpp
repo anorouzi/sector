@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
 *****************************************************************************/
 
 
@@ -194,10 +194,11 @@ void Slave::run()
             msg->setData(16, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
             msg->setData(24, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
             msg->setData(32, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
+            msg->setData(40, (char*)&(m_SlaveStat.m_llTimeStamp), 8);
             int size = (m_SlaveStat.m_mSysIndInput.size() + m_SlaveStat.m_mSysIndOutput.size() + m_SlaveStat.m_mCliIndInput.size() + m_SlaveStat.m_mCliIndOutput.size()) * 24 + 16;
             char* buf = new char[size];
             m_SlaveStat.serializeIOStat(buf, size);
-            msg->setData(40, buf, size);
+            msg->setData(48, buf, size);
             delete [] buf;
             m_GMP.sendto(ip, port, id, msg);
             break;
@@ -513,9 +514,8 @@ string Slave::reviseSysCmdPath(const string& path)
 
 void SlaveStat::init()
 {
-   m_llTimeStamp = CTimer::getTime();
+   m_llStartTime = m_llTimeStamp = CTimer::getTime();
    m_llCurrMemUsed = 0;
-   m_llLastCPUTime = 0;
    m_llCurrCPUUsed = 0;
    m_llTotalInputData = 0;
    m_llTotalOutputData = 0;
@@ -523,6 +523,8 @@ void SlaveStat::init()
    m_mSysIndOutput.clear();
    m_mCliIndInput.clear();
    m_mCliIndOutput.clear();
+
+   pthread_mutex_init(&m_StatLock, 0);
 }
 
 void SlaveStat::refresh()
@@ -534,22 +536,29 @@ void SlaveStat::refresh()
    int pid = getpid();
 
    char memfile[64];
-   sprintf(memfile, "/proc/%d/statm", pid);
+   sprintf(memfile, "/proc/%d/status", pid);
 
    ifstream ifs;
    ifs.open(memfile);
+   char buf[1024];
+   for (int i = 0; i < 12; ++ i)
+      ifs.getline(buf, 1024);
+   string tmp;
+   ifs >> tmp;
    ifs >> m_llCurrMemUsed;
+   m_llCurrMemUsed *= 1024;
    ifs.close();
 
    clock_t hz = sysconf(_SC_CLK_TCK);
    tms cputime;
    times(&cputime);
-   m_llLastCPUTime += m_llCurrCPUUsed;
-   m_llCurrCPUUsed = (cputime.tms_utime + cputime.tms_stime) * 1000000LL / hz - m_llLastCPUTime;
+   m_llCurrCPUUsed = (cputime.tms_utime + cputime.tms_stime) * 1000000LL / hz;
 }
 
 void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
 {
+   pthread_mutex_lock(&m_StatLock);
+
    map<string, int64_t>::iterator a;
 
    if (type == 0)
@@ -600,12 +609,16 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalOutputData += size;
    }
+
+   pthread_mutex_unlock(&m_StatLock);
 }
 
 int SlaveStat::serializeIOStat(char* buf, int size)
 {
    if (size < (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16)
       return -1;
+
+   pthread_mutex_lock(&m_StatLock);
 
    char* p = buf;
    *(int32_t*)p = m_mSysIndInput.size();
@@ -643,6 +656,8 @@ int SlaveStat::serializeIOStat(char* buf, int size)
       *(int64_t*)(p + 16) = i->second;
       p += 24;
    }
+
+   pthread_mutex_unlock(&m_StatLock);
 
    return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
 }

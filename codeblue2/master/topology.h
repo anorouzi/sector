@@ -48,6 +48,7 @@ struct SlaveNode
    int64_t m_llAvailDiskSpace;
    int64_t m_llTotalFileSize;
 
+   int64_t m_llTimeStamp;
    int64_t m_llCurrMemUsed;
    int64_t m_llCurrCPUUsed;
    int64_t m_llTotalInputData;

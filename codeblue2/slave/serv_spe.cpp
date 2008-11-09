@@ -536,6 +536,9 @@ void* Slave::SPEShuffler(void* p)
       datafile.write(data, len);
       delete [] data;
 
+      // update total received data
+      self->m_SlaveStat.updateIO(speip, len, 0);
+
       chn->recv((char*)&len, 4);
       int64_t* index = new int64_t[len];
       chn->recv((char*)index, len * 8);
@@ -544,6 +547,9 @@ void* Slave::SPEShuffler(void* p)
       offset[bucket] = index[len - 1];
       indexfile.write((char*)index, len * 8);
       delete [] index;
+
+      // update total received data
+      self->m_SlaveStat.updateIO(speip, len * 8, 0);
 
       datafile.close();
       indexfile.close();

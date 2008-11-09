@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
 *****************************************************************************/
 
 
@@ -104,12 +104,12 @@ struct ltrec
 class SlaveStat
 {
 public:
+   int64_t m_llStartTime;
    int64_t m_llTimeStamp;
 
    int64_t m_llDataSize;
    int64_t m_llAvailSize;
    int64_t m_llCurrMemUsed;
-   int64_t m_llLastCPUTime;
    int64_t m_llCurrCPUUsed;
 
    int64_t m_llTotalInputData;
@@ -126,7 +126,9 @@ public:
 
    void updateIO(const string& ip, const int64_t& size, const int& type);
    int serializeIOStat(char* buf, int size);
-   
+
+private:
+   pthread_mutex_t m_StatLock;   
 };
 
 class Slave
