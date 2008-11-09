@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/08/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -121,13 +121,19 @@ int Topology::lookup(const char* ip, vector<int>& path)
 
 int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
 {
-   for (unsigned int i = 0; i < m_uiLevel; ++ i)
+   int level;
+   if (p1.size() < p2.size())
+      level = p1.size();
+   else
+      level = p2.size();
+
+   for (int i = 0; i < level; ++ i)
    {
       if (p1[i] != p2[i])
          return i;
    }
 
-   return m_uiLevel;
+   return level;
 }
 
 int Topology::parseIPRange(const char* ip, int& digit, int& mask)
@@ -204,8 +210,52 @@ int SlaveManager::init(const char* topoconf)
    m_Cluster.m_llTotalFileSize = 0;
    m_Cluster.m_llTotalInputData = 0;
    m_Cluster.m_llTotalOutputData = 0;
+   m_Cluster.m_viPath.clear();
 
-   return m_Topology.init(topoconf);
+   if (m_Topology.init(topoconf) < 0)
+      return -1;
+
+   Cluster* pc = &m_Cluster;
+
+   // insert 0/0/0/....
+   for (unsigned int i = 0; i < m_Topology.m_uiLevel; ++ i)
+   {
+      Cluster c;
+      c.m_iClusterID = 0;
+      c.m_iTotalNodes = 0;
+      c.m_llAvailDiskSpace = 0;
+      c.m_llTotalFileSize = 0;
+      c.m_llTotalInputData = 0;
+      c.m_llTotalOutputData = 0;
+      c.m_viPath = pc->m_viPath;
+      c.m_viPath.insert(c.m_viPath.end(), 0);
+
+      pc->m_mSubCluster[0] = c;
+      pc = &(pc->m_mSubCluster[0]);
+   }
+
+   for (vector<Topology::TopoMap>::iterator i = m_Topology.m_vTopoMap.begin(); i != m_Topology.m_vTopoMap.end(); ++ i)
+   {
+      pc = &m_Cluster;
+
+      for (vector<int>::iterator l = i->m_viPath.begin(); l != i->m_viPath.end(); ++ l)
+      {
+         Cluster c;
+         c.m_iClusterID = *l;
+         c.m_iTotalNodes = 0;
+         c.m_llAvailDiskSpace = 0;
+         c.m_llTotalFileSize = 0;
+         c.m_llTotalInputData = 0;
+         c.m_llTotalOutputData = 0;
+         c.m_viPath = pc->m_viPath;
+         c.m_viPath.insert(c.m_viPath.end(), *l);
+
+         pc->m_mSubCluster[*l] = c;
+         pc = &(pc->m_mSubCluster[*l]);
+      }
+   }
+
+   return 1;
 }
 
 int SlaveManager::insert(SlaveNode& sn)
@@ -225,21 +275,7 @@ int SlaveManager::insert(SlaveNode& sn)
    map<int, Cluster>::iterator pc;
    for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i)
    {
-      if ((pc = sc->find(*i)) == sc->end())
-      {
-         Cluster c;
-         c.m_iClusterID = *i;
-         c.m_iTotalNodes = 0;
-         c.m_llAvailDiskSpace = 0;
-         c.m_llTotalFileSize = 0;
-         c.m_llTotalInputData = 0;
-         c.m_llTotalOutputData = 0;
-
-         (*sc)[*i] = c;
-
-         pc = sc->find(*i);
-      }
-
+      pc = sc->find(*i);
       pc->second.m_iTotalNodes ++;
       pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace;
       pc->second.m_llTotalFileSize += sn.m_llTotalFileSize;
@@ -423,13 +459,15 @@ void SlaveManager::updateClusterStat(Cluster& c)
       c.m_llTotalFileSize = 0;
       c.m_llTotalInputData = 0;
       c.m_llTotalOutputData = 0;
+      c.m_mSysIndInput.clear();
+      c.m_mSysIndOutput.clear();
 
       for (set<int>::iterator i = c.m_sNodes.begin(); i != c.m_sNodes.end(); ++ i)
       {
          c.m_llAvailDiskSpace += m_mSlaveList[*i].m_llAvailDiskSpace;
          c.m_llTotalFileSize += m_mSlaveList[*i].m_llTotalFileSize;
-         c.m_llTotalInputData += m_mSlaveList[*i].m_llTotalInputData;
-         c.m_llTotalOutputData += m_mSlaveList[*i].m_llTotalOutputData;
+         updateClusterIO(c, m_mSlaveList[*i].m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
+         updateClusterIO(c, m_mSlaveList[*i].m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
       }
    }
    else
@@ -438,15 +476,36 @@ void SlaveManager::updateClusterStat(Cluster& c)
       c.m_llTotalFileSize = 0;
       c.m_llTotalInputData = 0;
       c.m_llTotalOutputData = 0;
-
+      c.m_mSysIndInput.clear();
+      c.m_mSysIndOutput.clear();
+	    
       for (map<int, Cluster>::iterator i = c.m_mSubCluster.begin(); i != c.m_mSubCluster.end(); ++ i)
       {
          updateClusterStat(i->second);
 
          c.m_llAvailDiskSpace += i->second.m_llAvailDiskSpace;
          c.m_llTotalFileSize += i->second.m_llTotalFileSize;
-         c.m_llTotalInputData += i->second.m_llTotalInputData;
-         c.m_llTotalOutputData += i->second.m_llTotalOutputData;
+         updateClusterIO(c, i->second.m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
+         updateClusterIO(c, i->second.m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
       }
+   }
+}
+
+void SlaveManager::updateClusterIO(Cluster& c, map<string, int64_t>& data_in, map<string, int64_t>& data_out, int64_t& total)
+{
+   for (map<string, int64_t>::iterator p = data_in.begin(); p != data_in.end(); ++ p)
+   {
+      vector<int> path;
+      m_Topology.lookup(p->first.c_str(), path);
+      if (m_Topology.match(c.m_viPath, path) == c.m_viPath.size())
+         continue;
+
+      map<string, int64_t>::iterator n = data_out.find(p->first);
+      if (n == data_out.end())
+         data_out[p->first] = p->second;
+      else
+         n->second += p->second;
+
+      total += p->second;
    }
 }

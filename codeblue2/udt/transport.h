@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/14/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/03/2008
 *****************************************************************************/
 
 
@@ -48,8 +48,11 @@ public:
    int send(const char* buf, int size);
    int recv(char* buf, int size);
    int64_t sendfile(std::ifstream& ifs, int64_t offset, int64_t size);
-   int64_t recvfile(std::ofstream& ifs, int64_t offset, int64_t size);
+   int64_t recvfile(std::ofstream& ofs, int64_t offset, int64_t size);
    int close();
+
+   int64_t sendfile_encrypt(std::ifstream& ifs, int64_t offset, int64_t size, const char* key) {return 0;}
+   int64_t recvfile_decrypt(std::ofstream& ofs, int64_t offset, int64_t size, const char* key) {return 0;}
 
 private:
    UDTSOCKET m_Socket;

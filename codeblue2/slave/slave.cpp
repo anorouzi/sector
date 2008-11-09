@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/05/2008
 *****************************************************************************/
 
 
@@ -192,8 +192,11 @@ void Slave::run()
             msg->setData(0, (char*)&availdisk, 8);
             msg->setData(8, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
             msg->setData(16, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
-            msg->setData(24, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
-            msg->setData(32, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
+            int size = (m_SlaveStat.m_mSysIndInput.size() + m_SlaveStat.m_mSysIndOutput.size() + m_SlaveStat.m_mCliIndInput.size() + m_SlaveStat.m_mCliIndOutput.size()) * 24 + 16;
+            char* buf = new char[size];
+            m_SlaveStat.serializeIOStat(buf, size);
+            msg->setData(24, buf, size);
+            delete [] buf;
             m_GMP.sendto(ip, port, id, msg);
             break;
          }
@@ -245,9 +248,10 @@ void Slave::run()
             p->datachn = datachn;
             p->client_ip = msg->getData();
             p->client_data_port = *(int*)(msg->getData() + 64);
-            p->mode = *(int*)(msg->getData() + 68);
-            p->transid = *(int*)(msg->getData() + 72);
-            p->filename = msg->getData() + 76;
+            p->key = *(int*)(msg->getData() + 68);
+            p->mode = *(int*)(msg->getData() + 72);
+            p->transid = *(int*)(msg->getData() + 76);
+            p->filename = msg->getData() + 80;
 
             pthread_t file_handler;
             pthread_create(&file_handler, NULL, fileHandler, p);
@@ -513,8 +517,10 @@ void SlaveStat::init()
    m_llCurrCPUUsed = 0;
    m_llTotalInputData = 0;
    m_llTotalOutputData = 0;
-   m_mIndInput.clear();
-   m_mIndOutput.clear();
+   m_mSysIndInput.clear();
+   m_mSysIndOutput.clear();
+   m_mCliIndInput.clear();
+   m_mCliIndOutput.clear();
 }
 
 void SlaveStat::refresh()
@@ -538,4 +544,103 @@ void SlaveStat::refresh()
    times(&cputime);
    m_llLastCPUTime += m_llCurrCPUUsed;
    m_llCurrCPUUsed = (cputime.tms_utime + cputime.tms_stime) * 1000000LL / hz - m_llLastCPUTime;
+}
+
+void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
+{
+   map<string, int64_t>::iterator a;
+
+   if (type == 0)
+   {
+      map<string, int64_t>::iterator a = m_mSysIndInput.find(ip);
+      if (a == m_mSysIndInput.end())
+      {
+         m_mSysIndInput[ip] = 0;
+         a = m_mSysIndInput.find(ip);
+      }
+
+      a->second += size;
+      m_llTotalInputData += size;
+   }
+   else if (type == 1)
+   {
+      map<string, int64_t>::iterator a = m_mSysIndOutput.find(ip);
+      if (a == m_mSysIndOutput.end())
+      {
+         m_mSysIndOutput[ip] = 0;
+         a = m_mSysIndOutput.find(ip);
+      }
+
+      a->second += size;
+      m_llTotalOutputData += size;
+   }
+   else if (type == 2)
+   {
+      map<string, int64_t>::iterator a = m_mCliIndInput.find(ip);
+      if (a == m_mCliIndInput.end())
+      {
+         m_mCliIndInput[ip] = 0;
+         a = m_mCliIndInput.find(ip);
+      }
+
+      a->second += size;
+      m_llTotalInputData += size;
+   }
+   else if (type == 3)
+   {
+      map<string, int64_t>::iterator a = m_mCliIndOutput.find(ip);
+      if (a == m_mCliIndOutput.end())
+      {
+         m_mCliIndOutput[ip] = 0;
+         a = m_mCliIndOutput.find(ip);
+      }
+
+      a->second += size;
+      m_llTotalOutputData += size;
+   }
+}
+
+int SlaveStat::serializeIOStat(char* buf, int size)
+{
+   if (size < (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16)
+      return -1;
+
+   char* p = buf;
+   *(int32_t*)p = m_mSysIndInput.size();
+   p += 4;
+   for (map<string, int64_t>::iterator i = m_mSysIndInput.begin(); i != m_mSysIndInput.end(); ++ i)
+   {
+      strcpy(p, i->first.c_str());
+      *(int64_t*)(p + 16) = i->second;
+      p += 24;
+   }
+
+   *(int32_t*)p = m_mSysIndOutput.size();
+   p += 4;
+   for (map<string, int64_t>::iterator i = m_mSysIndOutput.begin(); i != m_mSysIndOutput.end(); ++ i)
+   {
+      strcpy(p, i->first.c_str());
+      *(int64_t*)(p + 16) = i->second;
+      p += 24;
+   }
+
+   *(int32_t*)p = m_mCliIndInput.size();
+   p += 4;
+   for (map<string, int64_t>::iterator i = m_mCliIndInput.begin(); i != m_mCliIndInput.end(); ++ i)
+   {
+      strcpy(p, i->first.c_str());
+      *(int64_t*)(p + 16) = i->second;
+      p += 24;
+   }
+
+   *(int32_t*)p = m_mCliIndOutput.size();
+   p += 4;
+   for (map<string, int64_t>::iterator i = m_mCliIndOutput.begin(); i != m_mCliIndOutput.end(); ++ i)
+   {
+      strcpy(p, i->first.c_str());
+      *(int64_t*)(p + 16) = i->second;
+      p += 24;
+   }
+
+   return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
 }

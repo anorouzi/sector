@@ -115,12 +115,18 @@ public:
    int64_t m_llTotalInputData;
    int64_t m_llTotalOutputData;
 
-   map<string, int64_t> m_mIndInput;
-   map<string, int64_t> m_mIndOutput;
+   map<string, int64_t> m_mSysIndInput;
+   map<string, int64_t> m_mSysIndOutput;
+   map<string, int64_t> m_mCliIndInput;
+   map<string, int64_t> m_mCliIndOutput;
 
 public:
    void init();
    void refresh();
+
+   void updateIO(const string& ip, const int64_t& size, const int& type);
+   int serializeIOStat(char* buf, int size);
+   
 };
 
 class Slave
@@ -144,6 +150,7 @@ private:
       int transid;		// transaction ID
       string client_ip;		// client IP
       int client_data_port;	// client data channel port
+      int key;			// client key
    };
 
    struct Param3

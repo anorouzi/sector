@@ -60,7 +60,7 @@ public:
 public:
    unsigned int getTotalTrans();
 
-private:
+public:
    std::map<int, Transaction> m_mTransList;
    int m_iTransID;
 };

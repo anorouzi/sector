@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/03/2008
 *****************************************************************************/
 
 
@@ -33,6 +33,7 @@ written by
 #include <gmp.h>
 #include <index.h>
 #include <sysstat.h>
+#include <pthread.h>
 
 class Client
 {
@@ -48,13 +49,10 @@ public:
 
    static int list(const string& path, vector<SNode>& attr);
    static int stat(const string& path, SNode& attr);
-
    static int mkdir(const string& path);
    static int move(const string& oldpath, const string& newpath);
    static int remove(const string& path);
-
    static int sysinfo(SysStat& sys);
-
    static int dataInfo(const vector<string>& files, vector<string>& info);
 
 protected:

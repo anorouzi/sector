@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/06/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -197,12 +197,25 @@ int Master::run()
          if (0 == i->first)
             continue;
 
-         //TODO: update refresh time when client is active
-         //if (CTimer::getTime() - i->second.m_llLastRefreshTime > 30 * 60 * 1000000LL)
-         //   tbru.insert(tbru.end(), i->first);
+         if (CTimer::getTime() - i->second.m_llLastRefreshTime > 30 * 60 * 1000000LL)
+         {
+            bool active = false;
+            // check if there is any active transtions requested by the user
+            for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t)
+            {
+               if (t->second.m_iUserKey == i->second.m_iKey)
+               {
+                  active = true;
+                  break;
+               }
+            }
+
+            if (!active)
+               tbru.insert(tbru.end(), i->first);
+         }
       }
 
-      // remove from slave list
+      // remove from active user list
       for (vector<int>::iterator i = tbru.begin(); i != tbru.end(); ++ i)
       {
          char* text = new char[64 + m_mActiveUser[*i].m_strName.length()];
@@ -229,8 +242,37 @@ int Master::run()
             i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
             i->second.m_llCurrMemUsed = *(int64_t*)(msg.getData() + 8);
             i->second.m_llCurrCPUUsed = *(int64_t*)(msg.getData() + 16);
-            i->second.m_llTotalInputData = *(int64_t*)(msg.getData() + 24);
-            i->second.m_llTotalOutputData = *(int64_t*)(msg.getData() + 32);
+
+            char* p = msg.getData() + 24;
+            int n = *(int32_t*)p;
+            p += 4;
+            for (int j = 0; j < n; ++ j)
+            {
+               i->second.m_mSysIndInput[p] = *(int64_t*)(p + 16);
+               p += 24;
+            }
+            n = *(int32_t*)p;
+            p += 4;
+            for (int j = 0; j < n; ++ j)
+            {
+               i->second.m_mSysIndOutput[p] = *(int64_t*)(p + 16);
+               p += 24;
+            }
+            n = *(int32_t*)p;
+            p += 4;
+            for (int j = 0; j < n; ++ j)
+            {
+               i->second.m_mCliIndInput[p] = *(int64_t*)(p + 16);
+               p += 24;
+            }
+            n = *(int32_t*)p;
+            p += 4;
+            for (int j = 0; j < n; ++ j)
+            {
+               i->second.m_mCliIndOutput[p] = *(int64_t*)(p + 16);
+               p += 24;
+            }
+
             i->second.m_iRetryNum = 0;
 
             if (i->second.m_llAvailDiskSpace < 10000000000LL)
@@ -921,9 +963,10 @@ void* Master::process(void* s)
 
             msg->setData(0, ip, strlen(ip) + 1);
             msg->setData(64, (char*)&(dataport), 4);
-            msg->setData(68, (char*)&(mode), 4);
-            msg->setData(72, (char*)&(transid), 4);
-            msg->setData(76, path.c_str(), path.length() + 1);
+            msg->setData(68, (char*)&key, 4);
+            msg->setData(72, (char*)&(mode), 4);
+            msg->setData(76, (char*)&(transid), 4);
+            msg->setData(80, path.c_str(), path.length() + 1);
 
             self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
             dataport = *(int32_t*)(msg->getData());

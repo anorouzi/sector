@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/07/2008
 *****************************************************************************/
 
 
@@ -41,6 +41,7 @@ void* Slave::fileHandler(void* p)
    Transport* datachn = ((Param2*)p)->datachn;
    string ip = ((Param2*)p)->client_ip;
    int port = ((Param2*)p)->client_data_port;
+   int key = ((Param2*)p)->key;
    int mode = ((Param2*)p)->mode;
    int transid = ((Param2*)p)->transid;
    delete (Param2*)p;
@@ -113,7 +114,7 @@ void* Slave::fileHandler(void* p)
             ifs.close();
 
             // update total sent data size
-            self->m_SlaveStat.m_llTotalOutputData += param[1];
+            self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 1 : 3);
 
             break;
          }
@@ -139,7 +140,7 @@ void* Slave::fileHandler(void* p)
             ofs.close();
 
             // update total received data size
-            self->m_SlaveStat.m_llTotalInputData += param[1];
+            self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 0 : 2);
 
             change = 2;
             break;
@@ -178,7 +179,7 @@ void* Slave::fileHandler(void* p)
             ifs.close();
 
             // update total sent data size
-            self->m_SlaveStat.m_llTotalOutputData += size;
+            self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 1 : 3);
 
             break;
          }
@@ -204,7 +205,7 @@ void* Slave::fileHandler(void* p)
             ofs.close();
 
             // update total received data size
-            self->m_SlaveStat.m_llTotalInputData += size;
+            self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 0 : 2);
 
             change = 2;
             break;
@@ -298,7 +299,7 @@ void* Slave::copy(void* p)
    ofs.close();
 
    // update total received data size
-   self->m_SlaveStat.m_llTotalInputData += size;
+   self->m_SlaveStat.updateIO(msg.getData(), size, 0);
 
    cmd = 5;
    datachn.send((char*)&cmd, 4);

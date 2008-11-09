@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 10/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/08/2008
 *****************************************************************************/
 
 
@@ -52,6 +52,10 @@ struct SlaveNode
    int64_t m_llCurrCPUUsed;
    int64_t m_llTotalInputData;
    int64_t m_llTotalOutputData;
+   std::map<std::string, int64_t> m_mSysIndInput;
+   std::map<std::string, int64_t> m_mSysIndOutput;
+   std::map<std::string, int64_t> m_mCliIndInput;
+   std::map<std::string, int64_t> m_mCliIndOutput;
 
    int64_t m_llLastUpdateTime;
    int m_iRetryNum;
@@ -63,6 +67,7 @@ struct SlaveNode
 struct Cluster
 {
    int m_iClusterID;
+   std::vector<int> m_viPath;
 
    int m_iTotalNodes;
    int64_t m_llAvailDiskSpace;
@@ -70,6 +75,10 @@ struct Cluster
 
    int64_t m_llTotalInputData;
    int64_t m_llTotalOutputData;
+   std::map<std::string, int64_t> m_mSysIndInput;
+   std::map<std::string, int64_t> m_mSysIndOutput;
+   std::map<std::string, int64_t> m_mCliIndInput;
+   std::map<std::string, int64_t> m_mCliIndOutput;
 
    std::map<int, Cluster> m_mSubCluster;
    std::set<int> m_sNodes;
@@ -127,6 +136,7 @@ public:
    unsigned int getTotalSlaves();
    uint64_t getTotalDiskSpace();
    void updateClusterStat(Cluster& c);
+   void updateClusterIO(Cluster& c, std::map<std::string, int64_t>& data_in, std::map<std::string, int64_t>& data_out, int64_t& total);
 
 public:
    std::map<Address, int, AddrComp> m_mAddrList;
