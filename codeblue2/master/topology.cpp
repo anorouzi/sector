@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/08/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -240,17 +240,19 @@ int SlaveManager::init(const char* topoconf)
 
       for (vector<int>::iterator l = i->m_viPath.begin(); l != i->m_viPath.end(); ++ l)
       {
-         Cluster c;
-         c.m_iClusterID = *l;
-         c.m_iTotalNodes = 0;
-         c.m_llAvailDiskSpace = 0;
-         c.m_llTotalFileSize = 0;
-         c.m_llTotalInputData = 0;
-         c.m_llTotalOutputData = 0;
-         c.m_viPath = pc->m_viPath;
-         c.m_viPath.insert(c.m_viPath.end(), *l);
-
-         pc->m_mSubCluster[*l] = c;
+         if (pc->m_mSubCluster.find(*l) == pc->m_mSubCluster.end())
+         {
+            Cluster c;
+            c.m_iClusterID = *l;
+            c.m_iTotalNodes = 0;
+            c.m_llAvailDiskSpace = 0;
+            c.m_llTotalFileSize = 0;
+            c.m_llTotalInputData = 0;
+            c.m_llTotalOutputData = 0;
+            c.m_viPath = pc->m_viPath;
+            c.m_viPath.insert(c.m_viPath.end(), *l);
+            pc->m_mSubCluster[*l] = c;
+         }
          pc = &(pc->m_mSubCluster[*l]);
       }
    }

@@ -142,28 +142,31 @@ void SysStat::print()
    cout << "------------------------------------------------------------\n";
 
    cout << "Total number of clusters " << m_vCluster.size() << endl;
+   cout << "Cluster_ID  Total_Nodes  AvailDisk(MB)  FileSize(MB)  NetIn(MB)  NetOut(MB)\n";
    for (vector<Cluster>::iterator i = m_vCluster.begin(); i != m_vCluster.end(); ++ i)
    {
-      cout << i->m_iClusterID << " " 
-           << i->m_iTotalNodes << " " 
-           << i->m_llAvailDiskSpace / MB << " " 
-           << i->m_llTotalFileSize / MB << " " 
-           << i->m_llTotalInputData / MB << " " 
+      cout << i->m_iClusterID << ":  " 
+           << i->m_iTotalNodes << "  " 
+           << i->m_llAvailDiskSpace / MB << "  " 
+           << i->m_llTotalFileSize / MB << "  " 
+           << i->m_llTotalInputData / MB << "  " 
            << i->m_llTotalOutputData / MB << endl;
    }
 
    cout << "------------------------------------------------------------\n";
-   cout << "SLAVE  IP  TS(us)  AvailDisk(MB)  TotalFile(MB)  Mem(MB)  CPU(us)  NetIn(MB)  NetOut(MB)\n";
+   cout << "SLAVE_ID  IP  TS(us)  AvailDisk(MB)  TotalFile(MB)  Mem(MB)  CPU(us)  NetIn(MB)  NetOut(MB)\n";
 
+   int s = 1;
    for (vector<SlaveNode>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
    {
-      cout << i->m_strIP << " " 
-           << i->m_llTimeStamp << " " 
-           << i->m_llAvailDiskSpace / MB << " " 
-           << i->m_llTotalFileSize / MB << " " 
-           << i->m_llCurrMemUsed / MB << " " 
-           << i->m_llCurrCPUUsed << " " 
-           << i->m_llTotalInputData / MB << " " 
+      cout << s++ << ":  "
+           << i->m_strIP << "  " 
+           << i->m_llTimeStamp << "  " 
+           << i->m_llAvailDiskSpace / MB << "  " 
+           << i->m_llTotalFileSize / MB << "  " 
+           << i->m_llCurrMemUsed / MB << "  " 
+           << i->m_llCurrCPUUsed << "  " 
+           << i->m_llTotalInputData / MB << "  " 
            << i->m_llTotalOutputData / MB << endl;
    }
 }
