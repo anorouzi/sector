@@ -185,20 +185,22 @@ void Slave::run()
             // calculate total available disk size
             struct statfs64 slavefs;
             statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
-            int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
+            m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
+            m_SlaveStat.m_llDataSize = Index::getTotalDataSize(m_LocalFile.m_mDirectory);
 
             m_SlaveStat.refresh();
 
-            msg->setData(0, (char*)&availdisk, 8);
-            msg->setData(8, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
-            msg->setData(16, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
-            msg->setData(24, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
-            msg->setData(32, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
-            msg->setData(40, (char*)&(m_SlaveStat.m_llTimeStamp), 8);
+            msg->setData(0, (char*)&(m_SlaveStat.m_llTimeStamp), 8);
+            msg->setData(8, (char*)&m_SlaveStat.m_llAvailSize, 8);
+            msg->setData(16, (char*)&m_SlaveStat.m_llDataSize, 8);
+            msg->setData(24, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
+            msg->setData(32, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
+            msg->setData(40, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
+            msg->setData(48, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
             int size = (m_SlaveStat.m_mSysIndInput.size() + m_SlaveStat.m_mSysIndOutput.size() + m_SlaveStat.m_mCliIndInput.size() + m_SlaveStat.m_mCliIndOutput.size()) * 24 + 16;
             char* buf = new char[size];
             m_SlaveStat.serializeIOStat(buf, size);
-            msg->setData(48, buf, size);
+            msg->setData(56, buf, size);
             delete [] buf;
             m_GMP.sendto(ip, port, id, msg);
             break;
@@ -529,7 +531,7 @@ void SlaveStat::init()
 
 void SlaveStat::refresh()
 {
-   // LINUX only
+   // THIS CODE IS FOR LINUX ONLY. NOT PORTABLE
 
    m_llTimeStamp = CTimer::getTime();
 

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -373,7 +373,9 @@ void* Slave::SPEHandler(void* p)
          }
       }
 
-      self->deliverResult(buckets, speid, result, dest);
+      // if buckets = 0, send back to clients, otherwise deliver to local or network locations
+      if (buckets != 0)
+         self->deliverResult(buckets, speid, result, dest);
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
       progress = 100;
@@ -1154,7 +1156,7 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
 {
    if (buckets == -1)
       sendResultToFile(result, dest.m_strLocalFile + dest.m_pcLocalFileID, dest.m_piSArray[0]);
-   else
+   else if (buckets > 0)
       sendResultToBuckets(speid, buckets, result, dest.m_pcOutputLoc, &dest.m_mOutputChn);
 
    for (int b = 0; b < buckets; ++ b)
@@ -1164,7 +1166,8 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
          dest.m_piRArray[b] += result.m_vIndexLen[b] - 1;
    }
 
-   result.clear();
+   if (buckets != 0)
+      result.clear();
 
    return 0;
 }

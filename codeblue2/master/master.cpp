@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/06/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -239,14 +239,15 @@ int Master::run()
          if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) > 0)
          {
             i->second.m_llLastUpdateTime = CTimer::getTime();
-            i->second.m_llAvailDiskSpace = *(int64_t*)msg.getData();
-            i->second.m_llCurrMemUsed = *(int64_t*)(msg.getData() + 8);
-            i->second.m_llCurrCPUUsed = *(int64_t*)(msg.getData() + 16);
-            i->second.m_llTotalInputData = *(int64_t*)(msg.getData() + 24);
-            i->second.m_llTotalOutputData = *(int64_t*)(msg.getData() + 32);
-            i->second.m_llTimeStamp = *(int64_t*)(msg.getData() + 40);
+            i->second.m_llTimeStamp = *(int64_t*)(msg.getData() + 0);
+            i->second.m_llAvailDiskSpace = *(int64_t*)(msg.getData() + 8);
+            i->second.m_llTotalFileSize = *(int64_t*)(msg.getData() + 16);
+            i->second.m_llCurrMemUsed = *(int64_t*)(msg.getData() + 24);
+            i->second.m_llCurrCPUUsed = *(int64_t*)(msg.getData() + 32);
+            i->second.m_llTotalInputData = *(int64_t*)(msg.getData() + 40);
+            i->second.m_llTotalOutputData = *(int64_t*)(msg.getData() + 48);
 
-            char* p = msg.getData() + 48;
+            char* p = msg.getData() + 56;
             int n = *(int32_t*)p;
             p += 4;
             for (int j = 0; j < n; ++ j)

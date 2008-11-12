@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 09/11/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -947,6 +947,7 @@ int SphereProcess::prepareOutput()
 
 int SphereProcess::readResult(SPE* s)
 {
+   s->m_pDS->m_pResult->m_iResID = s->m_pDS->m_iID;
    s->m_pDS->m_pResult->m_strOrigFile = s->m_pDS->m_strDataFile;
    s->m_pDS->m_pResult->m_strIP = s->m_strIP;
    s->m_pDS->m_pResult->m_iPort = s->m_iPort;

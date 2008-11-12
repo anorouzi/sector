@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
 *****************************************************************************/
 
 #include <topology.h>
@@ -80,7 +80,7 @@ int Topology::init(const char* topoconf)
       string topo = string(line).substr(p + 1, strlen(line));
 
       TopoMap tm;
-      if (parseIPRange(ip.c_str(), tm.m_iIP, tm.m_iMask) < 0)
+      if (parseIPRange(ip.c_str(), tm.m_uiIP, tm.m_uiMask) < 0)
          return -1;
       if (parseTopo(topo.c_str(), tm.m_viPath) <= 0)
          return -1;
@@ -102,11 +102,11 @@ int Topology::lookup(const char* ip, vector<int>& path)
    if (inet_pton(AF_INET, ip, &addr) < 0)
       return -1;
 
-   int digitip = addr.s_addr;
+   uint32_t digitip = ntohl(addr.s_addr);
 
    for (vector<TopoMap>::iterator i = m_vTopoMap.begin(); i != m_vTopoMap.end(); ++ i)
    {
-      if ((digitip & i->m_iMask) == (i->m_iIP & i->m_iMask))
+      if ((digitip & i->m_uiMask) == (i->m_uiIP & i->m_uiMask))
       {
          path = i->m_viPath;
          return 0;
@@ -136,7 +136,7 @@ int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
    return level;
 }
 
-int Topology::parseIPRange(const char* ip, int& digit, int& mask)
+int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
 {
    char buf[128];
    unsigned int i = 0;
@@ -153,7 +153,7 @@ int Topology::parseIPRange(const char* ip, int& digit, int& mask)
    if (inet_pton(AF_INET, buf, &addr) < 0)
       return -1;
 
-   digit = addr.s_addr;
+   digit = ntohl(addr.s_addr);
    mask = 0xFFFFFFFF;
 
    if (i == strlen(ip))
@@ -174,8 +174,7 @@ int Topology::parseIPRange(const char* ip, int& digit, int& mask)
    if ((p == buf) || (bit > 32) || (bit < 0))
       return -1;
 
-   if (bit < 32)
-       mask = ((unsigned int)1 << bit) - 1;
+   mask <<= (32 - bit);
 
    return 0;
 }

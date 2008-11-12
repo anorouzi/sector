@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/12/2008
 *****************************************************************************/
 
 #include "sysstat.h"
@@ -75,7 +75,7 @@ int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c
       p += 72;
    }
 
-   size = 40 + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 64;
+   size = 40 + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 72;
 
    return 0;
 }

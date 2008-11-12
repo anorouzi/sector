@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/08/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
 *****************************************************************************/
 
 
@@ -100,7 +100,7 @@ public:
    int match(std::vector<int>& p1, std::vector<int>& p2);
 
 private:
-   int parseIPRange(const char* ip, int& digit, int& mask);
+   int parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask);
    int parseTopo(const char* topo, std::vector<int>& tm);
 
 private:
@@ -108,8 +108,8 @@ private:
 
    struct TopoMap
    {
-      int m_iIP;
-      int m_iMask;
+      uint32_t m_uiIP;
+      uint32_t m_uiMask;
       std::vector<int> m_viPath;
    };
 
