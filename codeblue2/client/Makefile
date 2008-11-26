@@ -9,7 +9,7 @@ endif
 
 OBJS = client.o fsclient.o dcclient.o
 
-all: libclient.so libclient.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx mrsort mrword example
+all: libclient.so libclient.a tools examples
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -20,51 +20,19 @@ libclient.so: $(OBJS)
 libclient.a: $(OBJS)
 	ar -rcs $@ $^
 
-testfs: testfs.cpp
-	$(C++) testfs.cpp -o testfs $(CCFLAGS) $(LDFLAGS)
+tools: _always_check_
+	cd ./tools; make clean; make; cd ../
 
-testdc: testdc.cpp
-	$(C++) testdc.cpp -o testdc $(CCFLAGS) $(LDFLAGS)
-
-download: download.cpp
-	$(C++) download.cpp -o download $(CCFLAGS) $(LDFLAGS)
-
-upload: upload.cpp
-	$(C++) upload.cpp -o upload $(CCFLAGS) $(LDFLAGS)
-
-ls: ls.cpp
-	$(C++) ls.cpp -o ls $(CCFLAGS) $(LDFLAGS)
-
-rm: rm.cpp
-	$(C++) rm.cpp -o rm $(CCFLAGS) $(LDFLAGS)
-
-mkdir: mkdir.cpp
-	$(C++) mkdir.cpp -o mkdir $(CCFLAGS) $(LDFLAGS)
-
-sysinfo: sysinfo.cpp
-	$(C++) sysinfo.cpp -o sysinfo $(CCFLAGS) $(LDFLAGS)
-
-sectorfs: sectorfs.cpp
-	$(C++) sectorfs.cpp -o sectorfs $(CCFLAGS) $(LDFLAGS)
-
-wordcount: wordcount.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-text.idx: text.idx.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-mrsort: mrsort.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-mrword: mrword.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-example:
+examples: _always_check_
 	cd ./examples; make; cd ../
 
+_always_check_:
+	true
+
 clean:
-	rm -f *.o *.so *.a testfs testdc download upload ls rm mkdir sysinfo sectorfs wordcount text.idx mrsort mrword
-	rm -f ./examples/*.so
+	rm -f *.o *.so *.a
+	cd ./tools; make clean; cd ../
+	cd ./examples; make clean; cd ../
 
 install:
 	mv libclient.so libclient.a ../lib

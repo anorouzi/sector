@@ -31,7 +31,7 @@ written by
 #define __SECTOR_SYSSTAT_H__
 
 #include <stdint.h>
-#include <../master/topology.h>
+#include <topology.h>
 
 class SysStat
 {

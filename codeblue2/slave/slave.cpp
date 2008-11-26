@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/25/2008
 *****************************************************************************/
 
 
@@ -79,6 +79,9 @@ int Slave::init(const char* base)
    // initialize local directory
    m_strHomeDir = m_SysConfig.m_strHomeDir;
 
+   // initialize slave log
+   m_SectorLog.init((m_strHomeDir + "sector.log").c_str());
+
    // check local directory
    if (createSysDir() < 0)
    {
@@ -92,6 +95,8 @@ int Slave::init(const char* base)
    ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str());
    m_LocalFile.serialize(ofs, m_LocalFile.m_mDirectory, 1);
    ofs.close();
+
+   m_SectorLog.insert("Sector slave started.");
 
    return 1;
 }

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/07/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/24/2008
 *****************************************************************************/
 
 
@@ -73,18 +73,23 @@ void* Slave::fileHandler(void* p)
       if (datachn->recv((char*)&cmd, 4) < 0)
          break;
 
+      ifstream ifs;
+      ofstream ofs;
+
       if (5 != cmd)
       {
          response = -1;
 
          if ((2 == cmd) || (4 == cmd))
          {
-            if (0 != (mode & 2))
+            ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
+            if (!ofs.fail() || (0 != (mode & 2)))
                response = 0;
          }
          else if ((1 == cmd) || (3 == cmd))
          {
-            if (0 != (mode & 1))
+            ifs.open(filename.c_str(), ios::in | ios::binary);
+            if (!ifs.fail() || (0 != (mode & 1)))
                response = 0;
          }
 
@@ -92,7 +97,11 @@ void* Slave::fileHandler(void* p)
             break;
 
          if (-1 == response)
+         {
+            ifs.close();
+            ofs.close();
             break;
+         }
       }
 
       switch (cmd)
@@ -106,12 +115,8 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            ifstream ifs(filename.c_str(), ios::in | ios::binary);
-
             if (datachn->sendfile(ifs, param[0], param[1]) < 0)
                run = false;
-
-            ifs.close();
 
             // update total sent data size
             self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 1 : 3);
@@ -129,15 +134,10 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            ofstream ofs;
-            ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-
             if (datachn->recvfile(ofs, param[0], param[1]) < 0)
                run = false;
             else
                wb += param[1];
-
-            ofs.close();
 
             // update total received data size
             self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 0 : 2);
@@ -195,14 +195,10 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            ofstream ofs(filename.c_str(), ios::out | ios::binary | ios::trunc);
-
             if (datachn->recvfile(ofs, offset, size) < 0)
                run = false;
             else
                wb += size;
-
-            ofs.close();
 
             // update total received data size
             self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 0 : 2);
@@ -218,6 +214,9 @@ void* Slave::fileHandler(void* p)
       default:
          break;
       }
+
+      ifs.close();
+      ofs.close();
    }
 
    gettimeofday(&t2, 0);

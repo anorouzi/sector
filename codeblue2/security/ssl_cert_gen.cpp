@@ -45,7 +45,8 @@ int main(int argc, char** argv)
       }
 
       gen_cert("master");
-      system("cp master_node.cert ../client");
+      system("cp master_node.cert ../client/tools");
+      system("cp master_node.cert ../client/examples");
       system("cp master_node.cert ../slave");
    }
    else

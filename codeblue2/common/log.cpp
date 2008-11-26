@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/25/2008
 *****************************************************************************/
 
 
@@ -76,7 +76,7 @@ void SectorLog::insert(const char* text)
 void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave)
 {
    char* text = new char[128 + strlen(file)];
-   sprintf(text, "USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %s  SLAVE: %s", user, ip, cmd, file, res, slave);
+   sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %s  SLAVE: %s", user, ip, cmd, file, res, slave);
    insert(text);
    delete [] text;
 }

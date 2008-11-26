@@ -34,6 +34,7 @@ written by
 #include <transport.h>
 #include <conf.h>
 #include <index.h>
+#include <log.h>
 #include <sphere.h>
 
 
@@ -244,12 +245,10 @@ private:
    time_t m_HomeDirMTime;
 
    SlaveConf m_SysConfig;
-
    Index m_LocalFile;
-
    string m_strBase;
-
    SlaveStat m_SlaveStat;
+   SectorLog m_SectorLog;
 };
 
 #endif
