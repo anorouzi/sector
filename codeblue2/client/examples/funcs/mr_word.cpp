@@ -2,7 +2,7 @@
 #include <fstream>
 #include <set>
 #include <vector>
-#include "../../common/sphere.h"
+#include <sphere.h>
 
 using namespace std;
 

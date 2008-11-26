@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <stdint.h>
-#include "../../common/sphere.h"
+#include <sphere.h>
 
 using namespace std;
 

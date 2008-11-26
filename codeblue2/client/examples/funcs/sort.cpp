@@ -3,7 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <stdint.h>
-#include "../../common/sphere.h"
+#include <sphere.h>
 
 using namespace std;
 

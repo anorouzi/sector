@@ -1,28 +1,38 @@
-C++ = g++
-CCFLAGS = -shared -fPIC -O3 -g
+include ../../Makefile.common
 
-all: randwriter.so sort.so sorthash.so wordbucket.so gen_idx.so mr_sort.so mr_word.so
+CCFLAGS += -I../ -I../../udt -I../../gmp -I../../common -I../../security
+LDFLAGS += -L../../lib -lclient -lsecurity -lrpc -ludt -lcommon
 
-randwriter.so: randwriter.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+ifeq ($(STATIC), 1)
+   LDFLAGS += -static
+endif
 
-sort.so: sort.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+all: testfs testdc wordcount text.idx mrsort mrword funcs
 
-sorthash.so: sorthash.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+testfs: testfs.cpp
+	$(C++) testfs.cpp -o testfs $(CCFLAGS) $(LDFLAGS)
 
-wordbucket.so: wordbucket.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+testdc: testdc.cpp
+	$(C++) testdc.cpp -o testdc $(CCFLAGS) $(LDFLAGS)
 
-gen_idx.so: gen_idx.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+wordcount: wordcount.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-mr_sort.so: mr_sort.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+text.idx: text.idx.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-mr_word.so: mr_word.cpp
-	$(C++) $(CCFLAGS) -o $@ $^ -lstdc++
+mrsort: mrsort.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+mrword: mrword.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+funcs: _always_check_
+	cd ./funcs; make; cd ../
+
+_always_check_:
+	true
 
 clean:
-	rm -f *.so
+	rm -f *.o *.so *.a testfs testdc wordcount text.idx mrsort mrword
+	rm -f ./funcs/*.so

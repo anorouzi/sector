@@ -5,8 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdint.h>
-
-#include "../../common/sphere.h"
+#include <sphere.h>
 
 using namespace std;
 
