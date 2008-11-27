@@ -1,7 +1,12 @@
 include ../../Makefile.common
 
 CCFLAGS += -I../ -I../../udt -I../../common -I../../security -I../../gmp
-LDFLAGS += -L../../lib -lclient -lsecurity -lrpc -ludt -lcommon
+
+ifeq ($(STATIC), 1)
+   LDFLAGS += ../libclient.a ../../lib/libsecurity.a ../../lib/librpc.a ../../lib/libudt.a ../../lib/libcommon.a
+else
+   LDFLAGS += -L../ -L../../lib -lsecurity -lrpc -ludt -lcommon -lclient
+endif
 
 all: download upload ls rm mkdir sysinfo sectorfs
 

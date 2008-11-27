@@ -1,7 +1,12 @@
 include ../Makefile.common
 
 CCFLAGS += -I../udt -I../gmp -I../security -I../common
-LDFLAGS += -L../lib -lmaster -lsecurity -lrpc -ludt -lcommon
+
+ifeq ($(STATIC), 1)
+   LDFLAGS += libmaster.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libudt.a ../lib/libcommon.a
+else
+   LDFLAGS += -L../lib -lmaster -lsecurity -lrpc -ludt -lcommon
+endif
 
 OBJS = transaction.o master.o
 

@@ -220,7 +220,10 @@ void Slave::run()
          case 103: // mkdir
          {
             createDir(msg->getData());
-
+            char* tmp = new char[64 + strlen(msg->getData())];
+            sprintf(tmp, "created new directory %s.", msg->getData());
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
             break;
          }
 
@@ -241,6 +244,11 @@ void Slave::run()
             m_LocalFile.remove(path, true);
             string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
             system(sysrm.c_str());
+
+            char* tmp = new char[64 + strlen(path)];
+            sprintf(tmp, "removed directory %s.", path);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
 
             break;
          }
@@ -272,6 +280,11 @@ void Slave::run()
 
             m_GMP.sendto(ip, port, id, msg);
 
+            char* tmp = new char[64 + p->filename.length()];
+            sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_data_port);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
+
             break;
          }
 
@@ -287,6 +300,11 @@ void Slave::run()
             pthread_detach(replica_handler);
 
             m_GMP.sendto(ip, port, id, msg);
+
+            char* tmp = new char[64 + p->filename.length()];
+            sprintf(tmp, "created replica %s.", p->filename.c_str());
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
 
             break;
          }
@@ -330,6 +348,11 @@ void Slave::run()
 
             m_GMP.sendto(ip, port, id, msg);
 
+            char* tmp = new char[64 + p->function.length()];
+            sprintf(tmp, "starting SPE ... %d %d %s %d %d.", p->speid, p->client_data_port, p->function.c_str(), dataport, p->transid);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
+
             break;
          }
 
@@ -368,6 +391,11 @@ void Slave::run()
             *(int32_t*)msg->getData() = gmp->getPort();
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             m_GMP.sendto(ip, port, id, msg);
+
+            char* tmp = new char[64 + p->filename.length()];
+            sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
 
             break;
          }

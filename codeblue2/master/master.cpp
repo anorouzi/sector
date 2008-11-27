@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/26/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -920,10 +920,6 @@ void* Master::process(void* s)
                }
 
                // otherwise, create a new file for write
-               pthread_mutex_lock(&self->m_MetaLock);
-               self->m_Metadata.create(path.c_str());
-               pthread_mutex_unlock(&self->m_MetaLock);
-
                // choose a slave node for the new file
                Address client;
                client.m_strIP = ip;

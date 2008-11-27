@@ -1,7 +1,12 @@
 include ../../Makefile.common
 
 CCFLAGS += -I../ -I../../udt -I../../gmp -I../../common -I../../security
-LDFLAGS += -L../ -L../../lib -lsecurity -lrpc -ludt -lcommon -lclient
+
+ifeq ($(STATIC), 1)
+   LDFLAGS += ../libclient.a ../../lib/libsecurity.a ../../lib/librpc.a ../../lib/libudt.a ../../lib/libcommon.a
+else
+   LDFLAGS += -L../ -L../../lib -lsecurity -lrpc -ludt -lcommon -lclient
+endif
 
 all: testfs testdc wordcount text.idx mrsort mrword funcs
 

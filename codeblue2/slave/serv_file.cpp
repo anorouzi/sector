@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/24/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/26/2008
 *****************************************************************************/
 
 
@@ -54,9 +54,20 @@ void* Slave::fileHandler(void* p)
    if (datachn->connect(ip.c_str(), port) < 0)
       return NULL;
 
-   //create a new directory in case it does not exist
+   //create a new directory or file in case it does not exist
+   int change = 0;
    if (mode > 1)
+   {
       self->createDir(sname.substr(0, sname.rfind('/')));
+
+      struct stat t;
+      if (stat(filename.c_str(), &t) == -1)
+      {
+         ofstream newfile(filename.c_str());
+         newfile.close();
+         change = 1;
+      }
+   }
 
    cout << "connected\n";
 
@@ -66,7 +77,6 @@ void* Slave::fileHandler(void* p)
    int64_t wb = 0;
 
    int32_t response = 0;
-   int change = 0;
 
    while (run)
    {
@@ -142,7 +152,9 @@ void* Slave::fileHandler(void* p)
             // update total received data size
             self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 0 : 2);
 
-            change = 2;
+            if (change != 1)
+               change = 2;
+
             break;
          }
 
@@ -157,7 +169,6 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            ifstream ifs(filename.c_str(), ios::in | ios::binary);
             ifs.seekg(0, ios::end);
             size = (int64_t)(ifs.tellg());
             ifs.seekg(0, ios::beg);
@@ -175,8 +186,6 @@ void* Slave::fileHandler(void* p)
                run = false;
             else
                rb += size;
-
-            ifs.close();
 
             // update total sent data size
             self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 1 : 3);
@@ -203,7 +212,9 @@ void* Slave::fileHandler(void* p)
             // update total received data size
             self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 0 : 2);
 
-            change = 2;
+            if (change != 1)
+               change = 2;
+
             break;
          }
 
@@ -230,6 +241,11 @@ void* Slave::fileHandler(void* p)
    }
 
    cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
+
+   char* tmp = new char[64 + sname.length()];
+   sprintf(tmp, "file server closed ... %s %f %f.", sname.c_str(), avgRS, avgWS);
+   self->m_SectorLog.insert(tmp);
+   delete [] tmp;
 
    //report to master the task is completed
    self->report(transid, sname, change);
