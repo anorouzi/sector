@@ -97,7 +97,7 @@ public:
    int init(const char* topoconf);
    int lookup(const char* ip, std::vector<int>& path);
 
-   int match(std::vector<int>& p1, std::vector<int>& p2);
+   unsigned int match(std::vector<int>& p1, std::vector<int>& p2);
 
 private:
    int parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask);

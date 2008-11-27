@@ -1,11 +1,7 @@
 include ../Makefile.common
 
-CCFLAGS += 
-ifeq ($(STATIC), 1)
-   LDFLAGS += libsecurity.a ../lib/libcommon.a
-else
-   LDFLAGS += -lsecurity -lcommon
-endif
+CCFLAGS += -I../common
+LDFLAGS += -L../lib -lsecurity -lcommon
 
 OBJS = security.o ssltransport.o
 

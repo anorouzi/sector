@@ -119,15 +119,15 @@ int Topology::lookup(const char* ip, vector<int>& path)
    return -1;
 }
 
-int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
+unsigned int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
 {
-   int level;
+   unsigned int level;
    if (p1.size() < p2.size())
       level = p1.size();
    else
       level = p2.size();
 
-   for (int i = 0; i < level; ++ i)
+   for (unsigned int i = 0; i < level; ++ i)
    {
       if (p1[i] != p2[i])
          return i;

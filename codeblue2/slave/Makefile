@@ -1,11 +1,7 @@
 include ../Makefile.common
 
-CCFLAGS += 
-ifeq ($(STATIC), 1)
-   LDFLAGS += libslave.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libudt.a ../lib/libcommon.a
-else
-   LDFLAGS += -lslave -lsecurity -lrpc -ludt -lcommon
-endif
+CCFLAGS += -I../udt -I../gmp -I../security -I../common
+LDFLAGS += -L../lib -lslave -lsecurity -lrpc -ludt -lcommon
 
 OBJS = slave.o serv_file.o serv_spe.o
 

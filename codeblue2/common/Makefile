@@ -1,7 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS +=
-LDFLAGS +=
+CCFLAGS += -I../udt
 
 OBJS = conf.o index.o topology.o sysstat.o log.o
 

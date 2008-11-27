@@ -1,11 +1,7 @@
 include ../Makefile.common
 
-CCFLAGS += 
-ifeq ($(STATIC), 1)
-   LDFLAGS += librpc.a ../lib/libudt.a
-else
-   LDFLAGS += -lrpc -ludt
-endif
+CCFLAGS += -I../udt
+LDFLAGS += -L../lib -lrpc -ludt
 
 OBJS = gmp.o message.o prec.o
 
