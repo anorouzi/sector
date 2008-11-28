@@ -72,6 +72,9 @@ int mr_word_map(const SInput* input, SOutput* output, SFile* file)
       if (i->length() > 256)
          continue;
 
+      //TODO: check size of output->m_pcResult, output->m_pllIndex
+      // resize these buffers if possible
+
       char item[1024];
       sprintf(item, "%s %s\n", i->c_str(), input->m_pcUnit);
       strcpy(output->m_pcResult + output->m_pllIndex[output->m_iRows], item);

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 11/27/2008
 *****************************************************************************/
 
 #include <slave.h>
@@ -294,30 +294,16 @@ void* Slave::SPEHandler(void* p)
          totalrows = 0;
       }
 
-      // TODO: use dynamic size at run time!
-      char* rdata = NULL;
-      if (size < 64000000)
-         size = 64000000;
-      rdata = new char[size];
-
-      int64_t* rindex = NULL;
-      int* rbucket = NULL;
-      int rowsbuf = totalrows + 2;
-      if (rowsbuf < 640000)
-         rowsbuf = 640000;
-      rindex = new int64_t[rowsbuf];
-      rbucket = new int[rowsbuf];
-
       SInput input;
       input.m_pcUnit = NULL;
       input.m_pcParam = (char*)param;
       input.m_iPSize = psize;
       SOutput output;
-      output.m_pcResult = rdata;
-      output.m_iBufSize = size;
-      output.m_pllIndex = rindex;
-      output.m_iIndSize = rowsbuf;
-      output.m_piBucketID = rbucket;
+      output.m_iBufSize = (size < 64000000) ? 64000000 : size;
+      output.m_pcResult = new char[output.m_iBufSize];
+      output.m_iIndSize = (totalrows < 640000) ? 640000 : totalrows + 2;
+      output.m_pllIndex = new int64_t[output.m_iIndSize];
+      output.m_piBucketID = new int[output.m_iIndSize];
       output.m_llOffset = 0;
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
@@ -393,9 +379,9 @@ void* Slave::SPEHandler(void* p)
 
       delete [] index;
       delete [] block;
-      delete [] rdata;
-      delete [] rindex;
-      delete [] rbucket;
+      delete [] output.m_pcResult;
+      delete [] output.m_pllIndex;
+      delete [] output.m_piBucketID;
       index = NULL;
       block = NULL;
    }

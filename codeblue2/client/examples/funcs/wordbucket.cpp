@@ -75,6 +75,9 @@ int wordbucket(const SInput* input, SOutput* output, SFile* file)
 
    for(set<string>::iterator i = wordset.begin(); i != wordset.end(); ++ i)
    {
+      //TODO: check size of output->m_pcResult, output->m_pllIndex, and output->m_piBucketID
+      // resize these buffers if possible
+
       char item[64];
       sprintf(item, "%s %s\n", i->c_str(), input->m_pcUnit);
       output->m_piBucketID[output->m_iRows] = wordid(i->c_str());

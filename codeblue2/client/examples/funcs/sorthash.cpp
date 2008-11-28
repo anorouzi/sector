@@ -26,6 +26,9 @@ int hash(const Key* k, const int& n)
 
 int sorthash(const SInput* input, SOutput* output, SFile* file)
 {
+   // you may resize (delete [] and new again) the buffer of output->m_pcResult, output->m_pllIndex, and output->m_piBucketID if necessary
+   // you should check the size of these buffers before using them
+
    memcpy(output->m_pcResult, input->m_pcUnit, 100);
    *(output->m_pllIndex) = 0;
    *(output->m_pllIndex + 1) = 100;
