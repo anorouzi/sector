@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/03/2008
+   Yunhong Gu, last updated 10/09/2008
 *****************************************************************************/
 
 #ifdef WIN32
@@ -44,6 +44,7 @@ written by
    #include <wspiapi.h>
 #endif
 
+#include <cstring>
 #include "common.h"
 #include "queue.h"
 #include "core.h"
@@ -944,15 +945,18 @@ void CRcvQueue::init(const int& qsize, const int& payload, const int& version, c
       {
          if (NULL != (u = self->m_pHash->lookup(id)))
          {
-            if (u->m_bConnected && !u->m_bBroken)
+            if (CIPAddress::ipcmp(addr, u->m_pPeerAddr, u->m_iIPversion))
             {
-               if (0 == unit->m_Packet.getFlag())
-                  u->processData(unit);
-               else
-                  u->processCtrl(unit->m_Packet);
+               if (u->m_bConnected && !u->m_bBroken)
+               {
+                  if (0 == unit->m_Packet.getFlag())
+                     u->processData(unit);
+                  else
+                     u->processCtrl(unit->m_Packet);
 
-               u->checkTimers();
-               self->m_pRcvUList->update(u);
+                  u->checkTimers();
+                  self->m_pRcvUList->update(u);
+               }
             }
          }
          else if (self->m_pRendezvousQueue->retrieve(addr, id))
@@ -1018,7 +1022,7 @@ int CRcvQueue::recvfrom(const int32_t& id, CPacket& packet)
          pthread_cond_timedwait(&m_PassCond, &m_PassLock, &timeout);
       #else
          ReleaseMutex(m_PassLock);
-         WaitForSingleObject(m_PassCond, 1);
+         WaitForSingleObject(m_PassCond, 1000);
          WaitForSingleObject(m_PassLock, INFINITE);
       #endif
 

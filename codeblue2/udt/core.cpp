@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/02/2008
+   Yunhong Gu, last updated 12/01/2008
 *****************************************************************************/
 
 #ifndef WIN32
@@ -99,9 +99,9 @@ CUDT::CUDT()
    m_iMSS = 1500;
    m_bSynSending = true;
    m_bSynRecving = true;
-   m_iFlightFlagSize = 8912;
-   m_iSndBufSize = 1024;
-   m_iRcvBufSize = 1024;
+   m_iFlightFlagSize = 25600;
+   m_iSndBufSize = 8192;
+   m_iRcvBufSize = 8192;
    m_Linger.l_onoff = 1;
    m_Linger.l_linger = 180;
    m_iUDPSndBufSize = 65536;
@@ -111,6 +111,7 @@ CUDT::CUDT()
    m_iSndTimeOut = -1;
    m_iRcvTimeOut = -1;
    m_bReuseAddr = true;
+   m_llMaxBW = -1;
 
    m_pCCFactory = new CCCFactory<CUDTCC>;
    m_pCC = NULL;
@@ -206,7 +207,7 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
       if (m_bOpened)
          throw CUDTException(5, 1, 0);
 
-      if (*(int*)optval < 28)
+      if (*(int*)optval < int(28 + sizeof(CHandShake)))
          throw CUDTException(5, 3, 0);
 
       m_iMSS = *(int*)optval;
@@ -302,7 +303,6 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
    case UDT_RENDEZVOUS:
       if (m_bConnected)
          throw CUDTException(5, 1, 0);
-
       m_bRendezvous = *(bool *)optval;
       break;
 
@@ -317,8 +317,13 @@ void CUDT::setOpt(UDTOpt optName, const void* optval, const int&)
    case UDT_REUSEADDR:
       if (m_bOpened)
          throw CUDTException(5, 1, 0);
-
       m_bReuseAddr = *(bool*)optval;
+      break;
+
+   case UDT_MAXBW:
+      if (m_bConnected)
+         throw CUDTException(5, 1, 0);
+      m_llMaxBW = *(int64_t*)optval;
       break;
     
    default:
@@ -406,6 +411,10 @@ void CUDT::getOpt(UDTOpt optName, void* optval, int& optlen)
    case UDT_REUSEADDR:
       *(bool *)optval = m_bReuseAddr;
       optlen = sizeof(bool);
+      break;
+
+   case UDT_MAXBW:
+      *(int64_t*)optval = m_llMaxBW;
       break;
 
    default:
@@ -676,6 +685,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    m_pCC->setRcvRate(m_iDeliveryRate);
    m_pCC->setRTT(m_iRTT);
    m_pCC->setBandwidth(m_iBandwidth);
+   m_pCC->setUserParam((char*)&(m_llMaxBW), 8);
    m_pCC->init();
 
    m_pPeerAddr = (AF_INET == m_iIPversion) ? (sockaddr*)new sockaddr_in : (sockaddr*)new sockaddr_in6;
@@ -1479,6 +1489,8 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
             data[4] = m_pRcvTimeWindow->getPktRcvSpeed();
             data[5] = m_pRcvTimeWindow->getBandwidth();
             ctrlpkt.pack(2, &m_iAckSeqNo, data, 24);
+
+            CTimer::rdtsc(m_ullLastAckTime);
          }
          else
          {
@@ -1489,8 +1501,6 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
          m_pSndQueue->sendto(m_pPeerAddr, ctrlpkt);
 
          m_pACKWindow->store(m_iAckSeqNo, m_iRcvLastAck);
-
-         CTimer::rdtsc(m_ullLastAckTime);
 
          ++ m_iSentACK;
       }
@@ -1633,6 +1643,14 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       // Got data ACK
       ack = *(int32_t *)ctrlpkt.m_pcData;
 
+      // check the  validation of the ack
+      if (CSeqNo::seqcmp(ack, CSeqNo::incseq(m_iSndCurrSeqNo)) > 0)
+      {
+         //this should not happen: attack or bug
+         m_bBroken = true;
+         break;
+      }
+
       if (CSeqNo::seqcmp(ack, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
       {
          // Update Flow Window Size, must update before and together with m_iSndLastAck
@@ -1750,11 +1768,20 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
       m_dCongestionWindow = m_pCC->m_dCWndSize;
 
+      bool secure = true;
+
       // decode loss list message and insert loss into the sender loss list
       for (int i = 0, n = (int)(ctrlpkt.getLength() / 4); i < n; ++ i)
       {
          if (0 != (losslist[i] & 0x80000000))
          {
+            if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0) || (CSeqNo::seqcmp(losslist[i + 1], m_iSndCurrSeqNo) > 0))
+            {
+               // seq_a must not be greater than seq_b; seq_b must not be greater than the most recent sent seq
+               secure = false;
+               break;
+            }
+
             if (CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, const_cast<int32_t&>(m_iSndLastAck)) >= 0)
                m_iTraceSndLoss += m_pSndLossList->insert(losslist[i] & 0x7FFFFFFF, losslist[i + 1]);
             else if (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
@@ -1764,8 +1791,22 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
          }
          else if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
          {
+            if (CSeqNo::seqcmp(losslist[i], m_iSndCurrSeqNo) > 0)
+            {
+               //seq_a must not be greater than the most recent sent seq
+               secure = false;
+               break;
+            }
+
             m_iTraceSndLoss += m_pSndLossList->insert(losslist[i], losslist[i]);
          }
+      }
+
+      if (!secure)
+      {
+         //this should not happen: attack or bug
+         m_bBroken = true;
+         break;
       }
 
       // Wake up the waiting sender (avoiding deadlock on an infinite sleeping)
@@ -2138,7 +2179,9 @@ void CUDT::checkTimers()
    {
       // Haven't receive any information from the peer, is it dead?!
       // timeout: at least 16 expirations and must be greater than 3 seconds and be less than 30 seconds
-      if (((m_iEXPCount > 16) && (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000)))
+      if (((m_iEXPCount > 16) && (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 3000000))
+          || (m_iEXPCount > 30)
+          || (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
       {
          //
          // Connection is broken. 

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/24/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/30/2008
 *****************************************************************************/
 
 #ifndef __SPHERE_H__
@@ -33,8 +33,9 @@ written by
 #include <set>
 #include <string>
 
-struct SInput
+class SInput
 {
+public:
    char* m_pcUnit;		// input data
    int m_iRows;			// number of records/rows
    int64_t* m_pllIndex;		// record index
@@ -43,8 +44,9 @@ struct SInput
    int m_iPSize;		// size of the parameter, 0 if no parameter
 };
 
-struct SOutput
+class SOutput
 {
+public:
    char* m_pcResult;		// buffer to store the result
    int m_iBufSize;		// size of the physical buffer: constant
    int m_iResSize;		// size of the result
@@ -59,10 +61,15 @@ struct SOutput
 				// file processing only. starts with 0 and the last process should set this to -1.
 
    std::string m_strError;	// error text to be send back to client
+
+public:
+   int resizeResBuf(const int64_t& newsize);
+   int resizeIdxBuf(const int64_t& newsize);
 };
 
-struct SFile
+class SFile
 {
+public:
    std::string m_strHomeDir;		// Sector data home directory: constant
    std::string m_strLibDir;		// the directory that stores the library files available to the current process: constant
    std::string m_strTempDir;		// Sector temporary directory

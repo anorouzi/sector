@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/04/2008
+   Yunhong Gu, last updated 12/01/2008
 *****************************************************************************/
 
 #ifdef WIN32
@@ -45,6 +45,7 @@ written by
 #else
    #include <unistd.h>
 #endif
+#include <cstring>
 #include "api.h"
 #include "core.h"
 
@@ -70,26 +71,19 @@ CUDTSocket::~CUDTSocket()
 {
    if (AF_INET == m_iIPversion)
    {
-      if (m_pSelfAddr)
-         delete (sockaddr_in*)m_pSelfAddr;
-      if (m_pPeerAddr)
-         delete (sockaddr_in*)m_pPeerAddr;
+      delete (sockaddr_in*)m_pSelfAddr;
+      delete (sockaddr_in*)m_pPeerAddr;
    }
    else
    {
-      if (m_pSelfAddr)
-         delete (sockaddr_in6*)m_pSelfAddr;
-      if (m_pPeerAddr)
-         delete (sockaddr_in6*)m_pPeerAddr;
+      delete (sockaddr_in6*)m_pSelfAddr;
+      delete (sockaddr_in6*)m_pPeerAddr;
    }
 
-   if (m_pUDT)
-      delete m_pUDT;
+   delete m_pUDT;
 
-   if (m_pQueuedSockets)
-      delete m_pQueuedSockets;
-   if (m_pAcceptSockets)
-      delete m_pAcceptSockets;
+   delete m_pQueuedSockets;
+   delete m_pAcceptSockets;
 
    #ifndef WIN32
       pthread_mutex_destroy(&m_AcceptLock);
@@ -110,9 +104,11 @@ CUDTUnited::CUDTUnited()
    #ifndef WIN32
       pthread_mutex_init(&m_ControlLock, NULL);
       pthread_mutex_init(&m_IDLock, NULL);
+      pthread_mutex_init(&m_InitLock, NULL);
    #else
       m_ControlLock = CreateMutex(NULL, false, NULL);
       m_IDLock = CreateMutex(NULL, false, NULL);
+      m_InitLock = CreateMutex(NULL, false, NULL);
    #endif
 
    #ifndef WIN32
@@ -134,42 +130,19 @@ CUDTUnited::CUDTUnited()
    m_vMultiplexer.clear();
    m_pController = new CControl;
 
-   m_bClosing = false;
-   #ifndef WIN32
-      pthread_mutex_init(&m_GCStopLock, NULL);
-      pthread_cond_init(&m_GCStopCond, NULL);
-      pthread_create(&m_GCThread, NULL, garbageCollect, this);
-   #else
-      m_GCStopCond = CreateEvent(NULL, false, false, NULL);
-      m_GCExitCond = CreateEvent(NULL, false, false, NULL);
-      DWORD ThreadID;
-      m_GCThread = CreateThread(NULL, 0, garbageCollect, this, NULL, &ThreadID);
-   #endif
+   m_bGCStatus = false;
 }
 
 CUDTUnited::~CUDTUnited()
 {
-   m_bClosing = true;
-   #ifndef WIN32
-      pthread_cond_signal(&m_GCStopCond);
-      pthread_join(m_GCThread, NULL);
-      pthread_mutex_destroy(&m_GCStopLock);
-      pthread_cond_destroy(&m_GCStopCond);
-   #else
-      SetEvent(m_GCStopCond);
-      WaitForSingleObject(m_GCExitCond, INFINITE);
-      TerminateThread(m_GCThread, 0);
-      CloseHandle(m_GCThread);
-      CloseHandle(m_GCStopCond);
-      CloseHandle(m_GCExitCond);
-   #endif
-
    #ifndef WIN32
       pthread_mutex_destroy(&m_ControlLock);
       pthread_mutex_destroy(&m_IDLock);
+      pthread_mutex_destroy(&m_InitLock);
    #else
       CloseHandle(m_ControlLock);
       CloseHandle(m_IDLock);
+      CloseHandle(m_InitLock);
    #endif
 
    #ifndef WIN32
@@ -185,6 +158,56 @@ CUDTUnited::~CUDTUnited()
    #ifdef WIN32
       WSACleanup();
    #endif
+}
+
+int CUDTUnited::startup()
+{
+   CGuard gcinit(m_InitLock);
+
+   if (m_bGCStatus)
+      return true;
+
+   m_bClosing = false;
+   #ifndef WIN32
+      pthread_mutex_init(&m_GCStopLock, NULL);
+      pthread_cond_init(&m_GCStopCond, NULL);
+      pthread_create(&m_GCThread, NULL, garbageCollect, this);
+   #else
+      m_GCStopLock = CreateMutex(NULL, false, NULL);
+      m_GCStopCond = CreateEvent(NULL, false, false, NULL);
+      DWORD ThreadID;
+      m_GCThread = CreateThread(NULL, 0, garbageCollect, this, NULL, &ThreadID);
+   #endif
+
+   m_bGCStatus = true;
+
+   return 0;
+}
+
+int CUDTUnited::cleanup()
+{
+   CGuard gcinit(m_InitLock);
+
+   if (!m_bGCStatus)
+      return 0;
+
+   m_bClosing = true;
+   #ifndef WIN32
+      pthread_cond_signal(&m_GCStopCond);
+      pthread_join(m_GCThread, NULL);
+      pthread_mutex_destroy(&m_GCStopLock);
+      pthread_cond_destroy(&m_GCStopCond);
+   #else
+      SetEvent(m_GCStopCond);
+      WaitForSingleObject(m_GCThread, INFINITE);
+      CloseHandle(m_GCThread);
+      CloseHandle(m_GCStopLock);
+      CloseHandle(m_GCStopCond);
+   #endif
+
+   m_bGCStatus = false;
+
+   return 0;
 }
 
 UDTSOCKET CUDTUnited::newSocket(const int& af, const int& type)
@@ -1118,6 +1141,7 @@ void CUDTUnited::setError(CUDTException* e)
    #else
       delete (CUDTException*)TlsGetValue(m_TLSError);
       TlsSetValue(m_TLSError, e);
+      m_mTLSRecord[GetCurrentThreadId()] = e;
    #endif
 }
 
@@ -1133,6 +1157,29 @@ CUDTException* CUDTUnited::getError()
       return (CUDTException*)TlsGetValue(m_TLSError);
    #endif
 }
+
+#ifdef WIN32
+void CUDTUnited::checkTLSValue()
+{
+   vector<DWORD> tbr;
+   for (map<DWORD, CUDTException*>::iterator i = m_mTLSRecord.begin(); i != m_mTLSRecord.end(); ++ i)
+   {
+      HANDLE h = OpenThread(THREAD_QUERY_INFORMATION, FALSE, i->first);
+      if (NULL == h)
+      {
+         tbr.insert(tbr.end(), i->first);
+         break;
+      }
+      if (WAIT_OBJECT_0 == WaitForSingleObject(h, 0))
+      {
+         delete i->second;
+         tbr.insert(tbr.end(), i->first);
+      }
+   }
+   for (vector<DWORD>::iterator j = tbr.begin(); j != tbr.end(); ++ j)
+      m_mTLSRecord.erase(*j);
+}
+#endif
 
 void CUDTUnited::updateMux(CUDT* u, const sockaddr* addr, const UDPSOCKET* udpsock)
 {
@@ -1233,6 +1280,11 @@ void CUDTUnited::updateMux(CUDT* u, const CUDTSocket* ls)
    while (!self->m_bClosing)
    {
       self->checkBrokenSockets();
+
+      #ifdef WIN32
+         self->checkTLSValue();
+      #endif
+
       #ifndef WIN32
          timeval now;
          timespec timeout;
@@ -1257,12 +1309,21 @@ void CUDTUnited::updateMux(CUDT* u, const CUDTSocket* ls)
    #ifndef WIN32
       return NULL;
    #else
-      SetEvent(self->m_GCExitCond);
       return 0;
    #endif   
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+int CUDT::startup()
+{
+   return s_UDTUnited.startup();
+}
+
+int CUDT::cleanup()
+{
+   return s_UDTUnited.cleanup();
+}
 
 UDTSOCKET CUDT::socket(int af, int type, int)
 {
@@ -1737,6 +1798,16 @@ CUDT* CUDT::getUDTHandle(UDTSOCKET u)
 
 namespace UDT
 {
+
+int startup()
+{
+   return CUDT::startup();
+}
+
+int cleanup()
+{
+   return CUDT::cleanup();
+}
 
 UDTSOCKET socket(int af, int type, int protocol)
 {
