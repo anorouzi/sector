@@ -2,8 +2,8 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
-<title> UDT Reference</title>
-<link rel="stylesheet" href="file:///E|/udt4/doc/doc/udtdoc.css" type="text/css" />
+<title>Sector/Sphere Manual</title>
+<link rel="stylesheet" href="sectordoc.css" type="text/css" />
 <style type="text/css">
 <!--
 .style3 {
@@ -33,12 +33,7 @@
   <dd>[in] the name of a file or directory to be created.</dd>
 </dl>
 <h5>Return Value</h5>
-<p>If no error occurs, <b>accept</b> returns the UDT socket descriptor of the new connection; otherwise, it returns
-  UDT::INVALID_SOCK.</p>
-<p>On a successful return, the address of the peer 
-  side of the connection is written into <i>addr</i>, and its length is in <i>addrlen</i>, if the <i>addr</i> parameter is not NULL.</p>
-<p>If an error is returned, the error information 
-  can be retrieved by <a href="error.htm">getlasterror</a>. One of the following error can cause an <b>accept</b> error:</p>
+<p>On success, the function returns 1. If error occurs, a negative value is returned. </p>
 <table width="100%" border="1" cellpadding="2" cellspacing="0" bordercolor="#CCCCCC">
   <tr>
     <td width="17%" class="table_headline"><strong>Error Name</strong></td>
@@ -46,32 +41,12 @@
     <td width="83%" class="table_headline"><strong>Comment</strong></td>
   </tr>
   <tr>
-    <td>EINVSOCK</td>
-    <td>5004</td>
-    <td><i>u</i> is an invalid UDT socket.</td>
-  </tr>
-  <tr>
-    <td>ENOLISTEN</td>
-    <td>5006</td>
-    <td><i>u</i> is not in the listening state.</td>
-  </tr>
-  <tr>
-    <td>ERDVNOSERV</td>
-    <td>5007</td>
-    <td><i>u</i> is set up to support rendezvous connection.</td>
-  </tr>
-  <tr>
-    <td>EASYNCRCV</td>
-    <td>6002</td>
-    <td><i>u</i> is non-blocking (UDT_RCVSYN = false) but there is no connection available.</td>
+    <td>&nbsp;</td>
+    <td>&nbsp;</td>
+    <td>&nbsp;</td>
   </tr>
 </table>
 <h5>Description</h5>
-<p>The command uses account &quot;test&quot;.</p>
-<p>details... </p>
-<h5><strong>See Also</strong></h5>
-<p><strong><a href="t-r-download.html">logout</a></strong></p>
 <p>&nbsp;</p>
-
 </body>
 </html>
