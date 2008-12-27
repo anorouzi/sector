@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/26/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/22/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -117,7 +117,26 @@ int Master::init()
 
    // check local directories, create them is not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
-   DIR* test = opendir((m_strHomeDir + ".metadata").c_str());
+   DIR* test = opendir(m_strHomeDir.c_str());
+   if (NULL == test)
+   {
+      if (errno != ENOENT)
+         return -1;
+
+      vector<string> dir;
+      Index::parsePath(m_strHomeDir.c_str(), dir);
+
+      string currpath = "/";
+      for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
+      {
+         currpath += *i;
+         if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
+            return -1;
+         currpath += "/";
+      }
+   }
+   closedir(test);
+   test = opendir((m_strHomeDir + ".metadata").c_str());
    if (NULL == test)
    {
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
@@ -154,6 +173,8 @@ int Master::init()
 
    // running...
    m_Status = RUNNING;
+
+   Transport::initialize();
 
    // start GMP
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)

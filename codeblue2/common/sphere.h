@@ -48,11 +48,11 @@ class SOutput
 {
 public:
    char* m_pcResult;		// buffer to store the result
-   int m_iBufSize;		// size of the physical buffer: constant
+   int m_iBufSize;		// size of the physical buffer
    int m_iResSize;		// size of the result
 
    int64_t* m_pllIndex;		// record index of the result
-   int m_iIndSize;		// size of the index structure (physical buffer size): constant
+   int m_iIndSize;		// size of the index structure (physical buffer size)
    int m_iRows;			// number of records/rows
 
    int* m_piBucketID;		// bucket ID

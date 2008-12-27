@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/01/2008
+   Yunhong Gu, last updated 12/05/2008
 *****************************************************************************/
 
 #ifndef __UDT_CORE_H__
@@ -51,7 +51,7 @@ written by
 #include "channel.h"
 #include "api.h"
 #include "ccc.h"
-#include "control.h"
+#include "co-op.h"
 #include "queue.h"
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
@@ -313,6 +313,8 @@ private: // Sending related data
    int32_t m_iSndLastDataAck;                   // The real last ACK that updates the sender buffer and loss list
    int32_t m_iSndCurrSeqNo;                     // The largest sequence number that has been sent
    int32_t m_iLastDecSeq;                       // Sequence number sent last decrease occurs
+   int32_t m_iSndLastAck2;                      // Last ACK2 sent back
+   uint64_t m_ullSndLastAck2Time;               // The time when last ACK2 was sent back
 
    int32_t m_iISN;                              // Initial Sequence Number
 
@@ -394,6 +396,7 @@ private: // Timers
    volatile uint64_t m_ullACKInt;		// ACK interval
    volatile uint64_t m_ullNAKInt;		// NAK interval
    volatile uint64_t m_ullEXPInt;		// EXP interval
+   volatile uint64_t m_ullMinEXPInt;		// Minimum EXP interval
 
    int m_iPktCount;				// packet counter for ACK
    int m_iLightACKCount;			// light ACK counter

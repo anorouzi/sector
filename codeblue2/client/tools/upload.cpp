@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <termios.h>
 #include <string.h>
 #include <errno.h>
 #include <iostream>

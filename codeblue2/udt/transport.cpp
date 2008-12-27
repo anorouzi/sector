@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/14/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/01/2008
 *****************************************************************************/
 
 
@@ -46,6 +46,16 @@ Transport::Transport()
 
 Transport::~Transport()
 {
+}
+
+void Transport::initialize()
+{
+   UDT::startup();
+}
+
+void Transport::release()
+{
+   UDT::cleanup();
 }
 
 int Transport::open(int& port, bool rendezvous, bool reuseaddr)

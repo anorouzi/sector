@@ -44,7 +44,7 @@ public:
 public:
    static int init(const string& server, const int& port);
    static int login(const string& username, const string& password);
-   static void logout();
+   static int logout();
    static int close();
 
    static int list(const string& path, vector<SNode>& attr);
@@ -53,6 +53,8 @@ public:
    static int move(const string& oldpath, const string& newpath);
    static int remove(const string& path);
    static int sysinfo(SysStat& sys);
+
+protected:
    static int dataInfo(const vector<string>& files, vector<string>& info);
 
 protected:

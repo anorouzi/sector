@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/01/2008
 *****************************************************************************/
 
 
@@ -71,6 +71,8 @@ int Slave::init(const char* base)
    char buf[64];
    m_strMasterIP = inet_ntop(AF_INET, masterip->h_addr_list[0], buf, 64);
    m_iMasterPort = m_SysConfig.m_iMasterPort;
+
+   Transport::initialize();
 
    // init GMP
    m_GMP.init(0);
@@ -271,6 +273,11 @@ void Slave::run()
             p->transid = *(int*)(msg->getData() + 76);
             p->filename = msg->getData() + 80;
 
+            char* tmp = new char[64 + p->filename.length()];
+            sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_data_port);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
+
             pthread_t file_handler;
             pthread_create(&file_handler, NULL, fileHandler, p);
             pthread_detach(file_handler);
@@ -279,11 +286,6 @@ void Slave::run()
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
 
             m_GMP.sendto(ip, port, id, msg);
-
-            char* tmp = new char[64 + p->filename.length()];
-            sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_data_port);
-            m_SectorLog.insert(tmp);
-            delete [] tmp;
 
             break;
          }
@@ -295,16 +297,16 @@ void Slave::run()
             p->timestamp = *(int64_t*)msg->getData();
             p->filename = msg->getData() + 8;
 
+            char* tmp = new char[64 + p->filename.length()];
+            sprintf(tmp, "created replica %s.", p->filename.c_str());
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
+
             pthread_t replica_handler;
             pthread_create(&replica_handler, NULL, copy, p);
             pthread_detach(replica_handler);
 
             m_GMP.sendto(ip, port, id, msg);
-
-            char* tmp = new char[64 + p->filename.length()];
-            sprintf(tmp, "created replica %s.", p->filename.c_str());
-            m_SectorLog.insert(tmp);
-            delete [] tmp;
 
             break;
          }
@@ -338,6 +340,10 @@ void Slave::run()
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << " " << p->transid << endl;
+            char* tmp = new char[64 + p->function.length()];
+            sprintf(tmp, "starting SPE ... %d %d %s %d %d.", p->speid, p->client_data_port, p->function.c_str(), dataport, p->transid);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
 
             pthread_t spe_handler;
             pthread_create(&spe_handler, NULL, SPEHandler, p);
@@ -347,11 +353,6 @@ void Slave::run()
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
 
             m_GMP.sendto(ip, port, id, msg);
-
-            char* tmp = new char[64 + p->function.length()];
-            sprintf(tmp, "starting SPE ... %d %d %s %d %d.", p->speid, p->client_data_port, p->function.c_str(), dataport, p->transid);
-            m_SectorLog.insert(tmp);
-            delete [] tmp;
 
             break;
          }
@@ -381,8 +382,12 @@ void Slave::run()
             {
                p->function = msg->getData() + offset + 4 + 4 + 4;
             }
-
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
+
+            char* tmp = new char[64 + p->filename.length()];
+            sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
+            m_SectorLog.insert(tmp);
+            delete [] tmp;
 
             pthread_t spe_shuffler;
             pthread_create(&spe_shuffler, NULL, SPEShuffler, p);
@@ -391,11 +396,6 @@ void Slave::run()
             *(int32_t*)msg->getData() = gmp->getPort();
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             m_GMP.sendto(ip, port, id, msg);
-
-            char* tmp = new char[64 + p->filename.length()];
-            sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
-            m_SectorLog.insert(tmp);
-            delete [] tmp;
 
             break;
          }
@@ -648,7 +648,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
    pthread_mutex_unlock(&m_StatLock);
 }
 
-int SlaveStat::serializeIOStat(char* buf, int size)
+int SlaveStat::serializeIOStat(char* buf, unsigned int size)
 {
    if (size < (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16)
       return -1;
@@ -695,4 +695,31 @@ int SlaveStat::serializeIOStat(char* buf, int size)
    pthread_mutex_unlock(&m_StatLock);
 
    return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
+}
+
+void Slave::logError(int type, const string& ip, const int& port, const string& name)
+{
+   char* tmp = new char[64 + name.length()];
+
+   switch (type)
+   {
+   case 1:
+      sprintf(tmp, "failed to connect to file client %s:%d %s.", ip.c_str(), port, name.c_str());
+      break;
+
+   case 2:
+      sprintf(tmp, "failed to connect spe client %s:%d %s.", ip.c_str(), port, name.c_str());
+      break;
+
+   case 3:
+      sprintf(tmp, "failed to load spe library %s:%d %s.", ip.c_str(), port, name.c_str());
+      break;
+
+   default:
+      sprintf(tmp, "unknown error.");
+      break;
+   }
+
+   m_SectorLog.insert(tmp);
+   delete [] tmp;
 }

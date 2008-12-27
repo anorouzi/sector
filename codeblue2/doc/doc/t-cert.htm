@@ -1,0 +1,47 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Sector/Sphere Tutorial</title>
+<link rel="stylesheet" href="udtdoc.css" type="text/css" />
+<style type="text/css">
+<!--
+.style1 {color: #FF0000}
+-->
+</style>
+</head>
+
+<body>
+<div class="ref_head">&nbsp;Installation</div>
+
+<h3><font color="#000080">Understanding the Certificates </font></h3>
+<p>Sector uses SSL for secure communication between clients and the master, and between the master and the security server. This requires two sets of SSL key/certificate pairs before the system can start to work. The two sets of key/certificate are secuirity_node.key/security_node.cert, and master_node.key/master_node.cert. </p>
+
+<p><b>security_node.key/security_node.cert</b></p>
+<p>The key &quot;security_node.key&quot; must exist in the security server directory, ./codeblue2/security. The certificate security_node.cert must exist in the master server directory, ./codeblue2/master. This key/certificate pair is used for the secure communication between the security server and the master server. </p>
+<p><b>master_node.key/master_node.cert</b></p>
+<p>The key &quot;master_node.key&quot; must exist in the master server directory, ./codeblue2/master. The certificate master_node.cert must exist on ever slave node in the directory of ./codeblue2/slave and on every client in the same directory as that of the client application. This key/certificate pair is used for the secure communication between the master server and the slaves, and between the master and the clients. </p>
+<p>In Sector Slaves and Slave do not communicate directly, neither does a client and any slave node. Such communication must be set up via the master server, and verified by the security server when necessary. </p>
+<p><strong>Generate and distribute the certificates </strong></p>
+<p>There is no keys and certificates included in the software releases. During the first make of the source code, the keys and the certificates will be automatically generated. The cerficates will also be copied to the slave directory and to the client directory. If there is no shared file system for the clusters, the slaves and the clients can be copied to each slave node and each client node, together with the certificates.</p>
+<p>In case that the certificate need to be re-generated,  there is a tool called &quot;ssl_cert_gen&quot; to do this. It is located in ./codeblue2/security. This tool generates the keys and certificates and copies the certificates to the proper directories. </p>
+<div class="code">
+    yunhong@ncdm161:~/codeblue2/security$  ./ssl_cert_gen<br />
+    usage: ssl_cert_gen security OR ssl_cert_gen master<br />
+    <br />
+    yunhong@ncdm161:~/codeblue2/security$ ./ssl_cert_gen security<br />
+    Generating RSA private key, 1024 bit long modulus<br />
+    ......................................++++++<br />
+    ......................++++++<br />
+    e is 65537 (0x10001)<br />
+<br />
+yunhong@ncdm161:~/personal/codeblue2/security$ ./ssl_cert_gen master<br />
+Generating RSA private key, 1024 bit long modulus<br />
+................++++++<br />
+..++++++<br />
+e is 65537 (0x10001)
+</div>
+
+<p>&nbsp;</p>
+</body>
+</html>

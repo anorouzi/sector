@@ -1,0 +1,59 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<title> UDT Reference</title>
+<link rel="stylesheet" href="file:///E|/udt4/doc/doc/udtdoc.css" type="text/css" />
+<style type="text/css">
+<!--
+.style2 {
+	color: #FFFFFF;
+	font-weight: bold;
+}
+-->
+</style>
+</head>
+
+<body>
+<div class="ref_head">Reference: Classes: SphereProcess </div>
+
+<h4 class="func_name"><strong>read</strong></h4>
+<p>The<strong> read </strong>function retrieves the processing result of each data segment. </p>
+
+<div class="code">
+  int read <br />
+  (<br />
+  &nbsp;&nbsp;&nbsp;SphereResult*&amp; <span class="style2">res</span>,<br />
+  &nbsp;&nbsp;&nbsp;const bool&amp; <span class="style2">inorder</span> = false, <br />
+  &nbsp;&nbsp;&nbsp;const bool&amp; <span class="style2">wait</span> = true)<br />
+  );
+</div>
+
+<h5>Parameters</h5>
+
+<dl>
+  <dt><em>res</em></dt>
+  <dd>[out] the point to a SphereResult structure. </dd>
+  <dt><em>inorder</em></dt>
+  <dd>[in] whether to read the result in the same order of the data segments.</dd>
+  <dt><em>wait</em></dt>
+  <dd>[in] whether to wait if there is no result available. </dd>
+</dl>
+<h5>Return Value</h5>
+<p>On success, the function returns 1. If error occurs, a negative value is returned. </p>
+<table width="100%" border="1" cellpadding="2" cellspacing="0" bordercolor="#CCCCCC">
+  <tr>
+    <td width="17%" class="table_headline"><strong>Error Name</strong></td>
+    <td width="17%" class="table_headline"><strong>Error Code</strong></td>
+    <td width="83%" class="table_headline"><strong>Comment</strong></td>
+  </tr>
+  <tr>
+    <td>&nbsp;</td>
+    <td>&nbsp;</td>
+    <td>&nbsp;</td>
+  </tr>
+</table>
+<h5>Description</h5>
+<p>&nbsp;</p>
+</body>
+</html>

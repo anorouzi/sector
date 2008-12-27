@@ -68,6 +68,7 @@ int Client::init(const string& server, const int& port)
    
    m_iServerPort = port;
 
+   Transport::initialize();
    m_GMP.init(0);
 
    return 1;
@@ -106,7 +107,7 @@ int Client::login(const string& username, const string& password)
    return m_iKey;
 }
 
-void Client::logout()
+int Client::logout()
 {
    SectorMsg msg;
    msg.setKey(m_iKey);
@@ -124,6 +125,7 @@ int Client::close()
       m_strServerIP = "";
       m_iServerPort = 0;
       m_GMP.close();
+      Transport::release();
    }
 
    return 1;
@@ -271,5 +273,5 @@ int Client::sysinfo(SysStat& sys)
 
    sys.deserialize(msg.getData(), msg.m_iDataLength);
 
-   return 0;
+   return 1;
 }

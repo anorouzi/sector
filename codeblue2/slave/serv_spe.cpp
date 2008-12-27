@@ -184,7 +184,10 @@ void* Slave::SPEHandler(void* p)
 
    cout << "rendezvous connect " << ip << " " << dataport << endl;
    if (datachn->connect(ip.c_str(), dataport) < 0)
+   {
+      self->logError(2, ip, ctrlport, function);
       return NULL;
+   }
    cout << "connected\n";
 
    // read outupt parameters
@@ -221,7 +224,10 @@ void* Slave::SPEHandler(void* p)
    void* lh = NULL;
    self->openLibrary(key, function, lh);
    if (NULL == lh)
+   {
+      self->logError(3, ip, ctrlport, function);
       return NULL;
+   }
 
    if (type == 0)
       self->getSphereFunc(lh, function, process);

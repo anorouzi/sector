@@ -126,7 +126,7 @@ public:
    void refresh();
 
    void updateIO(const string& ip, const int64_t& size, const int& type);
-   int serializeIOStat(char* buf, int size);
+   int serializeIOStat(char* buf, unsigned int size);
 
 private:
    pthread_mutex_t m_StatLock;   
@@ -230,6 +230,8 @@ private:
 private:
    int report(const int32_t& transid, const string& path, const int& change = 0);
    int reportSphere(const int32_t& transid);
+
+   void logError(int type, const string& ip, const int& port, const string& name);
 
 private:
    CGMP m_GMP;

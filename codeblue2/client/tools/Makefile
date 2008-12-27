@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../ -L../../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-all: download upload ls rm mkdir sysinfo sectorfs
+all: download upload ls rm mkdir sysinfo
 
 download: download.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/01/2008
+   Yunhong Gu, last updated 12/04/2008
 *****************************************************************************/
 
 #ifndef __UDT_API_H__
@@ -47,7 +47,7 @@ written by
 #include "udt.h"
 #include "packet.h"
 #include "queue.h"
-#include "control.h"
+#include "co-op.h"
 
 
 class CUDT;
@@ -197,13 +197,12 @@ private:
    #else
       std::map<DWORD, CUDTException*> m_mTLSRecord;
       void checkTLSValue();
+      pthread_mutex_t m_TLSLock;
    #endif
 
 private:
    CUDTSocket* locate(const UDTSOCKET u);
    CUDTSocket* locate(const UDTSOCKET u, const sockaddr* peer, const UDTSOCKET& id, const int32_t& isn);
-   void checkBrokenSockets();
-   void removeSocket(const UDTSOCKET u);
    void updateMux(CUDT* u, const sockaddr* addr = NULL, const UDPSOCKET* = NULL);
    void updateMux(CUDT* u, const CUDTSocket* ls);
 
@@ -220,7 +219,7 @@ private:
    pthread_cond_t m_GCStopCond;
 
    pthread_mutex_t m_InitLock;
-   bool m_bGCStatus;
+   bool m_bGCStatus;					// if the GC thread is working (true)
 
    pthread_t m_GCThread;
    #ifndef WIN32
@@ -228,6 +227,11 @@ private:
    #else
       static DWORD WINAPI garbageCollect(LPVOID);
    #endif
+
+   std::map<UDTSOCKET, CUDTSocket*> m_ClosedSockets;   // temporarily store closed sockets
+
+   void checkBrokenSockets();
+   void removeSocket(const UDTSOCKET u);
 };
 
 #endif

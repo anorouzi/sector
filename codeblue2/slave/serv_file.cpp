@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/26/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/06/2008
 *****************************************************************************/
 
 
@@ -52,7 +52,10 @@ void* Slave::fileHandler(void* p)
    cout << "rendezvous connect " << ip << " " << port << " " << filename << endl;
 
    if (datachn->connect(ip.c_str(), port) < 0)
+   {
+      self->logError(1, ip, port, sname);
       return NULL;
+   }
 
    //create a new directory or file in case it does not exist
    int change = 0;

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/01/2008
 *****************************************************************************/
 
 
@@ -39,6 +39,9 @@ public:
    ~Transport();
 
 public:
+   static void initialize();
+   static void release();
+
    int open(int& port, bool rendezvous = true, bool reuseaddr = false);
 
    int listen();

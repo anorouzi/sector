@@ -253,7 +253,7 @@ int SphereProcess::loadOperator(const char* library)
 
    ifstream lib;
    lib.open(library, ios::binary);
-   if (lib.bad())
+   if (lib.bad() || lib.fail())
    {
       cerr << "loadOperator: bad file.\n";
       return -1;
@@ -941,6 +941,8 @@ int SphereProcess::prepareOutput()
       sprintf(localname, "%s/%s", m_pOutput->m_strPath.c_str(), m_pOutput->m_strName.c_str());
       memcpy(m_pOutputLoc + 4, localname, strlen(localname) + 1);
    }
+
+   delete [] outputloc;
 
    return m_pOutput->m_iFileNum;
 }
