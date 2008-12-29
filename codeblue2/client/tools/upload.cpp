@@ -42,7 +42,7 @@ int upload(const char* file, const char* dst = NULL)
       }
    }
 
-   if (f.open(rname, 2) < 0)
+   if (f.open(rname, WRITE) < 0)
    {
       cout << "ERROR: unable to connect to server or file already exists." << endl;
       return -1;

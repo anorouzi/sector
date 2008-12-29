@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
 *****************************************************************************/
 
 
@@ -32,7 +32,7 @@ written by
 
 using namespace std;
 
-int SectorFile::open(const string& filename, const int& mode)
+int SectorFile::open(const string& filename, SF_MODE mode)
 {
    m_strFileName = revisePath(filename);
 
@@ -45,7 +45,8 @@ int SectorFile::open(const string& filename, const int& mode)
    m_iReusePort = port;
 
    msg.setData(0, (char*)&port, 4);
-   msg.setData(4, (char*)&mode, 4);
+   int32_t m = mode;
+   msg.setData(4, (char*)&m, 4);
    msg.setData(8, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
@@ -53,47 +54,57 @@ int SectorFile::open(const string& filename, const int& mode)
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
-   cout << "open file " << filename << " " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
+   m_llSize = *(int64_t*)(msg.getData() + 72);
+   m_llCurReadPos = m_llCurWritePos = 0;
 
+   cout << "open file " << filename << " " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
    return m_DataChn.connect(msg.getData(), *(int*)(msg.getData() + 68));
 }
 
-int SectorFile::read(char* buf, const int64_t& offset, const int64_t& size)
+int64_t SectorFile::read(char* buf, const int64_t& size)
 {
    char req[20];
    *(int32_t*)req = 1; // cmd read
-   *(int64_t*)(req + 4) = offset;
+   *(int64_t*)(req + 4) = m_llCurReadPos;
    *(int64_t*)(req + 12) = size;
+
    int32_t response = -1;
+   int64_t rsize = -1;
 
    if (m_DataChn.send(req, 20) < 0)
       return -1;
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   if (m_DataChn.recv(buf, size) < 0)
-      return -1;
+   rsize = m_DataChn.recv(buf, size);
 
-   return 1;
+   if (rsize > 0)
+      m_llCurReadPos += rsize;
+
+   return rsize;
 }
 
-int SectorFile::write(const char* buf, const int64_t& offset, const int64_t& size)
+int64_t SectorFile::write(const char* buf, const int64_t& size)
 {
    char req[20];
    *(int32_t*)req = 2; // cmd write
-   *(int64_t*)(req + 4) = offset;
+   *(int64_t*)(req + 4) = m_llCurWritePos;
    *(int64_t*)(req + 12) = size;
+
    int32_t response = -1;
+   int64_t wsize = -1;
 
    if (m_DataChn.send(req, 20) < 0)
       return -1;
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   if (m_DataChn.send(buf, size) < 0)
-      return -1;
+   wsize = m_DataChn.send(buf, size);
 
-   return 1;
+   if (wsize > 0)
+      m_llCurWritePos += wsize;
+
+   return wsize;
 }
 
 int SectorFile::download(const char* localpath, const bool& cont)
@@ -180,4 +191,71 @@ int SectorFile::close()
    m_DataChn.close();
 
    return 1;
+}
+
+int SectorFile::seekp(int64_t off, SF_POS pos)
+{
+   switch (pos)
+   {
+   case BEG:
+      if (off < 0)
+         return -1;
+      m_llCurWritePos = off;
+      break;
+
+   case CUR:
+      if (off < -m_llCurWritePos)
+         return -1;
+      m_llCurWritePos += off;
+      break;
+
+   case END:
+      if (off < -m_llSize)
+         return -1;
+      m_llCurWritePos = m_llSize + off;
+      break;
+   }
+
+   return 0;
+}
+
+int SectorFile::seekg(int64_t off, SF_POS pos)
+{
+   switch (pos)
+   {
+   case BEG:
+      if ((off < 0) || (off > m_llSize))
+         return -1;
+      m_llCurReadPos = off;
+      break;
+
+   case CUR:
+      if ((off < -m_llCurReadPos) || (off > m_llSize - m_llCurReadPos))
+         return -1;
+      m_llCurReadPos += off;
+      break;
+
+   case END:
+      if ((off < -m_llSize) || (off > 0))
+         return -1;
+      m_llCurReadPos = m_llSize + off;
+      break;
+   }
+
+   return 0;
+}
+
+int64_t SectorFile::tellp()
+{
+   return m_llCurWritePos;
+}
+
+int64_t SectorFile::tellg()
+{
+   return m_llCurReadPos;
+}
+
+bool SectorFile::eof()
+{
+   return (m_llCurReadPos >= m_llSize);
 }

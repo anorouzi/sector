@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/24/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
 *****************************************************************************/
 
 #ifndef __SECTOR_FS_CLIENT_H__
@@ -34,6 +34,9 @@ written by
 #include <transport.h>
 #include <client.h>
 
+enum SF_MODE{READ = 1, WRITE = 2, RW = 3, TRUNC = 4, APPEND = 8};
+enum SF_POS{BEG, CUR, END};
+
 class SectorFile: public Client
 {
 public:
@@ -41,12 +44,18 @@ public:
    virtual ~SectorFile() {}
 
 public:
-   int open(const string& filename, const int& mode = 1);
-   int read(char* buf, const int64_t& offset, const int64_t& size);
-   int write(const char* buf, const int64_t& offset, const int64_t& size);
+   int open(const string& filename, SF_MODE = READ);
+   int64_t read(char* buf, const int64_t& size);
+   int64_t write(const char* buf, const int64_t& size);
    int download(const char* localpath, const bool& cont = false);
    int upload(const char* localpath, const bool& cont = false);
    int close();
+
+   int seekp(int64_t off, SF_POS pos);
+   int seekg(int64_t off, SF_POS pos);
+   int64_t tellp();
+   int64_t tellg();
+   bool eof();
 
 private:
    Transport m_DataChn;
