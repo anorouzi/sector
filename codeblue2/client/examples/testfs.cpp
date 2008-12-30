@@ -23,18 +23,18 @@ int main(int argc, char** argv)
    const int fn = sys.m_llTotalSlaves;
 
    SectorFile guide;
-   if (guide.open("test/guide.dat", 2) < 0)
+   if (guide.open("test/guide.dat", WRITE) < 0)
    {
       cout << "error to open file." << endl;
       return -1;
    }
    int32_t* id = new int32_t[fn];
    for (int i = 0; i < fn; ++ i) {id[i] = i;}
-   guide.write((char*)id, 0, 4 * fn);
+   guide.write((char*)id, 4 * fn);
    delete [] id;
    guide.close();
 
-   if (guide.open("test/guide.dat.idx", 2) < 0)
+   if (guide.open("test/guide.dat.idx", WRITE) < 0)
    {
       cout << "error to open file." << endl;
       return -1;
@@ -42,7 +42,7 @@ int main(int argc, char** argv)
    int64_t* idx = new int64_t[fn + 1];
    idx[0] = 0;
    for (int i = 1; i <= fn; ++ i) {idx[i] = idx[i - 1] + 4;}
-   guide.write((char*)idx, 0, 8 * (fn + 1));
+   guide.write((char*)idx, 8 * (fn + 1));
    delete [] idx;
    guide.close();
 

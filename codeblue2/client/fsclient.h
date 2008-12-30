@@ -34,7 +34,7 @@ written by
 #include <transport.h>
 #include <client.h>
 
-enum SF_MODE{READ = 1, WRITE = 2, RW = 3, TRUNC = 4, APPEND = 8};
+enum SF_MODE{READ = 1, WRITE = 2, RW = 3, TRUNC = 4, APPEND = 8, SECURE = 16};
 enum SF_POS{BEG, CUR, END};
 
 class SectorFile: public Client

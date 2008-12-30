@@ -31,6 +31,7 @@ written by
 #define __CB_TRANSPORT_H__
 
 #include <udt.h>
+#include <crypto.h>
 
 class Transport
 {
@@ -54,11 +55,20 @@ public:
    int64_t recvfile(std::ofstream& ofs, int64_t offset, int64_t size);
    int close();
 
-   int64_t sendfile_encrypt(std::ifstream& ifs, int64_t offset, int64_t size, const char* key) {return 0;}
-   int64_t recvfile_decrypt(std::ofstream& ofs, int64_t offset, int64_t size, const char* key) {return 0;}
+public: // secure data/file transfer
+   int initCoder(unsigned char key[16], unsigned char iv[8]);
+   int releaseCoder();
+
+   int secure_send(const char* buf, int size);
+   int secure_recv(char* buf, int size);
+   int64_t secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size, const char* key);
+   int64_t secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size, const char* key);
 
 private:
    UDTSOCKET m_Socket;
+
+   Crypto m_Encoder;
+   Crypto m_Decoder;
 };
 
 #endif

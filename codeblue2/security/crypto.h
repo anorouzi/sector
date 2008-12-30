@@ -23,57 +23,38 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/29/2008
 *****************************************************************************/
 
+#ifndef __CRYPTO_H__
+#define __CRYPTO_H__
 
-#ifndef __SECTOR_CLIENT_H__
-#define __SECTOR_CLIENT_H__
+#include <openssl/evp.h>
 
-#include <gmp.h>
-#include <index.h>
-#include <sysstat.h>
-#include <pthread.h>
-
-class Client
+class Crypto
 {
 public:
-   Client();
-   virtual ~Client();
+   Crypto();
+   ~Crypto();
 
 public:
-   static int init(const string& server, const int& port);
-   static int login(const string& username, const string& password);
-   static int logout();
-   static int close();
+   static int generateKey(unsigned char key[16], unsigned char iv[8]);
 
-   static int list(const string& path, vector<SNode>& attr);
-   static int stat(const string& path, SNode& attr);
-   static int mkdir(const string& path);
-   static int move(const string& oldpath, const string& newpath);
-   static int remove(const string& path);
-   static int sysinfo(SysStat& sys);
+   int initEnc(unsigned char key[16], unsigned char iv[8]);
+   int initDec(unsigned char key[16], unsigned char iv[8]);
+   int release();
 
-public:
-   static int dataInfo(const vector<string>& files, vector<string>& info);
-
-protected:
-   static string revisePath(const string& path);
-
-protected:
-   static string m_strServerHost;
-   static string m_strServerIP;
-   static int m_iServerPort;
-   static CGMP m_GMP;
-   static int32_t m_iKey;
+   int encrypt(unsigned char* input, int insize, unsigned char* output, int& outsize);
+   int decrypt(unsigned char* input, int insize, unsigned char* output, int& outsize);
 
 private:
-   static int m_iCount;
+   unsigned char m_pcKey[16];
+   unsigned char m_pcIV[8];
+   EVP_CIPHER_CTX m_CTX;
+   int m_iCoderType;		// 1: encoder, -1:decoder
 
-protected:
-   static int m_iReusePort;
+   static const int m_giEncBlockSize = 1024;
+   static const int m_giDecBlockSize = 1032;
 };
-
-typedef Client Sector;
 
 #endif

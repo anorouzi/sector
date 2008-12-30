@@ -66,8 +66,13 @@ public:
    int m_iStatus;		// 0: uninitialized, 1: initialized, -1: bad
 };
 
-struct SphereResult
+class SphereResult
 {
+public:
+   SphereResult();
+   ~SphereResult();
+
+public:
    int m_iResID;		// result ID
 
    char* m_pcData;		// result data

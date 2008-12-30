@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/22/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -995,6 +995,7 @@ void* Master::process(void* s)
             msg->setData(0, addr.m_strIP.c_str(), addr.m_strIP.length() + 1);
             msg->setData(64, (char*)&addr.m_iPort, 4);
             msg->setData(68, (char*)&dataport, 4);
+            msg->setData(72, (char*)&attr.m_llSize, 8);
 
             self->m_GMP.sendto(ip, port, id, msg);
 

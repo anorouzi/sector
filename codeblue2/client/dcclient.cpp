@@ -208,6 +208,23 @@ void SphereStream::setOutputPath(const string& path, const string& name)
    m_strName = name;
 }
 
+
+//
+SphereResult::SphereResult():
+m_iResID(-1),
+m_pcData(NULL),
+m_iDataLen(0),
+m_pllIndex(NULL),
+m_iIndexLen(0)
+{
+}
+
+SphereResult::~SphereResult()
+{
+   delete [] m_pcData;
+   delete [] m_pllIndex;
+}
+
 //
 SphereProcess::SphereProcess():
 m_iMinUnitSize(1000000),

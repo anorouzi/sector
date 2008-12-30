@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Group Messaging Protocol (GMP)
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/15/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/29/2008
 *****************************************************************************/
 
 #include <string>
@@ -35,9 +35,6 @@ CUserMessage::CUserMessage():
 m_iDataLength(0),
 m_iBufLength(1500)
 {
-   if (m_iBufLength < 4)
-      m_iBufLength = 4;
-
    m_pcBuffer = new char[m_iBufLength];
 }
 
@@ -45,8 +42,8 @@ CUserMessage::CUserMessage(const int& len):
 m_iDataLength(0),
 m_iBufLength(len)
 {
-   if (m_iBufLength < 4)
-      m_iBufLength = 4;
+   if (m_iBufLength < 8)
+      m_iBufLength = 8;
 
    m_pcBuffer = new char[m_iBufLength];
 }

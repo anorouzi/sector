@@ -177,3 +177,31 @@ int Transport::close()
 {
    return UDT::close(m_Socket);
 }
+
+int Transport::initCoder(unsigned char key[16], unsigned char iv[16])
+{
+   m_Encoder.initEnc(key, iv);
+   m_Decoder.initDec(key, iv);
+}
+
+int Transport::releaseCoder()
+{
+   m_Encoder.release();
+   m_Encoder.release();
+}
+
+int Transport::secure_send(const char* buf, int size)
+{
+}
+
+int Transport::secure_recv(char* buf, int size)
+{
+}
+
+int64_t Transport::secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size, const char* key)
+{
+}
+
+int64_t Transport::secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size, const char* key)
+{
+}
