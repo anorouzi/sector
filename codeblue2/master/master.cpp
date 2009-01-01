@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/30/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/01/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -56,6 +56,9 @@ int ActiveUser::deserialize(vector<string>& dirs, const string& buf)
 
 bool ActiveUser::match(const string& path, int32_t rwx)
 {
+   // check read flag bit 1 and write flag bit 2
+   rwx &= 3;
+
    if ((rwx & 1) != 0)
    {
       for (vector<string>::iterator i = m_vstrReadList.begin(); i != m_vstrReadList.end(); ++ i)
@@ -936,7 +939,7 @@ void* Master::process(void* s)
             if (r < 0)
             {
                // file does not exist
-               if (mode == 1)
+               if (!(mode & 2))
                {
                   self->reject(ip, port, id, SectorError::E_NOEXIST);
                   self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
@@ -990,7 +993,9 @@ void* Master::process(void* s)
             msg->setData(68, (char*)&key, 4);
             msg->setData(72, (char*)&(mode), 4);
             msg->setData(76, (char*)&(transid), 4);
-            msg->setData(80, path.c_str(), path.length() + 1);
+            msg->setData(80, (char*)user->m_pcKey, 16);
+            msg->setData(96, (char*)user->m_pcIV, 8);
+            msg->setData(104, path.c_str(), path.length() + 1);
 
             self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
             dataport = *(int32_t*)(msg->getData());

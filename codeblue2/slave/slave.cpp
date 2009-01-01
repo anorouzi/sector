@@ -271,7 +271,9 @@ void Slave::run()
             p->key = *(int*)(msg->getData() + 68);
             p->mode = *(int*)(msg->getData() + 72);
             p->transid = *(int*)(msg->getData() + 76);
-            p->filename = msg->getData() + 80;
+            memcpy(p->crypto_key, msg->getData() + 80, 16);
+            memcpy(p->crypto_iv, msg->getData() + 96, 8);
+            p->filename = msg->getData() + 104;
 
             char* tmp = new char[64 + p->filename.length()];
             sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_data_port);

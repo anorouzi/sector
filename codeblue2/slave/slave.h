@@ -154,6 +154,8 @@ private:
       string client_ip;		// client IP
       int client_data_port;	// client data channel port
       int key;			// client key
+      unsigned char crypto_key[16];
+      unsigned char crypto_iv[8];
    };
 
    struct Param3

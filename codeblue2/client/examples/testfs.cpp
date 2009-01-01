@@ -23,7 +23,7 @@ int main(int argc, char** argv)
    const int fn = sys.m_llTotalSlaves;
 
    SectorFile guide;
-   if (guide.open("test/guide.dat", WRITE) < 0)
+   if (guide.open("test/guide.dat", SF_MODE::WRITE) < 0)
    {
       cout << "error to open file." << endl;
       return -1;
@@ -34,7 +34,7 @@ int main(int argc, char** argv)
    delete [] id;
    guide.close();
 
-   if (guide.open("test/guide.dat.idx", WRITE) < 0)
+   if (guide.open("test/guide.dat.idx", SF_MODE::WRITE) < 0)
    {
       cout << "error to open file." << endl;
       return -1;

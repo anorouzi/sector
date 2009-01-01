@@ -44,7 +44,15 @@ void* Slave::fileHandler(void* p)
    int key = ((Param2*)p)->key;
    int mode = ((Param2*)p)->mode;
    int transid = ((Param2*)p)->transid;
+   unsigned char crypto_key[16];
+   unsigned char crypto_iv[8];
+   memcpy(crypto_key, ((Param2*)p)->crypto_key, 16);
+   memcpy(crypto_iv, ((Param2*)p)->crypto_iv, 8);
    delete (Param2*)p;
+
+   bool bRead = mode & 1;
+   bool bWrite = mode & 2;
+   bool bSecure = mode & 16;
 
    int32_t cmd;
    bool run = true;
@@ -56,6 +64,9 @@ void* Slave::fileHandler(void* p)
       self->logError(1, ip, port, sname);
       return NULL;
    }
+
+   if (bSecure)
+      datachn->initCoder(crypto_key, crypto_iv);
 
    //create a new directory or file in case it does not exist
    int change = 0;
@@ -93,16 +104,16 @@ void* Slave::fileHandler(void* p)
       {
          response = -1;
 
-         if ((2 == cmd) || (4 == cmd))
+         if (((2 == cmd) || (4 == cmd)) && bWrite)
          {
             ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-            if (!ofs.fail() || (0 != (mode & 2)))
+            if (!ofs.fail() && !ofs.bad())
                response = 0;
          }
-         else if ((1 == cmd) || (3 == cmd))
+         else if (((1 == cmd) || (3 == cmd)) && bRead)
          {
             ifs.open(filename.c_str(), ios::in | ios::binary);
-            if (!ifs.fail() || (0 != (mode & 1)))
+            if (!ifs.fail() && !ifs.bad())
                response = 0;
          }
 
@@ -128,7 +139,7 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            if (datachn->sendfile(ifs, param[0], param[1]) < 0)
+            if (datachn->sendfileEx(ifs, param[0], param[1], bSecure) < 0)
                run = false;
 
             // update total sent data size
@@ -147,7 +158,7 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            if (datachn->recvfile(ofs, param[0], param[1]) < 0)
+            if (datachn->recvfileEx(ofs, param[0], param[1], bSecure) < 0)
                run = false;
             else
                wb += param[1];
@@ -185,7 +196,7 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            if (datachn->sendfile(ifs, offset, size) < 0)
+            if (datachn->sendfileEx(ifs, offset, size, bSecure) < 0)
                run = false;
             else
                rb += size;
@@ -207,7 +218,7 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            if (datachn->recvfile(ofs, offset, size) < 0)
+            if (datachn->recvfileEx(ofs, offset, size, bSecure) < 0)
                run = false;
             else
                wb += size;
@@ -254,6 +265,8 @@ void* Slave::fileHandler(void* p)
    self->report(transid, sname, change);
 
    datachn->send((char*)&cmd, 4);
+   if (bSecure)
+      datachn->releaseCoder();
    datachn->close();
    delete datachn;
 

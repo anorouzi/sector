@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/29/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/01/2009
 *****************************************************************************/
 
 #include <stdio.h>
@@ -34,8 +34,6 @@ written by
 #include <unistd.h>
 #include <string.h>
 #include "crypto.h"
-#include <iostream>
-using namespace std;
 
 Crypto::Crypto():
 m_iCoderType(0)
@@ -69,6 +67,8 @@ int Crypto::generateKey(unsigned char key[16], unsigned char iv[8])
 
    //for (int i = 0; i < 16; i++)
    //   printf("%d \t", key[i]);
+   //for (int i = 0; i < 8; i++)
+   //   printf ("%d \t", iv[i]);
 
    close (fd);
    return 0;

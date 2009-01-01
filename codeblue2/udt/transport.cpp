@@ -270,3 +270,31 @@ int64_t Transport::secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t s
    delete [] tmp;
    return size - torecv;
 }
+
+int Transport::sendEx(const char* buf, int size, bool secure)
+{
+   if (!secure)
+      return send(buf, size);
+   return secure_send(buf, size);
+}
+
+int Transport::recvEx(char* buf, int size, bool secure)
+{
+   if (!secure)
+      return recv(buf, size);
+   return secure_recv(buf, size);
+}
+
+int64_t Transport::sendfileEx(std::ifstream& ifs, int64_t offset, int64_t size, bool secure)
+{
+   if (!secure)
+      return sendfile(ifs, offset, size);
+   return secure_sendfile(ifs, offset, size);
+}
+
+int64_t Transport::recvfileEx(std::ofstream& ofs, int64_t offset, int64_t size, bool secure)
+{
+   if (!secure)
+      return recvfile(ofs, offset, size);
+   return secure_recvfile(ofs, offset, size);
+}

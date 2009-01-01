@@ -34,8 +34,22 @@ written by
 #include <transport.h>
 #include <client.h>
 
-enum SF_MODE{READ = 1, WRITE = 2, RW = 3, TRUNC = 4, APPEND = 8, SECURE = 16};
-enum SF_POS{BEG, CUR, END};
+struct SF_MODE
+{
+   static const int READ = 1;
+   static const int WRITE = 2;
+   static const int RW = 3;
+   static const int TRUNC = 4;
+   static const int APPEND = 8;
+   static const int SECURE = 16;
+};
+
+struct SF_POS
+{
+   static const int BEG = 1;
+   static const int CUR = 2;
+   static const int END = 3;
+};
 
 class SectorFile: public Client
 {
@@ -44,15 +58,15 @@ public:
    virtual ~SectorFile() {}
 
 public:
-   int open(const string& filename, SF_MODE = READ);
+   int open(const string& filename, int mode = SF_MODE::READ);
    int64_t read(char* buf, const int64_t& size);
    int64_t write(const char* buf, const int64_t& size);
    int download(const char* localpath, const bool& cont = false);
    int upload(const char* localpath, const bool& cont = false);
    int close();
 
-   int seekp(int64_t off, SF_POS pos = BEG);
-   int seekg(int64_t off, SF_POS pos = BEG);
+   int seekp(int64_t off, int pos = SF_POS::BEG);
+   int seekg(int64_t off, int pos = SF_POS::BEG);
    int64_t tellp();
    int64_t tellg();
    bool eof();
@@ -67,6 +81,10 @@ private:
    int64_t m_llSize;
    int64_t m_llCurReadPos;
    int64_t m_llCurWritePos;
+
+   bool m_bRead;
+   bool m_bWrite;
+   bool m_bSecure;
 };
 
 #endif

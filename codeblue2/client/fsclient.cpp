@@ -32,7 +32,7 @@ written by
 
 using namespace std;
 
-int SectorFile::open(const string& filename, SF_MODE mode)
+int SectorFile::open(const string& filename, int mode)
 {
    m_strFileName = revisePath(filename);
 
@@ -61,6 +61,10 @@ int SectorFile::open(const string& filename, SF_MODE mode)
    m_llSize = *(int64_t*)(msg.getData() + 72);
    m_llCurReadPos = m_llCurWritePos = 0;
 
+   m_bRead = mode & 1;
+   m_bWrite = mode & 2;
+   m_bSecure = mode & 16;
+
    cout << "open file " << filename << " " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
    return m_DataChn.connect(msg.getData(), *(int*)(msg.getData() + 68));
 }
@@ -80,7 +84,7 @@ int64_t SectorFile::read(char* buf, const int64_t& size)
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   rsize = m_DataChn.recv(buf, size);
+   rsize = m_DataChn.recvEx(buf, size, m_bSecure);
 
    if (rsize > 0)
       m_llCurReadPos += rsize;
@@ -103,7 +107,7 @@ int64_t SectorFile::write(const char* buf, const int64_t& size)
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   wsize = m_DataChn.send(buf, size);
+   wsize = m_DataChn.sendEx(buf, size, m_bSecure);
 
    if (wsize > 0)
       m_llCurWritePos += wsize;
@@ -143,7 +147,7 @@ int SectorFile::download(const char* localpath, const bool& cont)
    if (m_DataChn.recv((char*)&size, 8) < 0)
       return -1;
 
-   if (m_DataChn.recvfile(ofs, offset, size) < 0)
+   if (m_DataChn.recvfileEx(ofs, offset, size, m_bSecure) < 0)
       return -1;
 
    ofs.close();
@@ -174,7 +178,7 @@ int SectorFile::upload(const char* localpath, const bool& cont)
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
       return -1;
 
-   if (m_DataChn.sendfile(ifs, 0, size) < 0)
+   if (m_DataChn.sendfileEx(ifs, 0, size, m_bSecure) < 0)
       return -1;
 
    ifs.close();
@@ -198,23 +202,23 @@ int SectorFile::close()
    return 1;
 }
 
-int SectorFile::seekp(int64_t off, SF_POS pos)
+int SectorFile::seekp(int64_t off, int pos)
 {
    switch (pos)
    {
-   case BEG:
+   case SF_POS::BEG:
       if (off < 0)
          return -1;
       m_llCurWritePos = off;
       break;
 
-   case CUR:
+   case SF_POS::CUR:
       if (off < -m_llCurWritePos)
          return -1;
       m_llCurWritePos += off;
       break;
 
-   case END:
+   case SF_POS::END:
       if (off < -m_llSize)
          return -1;
       m_llCurWritePos = m_llSize + off;
@@ -224,23 +228,23 @@ int SectorFile::seekp(int64_t off, SF_POS pos)
    return 0;
 }
 
-int SectorFile::seekg(int64_t off, SF_POS pos)
+int SectorFile::seekg(int64_t off, int pos)
 {
    switch (pos)
    {
-   case BEG:
+   case SF_POS::BEG:
       if ((off < 0) || (off > m_llSize))
          return -1;
       m_llCurReadPos = off;
       break;
 
-   case CUR:
+   case SF_POS::CUR:
       if ((off < -m_llCurReadPos) || (off > m_llSize - m_llCurReadPos))
          return -1;
       m_llCurReadPos += off;
       break;
 
-   case END:
+   case SF_POS::END:
       if ((off < -m_llSize) || (off > 0))
          return -1;
       m_llCurReadPos = m_llSize + off;
