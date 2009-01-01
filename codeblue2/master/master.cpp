@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/30/2008
 *****************************************************************************/
 
 #include <common.h>
@@ -526,9 +526,12 @@ void* Master::serviceEx(void* p)
             ActiveUser au;
             au.m_strName = user;
             au.m_strIP = ip;
-            s->recv((char*)&au.m_iPort, 4);
             au.m_iKey = key;
             au.m_llLastRefreshTime = CTimer::getTime();
+
+            s->recv((char*)&au.m_iPort, 4);
+            s->recv((char*)au.m_pcKey, 16);
+            s->recv((char*)au.m_pcIV, 8);
 
             int32_t size = 0;
             char* buf = NULL;
@@ -1097,7 +1100,12 @@ void* Master::process(void* s)
             msg->setData(64, (char*)&port, 4);
             msg->setData(msg->m_iDataLength - SectorMsg::m_iHdrSize, (char*)&transid, 4);
 
-            self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg);
+            if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
+            {
+               self->reject(ip, port, id, SectorError::E_UNKNOWN);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "REJECTED DUE TO SLAVE FAILURE", "");
+               break;
+            }
 
             self->m_GMP.sendto(ip, port, id, msg);
 

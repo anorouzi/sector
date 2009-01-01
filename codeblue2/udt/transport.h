@@ -61,8 +61,8 @@ public: // secure data/file transfer
 
    int secure_send(const char* buf, int size);
    int secure_recv(char* buf, int size);
-   int64_t secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size, const char* key);
-   int64_t secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size, const char* key);
+   int64_t secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size);
+   int64_t secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size);
 
 private:
    UDTSOCKET m_Socket;

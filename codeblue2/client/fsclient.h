@@ -51,13 +51,15 @@ public:
    int upload(const char* localpath, const bool& cont = false);
    int close();
 
-   int seekp(int64_t off, SF_POS pos);
-   int seekg(int64_t off, SF_POS pos);
+   int seekp(int64_t off, SF_POS pos = BEG);
+   int seekg(int64_t off, SF_POS pos = BEG);
    int64_t tellp();
    int64_t tellg();
    bool eof();
 
 private:
+   unsigned char m_pcKey[16];
+   unsigned char m_pcIV[8];
    Transport m_DataChn;
 
    string m_strFileName;

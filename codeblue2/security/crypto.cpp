@@ -117,13 +117,13 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
 
    for (int ts = insize; ts > 0; )
    {
-      int unitsize = (ts < m_giEncBlockSize) ? ts : m_giEncBlockSize;
+      int unitsize = (ts < g_iEncBlockSize) ? ts : g_iEncBlockSize;
 
       int len;
       if (EVP_EncryptUpdate(&m_CTX, op, &len, ip, unitsize) != 1)
       {
          printf ("error in encrypt update\n");
-	 return 0;
+         return 0;
       }
 
       ip += unitsize;
@@ -153,7 +153,7 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
 
    for (int ts = insize; ts > 0; )
    {
-      int unitsize = (ts < m_giDecBlockSize) ? ts : m_giDecBlockSize;
+      int unitsize = (ts < g_iDecBlockSize) ? ts : g_iDecBlockSize;
 
       int len;
       if (EVP_DecryptUpdate(&m_CTX, op, &len, ip, unitsize) != 1)
@@ -168,7 +168,7 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
       if (EVP_DecryptFinal(&m_CTX, op, &len) != 1)
       {
          printf("error in decrypt final\n");
-	 return 0;
+         return 0;
       }
 
       op += len;

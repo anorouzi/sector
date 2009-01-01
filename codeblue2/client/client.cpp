@@ -29,18 +29,21 @@ written by
 
 #include <ssltransport.h>
 #include <netdb.h>
+#include <crypto.h>
 #include "client.h"
 #include <iostream>
 
 using namespace std;
 
-string Client::m_strServerHost = "";
-string Client::m_strServerIP = "";
-int Client::m_iServerPort = 0;
-CGMP Client::m_GMP;
-int32_t Client::m_iKey = 0;
-int Client::m_iCount = 0;
-int Client::m_iReusePort = 0;
+string Client::g_strServerHost = "";
+string Client::g_strServerIP = "";
+int Client::g_iServerPort = 0;
+CGMP Client::g_GMP;
+int32_t Client::g_iKey = 0;
+int Client::g_iCount = 0;
+unsigned char Client::g_pcCryptoKey[16];
+unsigned char Client::g_pcCryptoIV[8];
+int Client::g_iReusePort = 0;
 
 Client::Client()
 {
@@ -52,7 +55,7 @@ Client::~Client()
 
 int Client::init(const string& server, const int& port)
 {
-   if (m_iCount ++ > 0)
+   if (g_iCount ++ > 0)
       return 1;
 
    struct hostent* serverip = gethostbyname(server.c_str());
@@ -61,15 +64,15 @@ int Client::init(const string& server, const int& port)
       cerr << "incorrect host name.\n";
       return -1;
    }
-
-   m_strServerHost = server;
+   g_strServerHost = server;
    char buf[64];
-   m_strServerIP = inet_ntop(AF_INET, serverip->h_addr_list[0], buf, 64);
-   
-   m_iServerPort = port;
+   g_strServerIP = inet_ntop(AF_INET, serverip->h_addr_list[0], buf, 64);
+   g_iServerPort = port;
+
+   Crypto::generateKey(g_pcCryptoKey, g_pcCryptoIV);
 
    Transport::initialize();
-   m_GMP.init(0);
+   g_GMP.init(0);
 
    return 1;
 }
@@ -82,7 +85,7 @@ int Client::login(const string& username, const string& password)
    secconn.initClientCTX("master_node.cert");
    secconn.open(NULL, 0);
 
-   if (secconn.connect(m_strServerHost.c_str(), m_iServerPort) < 0)
+   if (secconn.connect(g_strServerHost.c_str(), g_iServerPort) < 0)
    {
       cerr << "cannot set up secure connection to the master.\n";
       return -1;
@@ -91,40 +94,46 @@ int Client::login(const string& username, const string& password)
    int cmd = 2;
    secconn.send((char*)&cmd, 4);
 
+   // send username and password
    char buf[128];
    strncpy(buf, username.c_str(), 64);
    secconn.send(buf, 64);
    strncpy(buf, password.c_str(), 128);
    secconn.send(buf, 128);
 
-   int32_t port = m_GMP.getPort();
+   int32_t port = g_GMP.getPort();
    secconn.send((char*)&port, 4);
-   secconn.recv((char*)&m_iKey, 4);
+
+   // send encryption key/iv
+   secconn.send((char*)g_pcCryptoKey, 16);
+   secconn.send((char*)g_pcCryptoIV, 8);
+
+   secconn.recv((char*)&g_iKey, 4);
 
    secconn.close();
    SSLTransport::destroy();
 
-   return m_iKey;
+   return g_iKey;
 }
 
 int Client::logout()
 {
    SectorMsg msg;
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setType(2);
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
-   m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg);
+   return g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg);
 }
 
 int Client::close()
 {
-   if (m_iCount -- == 0)
+   if (g_iCount -- == 0)
    {
-      m_strServerHost = "";
-      m_strServerIP = "";
-      m_iServerPort = 0;
-      m_GMP.close();
+      g_strServerHost = "";
+      g_strServerIP = "";
+      g_iServerPort = 0;
+      g_GMP.close();
       Transport::release();
    }
 
@@ -138,10 +147,10 @@ int Client::list(const string& path, vector<SNode>& attr)
    SectorMsg msg;
    msg.resize(65536);
    msg.setType(101);
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -169,10 +178,10 @@ int Client::stat(const string& path, SNode& attr)
    SectorMsg msg;
    msg.resize(65536);
    msg.setType(102);
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -200,10 +209,10 @@ int Client::mkdir(const string& path)
 
    SectorMsg msg;
    msg.setType(103);
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -220,10 +229,10 @@ int Client::move(const string& oldpath, const string& newpath)
 
    SectorMsg msg;
    msg.setType(103);
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -238,10 +247,10 @@ int Client::remove(const string& path)
 
    SectorMsg msg;
    msg.setType(105);
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -261,11 +270,11 @@ string Client::revisePath(const string& path)
 int Client::sysinfo(SysStat& sys)
 {
    SectorMsg msg;
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setType(3);
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)

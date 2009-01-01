@@ -38,18 +38,22 @@ int SectorFile::open(const string& filename, SF_MODE mode)
 
    SectorMsg msg;
    msg.setType(110); // open the file
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
 
-   int port = m_iReusePort;
+   memcpy(m_pcKey, g_pcCryptoKey, 16);
+   memcpy(m_pcIV, g_pcCryptoIV, 8);
+   m_DataChn.initCoder(m_pcKey, m_pcIV);
+
+   int port = g_iReusePort;
    m_DataChn.open(port, true, true);
-   m_iReusePort = port;
+   g_iReusePort = port;
 
    msg.setData(0, (char*)&port, 4);
    int32_t m = mode;
    msg.setData(4, (char*)&m, 4);
    msg.setData(8, m_strFileName.c_str(), m_strFileName.length() + 1);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -188,6 +192,7 @@ int SectorFile::close()
    // wait for response
    m_DataChn.recv((char*)&cmd, 4);
 
+   m_DataChn.releaseCoder();
    m_DataChn.close();
 
    return 1;

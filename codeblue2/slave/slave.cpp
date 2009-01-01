@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/31/2008
 *****************************************************************************/
 
 
@@ -315,7 +315,13 @@ void Slave::run()
          {
             Transport* datachn = new Transport;
             int dataport = 0;
-            datachn->open(dataport, true, false);
+
+            if (datachn->open(dataport, true, false) < 0)
+            {
+               msg->setType(-1);
+               m_GMP.sendto(ip, port, id, msg);
+               break;
+            }
 
             Param4* p = new Param4;
             p->serv_instance = this;

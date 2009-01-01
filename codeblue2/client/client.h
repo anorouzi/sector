@@ -61,17 +61,21 @@ protected:
    static string revisePath(const string& path);
 
 protected:
-   static string m_strServerHost;
-   static string m_strServerIP;
-   static int m_iServerPort;
-   static CGMP m_GMP;
-   static int32_t m_iKey;
+   static string g_strServerHost;
+   static string g_strServerIP;
+   static int g_iServerPort;
+   static CGMP g_GMP;
+   static int32_t g_iKey;
+
+   // this is the global key/iv for this client. do not use this for any connection; a new connection should duplicate this
+   static unsigned char g_pcCryptoKey[16];
+   static unsigned char g_pcCryptoIV[8];
 
 private:
-   static int m_iCount;
+   static int g_iCount;
 
 protected:
-   static int m_iReusePort;
+   static int g_iReusePort;
 };
 
 typedef Client Sector;

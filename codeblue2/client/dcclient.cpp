@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/31/2008
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -56,7 +56,7 @@ int Client::dataInfo(const vector<string>& files, vector<string>& info)
 {
    SectorMsg msg;
    msg.setType(201);
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
 
    int offset = 0;
    int32_t size = -1;
@@ -72,7 +72,7 @@ int Client::dataInfo(const vector<string>& files, vector<string>& info)
    size = -1;
    msg.setData(offset, (char*)&size, 4);
 
-   if (m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0)
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -117,9 +117,11 @@ int SphereStream::init(const vector<string>& files)
 
    for (vector<string>::iterator i = datainfo.begin(); i != datainfo.end(); ++ i)
    {
-      char buf[1024];
+      char* buf = new char[i->length() + 2];
       strcpy(buf, i->c_str());
-      buf[strlen(buf) + 2] = '\0';
+      buf[strlen(buf) + 1] = '\0';
+
+      //file_name 5105847 -1 192.168.136.30 37209 192.168.136.32 39805
 
       int n = strlen(buf) + 1;
       char* p = buf;
@@ -149,19 +151,24 @@ int SphereStream::init(const vector<string>& files)
          m_llRecNum += *r;
       }
 
+      // retrieve all the locations
       while (true)
       {
          if (strlen(p) == 0)
             break;
 
+         p ++;
+
          Address addr;
          addr.m_strIP = p;
          p = p + strlen(p) + 1;
          addr.m_iPort = atoi(p);
-         p = p + strlen(p) + 1;
+         p = p + strlen(p);
 
          a->insert(addr);
       }
+
+      delete [] buf;
 
       f ++;
       s ++;
@@ -341,10 +348,10 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
 
    SectorMsg msg;
    msg.setType(202); // locate available SPE
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
-   if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+   if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
       cerr << "unable to locate any SPE.\n";
       return -1;
@@ -431,7 +438,7 @@ void* SphereProcess::run(void* param)
                int32_t cmd = -1;
                msg.setData(0, (char*)&cmd, 4);
                int id = 0;
-               self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iShufflerPort, id, &msg);
+               self->g_GMP.sendto(i->m_strIP.c_str(), i->m_iShufflerPort, id, &msg);
             }
          }
 
@@ -442,7 +449,7 @@ void* SphereProcess::run(void* param)
       int port;
       int tmp;
       SectorMsg msg;
-      if (self->m_GMP.recvfrom(ip, port, tmp, &msg, false) < 0)
+      if (self->g_GMP.recvfrom(ip, port, tmp, &msg, false) < 0)
          continue;
 
       int32_t id = *(uint32_t*)(msg.getData());
@@ -680,6 +687,7 @@ int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wai
 
       case 2:
          res = (*i)->m_pResult;
+         (*i)->m_pResult = NULL;
          res->m_strOrigFile = (*i)->m_strDataFile;
 
          pthread_mutex_lock(&m_DSLock);
@@ -733,18 +741,18 @@ int SphereProcess::connectSPE(SPE& s)
    if (s.m_iStatus >= 0)
       return 0;
 
-   int port = m_iReusePort;
+   int port = g_iReusePort;
    s.m_DataChn.open(port, true, true);
-   m_iReusePort = port;
+   g_iReusePort = port;
 
    SectorMsg msg;
    msg.setType(203); // start processing engine
-   msg.setKey(m_iKey);
+   msg.setKey(g_iKey);
    msg.setData(0, s.m_strIP.c_str(), s.m_strIP.length() + 1);
    msg.setData(64, (char*)&(s.m_iPort), 4);
    msg.setData(68, (char*)&(s.m_uiID), 4);
    msg.setData(72, (char*)&port, 4);
-   msg.setData(76, (char*)&m_iKey, 4);
+   msg.setData(76, (char*)&g_iKey, 4);
    msg.setData(80, m_strOperator.c_str(), m_strOperator.length() + 1);
    int offset = 80 + m_strOperator.length() + 1;
    msg.setData(offset, (char*)&m_iRows, 4);
@@ -753,7 +761,7 @@ int SphereProcess::connectSPE(SPE& s)
    offset += 4 + 8 + m_iParamSize;
    msg.setData(offset, (char*)&m_iProcType, 4);
 
-   if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+   if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
       cerr << "failed: " << s.m_strIP << " " << s.m_iPort << endl;
       s.m_DataChn.close();
@@ -888,7 +896,7 @@ int SphereProcess::prepareOutput()
          if (0 == s->m_iShufflerPort)
          {
             msg.setType(204);
-            msg.setKey(m_iKey);
+            msg.setKey(g_iKey);
 
             msg.setData(0, loc.m_strIP.c_str(), loc.m_strIP.length() + 1);
             msg.setData(64, (char*)&(loc.m_iPort), 4);
@@ -903,7 +911,7 @@ int SphereProcess::prepareOutput()
             msg.setData(offset, (char*)&size, 4);
             msg.setData(offset + 4, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
             offset += 4 + size;
-            msg.setData(offset, (char*)&m_iKey, 4);
+            msg.setData(offset, (char*)&g_iKey, 4);
             offset += 4;
             msg.setData(offset, (char*)&m_iProcType, 4);
             if (m_iProcType == 1)
@@ -915,7 +923,7 @@ int SphereProcess::prepareOutput()
             }
 
             cout << "request shuffler " << loc.m_strIP << " " << loc.m_iPort << endl;
-            if ((m_GMP.rpc(m_strServerIP.c_str(), m_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+            if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
                continue;
 
             s->m_iShufflerPort = *(int32_t*)msg.getData();

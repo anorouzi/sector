@@ -53,8 +53,8 @@ private:
    EVP_CIPHER_CTX m_CTX;
    int m_iCoderType;		// 1: encoder, -1:decoder
 
-   static const int m_giEncBlockSize = 1024;
-   static const int m_giDecBlockSize = 1032;
+   static const int g_iEncBlockSize = 1024;
+   static const int g_iDecBlockSize = 1032;
 };
 
 #endif

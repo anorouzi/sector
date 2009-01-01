@@ -62,6 +62,9 @@ int Transport::open(int& port, bool rendezvous, bool reuseaddr)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
+   if (UDT::INVALID_SOCK == m_Socket)
+      return -1;
+
    UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
 
    sockaddr_in my_addr;
@@ -70,7 +73,8 @@ int Transport::open(int& port, bool rendezvous, bool reuseaddr)
    my_addr.sin_addr.s_addr = INADDR_ANY;
    memset(&(my_addr.sin_zero), '\0', 8);
 
-   UDT::bind(m_Socket, (sockaddr*)&my_addr, sizeof(my_addr));
+   if (UDT::bind(m_Socket, (sockaddr*)&my_addr, sizeof(my_addr)) == UDT::ERROR)
+      return -1;
 
    int size = sizeof(sockaddr_in);
    UDT::getsockname(m_Socket, (sockaddr*)&my_addr, &size);
@@ -182,26 +186,87 @@ int Transport::initCoder(unsigned char key[16], unsigned char iv[16])
 {
    m_Encoder.initEnc(key, iv);
    m_Decoder.initDec(key, iv);
+   return 0;
 }
 
 int Transport::releaseCoder()
 {
    m_Encoder.release();
-   m_Encoder.release();
+   m_Decoder.release();
+   return 0;
 }
 
 int Transport::secure_send(const char* buf, int size)
 {
+   char* tmp = new char[size + 64];
+   int len = size + 64;
+   m_Encoder.encrypt((unsigned char*)buf, size, (unsigned char*)tmp, len);
+
+   send((char*)&len, 4);
+   send(tmp, len);
+   delete [] tmp;
+
+   return size;
 }
 
 int Transport::secure_recv(char* buf, int size)
 {
+   int len;
+   if (recv((char*)&len, 4) < 0)
+      return -1;
+
+   char* tmp = new char[len];
+   if (recv(tmp, len) < 0)
+   {
+      delete [] tmp;
+      return -1;
+   }
+
+   m_Decoder.decrypt((unsigned char*)tmp, len, (unsigned char*)buf, size);
+
+   delete [] tmp;
+
+   return size;
 }
 
-int64_t Transport::secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size, const char* key)
+int64_t Transport::secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size)
 {
+   const int block = 640000;
+   char* tmp = new char[block];
+
+   ifs.seekg(offset);
+
+   int64_t tosend = size;
+   while (tosend > 0)
+   {
+      int unitsize = (tosend < block) ? tosend : block;
+      ifs.read(tmp, unitsize);
+      if (secure_send(tmp, unitsize) < 0)
+         break;
+      tosend -= unitsize;
+   }
+
+   delete [] tmp;
+   return size - tosend;
 }
 
-int64_t Transport::secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size, const char* key)
+int64_t Transport::secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size)
 {
+   const int block = 640000;
+   char* tmp = new char[block];
+
+   ofs.seekp(offset);
+
+   int64_t torecv = size;
+   while (torecv > 0)
+   {
+      int unitsize = (torecv < block) ? torecv : block;
+      if (secure_recv(tmp, unitsize) < 0)
+         break;
+      ofs.write(tmp, unitsize);
+      torecv -= unitsize;
+   }
+
+   delete [] tmp;
+   return size - torecv;
 }

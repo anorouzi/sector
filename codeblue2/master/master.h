@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/21/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 12/30/2008
 *****************************************************************************/
 
 
@@ -48,14 +48,21 @@ public:
    bool match(const std::string& path, int rwx);
 
 public:
-   string m_strName;
-   string m_strIP;
-   int m_iPort;
-   int32_t m_iKey;
-   int64_t m_llLastRefreshTime;
-   std::vector<string> m_vstrReadList;
-   std::vector<string> m_vstrWriteList;
-   bool m_bExec;
+   string m_strName;				// user name
+
+   string m_strIP;				// client IP address
+   int m_iPort;					// client port
+
+   int32_t m_iKey;				// client key
+
+   unsigned char m_pcKey[16];			// client crypto key
+   unsigned char m_pcIV[8];			// client crypto iv
+
+   int64_t m_llLastRefreshTime;			// timestamp of last activity
+
+   std::vector<string> m_vstrReadList;		// readable directories
+   std::vector<string> m_vstrWriteList;		// writable directories
+   bool m_bExec;				// permission to run Sphere application
 };
 
 struct SlaveAddr
