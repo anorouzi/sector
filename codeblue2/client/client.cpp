@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/26/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
 *****************************************************************************/
 
 
@@ -31,6 +31,7 @@ written by
 #include <netdb.h>
 #include <crypto.h>
 #include "client.h"
+#include <constant.h>
 #include <iostream>
 
 using namespace std;
@@ -81,14 +82,17 @@ int Client::login(const string& username, const string& password)
 {
    SSLTransport::init();
 
+   int result;
    SSLTransport secconn;
-   secconn.initClientCTX("master_node.cert");
-   secconn.open(NULL, 0);
+   if ((result = secconn.initClientCTX("master_node.cert")) < 0)
+      return result;
+   if ((result = secconn.open(NULL, 0)) < 0)
+      return result;
 
-   if (secconn.connect(g_strServerHost.c_str(), g_iServerPort) < 0)
+   if ((result = secconn.connect(g_strServerHost.c_str(), g_iServerPort)) < 0)
    {
       cerr << "cannot set up secure connection to the master.\n";
-      return -1;
+      return result;
    }
 
    int cmd = 2;
@@ -151,7 +155,7 @@ int Client::list(const string& path, vector<SNode>& attr)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -182,7 +186,7 @@ int Client::stat(const string& path, SNode& attr)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -213,7 +217,7 @@ int Client::mkdir(const string& path)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -233,7 +237,7 @@ int Client::move(const string& oldpath, const string& newpath)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -251,7 +255,7 @@ int Client::remove(const string& path)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -275,7 +279,7 @@ int Client::sysinfo(SysStat& sys)
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());

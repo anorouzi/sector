@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
 *****************************************************************************/
 
 
@@ -54,7 +54,7 @@ int SectorFile::open(const string& filename, int mode)
    msg.setData(8, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
@@ -65,31 +65,35 @@ int SectorFile::open(const string& filename, int mode)
    m_bWrite = mode & 2;
    m_bSecure = mode & 16;
 
-   cout << "open file " << filename << " " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
+   cerr << "open file " << filename << " " << msg.getData() << " " << *(int*)(msg.getData() + 64) << endl;
    return m_DataChn.connect(msg.getData(), *(int*)(msg.getData() + 68));
 }
 
 int64_t SectorFile::read(char* buf, const int64_t& size)
 {
+   int64_t realsize = size;
+   if (m_llCurReadPos + size > m_llSize)
+      realsize = m_llSize - m_llCurReadPos;
+
    char req[20];
    *(int32_t*)req = 1; // cmd read
    *(int64_t*)(req + 4) = m_llCurReadPos;
-   *(int64_t*)(req + 12) = size;
+   *(int64_t*)(req + 12) = realsize;
 
    int32_t response = -1;
-   int64_t rsize = -1;
+   int64_t recvsize = -1;
 
    if (m_DataChn.send(req, 20) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
-      return -1;
+      return SectorError::E_CONNECTION;
 
-   rsize = m_DataChn.recvEx(buf, size, m_bSecure);
+   recvsize = m_DataChn.recvEx(buf, realsize, m_bSecure);
 
-   if (rsize > 0)
-      m_llCurReadPos += rsize;
+   if (recvsize > 0)
+      m_llCurReadPos += recvsize;
 
-   return rsize;
+   return recvsize;
 }
 
 int64_t SectorFile::write(const char* buf, const int64_t& size)
@@ -103,9 +107,9 @@ int64_t SectorFile::write(const char* buf, const int64_t& size)
    int64_t wsize = -1;
 
    if (m_DataChn.send(req, 20) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
-      return -1;
+      return SectorError::E_CONNECTION;
 
    wsize = m_DataChn.sendEx(buf, size, m_bSecure);
 
@@ -136,19 +140,22 @@ int SectorFile::download(const char* localpath, const bool& cont)
       offset = 0LL;
    }
 
+   if (ofs.bad() || ofs.fail())
+      return SectorError::E_LOCALFILE;
+
    char req[12];
    *(int32_t*)req = cmd;
    *(int64_t*)(req + 4) = offset;
 
    if (m_DataChn.send(req, 12) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
-      return -1;
+      return SectorError::E_CONNECTION;
    if (m_DataChn.recv((char*)&size, 8) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (m_DataChn.recvfileEx(ofs, offset, size, m_bSecure) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    ofs.close();
 
@@ -164,6 +171,9 @@ int SectorFile::upload(const char* localpath, const bool& cont)
    ifstream ifs;
    ifs.open(localpath, ios::in | ios::binary);
 
+   if (ifs.fail() || ifs.bad())
+      return SectorError::E_LOCALFILE;
+
    ifs.seekg(0, ios::end);
    size = ifs.tellg();
    ifs.seekg(0);
@@ -173,13 +183,13 @@ int SectorFile::upload(const char* localpath, const bool& cont)
    *(int64_t*)(req + 4) = size;
 
    if (m_DataChn.send(req, 12) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if ((m_DataChn.recv((char*)&response, 4) < 0) || (-1 == response))
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (m_DataChn.sendfileEx(ifs, 0, size, m_bSecure) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    ifs.close();
 
@@ -208,24 +218,24 @@ int SectorFile::seekp(int64_t off, int pos)
    {
    case SF_POS::BEG:
       if (off < 0)
-         return -1;
+         return SectorError::E_INVALID;
       m_llCurWritePos = off;
       break;
 
    case SF_POS::CUR:
       if (off < -m_llCurWritePos)
-         return -1;
+         return SectorError::E_INVALID;
       m_llCurWritePos += off;
       break;
 
    case SF_POS::END:
       if (off < -m_llSize)
-         return -1;
+         return SectorError::E_INVALID;
       m_llCurWritePos = m_llSize + off;
       break;
    }
 
-   return 0;
+   return 1;
 }
 
 int SectorFile::seekg(int64_t off, int pos)
@@ -234,24 +244,24 @@ int SectorFile::seekg(int64_t off, int pos)
    {
    case SF_POS::BEG:
       if ((off < 0) || (off > m_llSize))
-         return -1;
+         return SectorError::E_INVALID;
       m_llCurReadPos = off;
       break;
 
    case SF_POS::CUR:
       if ((off < -m_llCurReadPos) || (off > m_llSize - m_llCurReadPos))
-         return -1;
+         return SectorError::E_INVALID;
       m_llCurReadPos += off;
       break;
 
    case SF_POS::END:
       if ((off < -m_llSize) || (off > 0))
-         return -1;
+         return SectorError::E_INVALID;
       m_llCurReadPos = m_llSize + off;
       break;
    }
 
-   return 0;
+   return 1;
 }
 
 int64_t SectorFile::tellp()

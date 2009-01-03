@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,13 +23,11 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2008
 *****************************************************************************/
 
 #ifndef __SECTOR_CONSTANT_H__
 #define __SECTOR_CONSTANT_H__
-
-enum IOMODE {READ = 1, WRITE = 2, EXEC = 4};
 
 // ERROR codes
 struct SectorError
@@ -39,13 +37,37 @@ struct SectorError
    static const int E_EXIST = -1002;		// file/dir already exist
    static const int E_NOEXIST = -1003;		// file/dir not found
    static const int E_BUSY = -1004;		// file busy
+   static const int E_LOCALFILE = -1005;	// local file failure
    static const int E_SECURITY = -2000;		// security check failed
-   static const int E_ACCOUNT = -2001;		// account does not exist
-   static const int E_PASSWORD = -2002;		// incorrect password
+   static const int E_NOCERT = -2001;		// no certificate found
+   static const int E_ACCOUNT = -2002;		// account does not exist
+   static const int E_PASSWORD = -2003;		// incorrect password
    static const int E_ACL = -2003;		// visit from unallowd IP address
-   static const int E_RESOURCE = -3000;		// no available resources
-   static const int E_TIMEDOUT = -4000;		// timeout
-   static const int E_INVALID = -5000;		// invalid parameter
+   static const int E_INITCTX = -2004;		// failed to initialize CTX
+   static const int E_CONNECTION = - 3000;	// cannot connect to master
+   static const int E_RESOURCE = -4000;		// no available resources
+   static const int E_TIMEDOUT = -5000;		// timeout
+   static const int E_INVALID = -6000;		// invalid parameter
+   static const int E_SUPPORT = -6001;		// operation not supported
+};
+
+// file open mode
+struct SF_MODE
+{
+   static const int READ = 1;
+   static const int WRITE = 2;
+   static const int RW = 3;
+   static const int TRUNC = 4;
+   static const int APPEND = 8;
+   static const int SECURE = 16;
+};
+
+//file IO position base
+struct SF_POS
+{
+   static const int BEG = 1;
+   static const int CUR = 2;
+   static const int END = 3;
 };
 
 #endif

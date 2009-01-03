@@ -32,24 +32,8 @@ written by
 #include <gmp.h>
 #include <index.h>
 #include <transport.h>
+#include <constant.h>
 #include <client.h>
-
-struct SF_MODE
-{
-   static const int READ = 1;
-   static const int WRITE = 2;
-   static const int RW = 3;
-   static const int TRUNC = 4;
-   static const int APPEND = 8;
-   static const int SECURE = 16;
-};
-
-struct SF_POS
-{
-   static const int BEG = 1;
-   static const int CUR = 2;
-   static const int END = 3;
-};
 
 class SectorFile: public Client
 {

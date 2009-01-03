@@ -20,13 +20,10 @@
 <h4 class="func_name"><strong>open</strong></h4>
 <p>The<strong> open </strong> function opens a Sector file. </p>
 
-<div class="code">
-enum SF_MODE{READ = 1, WRITE = 2, RW = 3, TRUNC = 4, APPEND = 8};<br />
-<br />
-int download <br />
+<div class="code"> int download <br />
 (<br />
 &nbsp;&nbsp;&nbsp;const string&amp; <span class="style2">filename</span>, <br />
-&nbsp;&nbsp;&nbsp;SF_MODE <span class="style2">mode</span> = READ <br />
+&nbsp;&nbsp;&nbsp;int <span class="style2">mode</span> = SF_MODE::READ <br />
 );</div>
 
 <h5>Parameters</h5>
@@ -35,7 +32,40 @@ int download <br />
   <dt><i>filename</i></dt>
   <dd>[in] the name of the file to be opened.</dd>
   <dt><em>mode</em></dt>
-  <dd>[in] file open mode, default is READ ONLY.</dd>
+  <dd>[in] file open mode, default is READ ONLY.  
+    The open mode is defined as constants in structure SF_MODE.
+    The list of defined file open modes can be found in the table below:
+    <table width="100%" border="1" cellpadding="2" cellspacing="0" bordercolor="#CCCCCC">
+      <tr>
+        <td width="17%" class="table_headline"><strong>Mode</strong></td>
+        <td width="83%" class="table_headline"><strong>Comment</strong></td>
+      </tr>
+      <tr>
+        <td>SF_MODE::READ</td>
+        <td>read only </td>
+      </tr>
+      <tr>
+        <td>SF_MODE::WRITE</td>
+        <td>write only </td>
+      </tr>
+      <tr>
+        <td>SF_MODE::RW</td>
+        <td>read and write </td>
+      </tr>
+      <tr>
+        <td>SF_MODE::TRUNC</td>
+        <td>the file is emptied upon opening, must be used togeter with WRITE mode. NOT SUPPORTED YET. </td>
+      </tr>
+      <tr>
+        <td>SF_MODE::APPEND</td>
+        <td>the file write position offset is set to end of file upon opening, must be used together with WRITE mode. NOT SUPPORTED YET. </td>
+      </tr>
+      <tr>
+        <td>SF_MODE::SECURE</td>
+        <td>file IO is in secure mode, must be used togeter with one of the READ/WRITE mode. </td>
+      </tr>
+    </table>
+  </dd>
 </dl>
 <h5>Return Value</h5>
 <p>On success, the function returns 1. If error occurs, a negative value is returned. </p>
@@ -52,7 +82,8 @@ int download <br />
   </tr>
 </table>
 <h5>Description</h5>
-<p>File open mode can be a combined value of multiple options, e.g., READ | WRITE. </p>
+<p>File open mode can be a combined value of multiple options, e.g., READ | WRITE.\</p>
+<p>When necessary, Sector file IO can be encrypted by specifying SF_MODE::SECURE in the <em>mode</em> parameter. </p>
 <h5><strong>See Also</strong></h5>
 <p><strong><a href="r-c-sectorfile-close.htm">close</a></strong></p>
 <p>&nbsp;</p>

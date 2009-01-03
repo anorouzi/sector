@@ -16,7 +16,7 @@ libclient.a: $(OBJS)
 	ar -rcs $@ $^
 
 tools: _always_check_
-	cd ./tools; make clean; make; cd ../
+	cd ./tools; make; cd ../
 
 examples: _always_check_
 	cd ./examples; make; cd ../

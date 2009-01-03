@@ -20,13 +20,10 @@
 <h4 class="func_name"><strong>seekp</strong></h4>
 <p>The<strong> seekp </strong> function reset the current write offset position.</p>
 
-<div class="code">
-enum SF_POS{BEG, CUR, END};<br />
-<br />
-int seekp<br />
+<div class="code"> int seekp<br />
 (<br />
 &nbsp;&nbsp;&nbsp;int64_t <span class="style2">off</span>, <br />
-&nbsp;&nbsp;&nbsp;SF_POS <span class="style2">pos</span><br />
+&nbsp;&nbsp;&nbsp;int <span class="style2">pos</span> = SF_POS::BEG<br />
 );</div>
 
 <h5>Parameters</h5>
@@ -35,7 +32,27 @@ int seekp<br />
   <dt><i>off</i></dt>
   <dd>[in] The new relative offset.</dd>
   <dt><em>pos</em></dt>
-  <dd>[in] The base position to recalculate the offset.</dd>
+  <dd>[in] The base position to recalculate the offset. The available 
+    options are defined in structrure SF_POS:
+    <table width="100%" border="1" cellpadding="2" cellspacing="0" bordercolor="#CCCCCC">
+      <tr>
+        <td width="17%" class="table_headline"><strong>Option</strong></td>
+        <td width="83%" class="table_headline"><strong>Comment</strong></td>
+      </tr>
+      <tr>
+        <td>SF_POS::BEG</td>
+        <td>the head of the file </td>
+      </tr>
+      <tr>
+        <td>SF_POS::CUR</td>
+        <td>current position </td>
+      </tr>
+      <tr>
+        <td>SF_POS::END</td>
+        <td>the end of the file </td>
+      </tr>
+    </table>
+  </dd>
 </dl>
 <h5>Return Value</h5>
 <p>On success, the function returns 1. If error occurs, a negative value is returned. </p>

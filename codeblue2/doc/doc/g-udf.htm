@@ -63,6 +63,7 @@ int64_t m_llOffset; // position that the last file   processing ends at <br />
 </div>
 
 <p>If the unit processing function needs to process file, call a 3rd party   program, or generate new files, the SFile structure is designed for this   purpose. The string &quot;m_strHomeDir&quot; indicates where the input file is located on   the local disk. The string &quot;m_strLibDir&quot; indicates where the library files or   3rd party programs are located (those files that are uploaded by loadOperator).   Finally, if a new file is generated or an existing file is modified, insert   their names with relative directory path to the &quot;m_sstrFiles&quot; structure so that   Sector will refresh their metadata.</p>
+<p>Because Sphere uses thread rather than process, do NOT use exit() in the UDFs, otherwise it may quit the whole slave process. </p>
 </body>
 </html>
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
 *****************************************************************************/
 
 #include <unistd.h>
@@ -33,7 +33,7 @@ written by
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
+#include <constant.h>
 #include "ssltransport.h"
 
 #include <iostream>
@@ -77,14 +77,14 @@ int SSLTransport::initServerCTX(const char* cert, const char* key)
    if (m_pCTX == NULL)
    {
       cerr << "Failed init CTX. Aborting.\n";
-      return -1;
+      return SectorError::E_INITCTX;
    }
 
    if (!SSL_CTX_use_certificate_file(m_pCTX, cert, SSL_FILETYPE_PEM) || !SSL_CTX_use_PrivateKey_file(m_pCTX, key, SSL_FILETYPE_PEM))
    {
       ERR_print_errors_fp(stderr);
       SSL_CTX_free(m_pCTX);
-      return -1;
+      return SectorError::E_INITCTX;
    }
 
    return 1;
@@ -98,7 +98,7 @@ int SSLTransport::initClientCTX(const char* cert)
    {
       cerr << "Error loading trust store: " << cert << endl;
       SSL_CTX_free(m_pCTX);
-      return -1;
+      return SectorError::E_INITCTX;
    }
 
    return 1;
@@ -107,7 +107,7 @@ int SSLTransport::initClientCTX(const char* cert)
 int SSLTransport::open(const char* ip, const int& port)
 {
    if ((m_iSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-      return -1;
+      return SectorError::E_RESOURCE;
 
    if ((NULL == ip) && (0 == port))
       return 0;
@@ -124,7 +124,7 @@ int SSLTransport::open(const char* ip, const int& port)
    if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
    {
       cerr << "SSL socket unable to bind on address " << ip << " " << port << endl;
-      return -1;
+      return SectorError::E_RESOURCE;
    }
 
    return 0;
@@ -167,7 +167,7 @@ int SSLTransport::connect(const char* host, const int& port)
    if (NULL == he)
    {
       cerr << "SSL connect: invalid address " << host << " " << port << endl;
-      return -1;
+      return SectorError::E_CONNECTION;
    }
 
    addr.sin_addr.s_addr = ((in_addr*)he->h_addr)->s_addr;
@@ -176,7 +176,7 @@ int SSLTransport::connect(const char* host, const int& port)
    if (::connect(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
    {
       cerr << "SSL connect: unable to connect to server.\n";
-      return -1;
+      return SectorError::E_CONNECTION;
    }
 
    m_pSSL = SSL_new(m_pCTX);
@@ -184,12 +184,12 @@ int SSLTransport::connect(const char* host, const int& port)
    SSL_set_bio(m_pSSL, m_pBIO, m_pBIO);
 
    if (SSL_connect(m_pSSL) <= 0)
-      return -1;
+      return SectorError::E_SECURITY;
 
    if (SSL_get_verify_result(m_pSSL) != X509_V_OK)
    {
       cerr << "failed verify SSL certificate.\n";
-      return -1;
+      return SectorError::E_SECURITY;
    }
 
    X509* peer = SSL_get_peer_certificate(m_pSSL);

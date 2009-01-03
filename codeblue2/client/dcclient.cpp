@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -73,7 +73,7 @@ int Client::dataInfo(const vector<string>& files, vector<string>& info)
    msg.setData(offset, (char*)&size, 4);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -157,13 +157,11 @@ int SphereStream::init(const vector<string>& files)
          if (strlen(p) == 0)
             break;
 
-         p ++;
-
          Address addr;
          addr.m_strIP = p;
          p = p + strlen(p) + 1;
          addr.m_iPort = atoi(p);
-         p = p + strlen(p);
+         p = p + strlen(p) + 1;
 
          a->insert(addr);
       }
@@ -272,7 +270,7 @@ int SphereProcess::loadOperator(const char* library)
    if (::stat(library, &st) < 0)
    {
       cerr << "loadOperator: no library found.\n";
-      return -1;
+      return SectorError::E_LOCALFILE;
    }
 
    ifstream lib;
@@ -280,7 +278,7 @@ int SphereProcess::loadOperator(const char* library)
    if (lib.bad() || lib.fail())
    {
       cerr << "loadOperator: bad file.\n";
-      return -1;
+      return SectorError::E_LOCALFILE;
    }
    lib.close();
 
@@ -361,7 +359,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    if (0 == m_iSPENum)
    {
       cerr << "no available SPE found.\n";
-      return -1;
+      return SectorError::E_RESOURCE;
    }
 
    prepareSPE(msg.getData());
@@ -500,6 +498,9 @@ void* SphereProcess::run(void* param)
       }
    }
 
+   if (self->m_iProgress < 100)
+      self->m_iTotalSPE = 0;
+
    pthread_mutex_unlock(&self->m_RunLock);
 
    return NULL;
@@ -509,6 +510,9 @@ int SphereProcess::checkSPE()
 {
    timeval t;
    gettimeofday(&t, 0);
+
+   bool spe_busy = false;
+   bool ds_found = false;
 
    for (vector<SPE>::iterator s = m_vSPE.begin(); s != m_vSPE.end(); ++ s)
    {
@@ -544,7 +548,10 @@ int SphereProcess::checkSPE()
          }
 
          if (dss != m_vpDS.end())
+         {
             startSPE(*s, *dss);
+            ds_found = true;
+         }
 
          pthread_mutex_unlock(&m_DSLock);
       }
@@ -565,7 +572,16 @@ int SphereProcess::checkSPE()
 
             m_iTotalSPE --;
          }
+         else
+           spe_busy = true;
       }
+   }
+
+   // there are no busy SPEs, but none of them can be assigned to a DS. Error occurs!
+   if (!spe_busy && !ds_found && (m_iProgress < m_iTotalDS))
+   {
+      cerr << "Cannot allocate SPE for certain data segments. Process failed." << endl;
+      return 0;
    }
 
    return m_iTotalSPE;
@@ -591,7 +607,7 @@ int SphereProcess::startSPE(SPE& s, DS* d)
    {
       // start an SPE at real time
       if (connectSPE(s) < 0)
-         return -1;
+         return SectorError::E_CONNECTION;
    }
 
    pthread_mutex_lock(&m_ResLock);
@@ -626,8 +642,8 @@ int SphereProcess::startSPE(SPE& s, DS* d)
 
 int SphereProcess::checkProgress()
 {
-   if (0 == m_iTotalSPE)
-      return -1;
+   if ((0 == m_iTotalSPE) && (m_iProgress < m_iTotalDS))
+      return SectorError::E_RESOURCE;
 
    return m_iProgress * 100 / m_iTotalDS;
 }
@@ -1068,7 +1084,6 @@ int SphereProcess::start()
          continue;
 
       i->m_pDS = *dss;
-
       startSPE(*i, i->m_pDS);
 
       if (++ num == totalnum)
