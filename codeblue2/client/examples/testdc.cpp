@@ -65,7 +65,7 @@ int main(int argc, char** argv)
 
       if (myproc.read(res) < 0)
       {
-         if (myproc.checkProgress() == -1)
+         if (myproc.checkProgress() < 0)
          {
             cerr << "all SPEs failed\n";
             break;
@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 
       if (myproc.read(res) < 0)
       {
-         if (myproc.checkProgress() == -1)
+         if (myproc.checkProgress() < 0)
          {
             cerr << "all SPEs failed\n";
             break;
