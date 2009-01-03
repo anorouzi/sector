@@ -376,7 +376,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    prepareOutput();
 
    m_iProgress = 0;
-   m_iAvgRunTime = 3600;
+   m_iAvgRunTime = 60;
    m_iTotalDS = m_vpDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
