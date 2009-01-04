@@ -32,4 +32,4 @@ sysinfo: sysinfo.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o download upload ls rm mkdir sysinfo sectorfs
+	rm -f *.o download upload ls rm mkdir stat sysinfo

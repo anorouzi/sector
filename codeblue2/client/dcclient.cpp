@@ -557,12 +557,11 @@ int SphereProcess::checkSPE()
       }
       else 
       {
-         int rtime = t.tv_sec - s->m_StartTime.tv_sec;
-         int utime = t.tv_sec - s->m_LastUpdateTime.tv_sec;
-
-         if ((rtime > 8 * m_iAvgRunTime) && (utime > 600))
+         if (s->m_DataChn.isConnected())
+            spe_busy = true;
+         else
          {
-            cerr << "SPE timeout " << s->m_strIP << endl;
+            cerr << "SPE lost " << s->m_strIP << endl;
 
             // dismiss this SPE and release its job
             s->m_pDS->m_iStatus = 0;
@@ -572,8 +571,6 @@ int SphereProcess::checkSPE()
 
             m_iTotalSPE --;
          }
-         else
-           spe_busy = true;
       }
    }
 

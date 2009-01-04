@@ -182,6 +182,11 @@ int Transport::close()
    return UDT::close(m_Socket);
 }
 
+bool Transport::isConnected()
+{
+   return (UDT::recv(m_Socket, NULL, 0, 0) == 0);
+}
+
 int Transport::initCoder(unsigned char key[16], unsigned char iv[16])
 {
    m_Encoder.initEnc(key, iv);
