@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/08/2009
 *****************************************************************************/
 
 
@@ -37,8 +37,9 @@ written by
 #include <index.h>
 #include <stdint.h>
 
-struct SlaveNode
+class SlaveNode
 {
+public:
    int m_iNodeID;
 
    std::string m_strIP;
@@ -63,6 +64,9 @@ struct SlaveNode
    int m_iStatus;		// 0: inactive 1: active-normal 2: active-disk full
 
    std::vector<int> m_viPath;
+
+public:
+   int deserialize(const char* buf, int size);
 };
 
 struct Cluster
@@ -129,9 +133,9 @@ public:
 
 public:
    int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<int>& loclist, const Address& client, const int& io, SlaveNode& sn);
+   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::set<Address, AddrComp>& loc, int replica);
    int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn);
+   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::set<Address, AddrComp>& loc, int replica);
 
 public:
    unsigned int getTotalSlaves();

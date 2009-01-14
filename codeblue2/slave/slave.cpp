@@ -177,7 +177,8 @@ void Slave::run()
 
    while (true)
    {
-      m_GMP.recvfrom(ip, port, id, msg);
+      if (m_GMP.recvfrom(ip, port, id, msg) < 0)
+         break;
 
       cout << "recv cmd " << ip << " " << port << " type " << msg->getType() << endl;
 
@@ -263,20 +264,30 @@ void Slave::run()
             int dataport = 0;
             datachn->open(dataport, true, false);
 
+            msg->setData(0, (char*)&dataport, 4);
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            m_GMP.sendto(ip, port, id, msg);
+
+            // receive address information of the neighbor nodes
+            m_GMP.recvfrom(ip, port, id, msg);
+
             Param2* p = new Param2;
             p->serv_instance = this;
             p->datachn = datachn;
-            p->client_ip = msg->getData();
-            p->client_data_port = *(int*)(msg->getData() + 64);
-            p->key = *(int*)(msg->getData() + 68);
-            p->mode = *(int*)(msg->getData() + 72);
-            p->transid = *(int*)(msg->getData() + 76);
-            memcpy(p->crypto_key, msg->getData() + 80, 16);
-            memcpy(p->crypto_iv, msg->getData() + 96, 8);
-            p->filename = msg->getData() + 104;
+            p->dataport = dataport;
+            p->src_ip = msg->getData();
+            p->src_port = *(int*)(msg->getData() + 64);
+            p->dst_ip = msg->getData() + 68;
+            p->dst_port = *(int*)(msg->getData() + 132);
+            p->key = *(int*)(msg->getData() + 136);
+            p->mode = *(int*)(msg->getData() + 140);
+            p->transid = *(int*)(msg->getData() + 144);
+            memcpy(p->crypto_key, msg->getData() + 148, 16);
+            memcpy(p->crypto_iv, msg->getData() + 164, 8);
+            p->filename = msg->getData() + 172;
 
             char* tmp = new char[64 + p->filename.length()];
-            sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_data_port);
+            sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->src_ip.c_str(), p->src_port);
             m_SectorLog.insert(tmp);
             delete [] tmp;
 
@@ -284,9 +295,7 @@ void Slave::run()
             pthread_create(&file_handler, NULL, fileHandler, p);
             pthread_detach(file_handler);
 
-            msg->setData(0, (char*)&dataport, 4);
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
             m_GMP.sendto(ip, port, id, msg);
 
             break;
@@ -434,8 +443,7 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    Address addr;
    addr.m_strIP = "127.0.0.1";
    addr.m_iPort = 0;
-   set<Address, AddrComp> nothing;
-   m_LocalFile.update(buf, addr, change, nothing);
+   m_LocalFile.update(buf, addr, change);
 
    SectorMsg msg;
    msg.setType(1);

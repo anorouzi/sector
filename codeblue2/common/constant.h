@@ -54,12 +54,13 @@ struct SectorError
 // file open mode
 struct SF_MODE
 {
-   static const int READ = 1;
-   static const int WRITE = 2;
-   static const int RW = 3;
-   static const int TRUNC = 4;
-   static const int APPEND = 8;
-   static const int SECURE = 16;
+   static const int READ = 1;			// read only
+   static const int WRITE = 2;			// write only
+   static const int RW = 3;			// read and write
+   static const int TRUNC = 4;			// trunc the file upon opening
+   static const int APPEND = 8;			// move the write offset to the end of the file upon opening
+   static const int SECURE = 16;		// encrypted file transfer
+   static const int HiRELIABLE = 32;		// replicate data writting at real time (otherwise periodically)
 };
 
 //file IO position base

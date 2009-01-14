@@ -43,7 +43,7 @@ public:
 
 public:
    static int init(const string& server, const int& port);
-   static int login(const string& username, const string& password);
+   static int login(const string& username, const string& password, const char* cert = NULL);
    static int logout();
    static int close();
 

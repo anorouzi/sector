@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/07/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -376,7 +376,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    prepareOutput();
 
    m_iProgress = 0;
-   m_iAvgRunTime = 60;
+   m_iAvgRunTime = -1;
    m_iTotalDS = m_vpDS.size();
    m_iTotalSPE = m_vSPE.size();
    m_iAvailRes = 0;
@@ -467,6 +467,8 @@ void* SphereProcess::run(void* param)
          gettimeofday(&s->m_LastUpdateTime, 0);
          if (progress < 0)
          {
+            cerr << "SPE PROCESSING ERROR " << ip << " " << port << endl;
+
             //error, quit this segment on the SPE
             s->m_pDS->m_iStatus = 0;
             s->m_pDS->m_iSPEID = -1;
@@ -483,7 +485,10 @@ void* SphereProcess::run(void* param)
          // one SPE completes!
          timeval t;
          gettimeofday(&t, 0);
-         self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec)) / 8;
+         if (self->m_iAvgRunTime <= 0)
+            self->m_iAvgRunTime = t.tv_sec - s->m_StartTime.tv_sec;
+         else
+            self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->m_StartTime.tv_sec)) / 8;
       }
       else
       {
@@ -562,6 +567,12 @@ int SphereProcess::checkSPE()
          else
          {
             cerr << "SPE lost " << s->m_strIP << endl;
+
+            if (!m_vBucket.empty())
+            {
+               cerr << "cannot recover the hashing bucket due to the lost SPE. Process failed." << endl;
+               return 0;
+            }
 
             // dismiss this SPE and release its job
             s->m_pDS->m_iStatus = 0;

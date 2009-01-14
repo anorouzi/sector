@@ -39,11 +39,14 @@ void* Slave::fileHandler(void* p)
    string filename = self->m_strHomeDir + ((Param2*)p)->filename;
    string sname = ((Param2*)p)->filename;
    Transport* datachn = ((Param2*)p)->datachn;
-   string ip = ((Param2*)p)->client_ip;
-   int port = ((Param2*)p)->client_data_port;
+   int dataport = ((Param2*)p)->dataport;
    int key = ((Param2*)p)->key;
    int mode = ((Param2*)p)->mode;
    int transid = ((Param2*)p)->transid;
+   string src_ip = ((Param2*)p)->src_ip;
+   int src_port = ((Param2*)p)->src_port;
+   string dst_ip = ((Param2*)p)->dst_ip;
+   int dst_port = ((Param2*)p)->dst_port;
    unsigned char crypto_key[16];
    unsigned char crypto_iv[8];
    memcpy(crypto_key, ((Param2*)p)->crypto_key, 16);
@@ -57,16 +60,24 @@ void* Slave::fileHandler(void* p)
    int32_t cmd;
    bool run = true;
 
-   cout << "rendezvous connect " << ip << " " << port << " " << filename << endl;
+   cout << "rendezvous connect source " << src_ip << " " << src_port << " " << filename << endl;
 
-   if (datachn->connect(ip.c_str(), port) < 0)
+   if (datachn->connect(src_ip.c_str(), src_port) < 0)
    {
-      self->logError(1, ip, port, sname);
+      self->logError(1, src_ip, src_port, sname);
       return NULL;
    }
 
    if (bSecure)
       datachn->initCoder(crypto_key, crypto_iv);
+
+
+   Transport uplink;
+   if (dst_port > 0)
+   {
+      uplink.open(dataport, true, true);
+      uplink.connect(dst_ip.c_str(), dst_port);
+   }
 
    //create a new directory or file in case it does not exist
    int change = 0;
@@ -143,7 +154,7 @@ void* Slave::fileHandler(void* p)
                run = false;
 
             // update total sent data size
-            self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 1 : 3);
+            self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 1 : 3);
 
             break;
          }
@@ -164,10 +175,30 @@ void* Slave::fileHandler(void* p)
                wb += param[1];
 
             // update total received data size
-            self->m_SlaveStat.updateIO(ip, param[1], (key == 0) ? 0 : 2);
+            self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 0 : 2);
 
             if (change != 1)
                change = 2;
+
+            if (dst_port > 0)
+            {
+               // replicate data to another node
+               char req[20];
+               *(int32_t*)req = 2; // cmd write
+               *(int64_t*)(req + 4) = param[0];
+               *(int64_t*)(req + 12) = param[1];
+
+               int32_t response = -1;
+
+               if (uplink.send(req, 20) < 0)
+                  break;
+               if ((uplink.recv((char*)&response, 4) < 0) || (-1 == response))
+                  break;
+
+               ifstream file(filename.c_str());
+               uplink.sendfile(file, param[0], param[1]);
+               file.close();
+            }
 
             break;
          }
@@ -202,7 +233,7 @@ void* Slave::fileHandler(void* p)
                rb += size;
 
             // update total sent data size
-            self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 1 : 3);
+            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 1 : 3);
 
             break;
          }
@@ -224,10 +255,29 @@ void* Slave::fileHandler(void* p)
                wb += size;
 
             // update total received data size
-            self->m_SlaveStat.updateIO(ip, size, (key == 0) ? 0 : 2);
+            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
 
             if (change != 1)
                change = 2;
+
+            if (dst_port > 0)
+            {
+                // upload
+               char req[20];
+               *(int32_t*)req = 4; // cmd write
+               *(int64_t*)(req + 4) = size;
+
+               int32_t response = -1;
+
+               if (uplink.send(req, 20) < 0)
+                  break;
+               if ((uplink.recv((char*)&response, 4) < 0) || (-1 == response))
+                  break;
+
+               ifstream file(filename.c_str());
+               uplink.sendfile(file, 0, size);
+               file.close();
+            }
 
             break;
          }
@@ -254,7 +304,7 @@ void* Slave::fileHandler(void* p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   cout << "file server closed " << ip << " " << port << " " << avgRS << endl;
+   cout << "file server closed " << src_ip << " " << src_port << " " << avgRS << endl;
 
    char* tmp = new char[64 + sname.length()];
    sprintf(tmp, "file server closed ... %s %f %f.", sname.c_str(), avgRS, avgWS);

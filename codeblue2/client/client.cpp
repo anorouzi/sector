@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/13/2009
 *****************************************************************************/
 
 
@@ -78,13 +78,17 @@ int Client::init(const string& server, const int& port)
    return 1;
 }
 
-int Client::login(const string& username, const string& password)
+int Client::login(const string& username, const string& password, const char* cert)
 {
    SSLTransport::init();
 
+   char* master_cert = (char*)cert;
+   if (cert == NULL)
+      master_cert = "master_node.cert";
+
    int result;
    SSLTransport secconn;
-   if ((result = secconn.initClientCTX("master_node.cert")) < 0)
+   if ((result = secconn.initClientCTX(master_cert)) < 0)
       return result;
    if ((result = secconn.open(NULL, 0)) < 0)
       return result;

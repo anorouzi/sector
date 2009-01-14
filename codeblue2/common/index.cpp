@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/24/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/12/2009
 *****************************************************************************/
 
 
@@ -84,8 +84,24 @@ int Index::list(const char* path, std::vector<string>& filelist)
 int Index::lookup(const char* path, SNode& attr)
 {
    vector<string> dir;
-   if (parsePath(path, dir) <= 0)
+   if (parsePath(path, dir) < 0)
       return -3;
+
+   if (dir.empty())
+   {
+      // stat on the root directory "/"
+      attr.m_strName = "/";
+      attr.m_bIsDir = true;
+      attr.m_llSize = 0;
+      attr.m_llTimeStamp = 0;
+      for (map<string, SNode>::iterator i = m_mDirectory.begin(); i != m_mDirectory.end(); ++ i)
+      {
+         attr.m_llSize += i->second.m_llSize;
+         if (attr.m_llTimeStamp < i->second.m_llTimeStamp)
+            attr.m_llTimeStamp = i->second.m_llTimeStamp;
+      }
+      return 1;
+   }
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
@@ -264,7 +280,7 @@ int Index::eraseCopy(const char* path, const Address& loc)
    return 0;
 }
 
-int Index::update(const char* fileinfo, const Address& loc, const int& type, set<Address, AddrComp>& tbr)
+int Index::update(const char* fileinfo, const Address& loc, const int& type)
 {
    SNode sn;
    sn.deserialize(fileinfo);
@@ -330,10 +346,6 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type, set
          // modification to an existing copy
 	 if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
          {
-            tbr = s->second.m_sLocation;
-            tbr.erase(loc);
-            s->second.m_sLocation.clear();
-
             s->second.m_llSize = sn.m_llSize;
             s->second.m_llTimeStamp = sn.m_llTimeStamp;
             s->second.m_sLocation.insert(loc);
@@ -349,10 +361,7 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type, set
             return -1;
 
          if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
-         {
-            tbr.insert(loc);
             return -1;
-         }
 
          s->second.m_sLocation.insert(loc);
          return s->second.m_sLocation.size();
@@ -440,7 +449,7 @@ int Index::lock(const char* path, int mode)
       return -3;
 
    // write
-   if (2 == mode)
+   if (mode & SF_MODE::WRITE)
    {
       // if already in read lock, return error
       if ((*(ptr.rbegin()))->second.m_iReadLock > 0)
@@ -451,7 +460,7 @@ int Index::lock(const char* path, int mode)
    }
 
    // read
-   if (1 == mode)
+   if (mode & SF_MODE::READ)
    {
       for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
          (*i)->second.m_iReadLock ++;
@@ -485,14 +494,14 @@ int Index::unlock(const char* path, int mode)
       return -2;
 
    // write
-   if (2 == mode)
+   if (mode & SF_MODE::WRITE)
    {
       for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
-            (*i)->second.m_iWriteLock --;
+         (*i)->second.m_iWriteLock --;
    }
 
    // read
-   if (1 == mode)
+   if (mode & SF_MODE::READ)
    {
       for (vector<map<string, SNode>::iterator>::iterator i = ptr.begin(); i != ptr.end(); ++ i)
          (*i)->second.m_iReadLock --;

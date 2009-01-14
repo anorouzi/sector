@@ -24,7 +24,8 @@
   int login <br />
   (<br />
   &nbsp;&nbsp;&nbsp;const string& <span class="style2">username</span>,<br />
-  &nbsp;&nbsp;&nbsp;const string& <span class="style2">password</span><br />
+  &nbsp;&nbsp;&nbsp;const string& <span class="style2">password</span>,<br />
+  &nbsp;&nbsp;&nbsp;const char* <span class="style2">cert</span> = NULL <br />
   );</div>
 
 <h5>Parameters</h5>
@@ -35,6 +36,8 @@
   <dd>[in] Name of the user to login .</dd>
   <dt><em>password</em></dt>
   <dd>[in] The user's password in clear text (not encrypted).</dd>
+  <dt><em>cert</em></dt>
+  <dd>[in] path to the master certificate &quot;master_node.cert&quot;, default (NULL) means the certificate can be found in the current directory.</dd>
 </dl>
 <h5>Return Value</h5>
 <p>On success, the function returns a unique session key assigned by the Master. If error occurs, a negative value is returned:</p>

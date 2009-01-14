@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/12/2009
 *****************************************************************************/
 
 
@@ -91,7 +91,7 @@ public:
    int remove(const char* path, bool recursive = false);
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
-   int update(const char* fileinfo, const Address& addr, const int& type, std::set<Address, AddrComp>& tbr);
+   int update(const char* fileinfo, const Address& addr, const int& type);
    int collectDataInfo(const char* file, std::vector<std::string>& result);
 
 public:

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/10/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/08/2009
 *****************************************************************************/
 
 #include <topology.h>
@@ -34,7 +34,56 @@ written by
 #include <arpa/inet.h>
 #include <fstream>
 #include <iostream>
+#include "constant.h"
+
 using namespace std;
+
+
+int SlaveNode::deserialize(const char* buf, int size)
+{
+   char* p = (char*)buf;
+
+   m_llTimeStamp = *(int64_t*)p;
+   m_llAvailDiskSpace = *(int64_t*)(p + 8);
+   m_llTotalFileSize = *(int64_t*)(p + 16);
+   m_llCurrMemUsed = *(int64_t*)(p + 24);
+   m_llCurrCPUUsed = *(int64_t*)(p + 32);
+   m_llTotalInputData = *(int64_t*)(p + 40);
+   m_llTotalOutputData = *(int64_t*)(p + 48);
+
+   p += 56;
+   int n = *(int32_t*)p;
+   p += 4;
+   for (int j = 0; j < n; ++ j)
+   {
+      m_mSysIndInput[p] = *(int64_t*)(p + 16);
+      p += 24;
+   }
+   n = *(int32_t*)p;
+   p += 4;
+   for (int j = 0; j < n; ++ j)
+   {
+      m_mSysIndOutput[p] = *(int64_t*)(p + 16);
+      p += 24;
+   }
+   n = *(int32_t*)p;
+   p += 4;
+   for (int j = 0; j < n; ++ j)
+   {
+      m_mCliIndInput[p] = *(int64_t*)(p + 16);
+      p += 24;
+   }
+   n = *(int32_t*)p;
+   p += 4;
+   for (int j = 0; j < n; ++ j)
+   {
+      m_mCliIndOutput[p] = *(int64_t*)(p + 16);
+      p += 24;
+   }
+
+   return 0;
+}
+
 
 Topology::Topology():
 m_uiLevel(1)
@@ -383,35 +432,79 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    return 1;
 }
 
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, const int& io, SlaveNode& sn)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, set<Address, AddrComp>& loc, int replica)
 {
-   set<int> avail;
+   timeval t;
+   gettimeofday(&t, 0);
+   srand(t.tv_usec);
 
    if (!loclist.empty())
-      avail = loclist;
+   {
+      int r = int(loclist.size() * rand() / (RAND_MAX + 1.0));
+      set<int>::iterator n = loclist.begin();
+      for (int i = 0; i < r; ++ i)
+         n ++;
+      Address addr;
+      addr.m_strIP = m_mSlaveList[*n].m_strIP;
+      addr.m_iPort = m_mSlaveList[*n].m_iPort;
+      loc.insert(addr);
+
+      // if this is a READ_ONLY operation, one node is enough
+      if ((mode & SF_MODE::WRITE) == 0)
+         return 1;
+
+      for (set<int>::iterator i = loclist.begin(); i != loclist.end(); i ++)
+      {
+         if (i == n)
+            continue;
+
+         addr.m_strIP = m_mSlaveList[*i].m_strIP;
+         addr.m_iPort = m_mSlaveList[*i].m_iPort;
+         loc.insert(addr);
+      }
+   }
    else
    {
+      // no available nodes for READ_ONLY operation
+      if ((mode & SF_MODE::WRITE) == 0)
+         return 0;
+
+      set<int> avail;
+
       for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
       {
          // only nodes with more than 10GB disk space are chosen
          if (i->second.m_llAvailDiskSpace > 10000000000LL)
             avail.insert(i->first);
       }
+
+      int r = int(avail.size() * rand() / (RAND_MAX + 1.0));
+      set<int>::iterator n = avail.begin();
+      for (int i = 0; i < r; ++ i)
+         n ++;
+      Address addr;
+      addr.m_strIP = m_mSlaveList[*n].m_strIP;
+      addr.m_iPort = m_mSlaveList[*n].m_iPort;
+      loc.insert(addr);
+
+      // if this is not a high reliable write, one node is enough
+      if ((mode & SF_MODE::HiRELIABLE) == 0)
+         return 1;
+
+      // otherwise choose more nodes for immediate replica
+      for (int i = 0; i < replica - 1; ++ i)
+      {
+         SlaveNode sn;
+         if (chooseReplicaNode(loc, sn, 10000000000LL) < 0)
+            continue;
+
+         addr.m_strIP = sn.m_strIP;
+         addr.m_iPort = sn.m_iPort;
+         loc.insert(addr);
+      }
    }
 
-   timeval t;
-   gettimeofday(&t, 0);
-   srand(t.tv_usec);
-
-   int r = int(avail.size() * rand() / (RAND_MAX + 1.0));
-
-   set<int>::iterator n = avail.begin();
-   for (int i = 0; i < r; ++ i)
-      n ++;
-
-   sn = m_mSlaveList[*n];
-
-   return 1;
+   return loc.size();
 }
 
 int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize)
@@ -425,7 +518,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
    return chooseReplicaNode(locid, sn, filesize);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, const int& io, SlaveNode& sn)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, set<Address, AddrComp>& loc, int replica)
 {
    set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -433,7 +526,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, client, io, sn);
+   return chooseIONode(locid, client, mode, loc, replica);
 }
 
 unsigned int SlaveManager::getTotalSlaves()

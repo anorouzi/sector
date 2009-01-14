@@ -149,11 +149,16 @@ private:
       Slave* serv_instance;	// self
       string filename;		// filename
       Transport* datachn;	// data channel
+      int dataport;		// data port
       int mode;			// file access mode
       int transid;		// transaction ID
-      string client_ip;		// client IP
-      int client_data_port;	// client data channel port
-      int key;			// client key
+      int key;                  // client key
+
+      string src_ip;		// downlink IP
+      int src_port;		// downlink port
+      string dst_ip;		// uplink IP
+      int dst_port;		// uplink port
+
       unsigned char crypto_key[16];
       unsigned char crypto_iv[8];
    };

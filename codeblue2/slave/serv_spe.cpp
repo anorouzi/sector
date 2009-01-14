@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/27/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/07/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -321,6 +321,8 @@ void* Slave::SPEHandler(void* p)
       result.clear();
       gettimeofday(&t3, 0);
 
+      int deliverystatus = 0;
+
       // process data segments
       for (int i = 0; i < totalrows; i += unitrows)
       {
@@ -334,12 +336,15 @@ void* Slave::SPEHandler(void* p)
          self->processData(input, output, file, result, process, map, partition);
 
          if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
-            self->deliverResult(buckets, speid, result, dest);
+            deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
          gettimeofday(&t4, 0);
          if (t4.tv_sec - t3.tv_sec > 1)
          {
-            progress = i * 100 / totalrows;
+            if (deliverystatus < 0)
+               progress = -1;
+            else
+               progress = i * 100 / totalrows;
             msg.setData(4, (char*)&progress, 4);
             msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
             int id = 0;
@@ -347,6 +352,9 @@ void* Slave::SPEHandler(void* p)
 
             t3 = t4;
          }
+
+         if (deliverystatus < 0)
+            break;
       }
 
       // process files
@@ -361,27 +369,37 @@ void* Slave::SPEHandler(void* p)
             self->processData(input, output, file, result, process, map, partition);
 
             if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
-               self->deliverResult(buckets, speid, result, dest);
+               deliverystatus = self->deliverResult(buckets, speid, result, dest);
+
+            if (deliverystatus < 0)
+               break;
          }
       }
 
       // if buckets = 0, send back to clients, otherwise deliver to local or network locations
       if (buckets != 0)
-         self->deliverResult(buckets, speid, result, dest);
+         deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
-      progress = 100;
+
+      if (deliverystatus < 0)
+         progress = -1;
+      else
+         progress = 100;
       msg.setData(4, (char*)&progress, 4);
       msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
       int id = 0;
       self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
-      cout << "sending data back... " << buckets << endl;
-      self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, datachn);
+      if (deliverystatus >= 0)
+      {
+         cout << "sending data back... " << buckets << endl;
+         self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, datachn);
 
-      // report new files
-      for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
-         self->report(0, *i, true);
+         // report new files
+         for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
+            self->report(0, *i, true);
+      }
 
       delete [] index;
       delete [] block;
@@ -846,6 +864,10 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
          chn = t;
       }
 
+      // currently, Sphere cannot recover from a broken data channel.
+      if (!chn->isConnected())
+         return -1;
+
       int32_t size = result.m_vDataLen[i];
       chn->send((char*)&size, 4);
       chn->send(result.m_vData[i], size);
@@ -1146,10 +1168,12 @@ int Slave::processData(SInput& input, SOutput& output, SFile& file, SPEResult& r
 
 int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest)
 {
+   int ret = 0;
+
    if (buckets == -1)
-      sendResultToFile(result, dest.m_strLocalFile + dest.m_pcLocalFileID, dest.m_piSArray[0]);
+      ret = sendResultToFile(result, dest.m_strLocalFile + dest.m_pcLocalFileID, dest.m_piSArray[0]);
    else if (buckets > 0)
-      sendResultToBuckets(speid, buckets, result, dest.m_pcOutputLoc, &dest.m_mOutputChn);
+      ret = sendResultToBuckets(speid, buckets, result, dest.m_pcOutputLoc, &dest.m_mOutputChn);
 
    for (int b = 0; b < buckets; ++ b)
    {
@@ -1161,5 +1185,5 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
    if (buckets != 0)
       result.clear();
 
-   return 0;
+   return ret;
 }
