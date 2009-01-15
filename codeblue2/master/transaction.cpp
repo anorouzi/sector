@@ -40,7 +40,7 @@ TransManager::~TransManager()
 {
 }
 
-int TransManager::insert(const int slave, const int type, const int key, const int cmd, const std::string& file, const int mode)
+int TransManager::create(const int type, const int key, const int cmd, const std::string& file, const int mode)
 {
    Transaction t;
    t.m_iTransID = m_iTransID ++;
@@ -56,6 +56,13 @@ int TransManager::insert(const int slave, const int type, const int key, const i
    return t.m_iTransID;
 }
 
+int TransManager::addSlave(int transid, int slaveid)
+{
+   m_mTransList[transid].m_siSlaveID.insert(slaveid);
+
+   return transid;
+}
+
 int TransManager::retrieve(int transid, Transaction& trans)
 {
    map<int, Transaction>::iterator i = m_mTransList.find(transid);
@@ -67,10 +74,14 @@ int TransManager::retrieve(int transid, Transaction& trans)
    return transid;
 }
 
-int TransManager::update(int transid)
+int TransManager::updateSlave(int transid, int slaveid)
 {
-   m_mTransList.erase(transid);
-   return 0;
+   m_mTransList[transid].m_siSlaveID.erase(slaveid);
+   int ret = m_mTransList[transid].m_siSlaveID.size();
+   if (ret == 0)
+      m_mTransList.erase(transid);
+
+   return ret;
 }
 
 int TransManager::getUserTrans(const int key, set<int> transid)

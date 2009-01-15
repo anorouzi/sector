@@ -241,23 +241,25 @@ private:
    void logError(int type, const string& ip, const int& port, const string& name);
 
 private:
-   CGMP m_GMP;
+   int m_iSlaveID;			// unique ID assigned by the master
 
-   string m_strLocalHost;
-   int m_iLocalPort;
+   CGMP m_GMP;				// GMP messenger
 
-   string m_strMasterHost;
-   string m_strMasterIP;
-   int m_iMasterPort;
+   string m_strLocalHost;		// local host IP address
+   int m_iLocalPort;			// local port number
 
-   string m_strHomeDir;
-   time_t m_HomeDirMTime;
+   string m_strMasterHost;		// host name of the master node
+   string m_strMasterIP;		// IP address of the master node
+   int m_iMasterPort;			// port number of the master node
 
-   SlaveConf m_SysConfig;
-   Index m_LocalFile;
-   string m_strBase;
-   SlaveStat m_SlaveStat;
-   SectorLog m_SectorLog;
+   string m_strHomeDir;			// data directory
+   time_t m_HomeDirMTime;		// last modified time
+
+   string m_strBase;                    // the local directory that stores Sector configuration files
+   SlaveConf m_SysConfig;		// system configuration
+   Index m_LocalFile;			// local file index
+   SlaveStat m_SlaveStat;		// slave statistics
+   SectorLog m_SectorLog;		// slave log
 };
 
 #endif

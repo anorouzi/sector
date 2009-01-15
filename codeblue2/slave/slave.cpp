@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/31/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/15/2009
 *****************************************************************************/
 
 
@@ -82,7 +82,7 @@ int Slave::init(const char* base)
    m_strHomeDir = m_SysConfig.m_strHomeDir;
 
    // initialize slave log
-   m_SectorLog.init((m_strHomeDir + "sector.log").c_str());
+   m_SectorLog.init((m_strHomeDir + ".sector.log").c_str());
 
    // check local directory
    if (createSysDir() < 0)
@@ -154,6 +154,8 @@ int Slave::connect()
    int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
    secconn.send((char*)&(availdisk), 8);
 
+   secconn.recv((char*)&m_iSlaveID, 4);
+
    secconn.close();
    SSLTransport::destroy();
 
@@ -184,7 +186,7 @@ void Slave::run()
 
       // a slave only accepts commands from the master
       if ((m_strMasterIP != ip) || (m_iMasterPort != port))
-          continue;
+         continue;
 
       switch (msg->getType())
       {
@@ -262,7 +264,7 @@ void Slave::run()
 
             Transport* datachn = new Transport;
             int dataport = 0;
-            datachn->open(dataport, true, false);
+            datachn->open(dataport, true, true);
 
             msg->setData(0, (char*)&dataport, 4);
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
@@ -270,6 +272,13 @@ void Slave::run()
 
             // receive address information of the neighbor nodes
             m_GMP.recvfrom(ip, port, id, msg);
+            if (msg->getType() != 112)
+            {
+               msg->setType(-112);
+               msg->m_iDataLength = SectorMsg::m_iHdrSize;
+               m_GMP.sendto(ip, port, id, msg);
+               break;
+            }
 
             Param2* p = new Param2;
             p->serv_instance = this;
@@ -449,8 +458,9 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    msg.setType(1);
    msg.setKey(0);
    msg.setData(0, (char*)&transid, 4);
-   msg.setData(4, (char*)&change, 4);
-   msg.setData(8, buf, strlen(buf) + 1);
+   msg.setData(4, (char*)&m_iSlaveID, 4);
+   msg.setData(8, (char*)&change, 4);
+   msg.setData(12, buf, strlen(buf) + 1);
 
    cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
 

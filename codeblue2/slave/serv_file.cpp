@@ -156,6 +156,7 @@ void* Slave::fileHandler(void* p)
             // update total sent data size
             self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 1 : 3);
 
+            ifs.close();
             break;
          }
 
@@ -180,6 +181,8 @@ void* Slave::fileHandler(void* p)
             if (change != 1)
                change = 2;
 
+            ofs.close();
+
             if (dst_port > 0)
             {
                // replicate data to another node
@@ -195,9 +198,9 @@ void* Slave::fileHandler(void* p)
                if ((uplink.recv((char*)&response, 4) < 0) || (-1 == response))
                   break;
 
-               ifstream file(filename.c_str());
-               uplink.sendfile(file, param[0], param[1]);
-               file.close();
+               ifs.open(filename.c_str());
+               uplink.sendfile(ifs, param[0], param[1]);
+               ifs.close();
             }
 
             break;
@@ -260,23 +263,25 @@ void* Slave::fileHandler(void* p)
             if (change != 1)
                change = 2;
 
+            ofs.close();
+
             if (dst_port > 0)
             {
                 // upload
-               char req[20];
+               char req[12];
                *(int32_t*)req = 4; // cmd write
                *(int64_t*)(req + 4) = size;
 
                int32_t response = -1;
 
-               if (uplink.send(req, 20) < 0)
+               if (uplink.send(req, 12) < 0)
                   break;
                if ((uplink.recv((char*)&response, 4) < 0) || (-1 == response))
                   break;
 
-               ifstream file(filename.c_str());
-               uplink.sendfile(file, 0, size);
-               file.close();
+               ifs.open(filename.c_str());
+               uplink.sendfile(ifs, 0, size);
+               ifs.close();
             }
 
             break;
@@ -289,9 +294,6 @@ void* Slave::fileHandler(void* p)
       default:
          break;
       }
-
-      ifs.close();
-      ofs.close();
    }
 
    gettimeofday(&t2, 0);
@@ -313,6 +315,14 @@ void* Slave::fileHandler(void* p)
 
    //report to master the task is completed
    self->report(transid, sname, change);
+
+   if (dst_port > 0)
+   {
+      cmd = 5;
+      uplink.send((char*)&cmd, 4);
+      uplink.recv((char*)&cmd, 4);
+      uplink.close();
+   }
 
    datachn->send((char*)&cmd, 4);
    if (bSecure)
@@ -398,7 +408,9 @@ void* Slave::copy(void* p)
    string rfile = self->reviseSysCmdPath(filename);
    system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
 
-   self->report(0, filename, 3);
+   // if the file has been modified during the replication, remove this replica
+   if (self->report(0, filename, 3) < 0)
+      system(("rm " + rhome + rfile).c_str());
 
    return NULL;
 }

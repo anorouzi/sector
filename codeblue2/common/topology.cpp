@@ -432,7 +432,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    return 1;
 }
 
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, set<Address, AddrComp>& loc, int replica)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, map<int, Address>& loc, int replica)
 {
    timeval t;
    gettimeofday(&t, 0);
@@ -447,7 +447,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       Address addr;
       addr.m_strIP = m_mSlaveList[*n].m_strIP;
       addr.m_iPort = m_mSlaveList[*n].m_iPort;
-      loc.insert(addr);
+      loc[m_mSlaveList[*n].m_iNodeID] = addr;
 
       // if this is a READ_ONLY operation, one node is enough
       if ((mode & SF_MODE::WRITE) == 0)
@@ -460,7 +460,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
          addr.m_strIP = m_mSlaveList[*i].m_strIP;
          addr.m_iPort = m_mSlaveList[*i].m_iPort;
-         loc.insert(addr);
+         loc[m_mSlaveList[*n].m_iNodeID] = addr;
       }
    }
    else
@@ -485,7 +485,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       Address addr;
       addr.m_strIP = m_mSlaveList[*n].m_strIP;
       addr.m_iPort = m_mSlaveList[*n].m_iPort;
-      loc.insert(addr);
+      loc[m_mSlaveList[*n].m_iNodeID] = addr;
 
       // if this is not a high reliable write, one node is enough
       if ((mode & SF_MODE::HiRELIABLE) == 0)
@@ -495,12 +495,15 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       for (int i = 0; i < replica - 1; ++ i)
       {
          SlaveNode sn;
-         if (chooseReplicaNode(loc, sn, 10000000000LL) < 0)
+         set<int> locid;
+         for (map<int, Address>::iterator j = loc.begin(); j != loc.end(); ++ j)
+            locid.insert(j->first);
+         if (chooseReplicaNode(locid, sn, 10000000000LL) < 0)
             continue;
 
          addr.m_strIP = sn.m_strIP;
          addr.m_iPort = sn.m_iPort;
-         loc.insert(addr);
+         loc[sn.m_iNodeID] = addr;
       }
    }
 
@@ -518,7 +521,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
    return chooseReplicaNode(locid, sn, filesize);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, set<Address, AddrComp>& loc, int replica)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, map<int, Address>& loc, int replica)
 {
    set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)

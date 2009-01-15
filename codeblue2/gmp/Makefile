@@ -3,7 +3,7 @@ include ../Makefile.common
 CCFLAGS += -I../udt -I../security
 
 ifeq ($(STATIC), 1)
-   LDFLAGS += librpc.a ../lib/libudt.a
+   LDFLAGS += librpc.a ../lib/libudt.a ../lib/libsecurity.a ../lib/libcommon.a
 else
    LDFLAGS += -L../lib -lrpc -ludt -lsecurity -lcommon
 endif

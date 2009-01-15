@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/12/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/14/2009
 *****************************************************************************/
 
 
@@ -91,6 +91,16 @@ public:
    int remove(const char* path, bool recursive = false);
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
+
+      // Functionality:
+      //    update the information of a file. e.g., new size, time, or replica.
+      // Parameters:
+      //    [1] fileinfo: serialized file info
+      //    [2] addr: location of the replica to be updated
+      //    [3] type: update type, size/time update or new replica
+      // Returned value:
+      //    number of replicas of the file, or -1 on error.
+
    int update(const char* fileinfo, const Address& addr, const int& type);
    int collectDataInfo(const char* file, std::vector<std::string>& result);
 

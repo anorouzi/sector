@@ -30,6 +30,7 @@ written by
 #ifndef __SECTOR_TRANS_H__
 #define __SECTOR_TRANS_H__
 
+#include <set>
 #include <map>
 #include <string>
 
@@ -40,7 +41,7 @@ struct Transaction
    int64_t m_llStartTime;
    std::string m_strFile;	// if type = 0, this is the file being accessed
    int m_iMode;			// if type = 0, this is the file access mode
-   int m_iSlaveID;		// slave id
+   std::set<int> m_siSlaveID;	// set of slave id involved in this transaction
    int m_iUserKey;		// user key
    int m_iCommand;		// user's command, 110, 201, etc.
 };
@@ -52,9 +53,10 @@ public:
    ~TransManager();
 
 public:
-   int insert(const int slave, const int type, const int key, const int cmd, const std::string& file, const int mode);
+   int create(const int type, const int key, const int cmd, const std::string& file, const int mode);
+   int addSlave(int transid, int slaveid);
    int retrieve(int transid, Transaction& trans);
-   int update(int transid);
+   int updateSlave(int transid, int slaveid);
    int getUserTrans(const int key, std::set<int> transid);
 
 public:
