@@ -429,7 +429,7 @@ void* Master::serviceEx(void* p)
             addr.m_strIP = ip;
             addr.m_iPort = sn.m_iPort;
 
-            int size = 0;
+            int32_t size = 0;
             s->recv((char*)&size, 4);
 
             char* buf = new char[size];
@@ -443,9 +443,26 @@ void* Master::serviceEx(void* p)
             ifstream ifs((self->m_strHomeDir + ".metadata/" + ip).c_str());
             Index::deserialize(ifs, branch, addr);
             ifs.close();
+
+            ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str());
             pthread_mutex_lock(&self->m_MetaLock);
-            Index::merge(self->m_Metadata.m_mDirectory, branch);
+            Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left);
             pthread_mutex_unlock(&self->m_MetaLock);
+            left.close();
+
+            ifs.open((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str());
+            ifs.seekg(0, ios::end);
+            size = ifs.tellg();
+            s->send((char*)&size, 4);
+            if (size > 0)
+            {
+               buf = new char[size];
+               ifs.seekg(0);
+               ifs.read(buf, size);
+               s->send(buf, size);
+               delete [] buf;
+            }
+            ifs.close();
 
             sn.m_llTotalFileSize = Index::getTotalDataSize(branch);
             s->recv((char*)&(sn.m_llAvailDiskSpace), 8);

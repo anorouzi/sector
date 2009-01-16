@@ -722,7 +722,7 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
    return metadata.size();
 }
 
-int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch)
+int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, string path, ofstream& left)
 {
    for (map<string, SNode>::iterator i = branch.begin(); i != branch.end(); ++ i)
    {
@@ -737,7 +737,7 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch)
          if (i->second.m_bIsDir && s->second.m_bIsDir)
          {
             // directories with same name
-            merge(s->second.m_mDirectory, i->second.m_mDirectory);
+            merge(s->second.m_mDirectory, i->second.m_mDirectory, path + i->first, left);
          }
          else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) && (i->second.m_llSize == s->second.m_llSize))
          {
@@ -748,6 +748,7 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch)
          else
          {
             // conflicts, skip this branch dir
+           left << path + s->first << endl;
          }
       }
    }

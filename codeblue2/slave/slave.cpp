@@ -144,9 +144,31 @@ int Slave::connect()
    char* buf = new char[size];
    meta.read(buf, size);
    meta.close();
-
    secconn.send((char*)&size, 4);
    secconn.send(buf, size);
+   delete [] buf;
+
+   // move out-of-date files to the ".attic" directory
+   secconn.recv((char*)&size, 4);
+   if (size > 0)
+   {
+      buf = new char[size];
+      secconn.recv(buf, size);
+      ofstream left((m_strHomeDir + ".metadata/metadata.left.txt").c_str());
+      left.write(buf, size);
+      left.close();
+      ifstream ifs((m_strHomeDir + ".metadata/metadata.left.txt").c_str());
+      while (!ifs.eof())
+      {
+         char tmp[65536];
+         ifs.getline(tmp, 65536);
+         if (strlen(tmp) > 0)
+            move(tmp, ".attic/");
+      }
+      ifs.close();
+
+      m_SectorLog.insert("WARNING: certain files have been moved to ./attic due to conflicts.");
+   }
 
    // calculate total available disk size
    struct statfs64 slavefs;
@@ -572,6 +594,15 @@ string Slave::reviseSysCmdPath(const string& path)
 
    return rpath;
 }
+
+int Slave::move(const string& src, const string& dst)
+{
+   string tmp = dst + src;
+   createDir(tmp.substr(0, tmp.rfind('/')));
+   system((string("mv ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + tmp)).c_str());
+   return 1;
+}
+
 
 void SlaveStat::init()
 {

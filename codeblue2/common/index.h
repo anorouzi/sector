@@ -112,7 +112,18 @@ public:
    static int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
    static int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address& addr);
    static int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
-   static int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch);
+
+      // Functionality:
+      //    merge a slave's index with the system file index.
+      // Parameters:
+      //    [1] currdir: system directory
+      //    [2] branch: slave index
+      //    [3] path: current path (this is a recursive function)
+      //    [4] left: all the conflict files in the branch
+      // Returned value:
+      //    1 on success, or -1 on error.
+
+   static int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch, std::string path, std::ofstream& left);
    static int substract(std::map<std::string, SNode>& currdir, const Address& addr);
 
    static int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);

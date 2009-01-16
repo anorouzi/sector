@@ -233,6 +233,7 @@ private:
    int createDir(const string& path);
    int createSysDir();
    string reviseSysCmdPath(const string& path);
+   int move(const string& src, const string& dst);
 
 private:
    int report(const int32_t& transid, const string& path, const int& change = 0);
