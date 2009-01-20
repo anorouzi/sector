@@ -18,7 +18,7 @@
 <div class="ref_head">Reference: Classes: Client </div>
 
 <h4 class="func_name"><strong>move</strong></h4>
-<p>The<strong> move  </strong>function move a file/directory from one directory to another, or rename the current one to the destination. </p>
+<p>The<strong> move  </strong>function moves a file/directory from one directory to another, and/or rename the current one to the specified destination name. </p>
 
 <div class="code">
   int move<br />
@@ -32,7 +32,7 @@
 
 <dl>
   <dt><i>oldpath</i></dt>
-  <dd>[in] the name of a file or directory to be moved or renamed .</dd>
+  <dd>[in] the name of a file or directory to be moved and/or renamed .</dd>
   <dt><em>newpath</em></dt>
   <dd>[in] the name of destination file or path.</dd>
 </dl>
@@ -51,7 +51,6 @@
   </tr>
 </table>
 <h5>Description</h5>
-<p>NOT SUPPORTED YET. </p>
-<h5>&nbsp;</h5>
+<p>Suppose <em>oldpath</em> is &quot;src_dir/src_name&quot; and <em>newpath</em> is &quot;dst_dir/dst_name&quot;. <em>odlpath</em> and &quot;dst_dir&quot; must exist, otherwise E_NOEXIST error will return. If &quot;dst_name&quot; exist and it is file rather than a directory, E_EXIST error will return. If &quot;dst_name&quot; is an existing directory, the file/directory &quot;src_name&quot; will be moved to &quot;dst_dir/dst_name/src_name&quot;. If &quot;dst_name&quot; does not exist, the file/directory &quot;src_name&quot; will be moved to &quot;dst_dir&quot; and renamed to &quot;dst_dir/dst_name&quot;. </p>
 </body>
 </html>
