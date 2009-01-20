@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/30/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/18/2008
 *****************************************************************************/
 
 
@@ -118,16 +118,14 @@ private:
    std::string m_strHomeDir;
 
    SectorLog m_SectorLog;
+
    SysStat m_SysStat;
 
    int m_iMaxActiveUser;
    std::map<int, ActiveUser> m_mActiveUser;
 
    Index m_Metadata;
-   pthread_mutex_t m_MetaLock;
-
    SlaveManager m_SlaveManager;
-
    TransManager m_TransManager;
 
    enum Status {INIT, RUNNING, STOPPED} m_Status;

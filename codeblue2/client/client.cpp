@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/13/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/16/2009
 *****************************************************************************/
 
 
@@ -231,14 +231,19 @@ int Client::mkdir(const string& path)
 
 int Client::move(const string& oldpath, const string& newpath)
 {
-   //THIS FUNCTION IS NOT FINISHED.
-
-   string revised_path = revisePath(oldpath);
+   string src = revisePath(oldpath);
+   string dst = revisePath(newpath);
 
    SectorMsg msg;
-   msg.setType(103);
+   msg.setType(104);
    msg.setKey(g_iKey);
-   msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
+
+   int32_t size = src.length() + 1;
+   msg.setData(0, (char*)&size, 4);
+   msg.setData(4, src.c_str(), src.length() + 1);
+   size = dst.length() + 1;
+   msg.setData(4 + src.length() + 1, (char*)&size, 4);
+   msg.setData(4 + src.length() + 1 + 4, dst.c_str(), dst.length() + 1);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;

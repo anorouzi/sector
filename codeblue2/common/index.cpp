@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/12/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/16/2009
 *****************************************************************************/
 
 
@@ -41,8 +41,20 @@ written by
 
 using namespace std;
 
+Index::Index()
+{
+   pthread_mutex_init(&m_MetaLock, NULL);
+}
+
+Index::~Index()
+{
+   pthread_mutex_destroy(&m_MetaLock);
+}
+
 int Index::list(const char* path, std::vector<string>& filelist)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    if (parsePath(path, dir) < 0)
       return SectorError::E_INVALID;
@@ -83,6 +95,8 @@ int Index::list(const char* path, std::vector<string>& filelist)
 
 int Index::lookup(const char* path, SNode& attr)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    if (parsePath(path, dir) < 0)
       return -3;
@@ -125,6 +139,8 @@ int Index::lookup(const char* path, SNode& attr)
 
 int Index::lookup(const char* path, set<Address, AddrComp>& addr)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
       return -3;
@@ -165,6 +181,8 @@ int Index::lookup(const char* path, set<Address, AddrComp>& addr)
 
 int Index::create(const char* path, bool isdir)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
       return -3;
@@ -201,8 +219,10 @@ int Index::create(const char* path, bool isdir)
    return 0;
 }
 
-int Index::move(const char* oldpath, const char* newpath)
+int Index::move(const char* oldpath, const char* newpath, const char* newname)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> olddir;
    if (parsePath(oldpath, olddir) <= 0)
       return -3;
@@ -213,11 +233,14 @@ int Index::move(const char* oldpath, const char* newpath)
 
    map<string, SNode>* od = &m_mDirectory;
    map<string, SNode>::iterator os;
-   for (vector<string>::iterator d = olddir.begin(); d != olddir.end(); ++ d)
+   for (vector<string>::iterator d = olddir.begin();;)
    {
       os = od->find(*d);
       if (os == od->end())
          return -1;
+
+      if (++ d == olddir.end())
+         break;
 
       od = &(os->second.m_mDirectory);
    }
@@ -228,16 +251,28 @@ int Index::move(const char* oldpath, const char* newpath)
    {
       ns = nd->find(*d);
       if (ns == nd->end())
-         break;
+         return -1;
 
       nd = &(ns->second.m_mDirectory);
    }
+
+   // check if the file/dir already exist in the dst dir
+   if (nd->find(os->first) != nd->end())
+      return -1;
+
+   if (NULL == newname)
+      (*nd)[os->first] = os->second;
+   else
+      (*nd)[newname] = os->second;
+   od->erase(os->first);
 
    return 1;
 }
 
 int Index::remove(const char* path, bool recursive)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
       return -3;
@@ -282,6 +317,8 @@ int Index::eraseCopy(const char* path, const Address& loc)
 
 int Index::update(const char* fileinfo, const Address& loc, const int& type)
 {
+   CGuard mg(m_MetaLock);
+
    SNode sn;
    sn.deserialize(fileinfo);
    sn.m_sLocation.insert(loc);
@@ -373,6 +410,8 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type)
 
 int Index::collectDataInfo(const char* file, vector<string>& result)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    if (parsePath(file, dir) <= 0)
       return -3;
@@ -422,6 +461,8 @@ int Index::collectDataInfo(const char* file, vector<string>& result)
 
 int Index::lock(const char* path, int mode)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    parsePath(path, dir);
 
@@ -471,6 +512,8 @@ int Index::lock(const char* path, int mode)
 
 int Index::unlock(const char* path, int mode)
 {
+   CGuard mg(m_MetaLock);
+
    vector<string> dir;
    parsePath(path, dir);
 
@@ -509,6 +552,7 @@ int Index::unlock(const char* path, int mode)
 
    return 0;
 }
+
 
 int SNode::serialize(char* buf)
 {

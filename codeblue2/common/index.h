@@ -77,8 +77,8 @@ friend class Master;
 friend class Slave;
 
 public:
-   Index() {}
-   ~Index() {}
+   Index();
+   ~Index();
 
 public:
    int list(const char* path, std::vector<std::string>& filelist);
@@ -87,7 +87,7 @@ public:
 
 public:
    int create(const char* path, bool isdir = false);
-   int move(const char* oldpath, const char* newpath);
+   int move(const char* oldpath, const char* newpath, const char* newname = NULL);
    int remove(const char* path, bool recursive = false);
    int addCopy(const char* path, const Address& loc);
    int eraseCopy(const char* path, const Address& loc);
@@ -133,6 +133,7 @@ public:
 
 private:
    std::map<std::string, SNode> m_mDirectory;
+   pthread_mutex_t m_MetaLock;
 };
 
 #endif

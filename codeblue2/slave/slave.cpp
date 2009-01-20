@@ -256,17 +256,18 @@ void Slave::run()
 
          case 104: // move dir/file
          {
-            char* oldpath = msg->getData();
-            char* newpath = msg->getData() + 64;
-            m_LocalFile.move(oldpath, newpath);
-            ::rename((m_strHomeDir + oldpath).c_str(), (m_strHomeDir + newpath).c_str());
+            string src = msg->getData();
+            string dstdir = msg->getData() + src.length() + 1;
+            string newname = msg->getData() + src.length() + 1 + dstdir.length() + 1;
+
+            m_LocalFile.move(src.c_str(), dstdir.c_str(), newname.c_str());
+            move(src, dstdir + newname);
 
             break;
          }
 
          case 105: // remove dir/file
          {
-            cout << "REMOVE  " << m_strHomeDir + msg->getData() << endl;
             char* path = msg->getData();
             m_LocalFile.remove(path, true);
             string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
@@ -597,7 +598,7 @@ string Slave::reviseSysCmdPath(const string& path)
 
 int Slave::move(const string& src, const string& dst)
 {
-   string tmp = dst + src;
+   string tmp = dst + src.substr(src.rfind('/'), src.length());
    createDir(tmp.substr(0, tmp.rfind('/')));
    system((string("mv ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + tmp)).c_str());
    return 1;

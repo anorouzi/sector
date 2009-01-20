@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../ -L../../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-all: download upload ls rm mkdir stat sysinfo
+all: download upload ls rm mkdir stat sysinfo mv
 
 download: download.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
@@ -31,5 +31,8 @@ stat: stat.cpp
 sysinfo: sysinfo.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
+mv: mv.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
 clean:
-	rm -f *.o download upload ls rm mkdir stat sysinfo
+	rm -f *.o download upload ls rm mkdir stat sysinfo mv
