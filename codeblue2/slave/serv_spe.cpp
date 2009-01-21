@@ -364,7 +364,7 @@ void* Slave::SPEHandler(void* p)
          input.m_iRows = -1;
          input.m_pllIndex = NULL;
 
-         while (output.m_llOffset >= 0)
+         for (int i = 0; (i == 0) || (output.m_llOffset > 0); ++ i)
          {
             self->processData(input, output, file, result, process, map, partition);
 

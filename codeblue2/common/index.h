@@ -89,8 +89,6 @@ public:
    int create(const char* path, bool isdir = false);
    int move(const char* oldpath, const char* newpath, const char* newname = NULL);
    int remove(const char* path, bool recursive = false);
-   int addCopy(const char* path, const Address& loc);
-   int eraseCopy(const char* path, const Address& loc);
 
       // Functionality:
       //    update the information of a file. e.g., new size, time, or replica.
@@ -102,16 +100,18 @@ public:
       //    number of replicas of the file, or -1 on error.
 
    int update(const char* fileinfo, const Address& addr, const int& type);
-   int collectDataInfo(const char* file, std::vector<std::string>& result);
 
 public:
    int lock(const char* path, int mode);
    int unlock(const char* path, int mode);
- 
+
 public:
    static int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
    static int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address& addr);
    static int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
+
+public:
+   // NOTE: This set of function requires external mutex protection
 
       // Functionality:
       //    merge a slave's index with the system file index.
@@ -129,6 +129,9 @@ public:
    static int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);
    static int64_t getTotalFileNum(std::map<std::string, SNode>& currdir);
 
+   int collectDataInfo(const char* file, std::vector<std::string>& result);
+
+public:
    static int parsePath(const char* path, std::vector<std::string>& result);
 
 private:

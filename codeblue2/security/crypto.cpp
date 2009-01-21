@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/01/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/21/2009
 *****************************************************************************/
 
 #include <stdio.h>
@@ -33,6 +33,8 @@ written by
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/time.h>
+#include <time.h>
 #include "crypto.h"
 
 Crypto::Crypto():
@@ -46,31 +48,22 @@ Crypto::~Crypto()
 
 int Crypto::generateKey(unsigned char key[16], unsigned char iv[8])
 {
-   int fd;
-   if ((fd = open("/dev/random", O_RDONLY)) == -1)
-   {
-      perror("open error");
-      return -1;
-   }
+   timeval t;
+   gettimeofday(&t, 0);
 
-   if ((read (fd, key, 16)) == -1)
-   {
-      perror("read key error");
-      return -1;
-   }
+   srand(t.tv_sec * 1000000 + t.tv_usec);
 
-   if ((read (fd, iv, 8)) == -1)
-   {
-      perror("read iv error");
-      return -1;
-   }
+   for (int i = 0; i < 16; ++ i)
+      key[i] = int(255.0 * rand() / (RAND_MAX + 1.0));
+
+   for (int i = 0; i < 8; ++ i)
+      iv[i] = int(255.0 * rand() / (RAND_MAX + 1.0));
 
    //for (int i = 0; i < 16; i++)
    //   printf("%d \t", key[i]);
    //for (int i = 0; i < 8; i++)
    //   printf ("%d \t", iv[i]);
 
-   close (fd);
    return 0;
 }
 

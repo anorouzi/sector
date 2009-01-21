@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/20/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/21/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -293,7 +293,9 @@ int Master::run()
             Address addr;
             addr.m_strIP = i->second.m_strIP;
             addr.m_iPort = i->second.m_iPort;
+            CGuard::enterCS(m_Metadata.m_MetaLock);
             m_Metadata.substract(m_Metadata.m_mDirectory, addr);
+            CGuard::leaveCS(m_Metadata.m_MetaLock);
 
             //TODO: remove all transactions...
 
@@ -330,7 +332,11 @@ int Master::run()
       // check replica, create or remove replicas if necessary
       pthread_mutex_lock(&m_ReplicaLock);
       if (m_vstrToBeReplicated.empty())
+      {
+         CGuard::enterCS(m_Metadata.m_MetaLock);
          checkReplica(m_Metadata.m_mDirectory, "/", m_vstrToBeReplicated);
+         CGuard::leaveCS(m_Metadata.m_MetaLock);
+      }
       if (!m_vstrToBeReplicated.empty())
          pthread_cond_signal(&m_ReplicaCond);
       pthread_mutex_unlock(&m_ReplicaLock);
@@ -439,7 +445,9 @@ void* Master::serviceEx(void* p)
             ifs.close();
 
             ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str());
+            CGuard::enterCS(self->m_Metadata.m_MetaLock);
             Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left);
+            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
             left.close();
 
             ifs.open((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str());
@@ -685,8 +693,10 @@ void* Master::process(void* s)
          {
             self->m_SysStat.m_llAvailDiskSpace = self->m_SlaveManager.getTotalDiskSpace();
             self->m_SysStat.m_llTotalSlaves = self->m_SlaveManager.getTotalSlaves();
+            CGuard::enterCS(self->m_Metadata.m_MetaLock);
             self->m_SysStat.m_llTotalFileSize = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
+            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
 
             int size = SysStat::g_iSize + 8 + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48 + self->m_SlaveManager.m_mSlaveList.size() * 72;
             char* buf = new char[size];
@@ -1074,7 +1084,11 @@ void* Master::process(void* s)
             bool notfound = false;
             while (size != -1)
             {
-               if (self->m_Metadata.collectDataInfo(req + offset + 4, result) < 0)
+               CGuard::enterCS(self->m_Metadata.m_MetaLock);
+               int r = self->m_Metadata.collectDataInfo(req + offset + 4, result);
+               CGuard::leaveCS(self->m_Metadata.m_MetaLock);
+
+               if (r < 0);
                {
                   notfound = true;
                   break;

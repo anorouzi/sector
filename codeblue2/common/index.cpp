@@ -306,15 +306,6 @@ int Index::remove(const char* path, bool recursive)
    return 0;
 }
 
-int Index::addCopy(const char* path, const Address& loc)
-{
-   return 0;
-}
-int Index::eraseCopy(const char* path, const Address& loc)
-{
-   return 0;
-}
-
 int Index::update(const char* fileinfo, const Address& loc, const int& type)
 {
    CGuard mg(m_MetaLock);
@@ -406,57 +397,6 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type)
    }
 
    return -1;
-}
-
-int Index::collectDataInfo(const char* file, vector<string>& result)
-{
-   CGuard mg(m_MetaLock);
-
-   vector<string> dir;
-   if (parsePath(file, dir) <= 0)
-      return -3;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin();;)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      if (++ d != dir.end())
-         currdir = &(s->second.m_mDirectory);
-      else
-         break;
-   }
-
-   if (!s->second.m_bIsDir)
-   {
-      string idx = *(dir.rbegin()) + ".idx";
-      int rows = -1;
-      map<string, SNode>::iterator i = currdir->find(idx);
-      if (i != currdir->end())
-         rows = i->second.m_llSize / 8 - 1;
-
-      char buf[1024];
-      sprintf(buf, "%s %lld %d", file, s->second.m_llSize, rows);
-
-      for (set<Address, AddrComp>::iterator i = s->second.m_sLocation.begin(); i != s->second.m_sLocation.end(); ++ i)
-         sprintf(buf + strlen(buf), " %s %d", i->m_strIP.c_str(), i->m_iPort);
-
-      result.insert(result.end(), buf);
-   }
-   else
-   {
-      for (map<string, SNode>::iterator i = s->second.m_mDirectory.begin(); i != s->second.m_mDirectory.end(); ++ i)
-      {
-         int t = i->first.length();
-         if ((t < 4) || (i->first.substr(t - 4, t) != ".idx"))
-            collectDataInfo((file + ("/" + i->first)).c_str(), result);
-      }
-   }
-
-   return result.size();
 }
 
 int Index::lock(const char* path, int mode)
@@ -610,6 +550,7 @@ int SNode::deserialize(const char* buf)
 
    return 0;
 }
+
 
 int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
 {
@@ -850,6 +791,55 @@ int64_t Index::getTotalFileNum(std::map<std::string, SNode>& currdir)
    }
 
    return num;
+}
+
+int Index::collectDataInfo(const char* file, vector<string>& result)
+{
+   vector<string> dir;
+   if (parsePath(file, dir) <= 0)
+      return -3;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin();;)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return -1;
+
+      if (++ d != dir.end())
+         currdir = &(s->second.m_mDirectory);
+      else
+         break;
+   }
+
+   if (!s->second.m_bIsDir)
+   {
+      string idx = *(dir.rbegin()) + ".idx";
+      int rows = -1;
+      map<string, SNode>::iterator i = currdir->find(idx);
+      if (i != currdir->end())
+         rows = i->second.m_llSize / 8 - 1;
+
+      char buf[1024];
+      sprintf(buf, "%s %lld %d", file, s->second.m_llSize, rows);
+
+      for (set<Address, AddrComp>::iterator i = s->second.m_sLocation.begin(); i != s->second.m_sLocation.end(); ++ i)
+         sprintf(buf + strlen(buf), " %s %d", i->m_strIP.c_str(), i->m_iPort);
+
+      result.insert(result.end(), buf);
+   }
+   else
+   {
+      for (map<string, SNode>::iterator i = s->second.m_mDirectory.begin(); i != s->second.m_mDirectory.end(); ++ i)
+      {
+         int t = i->first.length();
+         if ((t < 4) || (i->first.substr(t - 4, t) != ".idx"))
+            collectDataInfo((file + ("/" + i->first)).c_str(), result);
+      }
+   }
+
+   return result.size();
 }
 
 int Index::parsePath(const char* path, std::vector<string>& result)
