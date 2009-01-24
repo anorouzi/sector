@@ -1,4 +1,4 @@
-#include <client.h>
+#include <fsclient.h>
 #include <iostream>
 
 using namespace std;
@@ -20,9 +20,11 @@ int main(int argc, char** argv)
    }
 
    SNode attr;
-   if (Sector::stat(argv[3], attr) < 0)
+   int r = Sector::stat(argv[3], attr);
+
+   if (r < 0)
    {
-      cerr << "file does not exist.\n";
+      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
    }
    else if (attr.m_bIsDir)
    {

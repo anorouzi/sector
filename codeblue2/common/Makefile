@@ -2,7 +2,7 @@ include ../Makefile.common
 
 CCFLAGS += -I../udt
 
-OBJS = conf.o index.o topology.o sysstat.o log.o sphere.o
+OBJS = conf.o index.o topology.o sysstat.o log.o sphere.o constant.o
 
 all: libcommon.so libcommon.a
 

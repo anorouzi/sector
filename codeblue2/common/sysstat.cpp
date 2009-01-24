@@ -36,7 +36,7 @@ const int SysStat::g_iSize = 40;
 
 int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c)
 {
-   if (size < g_iSize + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 72)
+   if (size < int(g_iSize + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 72))
       return -1;
 
    *(int64_t*)buf = m_llStartTime;

@@ -16,7 +16,7 @@ int main(int argc, char** argv)
 
    int r = Sector::copy(argv[3], argv[4]);
    if (r < 0)
-      cout << "ERROR CODE: " << r << endl;
+      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
    Sector::logout();
    Sector::close();

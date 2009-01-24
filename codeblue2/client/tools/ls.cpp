@@ -16,7 +16,9 @@ int main(int argc, char** argv)
    Sector::login("test", "xxx");
 
    vector<SNode> filelist;
-   Sector::list(argv[3], filelist);
+   int r = Sector::list(argv[3], filelist);
+   if (r < 0)
+      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {

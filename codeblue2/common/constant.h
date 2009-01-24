@@ -23,15 +23,22 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/24/2009
 *****************************************************************************/
 
 #ifndef __SECTOR_CONSTANT_H__
 #define __SECTOR_CONSTANT_H__
 
+#include <string>
+#include <map>
+
 // ERROR codes
-struct SectorError
+class SectorError
 {
+public:
+   SectorError();
+
+public:
    static const int E_UNKNOWN = -1;		// unknown error
    static const int E_PERMISSION = -1001;	// no permission for IO
    static const int E_EXIST = -1002;		// file/dir already exist
@@ -49,6 +56,12 @@ struct SectorError
    static const int E_TIMEDOUT = -5000;		// timeout
    static const int E_INVALID = -6000;		// invalid parameter
    static const int E_SUPPORT = -6001;		// operation not supported
+
+public:
+   static std::string getErrorMsg(int ecode);
+
+private:
+   static std::map<int, std::string> s_mErrorMsg;
 };
 
 // file open mode

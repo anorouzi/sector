@@ -14,7 +14,9 @@ int main(int argc, char** argv)
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 
-   Sector::move(argv[3], argv[4]);
+   int r = Sector::move(argv[3], argv[4]);
+   if (r < 0)
+      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
    Sector::logout();
    Sector::close();
