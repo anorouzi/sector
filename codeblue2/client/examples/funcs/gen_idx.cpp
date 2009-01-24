@@ -40,7 +40,6 @@ int gen_idx(const SInput* input, SOutput* output, SFile* file)
    out.close();
 
    output->m_iRows = 0;
-   output->m_llOffset = -1;
    file->m_sstrFiles.insert(input->m_pcUnit + string(".idx"));
 
    return 0;

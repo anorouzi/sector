@@ -272,6 +272,31 @@ int Client::remove(const string& path)
    return 1;
 }
 
+int Client::copy(const string& src, const string& dst)
+{
+   string rsrc = revisePath(src);
+   string rdst = revisePath(dst);
+
+   SectorMsg msg;
+   msg.setType(106);
+   msg.setKey(g_iKey);
+
+   int32_t size = rsrc.length() + 1;
+   msg.setData(0, (char*)&size, 4);
+   msg.setData(4, rsrc.c_str(), rsrc.length() + 1);
+   size = rdst.length() + 1;
+   msg.setData(4 + rsrc.length() + 1, (char*)&size, 4);
+   msg.setData(4 + rsrc.length() + 1 + 4, rdst.c_str(), rdst.length() + 1);
+
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   return 1;
+}
+
 string Client::revisePath(const string& path)
 {
    if (path.c_str()[0] != '/')

@@ -94,8 +94,8 @@ private:
    static void* serviceEx(void* p);
 
    static void* process(void* s);
-   static void* processEx(void* p);
 
+private:
    inline void reject(char* ip, int port, int id, int32_t code);
 
 private:
@@ -104,31 +104,31 @@ private:
    pthread_mutex_t m_ReplicaLock;
    pthread_cond_t m_ReplicaCond;
 
-   std::vector<std::string> m_vstrToBeReplicated;
-   std::set<std::string> m_sstrOnReplicate;
+   // string format: <src file>,<dst file>
+   std::vector<std::string> m_vstrToBeReplicated;	// list of files to be replicated/copied
+   std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
    void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath, std::vector<std::string>& replica);
-   int createReplica(const string& path);
-   int removeReplica(const string& path);
+   int createReplica(const string& src, const string& dst);
 
 private:
-   CGMP m_GMP;
+   CGMP m_GMP;						// GMP messenger
 
-   MasterConf m_SysConfig;
-   std::string m_strHomeDir;
+   MasterConf m_SysConfig;				// master configuration
+   std::string m_strHomeDir;				// home data directory, for system metadata
 
-   SectorLog m_SectorLog;
+   SectorLog m_SectorLog;				// sector log
 
-   SysStat m_SysStat;
+   SysStat m_SysStat;					// system statistics
 
-   int m_iMaxActiveUser;
-   std::map<int, ActiveUser> m_mActiveUser;
+   int m_iMaxActiveUser;				// maximum number of active users allowed
+   std::map<int, ActiveUser> m_mActiveUser;		// list of active users
 
-   Index m_Metadata;
-   SlaveManager m_SlaveManager;
-   TransManager m_TransManager;
+   Index m_Metadata;					// in-memory metadata
+   SlaveManager m_SlaveManager;				// slave management
+   TransManager m_TransManager;				// transaction management
 
-   enum Status {INIT, RUNNING, STOPPED} m_Status;
+   enum Status {INIT, RUNNING, STOPPED} m_Status;	// system status
 
 private:
    std::map<string, SlaveAddr> m_mSlaveAddrRec;

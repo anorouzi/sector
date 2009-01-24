@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/16/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/23/2009
 *****************************************************************************/
 
 
@@ -91,6 +91,32 @@ int Index::list(const char* path, std::vector<string>& filelist)
    }
 
    return filelist.size();
+}
+
+int Index::list_r(const char* path, std::vector<string>& filelist)
+{
+   CGuard mg(m_MetaLock);
+
+   vector<string> dir;
+   if (parsePath(path, dir) < 0)
+      return SectorError::E_INVALID;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return SectorError::E_NOEXIST;
+
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   if (s->second.m_bIsDir)
+      return list_r(*currdir, path, filelist);
+
+   filelist.push_back(path);
+   return 1;
 }
 
 int Index::lookup(const char* path, SNode& attr)
@@ -874,4 +900,17 @@ int Index::parsePath(const char* path, std::vector<string>& result)
    delete [] token;
 
    return result.size();
+}
+
+int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string>& filelist)
+{
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      if (!i->second.m_bIsDir)
+         filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
+      else
+         list_r(i->second.m_mDirectory, path + "/" + i->second.m_strName, filelist);
+   }
+
+   return filelist.size();
 }

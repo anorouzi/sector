@@ -60,7 +60,7 @@
   <tr>
     <td>m_llOffset</td>
     <td>int64_t</td>
-    <td>If the input is a file name and there is no enough buffer to hold the result, the current processing may stop in the middle of the file. This parameter is used to store the current position, and the next call of the UDF will continue from this position. The value of this variable must be 0 for the first call, and should be set to -1 when all data is processed. </td>
+    <td>If the input is a file name and there is no enough buffer to hold the result, the current processing may stop in the middle of the file. This parameter is used to store the current position, and the next call of the UDF will continue from this position. The value of this variable is 0 for the first call, and should be set to -1 when all data is processed.</td>
   </tr>
   <tr>
     <td>m_strError</td>

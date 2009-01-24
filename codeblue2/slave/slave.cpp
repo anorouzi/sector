@@ -338,10 +338,11 @@ void Slave::run()
             Param3* p = new Param3;
             p->serv_instance = this;
             p->timestamp = *(int64_t*)msg->getData();
-            p->filename = msg->getData() + 8;
+            p->src = msg->getData() + 8;
+            p->dst = msg->getData() + 8 + p->src.length() + 1;
 
-            char* tmp = new char[64 + p->filename.length()];
-            sprintf(tmp, "created replica %s.", p->filename.c_str());
+            char* tmp = new char[64 + p->src.length() + p->dst.length()];
+            sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
             m_SectorLog.insert(tmp);
             delete [] tmp;
 

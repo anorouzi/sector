@@ -87,7 +87,6 @@ int wordbucket(const SInput* input, SOutput* output, SFile* file)
    }
 
    output->m_iResSize = output->m_pllIndex[output->m_iRows];
-   output->m_llOffset = -1;
    wordset.clear();
    return 0;
 }

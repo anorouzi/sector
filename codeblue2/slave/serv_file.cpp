@@ -337,7 +337,8 @@ void* Slave::copy(void* p)
 {
    Slave* self = ((Param3*)p)->serv_instance;
    time_t ts = ((Param3*)p)->timestamp;
-   string filename = ((Param3*)p)->filename;
+   string src = ((Param3*)p)->src;
+   string dst = ((Param3*)p)->dst;
    delete (Param3*)p;
 
    SectorMsg msg;
@@ -351,7 +352,7 @@ void* Slave::copy(void* p)
    int mode = 1;
    msg.setData(0, (char*)&port, 4);
    msg.setData(4, (char*)&mode, 4);
-   msg.setData(8, filename.c_str(), filename.length() + 1);
+   msg.setData(8, src.c_str(), src.length() + 1);
 
    if (self->m_GMP.rpc(self->m_strMasterIP.c_str(), self->m_iMasterPort, &msg, &msg) < 0)
       return NULL;
@@ -380,12 +381,12 @@ void* Slave::copy(void* p)
       return NULL;
 
    //copy to .tmp first, then move to real location
-   self->createDir(string(".tmp") + filename.substr(0, filename.rfind('/')));
+   self->createDir(string(".tmp") + dst.substr(0, dst.rfind('/')));
 
    ofstream ofs;
-   ofs.open((self->m_strHomeDir + ".tmp" + filename).c_str(), ios::out | ios::binary | ios::trunc);
+   ofs.open((self->m_strHomeDir + ".tmp" + dst).c_str(), ios::out | ios::binary | ios::trunc);
    if (datachn.recvfile(ofs, offset, size) < 0)
-      unlink((self->m_strHomeDir + ".tmp" + filename).c_str());
+      unlink((self->m_strHomeDir + ".tmp" + dst).c_str());
 
    ofs.close();
 
@@ -401,15 +402,16 @@ void* Slave::copy(void* p)
    utimbuf ut;
    ut.actime = ts;
    ut.modtime = ts;
-   utime((self->m_strHomeDir + ".tmp" + filename).c_str(), &ut);
+   utime((self->m_strHomeDir + ".tmp" + dst).c_str(), &ut);
 
-   self->createDir(filename.substr(0, filename.rfind('/')));
+   self->createDir(dst.substr(0, dst.rfind('/')));
    string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
-   string rfile = self->reviseSysCmdPath(filename);
+   string rfile = self->reviseSysCmdPath(dst);
    system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
 
    // if the file has been modified during the replication, remove this replica
-   if (self->report(0, filename, 3) < 0)
+   int type = (src == dst) ? 3 : 1;
+   if (self->report(0, dst, type) < 0)
       system(("rm " + rhome + rfile).c_str());
 
    return NULL;

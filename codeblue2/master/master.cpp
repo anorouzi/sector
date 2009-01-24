@@ -720,7 +720,7 @@ void* Master::process(void* s)
 
          case 101: // ls
          {
-            int rwx = 1;
+            int rwx = SF_MODE::READ;
             string dir = msg->getData();
             if (!user->match(dir, rwx))
             {
@@ -752,7 +752,7 @@ void* Master::process(void* s)
 
          case 102: // stat
          {
-            int rwx = 1;
+            int rwx = SF_MODE::READ;
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
@@ -790,7 +790,7 @@ void* Master::process(void* s)
 
          case 103: // mkdir
          {
-            int rwx = 2;
+            int rwx = SF_MODE::WRITE;
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
@@ -873,7 +873,7 @@ void* Master::process(void* s)
                self->reject(ip, port, id, SectorError::E_NOEXIST);
                break;
             }
-            if (!at.m_bIsDir)
+            if ((rt >= 0) && (!at.m_bIsDir))
             {
                self->reject(ip, port, id, SectorError::E_EXIST);
                break;
@@ -901,7 +901,7 @@ void* Master::process(void* s)
 
          case 105: // delete dir/file
          {
-            int rwx = 2;
+            int rwx = SF_MODE::WRITE;
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
@@ -927,6 +927,78 @@ void* Master::process(void* s)
             self->m_GMP.sendto(ip, port, id, msg);
 
             self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", filename.c_str(), "SUCCESS", "");
+
+            break;
+         }
+
+         case 106: // make a copy of a file/dir
+         {
+            string src = msg->getData() + 4;
+            string dst = msg->getData() + 4 + src.length() + 1 + 4;
+            string uplevel = dst.substr(0, dst.find('/'));
+            string sublevel = dst + src.substr(src.rfind('/'), src.length());
+
+            SNode tmp;
+            if ((uplevel.length() > 0) && (self->m_Metadata.lookup(uplevel.c_str(), tmp) < 0))
+            {
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
+               break;
+            }
+            if (self->m_Metadata.lookup(sublevel.c_str(), tmp) >= 0)
+            {
+               self->reject(ip, port, id, SectorError::E_EXIST);
+               break;
+            }
+
+            int rwx = SF_MODE::READ;
+            if (!user->match(src.c_str(), rwx))
+            {
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
+               break;
+            }
+            rwx = SF_MODE::WRITE;
+            if (!user->match(dst.c_str(), rwx))
+            {
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
+               break;
+            }
+
+            SNode as, at;
+            int rs = self->m_Metadata.lookup(src.c_str(), as);
+            int rt = self->m_Metadata.lookup(dst.c_str(), at);
+            vector<string> filelist;
+            self->m_Metadata.list_r(src.c_str(), filelist);
+
+            if (rs < 0)
+            {
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
+               break;
+            }
+            if ((rt >= 0) && (!at.m_bIsDir))
+            {
+               self->reject(ip, port, id, SectorError::E_EXIST);
+               break;
+            }
+
+            // replace the directory prefix with dst
+            string rep;
+            if (rt < 0)
+               rep = src;
+            else
+               rep = src.substr(0, src.rfind('/'));
+
+            pthread_mutex_lock(&self->m_ReplicaLock);
+            for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+            {
+               string target = *i;
+               target.replace(0, rep.length(), dst);
+               self->m_vstrToBeReplicated.insert(self->m_vstrToBeReplicated.begin(), src + "\t" + target);
+            }
+            if (!self->m_vstrToBeReplicated.empty())
+               pthread_cond_signal(&self->m_ReplicaCond);
+            pthread_mutex_unlock(&self->m_ReplicaLock);
+
+            self->m_GMP.sendto(ip, port, id, msg);
 
             break;
          }
@@ -1088,7 +1160,7 @@ void* Master::process(void* s)
                int r = self->m_Metadata.collectDataInfo(req + offset + 4, result);
                CGuard::leaveCS(self->m_Metadata.m_MetaLock);
 
-               if (r < 0);
+               if (r < 0)
                {
                   notfound = true;
                   break;
@@ -1232,12 +1304,6 @@ void Master::reject(char* ip, int port, int id, int32_t code)
    m_GMP.sendto(ip, port, id, &msg);
 }
 
-void* Master::processEx(void* p)
-{
-   return NULL;
-}
-
-
 void* Master::replica(void* s)
 {
    Master* self = (Master*)s;
@@ -1255,7 +1321,10 @@ void* Master::replica(void* s)
 
          // avoid replicate a file that is currently being replicated
          if (self->m_sstrOnReplicate.find(*r) == self->m_sstrOnReplicate.end())
-            self->createReplica(*r);
+         {
+            int pos = r->find('\t');
+            self->createReplica(r->substr(0, pos), r->substr(pos + 1, r->length()));
+         }
       }
 
       // remove those already been replicated
@@ -1276,40 +1345,53 @@ void Master::checkReplica(map<string, SNode>& currdir, const string& currpath, v
       if (!i->second.m_bIsDir)
       {
          if (int(i->second.m_sLocation.size()) < m_SysConfig.m_iReplicaNum)
-            replica.insert(replica.end(), currpath + "/" + i->second.m_strName);
+         {
+            string file = currpath + "/" + i->second.m_strName;
+            replica.insert(replica.end(), file + "\t" + file);
+         }
       }
       else
       {
-          string path = currpath + "/" + i->second.m_strName;
-          checkReplica(i->second.m_mDirectory, path, replica);
+         string path = currpath + "/" + i->second.m_strName;
+         checkReplica(i->second.m_mDirectory, path, replica);
       }
    }
 }
 
-int Master::createReplica(const string& path)
+int Master::createReplica(const string& src, const string& dst)
 {
    SNode attr;
-   int r = m_Metadata.lookup(path.c_str(), attr);
-
+   int r = m_Metadata.lookup(src.c_str(), attr);
    if (r < 0)
       return r;
 
    SlaveNode sn;
-   if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize) < 0)
-      return -1;
+   if (src == dst)
+   {
+      if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize) < 0)
+         return -1;
+   }
+   else
+   {
+      set<Address, AddrComp> empty;
+      if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
+         return -1;
+   }
 
    SectorMsg msg;
    msg.setType(111);
    msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
-   msg.setData(8, path.c_str(), path.length() + 1);
+   msg.setData(8, src.c_str(), src.length() + 1);
+   msg.setData(8 + src.length() + 1, dst.c_str(), dst.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return -1;
 
-   m_sstrOnReplicate.insert(path);
+   if (src == dst)
+      m_sstrOnReplicate.insert(src);
 
    // replicate index file to the same location
-   string idx = path + ".idx";
+   string idx = src + ".idx";
    r = m_Metadata.lookup(idx.c_str(), attr);
 
    if (r < 0)
@@ -1318,17 +1400,13 @@ int Master::createReplica(const string& path)
    msg.setType(111);
    msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
    msg.setData(8, idx.c_str(), idx.length() + 1);
+   msg.setData(8 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return 0;
 
    m_sstrOnReplicate.insert(idx);
 
-   return 0;
-}
-
-int Master::removeReplica(const string& path)
-{
    return 0;
 }
 

@@ -166,7 +166,8 @@ private:
    struct Param3
    {
       Slave* serv_instance;
-      string filename;
+      string src;
+      string dst;
       time_t timestamp;
    };
 

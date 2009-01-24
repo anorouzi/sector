@@ -82,6 +82,7 @@ public:
 
 public:
    int list(const char* path, std::vector<std::string>& filelist);
+   int list_r(const char* path, std::vector<std::string>& filelist);
    int lookup(const char* path, SNode& attr);
    int lookup(const char* path, std::set<Address, AddrComp>& addr);
 
@@ -133,6 +134,9 @@ public:
 
 public:
    static int parsePath(const char* path, std::vector<std::string>& result);
+
+private:
+   static int list_r(std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist);
 
 private:
    std::map<std::string, SNode> m_mDirectory;

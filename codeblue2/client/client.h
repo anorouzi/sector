@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/03/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/22/2009
 *****************************************************************************/
 
 
@@ -52,6 +52,8 @@ public:
    static int mkdir(const string& path);
    static int move(const string& oldpath, const string& newpath);
    static int remove(const string& path);
+   static int copy(const string& src, const string& dst);
+
    static int sysinfo(SysStat& sys);
 
 public:
