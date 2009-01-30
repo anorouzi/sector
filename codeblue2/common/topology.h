@@ -34,8 +34,24 @@ written by
 #include <set>
 #include <map>
 #include <vector>
-#include <index.h>
 #include <stdint.h>
+
+struct Address
+{
+   std::string m_strIP;
+   std::string m_strPublicIP;
+   unsigned short int m_iPort;
+};
+
+struct AddrComp
+{
+   bool operator()(const Address& a1, const Address& a2) const
+   {
+      if (a1.m_strIP == a2.m_strIP)
+         return a1.m_iPort < a2.m_iPort;
+      return a1.m_strIP < a2.m_strIP;
+   }
+};
 
 class SlaveNode
 {
@@ -102,6 +118,12 @@ public:
    int lookup(const char* ip, std::vector<int>& path);
 
    unsigned int match(std::vector<int>& p1, std::vector<int>& p2);
+   unsigned int distance(const char* ip1, const char* ip2);
+   unsigned int distance(const Address& addr, const std::set<Address, AddrComp>& loclist);
+
+   int getTopoDataSize();
+   int serialize(char* buf, int& size);
+   int deserialize(const char* buf, const int& size);
 
 private:
    int parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask);

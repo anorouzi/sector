@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/07/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/26/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -470,9 +470,16 @@ void* SphereProcess::run(void* param)
             cerr << "SPE PROCESSING ERROR " << ip << " " << port << endl;
 
             //error, quit this segment on the SPE
-            s->m_pDS->m_iStatus = 0;
+            s->m_pDS->m_iStatus = -1;
             s->m_pDS->m_iSPEID = -1;
             s->m_iStatus = 0;
+
+            ++ self->m_iProgress;
+            pthread_mutex_lock(&self->m_ResLock);
+            ++ self->m_iAvailRes;
+            pthread_cond_signal(&self->m_ResCond);
+            pthread_mutex_unlock(&self->m_ResLock);
+
             continue;
          }
          if (progress > s->m_iProgress)
@@ -540,15 +547,24 @@ int SphereProcess::checkSPE()
             if ((0 != (*d)->m_iStatus) || (-1 != (*d)->m_iSPEID))
                continue;
 
-            // if a file is processed via pass by filename, it must be processed on its original location
-            // also, this depends on if the source data is allowed to move
-            if ((0 != m_iRows) && (m_bDataMove))
-               dss = d;
+            unsigned int distance = 1000000000;
 
             if ((*d)->m_pLoc->find(sn) != (*d)->m_pLoc->end())
             {
                dss = d;
                break;
+            }
+            else if ((0 != m_iRows) && (m_bDataMove))
+            {
+               // if a file is processed via pass by filename, it must be processed on its original location
+               // also, this depends on if the source data is allowed to move
+               // process data on the nearest node first
+               unsigned int tmp = Client::g_Topology.distance(sn, *(*d)->m_pLoc);
+               if (tmp < distance)
+               {
+                  distance = tmp;
+                  dss = d;
+               }
             }
          }
 
@@ -575,17 +591,30 @@ int SphereProcess::checkSPE()
             }
 
             // dismiss this SPE and release its job
-            s->m_pDS->m_iStatus = 0;
-            s->m_pDS->m_iSPEID = -1;
             s->m_iStatus = -1;
             s->m_DataChn.close();
-
             m_iTotalSPE --;
+
+            if (++ s->m_pDS->m_iRetryNum > 3)
+            {
+               //if the DS still fails after several retries, it means there is a bug in processing the specific data.
+               s->m_pDS->m_iStatus = -1;
+
+               ++ m_iProgress;
+               pthread_mutex_lock(&m_ResLock);
+               ++ m_iAvailRes;
+               pthread_cond_signal(&m_ResCond);
+               pthread_mutex_unlock(&m_ResLock);
+            }
+            else
+               s->m_pDS->m_iStatus = 0;
+
+            s->m_pDS->m_iSPEID = -1;
          }
       }
    }
 
-   // there are no busy SPEs, but none of them can be assigned to a DS. Error occurs!
+   // All SPEs, are spare but none of them can be assigned a DS. Error occurs!
    if (!spe_busy && !ds_found && (m_iProgress < m_iTotalDS))
    {
       cerr << "Cannot allocate SPE for certain data segments. Process failed." << endl;

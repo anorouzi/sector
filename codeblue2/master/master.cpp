@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/26/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -87,7 +87,9 @@ bool ActiveUser::match(const string& path, int32_t rwx)
 }
 
 
-Master::Master()
+Master::Master():
+m_pcTopoData(NULL),
+m_iTopoDataSize(0)
 {
    pthread_mutex_init(&m_ReplicaLock, NULL);
    pthread_cond_init(&m_ReplicaCond, NULL);
@@ -96,6 +98,7 @@ Master::Master()
 Master::~Master()
 {
    m_SectorLog.close();
+   delete [] m_pcTopoData;
    pthread_mutex_destroy(&m_ReplicaLock);
    pthread_cond_destroy(&m_ReplicaCond);
 }
@@ -114,6 +117,12 @@ int Master::init()
    if (m_SlaveManager.init("topology.conf") < 0)
    {
       m_SectorLog.insert("Warning: no topology configuration found.");
+   }
+   else
+   {
+      m_iTopoDataSize = m_SlaveManager.m_Topology.getTopoDataSize();
+      m_pcTopoData = new char[m_iTopoDataSize];
+      m_SlaveManager.m_Topology.serialize(m_pcTopoData, m_iTopoDataSize);
    }
 
    // check local directories, create them is not exist
@@ -507,6 +516,8 @@ void* Master::serviceEx(void* p)
          int32_t key = 0;
          secconn.recv((char*)&key, 4);
 
+         s->send((char*)&key, 4);
+
          if (key > 0)
          {
             ActiveUser au;
@@ -518,6 +529,10 @@ void* Master::serviceEx(void* p)
             s->recv((char*)&au.m_iPort, 4);
             s->recv((char*)au.m_pcKey, 16);
             s->recv((char*)au.m_pcIV, 8);
+
+            s->send((char*)&self->m_iTopoDataSize, 4);
+            if (self->m_iTopoDataSize > 0)
+               s->send(self->m_pcTopoData, self->m_iTopoDataSize);
 
             int32_t size = 0;
             char* buf = NULL;
@@ -556,8 +571,6 @@ void* Master::serviceEx(void* p)
             sprintf(text, "User %s login rejected from %s", user, ip.c_str());
             self->m_SectorLog.insert(text);
          }
-
-         s->send((char*)&key, 4);
       }
 
       default:

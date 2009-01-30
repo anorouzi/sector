@@ -40,6 +40,7 @@ string Client::g_strServerHost = "";
 string Client::g_strServerIP = "";
 int Client::g_iServerPort = 0;
 CGMP Client::g_GMP;
+Topology Client::g_Topology;
 int32_t Client::g_iKey = 0;
 int Client::g_iCount = 0;
 unsigned char Client::g_pcCryptoKey[16];
@@ -109,6 +110,10 @@ int Client::login(const string& username, const string& password, const char* ce
    strncpy(buf, password.c_str(), 128);
    secconn.send(buf, 128);
 
+   secconn.recv((char*)&g_iKey, 4);
+   if (g_iKey < 0)
+      return SectorError::E_SECURITY;
+
    int32_t port = g_GMP.getPort();
    secconn.send((char*)&port, 4);
 
@@ -116,7 +121,14 @@ int Client::login(const string& username, const string& password, const char* ce
    secconn.send((char*)g_pcCryptoKey, 16);
    secconn.send((char*)g_pcCryptoIV, 8);
 
-   secconn.recv((char*)&g_iKey, 4);
+   int size = 0;
+   secconn.recv((char*)&size, 4);
+   if (size > 0)
+   {
+      char* tmp = new char[size];
+      secconn.recv(tmp, size);
+      g_Topology.deserialize(tmp, size);
+   }
 
    secconn.close();
    SSLTransport::destroy();

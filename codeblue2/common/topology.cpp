@@ -168,7 +168,7 @@ int Topology::lookup(const char* ip, vector<int>& path)
    return -1;
 }
 
-unsigned int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
+unsigned int Topology::match(vector<int>& p1, vector<int>& p2)
 {
    unsigned int level;
    if (p1.size() < p2.size())
@@ -183,6 +183,80 @@ unsigned int Topology::match(std::vector<int>& p1, std::vector<int>& p2)
    }
 
    return level;
+}
+
+unsigned int Topology::distance(const char* ip1, const char* ip2)
+{
+   vector<int> p1, p2;
+   lookup(ip1, p1);
+   lookup(ip2, p2);
+   return m_uiLevel - match(p1, p2);
+}
+
+unsigned int Topology::distance(const Address& addr, const set<Address, AddrComp>& loclist)
+{
+   unsigned int dist = 1000000000;
+   for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   {
+      unsigned int d = distance(addr.m_strIP.c_str(), i->m_strIP.c_str());
+      if (d < dist)
+         dist = d;
+   }
+   return dist;
+}
+
+int Topology::getTopoDataSize()
+{
+   return 8 + m_vTopoMap.size() * (4 + 4 + m_uiLevel * 4);
+}
+
+int Topology::serialize(char* buf, int& size)
+{
+   if (size < int(8 + m_vTopoMap.size() * (4 + 4 + m_uiLevel * 4)))
+      return -1;
+
+   size = 8 + m_vTopoMap.size() * (4 + 4 + m_uiLevel * 4);
+   int* p = (int*)buf;
+   p[0] = m_vTopoMap.size();
+   p[1] = m_uiLevel;
+   p += 2;
+
+   for (vector<TopoMap>::const_iterator i = m_vTopoMap.begin(); i != m_vTopoMap.end(); ++ i)
+   {
+      p[0] = i->m_uiIP;
+      p[1] = i->m_uiMask;
+      p += 2;
+      for (vector<int>::const_iterator j = i->m_viPath.begin(); j != i->m_viPath.end(); ++ j)
+         *p ++ = *j;
+   }
+
+   return 0;
+}
+
+int Topology::deserialize(const char* buf, const int& size)
+{
+   if (size < 8)
+      return -1;
+
+   int* p = (int*)buf;
+   m_vTopoMap.resize(p[0]);
+   m_uiLevel = p[1];
+   p += 2;
+
+   if (size < int(8 + m_vTopoMap.size() * (4 + 4 + m_uiLevel * 4)))
+      return -1;
+
+   for (vector<TopoMap>::iterator i = m_vTopoMap.begin(); i != m_vTopoMap.end(); ++ i)
+   {
+      i->m_uiIP = p[0];
+      i->m_uiMask = p[1];
+      p += 2;
+      i->m_viPath.resize(m_uiLevel);
+      for (vector<int>::iterator j = i->m_viPath.begin(); j != i->m_viPath.end(); ++ j)
+         *j = *p ++;
+   }
+
+   return 0;
 }
 
 int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
@@ -431,7 +505,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
 
    return 1;
 }
-
+ 
 int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, map<int, Address>& loc, int replica)
 {
    timeval t;
@@ -440,10 +514,24 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
    if (!loclist.empty())
    {
-      int r = int(loclist.size() * rand() / (RAND_MAX + 1.0));
+      // find nearest node, if equal distance, choose a random one
       set<int>::iterator n = loclist.begin();
-      for (int i = 0; i < r; ++ i)
-         n ++;
+      unsigned int dist = 1000000000;
+      for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+      {
+         unsigned int d = m_Topology.distance(client.m_strIP.c_str(), m_mSlaveList[*i].m_strIP.c_str());
+         if (d < dist)
+         {
+            dist = d;
+            n = i;
+         }
+         else if (d == dist)
+         {
+            if ((rand() % 2) == 0)
+               n = i;
+         }
+      }
+
       Address addr;
       addr.m_strIP = m_mSlaveList[*n].m_strIP;
       addr.m_iPort = m_mSlaveList[*n].m_iPort;

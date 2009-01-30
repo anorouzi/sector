@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/12/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/26/2009
 *****************************************************************************/
 
 #ifndef __SPHERE_CLIENT_H__
@@ -131,14 +131,16 @@ private:
 
    struct DS
    {
-      int m_iID;
-      string m_strDataFile;
-      int64_t m_llOffset;
-      int64_t m_llSize;
-      int m_iSPEID;
-      int m_iStatus;				// 0: not started yet; 1: in progress; 2: done, result ready; 3: result read
+      int m_iID;				// DS ID
+      string m_strDataFile;			// input data file
+      int64_t m_llOffset;			// input data offset
+      int64_t m_llSize;				// input data size
+      int m_iSPEID;				// processing SPE
       std::set<Address, AddrComp>* m_pLoc;	// locations of DS
-      SphereResult* m_pResult;
+
+      int m_iStatus;                            // 0: not started yet; 1: in progress; 2: done, result ready; 3: result read; -1: failed
+      int m_iRetryNum;				// number of retry due to failure
+      SphereResult* m_pResult;			// processing result
    };
    std::vector<DS*> m_vpDS;
    pthread_mutex_t m_DSLock;

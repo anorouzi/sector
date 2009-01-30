@@ -33,6 +33,7 @@ written by
 #include <gmp.h>
 #include <index.h>
 #include <sysstat.h>
+#include <topology.h>
 #include <pthread.h>
 
 class Client
@@ -72,6 +73,8 @@ protected:
    // this is the global key/iv for this client. do not use this for any connection; a new connection should duplicate this
    static unsigned char g_pcCryptoKey[16];
    static unsigned char g_pcCryptoIV[8];
+
+   static Topology g_Topology;
 
 private:
    static int g_iCount;

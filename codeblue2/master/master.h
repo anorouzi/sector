@@ -130,6 +130,9 @@ private:
 
    enum Status {INIT, RUNNING, STOPPED} m_Status;	// system status
 
+   char* m_pcTopoData;					// serialized topology data
+   int m_iTopoDataSize;					// size of the topology data
+
 private:
    std::map<string, SlaveAddr> m_mSlaveAddrRec;
    void loadSlaveAddr(string file);

@@ -36,6 +36,12 @@ int download(const char* file, const char* dest)
       return -1;
    }
 
+   if (attr.m_bIsDir)
+   {
+      ::mkdir((string(dest) + "/" + file).c_str(), S_IRWXU);
+      return 1;
+   }
+
    long long int size = attr.m_llSize;
    cout << "downloading " << file << " of " << size << " bytes" << endl;
 
@@ -82,59 +88,121 @@ int download(const char* file, const char* dest)
    return -1;
 }
 
+int getFileList(const string& path, vector<string>& fl)
+{
+   SNode attr;
+   if (Sector::stat(path.c_str(), attr) < 0)
+      return -1;
+
+   fl.push_back(path);
+
+   if (attr.m_bIsDir)
+   {
+      vector<SNode> subdir;
+      Sector::list(path, subdir);
+
+      for (vector<SNode>::iterator i = subdir.begin(); i != subdir.end(); ++ i)
+      {
+         if (i->m_bIsDir)
+            getFileList(path + "/" + i->m_strName, fl);
+         else
+            fl.push_back(path + "/" + i->m_strName);
+      }
+   }
+
+   return fl.size();
+}
+
 int main(int argc, char** argv)
 {
    if (argc != 5)
    {
-      cout << "USAGE: download <ip> <port> <filelist> <local dir>\n";
+      cout << "USAGE: download <ip> <port> <src file/dir> <local dir>\n";
       return -1;
    }
-
-   cout << "Sector client version 1.6, built 052908.\n";
-
-   ifstream src;
-   src.open(argv[3]);
-   if (src.fail())
-   {
-      cout << "No file list found, exit.\n";
-      return -1;
-   }
-
-   vector<string> filelist;
-   char buf[1024];
-   while (!src.eof())
-   {
-      src.getline(buf, 1024);
-      if (0 != strlen(buf))
-         filelist.insert(filelist.end(), buf);
-   }
-   src.close();
 
    if (-1 == Sector::init(argv[1], atoi(argv[2])))
    {
       cout << "unable to connect to the server at " << argv[1] << endl;
       return -1;
    }
-
    if (-1 == Sector::login("test", "xxx"))
    {
       cout << "login failed\n";
       return -1;
    }
 
-   for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   SNode attr;
+   int r = Sector::stat(argv[3], attr);
+   if (r < 0)
    {
-      int c = 0;
+      cout << "ERROR: source file does not exist.\n";
+      return -1;
+   }
 
-      for (; c < 5; ++ c)
+   struct stat s;
+   r = stat(argv[4], &s);
+   if ((r < 0) || !S_ISDIR(s.st_mode))
+   {
+      cout << "ERROR: destination directory does not exist.\n";
+      return -1;
+   }
+
+   vector<string> fl;
+   getFileList(argv[3], fl);
+
+   string olddir;
+   for (int i = strlen(argv[3]) - 1; i >= 0; -- i)
+   {
+      if (argv[3][i] != '/')
       {
-         if (download(i->c_str(), argv[4]) > 0)
-            break;
-         else if (c < 4)
-            cout << "download interuppted, trying again from break point." << endl;
-         else
-            cout << "download failed after 5 attempts." << endl;
+         olddir = string(argv[3]).substr(0, i);
+         break;
       }
+   }
+   size_t p = olddir.rfind('/');
+   if (p == string::npos)
+      olddir = "";
+   else
+      olddir = olddir.substr(0, p);
+
+   string newdir = argv[4];
+
+   for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
+   {
+      string dst = *i;
+      if (olddir.length() > 0)
+         dst.replace(0, olddir.length(), newdir);
+      else
+         dst = newdir + "/" + dst;
+
+      string localdir = dst.substr(0, dst.rfind('/'));
+
+      // if localdir does not exist, create it
+      if (stat(localdir.c_str(), &s) < 0)
+      {
+         for (unsigned int p = 0; p < localdir.length(); ++ p)
+         {
+            if (localdir.c_str()[p] == '/')
+            {
+               string substr = localdir.substr(0, p);
+
+               if ((-1 == ::mkdir(substr.c_str(), S_IRWXU)) && (errno != EEXIST))
+               {
+                  cout << "ERROR: unable to create local directory " << substr << endl;
+                  return -1;
+               }
+            }
+         }
+
+         if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
+         {
+            cout << "ERROR: unable to create local directory " << localdir << endl;
+            return -1;
+         }
+      }
+
+      download(i->c_str(), localdir.c_str());
    }
 
    Sector::logout();
