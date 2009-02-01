@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/26/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 01/31/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -150,17 +150,6 @@ int Master::init()
    if (NULL == test)
    {
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
-      {
-         cerr << "unable to create home directory.\n";
-         return -1;
-      }
-   }
-   closedir(test);
-
-   test = opendir((m_strHomeDir + ".sphere").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0))
       {
          cerr << "unable to create home directory.\n";
          return -1;
@@ -306,7 +295,16 @@ int Master::run()
             m_Metadata.substract(m_Metadata.m_mDirectory, addr);
             CGuard::leaveCS(m_Metadata.m_MetaLock);
 
-            //TODO: remove all transactions...
+            //remove all associated transactions and release IO locks...
+            vector<int> trans;
+            m_TransManager.retrieve(i->first, trans);
+            for (vector<int>::iterator t = trans.begin(); t != trans.end(); ++ t)
+            {
+               Transaction tt;
+               m_TransManager.retrieve(*t, tt);
+               m_Metadata.unlock(tt.m_strFile.c_str(), tt.m_iMode);
+               m_TransManager.updateSlave(*t, i->first);
+            }
 
             // to be restarted
             map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);

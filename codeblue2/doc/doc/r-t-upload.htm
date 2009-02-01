@@ -10,9 +10,9 @@
 <div class="ref_head">Reference: Tools </div>
 
 <h4 class="func_name"><strong>upload</strong></h4>
-<p>The <b>upload</b> tool upload one file to the Sector system. </p>
+<p>The <b>upload</b> tool upload one file or the whole directory to the Sector system. </p>
 
-<div class="code">upload <strong><font color="#FFFFFF">IP PORT SRC_FILE DST_FILE </font></strong></div>
+<div class="code">upload <strong><font color="#FFFFFF">IP PORT SRC_FILE/DIR DST_DIR </font></strong></div>
 
 <h5>Parameters</h5>
 <dl>
@@ -20,13 +20,14 @@
   <dd>The IP address or the domain name of the Sector master server .</dd>
   <dt><em>PORT</em></dt>
   <dd>The port number of the Sector master server.</dd>
-  <dt><em>SRC_FILE</em></dt>
-  <dd>The local file to be uploaded.</dd>
-  <dt><em>DST_FILE</em></dt>
-  <dd>The path/name of the file in the Sector system.</dd>
+  <dt><em>SRC_FILE</em>/DIR</dt>
+  <dd>The local file or directory to be uploaded.</dd>
+  <dt><em>DST_DIR</em></dt>
+  <dd>The destination directory in the Sector system.</dd>
 </dl>
 
 <h5>Description</h5>
+<p>The <strong>upload</strong> tool uploads one file or a whole local directory &quot;SRC_FILE/DIR&quot; to the Sector system. The uploaded files will be put in the DST_DIR directory. The destination directory DST_DIR must exist. </p>
 <p>The command uses account &quot;test&quot;.</p>
 <h5><strong>See Also</strong></h5>
 <p><strong><a href="t-r-download.html">download</a></strong></p>

@@ -74,6 +74,19 @@ int TransManager::retrieve(int transid, Transaction& trans)
    return transid;
 }
 
+int TransManager::retrieve(int slaveid, vector<int>& trans)
+{
+   for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
+   {
+      if (i->second.m_siSlaveID.find(slaveid) != i->second.m_siSlaveID.end())
+      {
+         trans.push_back(i->first);
+      }
+   }
+
+   return trans.size();
+}
+
 int TransManager::updateSlave(int transid, int slaveid)
 {
    m_mTransList[transid].m_siSlaveID.erase(slaveid);
@@ -84,19 +97,17 @@ int TransManager::updateSlave(int transid, int slaveid)
    return ret;
 }
 
-int TransManager::getUserTrans(const int key, set<int> transid)
+int TransManager::getUserTrans(int key, vector<int>& trans)
 {
-   transid.clear();
-
    for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
    {
       if (key == i->second.m_iUserKey)
       {
-         transid.insert(i->first);
+         trans.push_back(i->first);
       }
    }
 
-   return transid.size();
+   return trans.size();
 }
 
 unsigned int TransManager::getTotalTrans()
