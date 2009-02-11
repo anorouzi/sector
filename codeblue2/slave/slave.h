@@ -238,9 +238,11 @@ private:
 
 private:
    int report(const int32_t& transid, const string& path, const int& change = 0);
-   int reportSphere(const int32_t& transid);
+   int reportSphere(const int32_t& transid, const std::vector<Address>* bad = NULL);
 
    void logError(int type, const string& ip, const int& port, const string& name);
+
+   int checkBadDest(std::multimap<int64_t, Address>& sndspd, std::vector<Address>& bad);
 
 private:
    int m_iSlaveID;			// unique ID assigned by the master

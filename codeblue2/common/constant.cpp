@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/24/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/04/2009
 *****************************************************************************/
 
 #include "constant.h"
@@ -33,7 +33,7 @@ using namespace std;
 
 map<int, string> SectorError::s_mErrorMsg;
 
-SectorError::SectorError()
+int SectorError::init()
 {
    s_mErrorMsg.clear();
    s_mErrorMsg[-1] = "unknown error.";
@@ -53,6 +53,8 @@ SectorError::SectorError()
    s_mErrorMsg[-5000] = "a timeout event happened.";
    s_mErrorMsg[-6000] = "at least one parameter is invalid.";
    s_mErrorMsg[-6001] = "the operation is not supported.";
+
+   return s_mErrorMsg.size();
 }
 
 string SectorError::getErrorMsg(int ecode)

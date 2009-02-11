@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/09/2009
 *****************************************************************************/
 
 
@@ -264,6 +264,62 @@ int SlaveConf::init(const string& path)
          m_strPublicIP = param.m_vstrValue[0];
       else
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
+   }
+
+   parser.close();
+
+   return 0;
+}
+
+int ClientConf::init(const std::string& path)
+{
+   m_strUserName = "";
+   m_strPassword = "";
+   m_strMasterIP = "";
+   m_iMasterPort = 0;
+   m_strCertificate = "";
+
+   ConfParser parser;
+   Param param;
+
+   if (0 != parser.init(path))
+      return -1;
+
+   while (parser.getNextParam(param) >= 0)
+   {
+      if (param.m_vstrValue.empty())
+         continue;
+
+      if ("MASTER_ADDRESS" == param.m_strName)
+      {
+         char buf[128];
+         strcpy(buf, param.m_vstrValue[0].c_str());
+
+         unsigned int i = 0;
+         for (; i < strlen(buf); ++ i)
+         {
+            if (buf[i] == ':')
+               break;
+         }
+
+         buf[i] = '\0';
+         m_strMasterIP = buf;
+         m_iMasterPort = atoi(buf + i + 1);
+      }
+      else if ("USERNAME" == param.m_strName)
+      {
+         m_strUserName = param.m_vstrValue[0];
+      }
+      else if ("PASSWORD" == param.m_strName)
+      {
+         m_strPassword = param.m_vstrValue[0];
+      }
+      else if ("CERTIFICATE" == param.m_strName)
+      {
+         m_strCertificate = param.m_vstrValue[0];
+      }
+      else
+         cerr << "unrecongnized client.conf parameter: " << param.m_strName << endl;
    }
 
    parser.close();

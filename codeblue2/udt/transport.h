@@ -55,6 +55,7 @@ public:
    int64_t recvfile(std::ofstream& ofs, int64_t offset, int64_t size);
    int close();
    bool isConnected();
+   int64_t getRealSndSpeed();
 
 public: // secure data/file transfer
    int initCoder(unsigned char key[16], unsigned char iv[8]);

@@ -36,9 +36,6 @@ written by
 class SectorError
 {
 public:
-   SectorError();
-
-public:
    static const int E_UNKNOWN = -1;		// unknown error
    static const int E_PERMISSION = -1001;	// no permission for IO
    static const int E_EXIST = -1002;		// file/dir already exist
@@ -58,6 +55,7 @@ public:
    static const int E_SUPPORT = -6001;		// operation not supported
 
 public:
+   static int init();
    static std::string getErrorMsg(int ecode);
 
 private:

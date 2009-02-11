@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/31/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/10/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -311,6 +311,32 @@ int Master::run()
             if (sa != m_mSlaveAddrRec.end())
                tbsaddr.insert(tbsaddr.end(), sa->second);
          }
+
+         if (i->second.m_sBadVote.size() * 2 > m_SlaveManager.m_mSlaveList.size())
+         {
+            vector<int> trans;
+            m_TransManager.retrieve(i->first, trans);
+            if (trans.size() > 0)
+               continue;
+
+            m_SectorLog.insert(("Bad slave detected " + i->second.m_strIP + ".").c_str());
+
+            // remove the data on that slave
+            Address addr;
+            addr.m_strIP = i->second.m_strIP;
+            addr.m_iPort = i->second.m_iPort;
+            CGuard::enterCS(m_Metadata.m_MetaLock);
+            m_Metadata.substract(m_Metadata.m_mDirectory, addr);
+            CGuard::leaveCS(m_Metadata.m_MetaLock);
+
+            // to be removed
+            tbrs.insert(tbrs.end(), i->first);
+         }
+         else if (i->second.m_llLastVoteTime - CTimer::getTime() > 24LL * 60 * 3600 * 1000000)
+         {
+            i->second.m_sBadVote.clear();
+            i->second.m_llLastVoteTime = CTimer::getTime();
+         }
       }
 
       // remove from slave list
@@ -318,7 +344,7 @@ int Master::run()
          m_SlaveManager.remove(*i);
 
       // update cluster statistics
-      m_SlaveManager.updateClusterStat(m_SlaveManager.m_Cluster);
+      m_SlaveManager.updateClusterStat();
 
       // restart dead slaves
       if (tbsaddr.size() > 0)
@@ -418,7 +444,9 @@ void* Master::serviceEx(void* p)
       case 1: // slave node join
       {
          secconn.send((char*)&cmd, 4);
-         secconn.send(ip.c_str(), 64);
+         char tmp[64];
+         strcpy(tmp, ip.c_str());
+         secconn.send(tmp, 64);
          int32_t res = -1;
          secconn.recv((char*)&res, 4);
 
@@ -431,6 +459,7 @@ void* Master::serviceEx(void* p)
             s->recv((char*)&sn.m_iPort, 4);
             sn.m_llLastUpdateTime = CTimer::getTime();
             sn.m_iRetryNum = 0;
+            sn.m_llLastVoteTime = CTimer::getTime();
 
             Address addr;
             addr.m_strIP = ip;
@@ -478,13 +507,14 @@ void* Master::serviceEx(void* p)
             sn.m_llTotalInputData = 0;
             sn.m_llTotalOutputData = 0;
 
+            // the slave manager will assign a unique ID to the new node
             self->m_SlaveManager.insert(sn);
-            self->m_SlaveManager.updateClusterStat(self->m_SlaveManager.m_Cluster);
+            self->m_SlaveManager.updateClusterStat();
 
             s->send((char*)&sn.m_iNodeID, 4);
 
             char text[64];
-            sprintf(text, "Slave node %s joined.", ip.c_str());
+            sprintf(text, "Slave node %s:%d joined.", ip.c_str(), sn.m_iPort);
             self->m_SectorLog.insert(text);
          }
          else
@@ -643,15 +673,12 @@ void* Master::process(void* s)
             int slaveid = *(int32_t*)(msg->getData() + 4);
 
             Transaction t;
-            int find = self->m_TransManager.retrieve(transid, t);
-            if ((find >= 0) && (t.m_iType == 1))
+            if (self->m_TransManager.retrieve(transid, t) < 0)
             {
-               msg->m_iDataLength = SectorMsg::m_iHdrSize;
                self->m_GMP.sendto(ip, port, id, msg);
-               self->m_TransManager.updateSlave(transid, slaveid);
                break;
             }
-
+            
             int change = *(int32_t*)(msg->getData() + 8);
             string path = msg->getData() + 12;
 
@@ -669,11 +696,10 @@ void* Master::process(void* s)
                self->m_sstrOnReplicate.erase(attr.m_strName);
             }
 
-            if (find >= 0)
-            {
+            // unlock the file, if this is a file operation
+            if (t.m_iType == 0)
                self->m_Metadata.unlock(t.m_strFile.c_str(), t.m_iMode);
-               self->m_TransManager.updateSlave(transid, slaveid);
-            }
+            self->m_TransManager.updateSlave(transid, slaveid);
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             if (r < 0)
@@ -724,6 +750,41 @@ void* Master::process(void* s)
 
             self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "sysinfo", "", "SUCCESS", "");
 
+            break;
+         }
+
+         case 4: // sphere status & performance report
+         {
+            int transid = *(int32_t*)msg->getData();
+            int slaveid = *(int32_t*)(msg->getData() + 4);
+
+            Transaction t;
+            if ((self->m_TransManager.retrieve(transid, t) < 0) || (t.m_iType != 1))
+            {
+               self->m_GMP.sendto(ip, port, id, msg);
+               break;
+            }
+
+            // the slave votes slow slaves
+            int num = *(int*)(msg->getData() + 8);
+            Address addr;
+            addr.m_strIP = ip;
+            addr.m_iPort = port;
+            int voter = self->m_SlaveManager.m_mAddrList[addr];
+            vector<Address> bad;
+            for (int i = 0; i < num; ++ i)
+            {
+               addr.m_strIP = msg->getData() + 12 + i * 68;
+               addr.m_iPort = *(int*)(msg->getData() + 12 + i * 68 + 64);
+
+               int slave = self->m_SlaveManager.m_mAddrList[addr];
+               self->m_SlaveManager.m_mSlaveList[slave].m_sBadVote.insert(voter);
+            }
+
+            self->m_TransManager.updateSlave(transid, slaveid);
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
+            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
@@ -1144,7 +1205,8 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.rbegin()->second.m_strIP.c_str());
+            if (key != 0)
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.rbegin()->second.m_strIP.c_str());
 
             break;
          }

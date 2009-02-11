@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/18/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/06/2009
 *****************************************************************************/
 
 
@@ -39,6 +39,7 @@ written by
 #include <vector>
 #include <ssltransport.h>
 #include <topology.h>
+#include <slavemgmt.h>
 #include <transaction.h>
 
 class ActiveUser

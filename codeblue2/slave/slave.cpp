@@ -497,12 +497,21 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    return 1;
 }
 
-int Slave::reportSphere(const int& transid)
+int Slave::reportSphere(const int& transid, const vector<Address>* bad)
 {
    SectorMsg msg;
-   msg.setType(1);
+   msg.setType(4);
    msg.setKey(0);
    msg.setData(0, (char*)&transid, 4);
+   msg.setData(4, (char*)&m_iSlaveID, 4);
+
+   int num = (NULL == bad) ? 0 : bad->size();
+   msg.setData(8, (char*)&num, 4);
+   for (int i = 0; i < num; ++ i)
+   {
+      msg.setData(12 + 68 * i, (*bad)[i].m_strIP.c_str(), (*bad)[i].m_strIP.length() + 1);
+      msg.setData(12 + 68 * i + 64, (char*)&((*bad)[i].m_iPort), 4);
+   }
 
    cout << "reportSphere " << m_strMasterIP << " " << m_iMasterPort << " " << transid << endl;
 

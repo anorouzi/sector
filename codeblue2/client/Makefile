@@ -2,7 +2,7 @@ include ../Makefile.common
 
 CCFLAGS += -I../udt -I../gmp -I../common -I../security
 
-OBJS = client.o fsclient.o dcclient.o
+OBJS = util.o client.o fsclient.o dcclient.o
 
 all: libclient.so libclient.a tools examples
 

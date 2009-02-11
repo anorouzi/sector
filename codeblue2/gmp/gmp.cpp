@@ -125,7 +125,10 @@ void CGMPMessage::pack(const int32_t& type, const int32_t& info)
 int32_t CGMPMessage::initSession()
 {
    srand(CTimer::getTime());
-   return (int32_t)(rand() + 1);
+   int32_t r = rand();
+   while (r == 0)
+      r = rand();
+   return r;
 }
 
 

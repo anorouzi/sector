@@ -34,6 +34,7 @@ written by
 #include <index.h>
 #include <sysstat.h>
 #include <topology.h>
+#include <constant.h>
 #include <pthread.h>
 
 class Client
@@ -75,6 +76,8 @@ protected:
    static unsigned char g_pcCryptoIV[8];
 
    static Topology g_Topology;
+
+   static SectorError g_ErrorInfo;
 
 private:
    static int g_iCount;

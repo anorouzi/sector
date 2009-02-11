@@ -187,6 +187,21 @@ bool Transport::isConnected()
    return (UDT::recv(m_Socket, NULL, 0, 0) == 0);
 }
 
+int64_t Transport::getRealSndSpeed()
+{
+   UDT::TRACEINFO perf;
+   if (UDT::perfmon(m_Socket, &perf) < 0)
+      return -1;
+
+   if (perf.usSndDuration <= 0)
+      return -1;
+
+   int mss;
+   int size = sizeof(int);
+   UDT::getsockopt(m_Socket, 0, UDT_MSS, &mss, &size);
+   return int64_t(8.0 * perf.pktSent * mss / (perf.usSndDuration / 1000000.0));
+}
+
 int Transport::initCoder(unsigned char key[16], unsigned char iv[16])
 {
    m_Encoder.initEnc(key, iv);

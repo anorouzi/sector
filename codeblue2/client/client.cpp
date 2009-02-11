@@ -31,7 +31,6 @@ written by
 #include <netdb.h>
 #include <crypto.h>
 #include "client.h"
-#include <constant.h>
 #include <iostream>
 
 using namespace std;
@@ -41,6 +40,7 @@ string Client::g_strServerIP = "";
 int Client::g_iServerPort = 0;
 CGMP Client::g_GMP;
 Topology Client::g_Topology;
+SectorError Client::g_ErrorInfo;
 int32_t Client::g_iKey = 0;
 int Client::g_iCount = 0;
 unsigned char Client::g_pcCryptoKey[16];
@@ -59,6 +59,8 @@ int Client::init(const string& server, const int& port)
 {
    if (g_iCount ++ > 0)
       return 1;
+
+   g_ErrorInfo.init();
 
    struct hostent* serverip = gethostbyname(server.c_str());
    if (NULL == serverip)

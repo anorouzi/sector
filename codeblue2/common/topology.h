@@ -39,8 +39,8 @@ written by
 struct Address
 {
    std::string m_strIP;
-   std::string m_strPublicIP;
    unsigned short int m_iPort;
+   std::string m_strInfo;		// additional information, such as 2nd IP address
 };
 
 struct AddrComp
@@ -58,6 +58,7 @@ class SlaveNode
 public:
    int m_iNodeID;
 
+   //Address m_Addr;
    std::string m_strIP;
    int m_iPort;
    std::string m_strPublicIP;
@@ -78,6 +79,9 @@ public:
    int64_t m_llLastUpdateTime;
    int m_iRetryNum;
    int m_iStatus;		// 0: inactive 1: active-normal 2: active-disk full
+
+   std::set<int> m_sBadVote;	// set of bad votes by other slaves
+   int64_t m_llLastVoteTime;	// timestamp of last vote
 
    std::vector<int> m_viPath;
 
@@ -140,40 +144,6 @@ private:
    };
 
    std::vector<TopoMap> m_vTopoMap;
-};
-
-class SlaveManager
-{
-public:
-   SlaveManager(): m_iNodeID(0) {}
-
-public:
-   int init(const char* topoconf);
-
-   int insert(SlaveNode& sn);
-   int remove(int nodeid);
-
-public:
-   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::map<int, Address>& loc, int replica);
-   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::map<int, Address>& loc, int replica);
-
-public:
-   unsigned int getTotalSlaves();
-   uint64_t getTotalDiskSpace();
-   void updateClusterStat(Cluster& c);
-   void updateClusterIO(Cluster& c, std::map<std::string, int64_t>& data_in, std::map<std::string, int64_t>& data_out, int64_t& total);
-
-public:
-   std::map<Address, int, AddrComp> m_mAddrList;
-   std::map<int, SlaveNode> m_mSlaveList;
-
-   Topology m_Topology;
-   Cluster m_Cluster;
-
-private:
-   int m_iNodeID;
 };
 
 #endif

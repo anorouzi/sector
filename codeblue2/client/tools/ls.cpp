@@ -1,3 +1,4 @@
+#include <util.h>
 #include <fsclient.h>
 #include <iostream>
 #include <iomanip>
@@ -6,22 +7,48 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 4)
+   if (argc != 2)
    {
-      cout << "USAGE: ls <ip> <port> <dir>\n";
+      cout << "USAGE: ls <dir>\n";
       return -1;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
-   Sector::login("test", "xxx");
+   Session s;
+   s.loadInfo("../client.conf");
+
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
+
+   string path = argv[1];
+   string orig = path;
+   bool wc = WildCard::isWildCard(path);
+   if (wc)
+   {
+      size_t p = path.rfind('/');
+      if (p == string::npos)
+         path = "/";
+      else
+      {
+         path = path.substr(0, p);
+         orig = orig.substr(p + 1, orig.length() - p);
+      }
+   }
 
    vector<SNode> filelist;
-   int r = Sector::list(argv[3], filelist);
+   int r = Sector::list(path, filelist);
    if (r < 0)
+   {
       cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+      return -1;
+   }
 
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
+      if (wc && !WildCard::match(orig, i->m_strName))
+         continue;
+
       cout << setiosflags(ios::left) << setw(40) << i->m_strName << "\t";
       if (i->m_bIsDir)
          cout << "<dir>" << endl;

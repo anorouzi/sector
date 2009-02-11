@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/09/2009
 *****************************************************************************/
 
 
@@ -87,6 +87,21 @@ public:
    std::string m_strLocalIP;
    std::string m_strPublicIP;
    int m_iClusterID;
+};
+
+class ClientConf
+{
+public:
+   int init(const std::string& path);
+
+public:
+   std::string m_strUserName;
+   std::string m_strPassword;
+
+   std::string m_strMasterIP;
+   int m_iMasterPort;
+
+   std::string m_strCertificate;
 };
 
 #endif

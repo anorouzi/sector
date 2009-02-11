@@ -54,10 +54,10 @@ int Crypto::generateKey(unsigned char key[16], unsigned char iv[8])
    srand(t.tv_sec * 1000000 + t.tv_usec);
 
    for (int i = 0; i < 16; ++ i)
-      key[i] = int(255.0 * rand() / (RAND_MAX + 1.0));
+      key[i] = int(255.0 * (double(rand()) / RAND_MAX));
 
    for (int i = 0; i < 8; ++ i)
-      iv[i] = int(255.0 * rand() / (RAND_MAX + 1.0));
+      iv[i] = int(255.0 * (double(rand()) / RAND_MAX));
 
    //for (int i = 0; i < 16; i++)
    //   printf("%d \t", key[i]);

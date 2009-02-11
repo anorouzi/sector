@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2008, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2009, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/28/2008
+   Yunhong Gu, last updated 02/03/2009
 *****************************************************************************/
 
 #ifndef WIN32
@@ -916,6 +916,10 @@ int CUDT::send(const char* data, const int& len)
    if (size > len)
       size = len;
 
+   // record total time used for sending
+   if (0 == m_pSndBuffer->getCurrBufSize())
+      m_llSndDurationCounter = CTimer::getTime();
+
    // insert the user buffer into the sening list
    m_pSndBuffer->addBuffer(data, size);
 
@@ -1050,6 +1054,10 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
 
    if ((m_iSndBufSize - m_pSndBuffer->getCurrBufSize()) * m_iPayloadSize < len)
       return 0;
+
+   // record total time used for sending
+   if (0 == m_pSndBuffer->getCurrBufSize())
+      m_llSndDurationCounter = CTimer::getTime();
 
    // insert the user buffer into the sening list
    m_pSndBuffer->addBuffer(data, len, msttl, inorder);
@@ -1194,6 +1202,10 @@ int64_t CUDT::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size
       else if (!m_bConnected)
          throw CUDTException(2, 2, 0);
 
+      // record total time used for sending
+      if (0 == m_pSndBuffer->getCurrBufSize())
+         m_llSndDurationCounter = CTimer::getTime();
+
       tosend -= m_pSndBuffer->addBufferFromFile(ifs, unitsize);
 
       // insert this socket to snd list if it is not on the list yet
@@ -1270,7 +1282,6 @@ void CUDT::sample(CPerfMon* perf, bool clear)
       throw CUDTException(2, 1, 0);
 
    uint64_t currtime = CTimer::getTime();
-
    perf->msTimeStamp = (currtime - m_StartTime) / 1000;
 
    m_llSentTotal += m_llTraceSent;
@@ -1282,6 +1293,7 @@ void CUDT::sample(CPerfMon* perf, bool clear)
    m_iRecvACKTotal += m_iRecvACK;
    m_iSentNAKTotal += m_iSentNAK;
    m_iRecvNAKTotal += m_iRecvNAK;
+   m_llSndDurationTotal += m_llSndDuration;
 
    perf->pktSentTotal = m_llSentTotal;
    perf->pktRecvTotal = m_llRecvTotal;
@@ -1292,6 +1304,7 @@ void CUDT::sample(CPerfMon* perf, bool clear)
    perf->pktRecvACKTotal = m_iRecvACKTotal;
    perf->pktSentNAKTotal = m_iSentNAKTotal;
    perf->pktRecvNAKTotal = m_iRecvNAKTotal;
+   perf->usSndDurationTotal = m_llSndDurationTotal;
 
    perf->pktSent = m_llTraceSent;
    perf->pktRecv = m_llTraceRecv;
@@ -1302,6 +1315,7 @@ void CUDT::sample(CPerfMon* perf, bool clear)
    perf->pktRecvACK = m_iRecvACK;
    perf->pktSentNAK = m_iSentNAK;
    perf->pktRecvNAK = m_iRecvNAK;
+   perf->usSndDuration = m_llSndDuration;
 
    double interval = double(currtime - m_LastSampleTime);
 
@@ -1656,11 +1670,12 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       // Got data ACK
       ack = *(int32_t *)ctrlpkt.m_pcData;
 
-      // check the  validation of the ack
+      // check the validation of the ack
       if (CSeqNo::seqcmp(ack, CSeqNo::incseq(m_iSndCurrSeqNo)) > 0)
       {
          //this should not happen: attack or bug
          m_bBroken = true;
+         m_iBrokenCounter = 0;
          break;
       }
 
@@ -1684,6 +1699,10 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
       // acknowledge the sending buffer
       m_pSndBuffer->ackData(offset);
+
+      // record total time used for sending
+      m_llSndDuration += currtime - m_llSndDurationCounter;
+      m_llSndDurationCounter = currtime;
 
       // update sending variables
       m_iSndLastDataAck = ack;
@@ -1818,6 +1837,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       {
          //this should not happen: attack or bug
          m_bBroken = true;
+         m_iBrokenCounter = 0;
          break;
       }
 
@@ -1866,6 +1886,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       m_bShutdown = true;
       m_bClosing = true;
       m_bBroken = true;
+      m_iBrokenCounter = 60;
 
       // Signal the sender and recver if they are waiting for data.
       releaseSynch();
@@ -2197,6 +2218,7 @@ void CUDT::checkTimers()
          //
          m_bClosing = true;
          m_bBroken = true;
+         m_iBrokenCounter = 30;
 
          // update snd U list to remove this socket
          m_pSndQueue->m_pSndUList->update(this);

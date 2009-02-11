@@ -142,23 +142,23 @@ private:
       int m_iRetryNum;				// number of retry due to failure
       SphereResult* m_pResult;			// processing result
    };
-   std::vector<DS*> m_vpDS;
+   std::map<int, DS*> m_mpDS;
    pthread_mutex_t m_DSLock;
 
    struct SPE
    {
-      uint32_t m_uiID;
+      int32_t m_iID;
       std::string m_strIP;
       int m_iPort;
       DS* m_pDS;
-      int m_iStatus;			// -1: uninitialized; 0: ready; 1; running
+      int m_iStatus;			// -1: abandond; 0: uninitialized; 1: ready; 2; running
       int m_iProgress;			// 0 - 100 (%)
       timeval m_StartTime;
       timeval m_LastUpdateTime;
       Transport m_DataChn;
       int m_iShufflerPort;              // GMP port for the shuffler on this SPE
    };
-   std::vector<SPE> m_vSPE;
+   std::map<int, SPE> m_mSPE;
 
    struct BUCKET
    {
@@ -168,7 +168,7 @@ private:
       int m_iProgress;
       timeval m_LastUpdateTime;
    };
-   std::vector<BUCKET> m_vBucket;
+   std::map<int, BUCKET> m_mBucket;
 
    int m_iProgress;		// progress, 0..100
    int m_iAvgRunTime;		// average running time, in seconds

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/07/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/05/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -398,7 +398,7 @@ void* Slave::SPEHandler(void* p)
 
          // report new files
          for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
-            self->report(0, *i, true);
+            self->report(transid, *i, true);
       }
 
       delete [] index;
@@ -421,13 +421,17 @@ void* Slave::SPEHandler(void* p)
 
    delete [] param;
 
+   multimap<int64_t, Address> sndspd;
    for (std::map<Address, Transport*, AddrComp>::iterator i = dest.m_mOutputChn.begin(); i != dest.m_mOutputChn.end(); ++ i)
    {
+      sndspd.insert(pair<int64_t, Address>(i->second->getRealSndSpeed(), i->first));
       //i->second->close();
       delete i->second;
    }
+   vector<Address> bad;
+   self->checkBadDest(sndspd, bad);
 
-   self->reportSphere(transid);
+   self->reportSphere(transid, &bad);
 
    return NULL;
 }
@@ -814,7 +818,7 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
          continue;
 
       char* dstip = locations + i * 72;
-      //int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
+      int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
       int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
 
       SectorMsg msg;
@@ -826,6 +830,9 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       Address n;
       n.m_strIP = dstip;
       n.m_iPort = shufflerport;
+      char tmp[16];
+      sprintf(tmp, "%d", dstport);
+      n.m_strInfo = tmp;
 
       map<Address, Transport*, AddrComp>::iterator c = outputchn->find(n);
       if (c != outputchn->end())
@@ -1186,4 +1193,31 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
       result.clear();
 
    return ret;
+}
+
+int Slave::checkBadDest(multimap<int64_t, Address>& sndspd, vector<Address>& bad)
+{
+   if (sndspd.empty())
+      return -1;
+
+   int m = sndspd.size() / 2;
+   multimap<int64_t, Address>::iterator p = sndspd.begin();
+   for (int i = 0; i < m; ++ i)
+      ++ p;
+
+   int64_t median = p->first;
+
+   int locpos = 0;
+   for (multimap<int64_t, Address>::iterator i = sndspd.begin(); i != sndspd.end(); ++ i)
+   {
+      if (i->first > (median / 2))
+         return bad.size();
+
+      // replace the shuffler port with the real slave node port
+      i->second.m_iPort = atoi(i->second.m_strInfo.c_str());
+      bad.push_back(i->second);
+      locpos ++;
+   }
+
+   return bad.size();
 }
