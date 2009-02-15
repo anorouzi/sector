@@ -337,9 +337,10 @@ void Slave::run()
          {
             Param3* p = new Param3;
             p->serv_instance = this;
-            p->timestamp = *(int64_t*)msg->getData();
-            p->src = msg->getData() + 8;
-            p->dst = msg->getData() + 8 + p->src.length() + 1;
+            p->transid = *(int32_t*)msg->getData();
+            p->timestamp = *(int64_t*)(msg->getData() + 4);
+            p->src = msg->getData() + 12;
+            p->dst = msg->getData() + 12 + p->src.length() + 1;
 
             char* tmp = new char[64 + p->src.length() + p->dst.length()];
             sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());

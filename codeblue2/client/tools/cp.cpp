@@ -6,29 +6,34 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 5)
+   if (argc != 3)
    {
-      cout << "USAGE: cp <ip> <port> <src_file/dir> <dst_file/dir>\n";
+      cout << "USAGE: cp <src_file/dir> <dst_file/dir>\n";
       return -1;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
-   Sector::login("test", "xxx");
+   Session s;
+   s.loadInfo("../client.conf");
 
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
 
-   string path = argv[3];
+   string path = argv[1];
    bool wc = WildCard::isWildCard(path);
 
    if (!wc)
    {
-      int r = Sector::copy(argv[3], argv[4]);
+cout << "cp " << argv[1] <<  " " << argv[2] << endl;
+      int r = Sector::copy(argv[1], argv[2]);
       if (r < 0)
          cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
    }
    else
    {
       SNode attr;
-      if (Sector::stat(argv[4], attr) < 0)
+      if (Sector::stat(argv[2], attr) < 0)
       {
          cout << "destination directory does not exist.\n";
       }
@@ -61,7 +66,7 @@ cout << "filtered " << path + "/" + i->m_strName << endl;
          }
 
          for (vector<string>::iterator i = filtered.begin(); i != filtered.end(); ++ i)
-            Sector::copy(*i, argv[4]);
+            Sector::copy(*i, argv[2]);
       }
    }
 

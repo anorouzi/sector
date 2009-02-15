@@ -14,6 +14,9 @@ int main(int argc, char** argv)
    Sector::init(argv[1], atoi(argv[2]));
    Sector::login("test", "xxx");
 
+   // remove result of last run
+   Sector::remove("/test/sorted");
+
    SysStat sys;
    Sector::sysinfo(sys);
    const int fn = sys.m_llTotalSlaves;
@@ -21,12 +24,7 @@ int main(int argc, char** argv)
    const int rn = (int)pow(2.0f, N);
 
    vector<string> files;
-   for (int i = 0; i < fn; ++ i)
-   {
-      char filename[256];
-      sprintf(filename, "test/sort_input.%d.dat", i);
-      files.insert(files.end(), filename);
-   }
+   files.push_back("test");
 
    SphereStream s;
    if (s.init(files) < 0)

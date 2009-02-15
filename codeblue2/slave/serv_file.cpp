@@ -336,6 +336,7 @@ void* Slave::fileHandler(void* p)
 void* Slave::copy(void* p)
 {
    Slave* self = ((Param3*)p)->serv_instance;
+   int transid = ((Param3*)p)->transid;
    time_t ts = ((Param3*)p)->timestamp;
    string src = ((Param3*)p)->src;
    string dst = ((Param3*)p)->dst;
@@ -411,7 +412,7 @@ void* Slave::copy(void* p)
 
    // if the file has been modified during the replication, remove this replica
    int type = (src == dst) ? 3 : 1;
-   if (self->report(0, dst, type) < 0)
+   if (self->report(transid, dst, type) < 0)
       system(("rm " + rhome + rfile).c_str());
 
    return NULL;

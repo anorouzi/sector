@@ -193,9 +193,9 @@ int Master::init()
    pthread_detach(msgserver);
 
    // start replica thread
-   pthread_t repserver;
-   pthread_create(&repserver, NULL, replica, this);
-   pthread_detach(repserver);
+   //pthread_t repserver;
+   //pthread_create(&repserver, NULL, replica, this);
+   //pthread_detach(repserver);
 
    m_SysStat.m_llStartTime = time(NULL);
    m_SectorLog.insert("Sector started.");
@@ -444,9 +444,9 @@ void* Master::serviceEx(void* p)
       case 1: // slave node join
       {
          secconn.send((char*)&cmd, 4);
-         char tmp[64];
-         strcpy(tmp, ip.c_str());
-         secconn.send(tmp, 64);
+         char slaveIP[64];
+         strcpy(slaveIP, ip.c_str());
+         secconn.send(slaveIP, 64);
          int32_t res = -1;
          secconn.recv((char*)&res, 4);
 
@@ -624,6 +624,22 @@ void* Master::process(void* s)
 
    while (self->m_Status == RUNNING)
    {
+      //create a replica if necessary. the code is put here just to be better syncronized and avoid deadlock.
+      pthread_mutex_lock(&self->m_ReplicaLock);
+      if (!self->m_vstrToBeReplicated.empty() && (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() < self->m_SlaveManager.getTotalSlaves()))
+      {
+         vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
+         if (self->m_sstrOnReplicate.find(*r) == self->m_sstrOnReplicate.end())
+         {
+            int pos = r->find('\t');
+            self->createReplica(r->substr(0, pos), r->substr(pos + 1, r->length()));
+         }
+         self->m_vstrToBeReplicated.erase(r);
+      }
+      pthread_mutex_unlock(&self->m_ReplicaLock);
+
+
+      //////////////////////////////////////////////////////////////////////////////////////////
       self->m_GMP.recvfrom(ip, port, id, msg);
 
       int32_t key = msg->getKey();
@@ -697,9 +713,12 @@ void* Master::process(void* s)
             }
 
             // unlock the file, if this is a file operation
+            // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
             if (t.m_iType == 0)
+            {
                self->m_Metadata.unlock(t.m_strFile.c_str(), t.m_iMode);
-            self->m_TransManager.updateSlave(transid, slaveid);
+               self->m_TransManager.updateSlave(transid, slaveid);
+            }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             if (r < 0)
@@ -1451,14 +1470,19 @@ int Master::createReplica(const string& src, const string& dst)
          return -1;
    }
 
+   int transid = m_TransManager.create(0, 0, 111, dst, 0);
+
    SectorMsg msg;
    msg.setType(111);
-   msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
-   msg.setData(8, src.c_str(), src.length() + 1);
-   msg.setData(8 + src.length() + 1, dst.c_str(), dst.length() + 1);
+   msg.setData(0, (char*)&transid, 4);
+   msg.setData(4, (char*)&attr.m_llTimeStamp, 8);
+   msg.setData(12, src.c_str(), src.length() + 1);
+   msg.setData(12 + src.length() + 1, dst.c_str(), dst.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return -1;
+
+   m_TransManager.addSlave(transid, sn.m_iNodeID);
 
    if (src == dst)
       m_sstrOnReplicate.insert(src);
@@ -1470,15 +1494,21 @@ int Master::createReplica(const string& src, const string& dst)
    if (r < 0)
       return 0;
 
+   transid = m_TransManager.create(0, 0, 111, dst + ".idx", 0);
+
    msg.setType(111);
-   msg.setData(0, (char*)&attr.m_llTimeStamp, 8);
-   msg.setData(8, idx.c_str(), idx.length() + 1);
-   msg.setData(8 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
+   msg.setData(0, (char*)&transid, 4);
+   msg.setData(4, (char*)&attr.m_llTimeStamp, 8);
+   msg.setData(12, idx.c_str(), idx.length() + 1);
+   msg.setData(12 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return 0;
 
-   m_sstrOnReplicate.insert(idx);
+   m_TransManager.addSlave(transid, sn.m_iNodeID);
+
+   if (src == dst)
+      m_sstrOnReplicate.insert(idx);
 
    return 0;
 }

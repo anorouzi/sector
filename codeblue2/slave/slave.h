@@ -166,6 +166,7 @@ private:
    struct Param3
    {
       Slave* serv_instance;
+      int transid;
       string src;
       string dst;
       time_t timestamp;

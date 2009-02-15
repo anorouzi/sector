@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/05/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -377,7 +377,7 @@ void* Slave::SPEHandler(void* p)
       }
 
       // if buckets = 0, send back to clients, otherwise deliver to local or network locations
-      if (buckets != 0)
+      if ((buckets != 0) && (deliverystatus >= 0))
          deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
       cout << "completed 100 " << ip << " " << ctrlport << endl;
@@ -391,7 +391,7 @@ void* Slave::SPEHandler(void* p)
       int id = 0;
       self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
-      if (deliverystatus >= 0)
+      if (100 == progress)
       {
          cout << "sending data back... " << buckets << endl;
          self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, datachn);
