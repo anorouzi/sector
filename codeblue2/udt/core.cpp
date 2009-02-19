@@ -571,7 +571,7 @@ void CUDT::connect(const sockaddr* serv_addr)
       response.setLength(m_iPayloadSize);
       if (m_pRcvQueue->recvfrom(m_SocketID, response) > 0)
       {
-         if (m_bRendezvous && (0 == response.getFlag()) && (NULL != tmp))
+         if (m_bRendezvous && ((0 == response.getFlag()) || (1 == response.getType())) && (NULL != tmp))
          {
             // a data packet comes, which means the peer side is already connected
             // in this situation, a previously recorded response (tmp) will be used

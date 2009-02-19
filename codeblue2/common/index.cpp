@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/23/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/15/2009
 *****************************************************************************/
 
 
@@ -432,6 +432,9 @@ int Index::lock(const char* path, int mode)
    vector<string> dir;
    parsePath(path, dir);
 
+   if (dir.empty())
+      return 0;
+
    vector<map<string, SNode>::iterator> ptr;
 
    map<string, SNode>* currdir = &m_mDirectory;
@@ -482,6 +485,9 @@ int Index::unlock(const char* path, int mode)
 
    vector<string> dir;
    parsePath(path, dir);
+
+   if (dir.empty())
+      return 0;
 
    vector<map<string, SNode>::iterator> ptr;
 
@@ -759,7 +765,7 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, string
          else
          {
             // conflicts, skip this branch dir
-           left << path + s->first << endl;
+           left << path + "/" + s->first << endl;
          }
       }
    }
