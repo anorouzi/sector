@@ -11,14 +11,10 @@
 <h4 class="func_name"><strong>mv</strong></h4>
 <p>The<strong> mv </strong>tool renames an existing file/director and/or move it to another directory. </p>
 
-<div class="code">download <strong><font color="#FFFFFF">IP PORT SRC_PATH DST_PATH </font></strong></div>
+<div class="code">mv <strong><font color="#FFFFFF">SRC_PATH DST_PATH </font></strong></div>
 
 <h5>Parameters</h5>
 <dl>
-  <dt><i>IP</i></dt>
-  <dd>The IP address or the domain name of the Sector master server .</dd>
-  <dt><em>PORT</em></dt>
-  <dd>The port number of the Sector master server.</dd>
   <dt><em>SRC_PATH</em></dt>
   <dd>The file/directory to be renamed/moved.</dd>
   <dt><em>DST_PATH</em></dt>
@@ -26,10 +22,9 @@
 </dl>
 
 <h5>Description</h5>
-<p>The command uses account &quot;test&quot;.</p>
-<p>Suppose SRC_PATH is &quot;src_dir/src_name&quot; and DST_PATH is &quot;dst_dir/dst_name&quot;. SRC_PATH and dst_dir must exist, otherwise &quot;file not exist&quot; error will return. If &quot;dst_name&quot; exist and it is file rather than a directory, &quot;file already exist&quot; error will return. If &quot;dst_name&quot; is an existing directory, the file/directory &quot;src_name&quot; will be moved to &quot;dst_dir/dst_name/src_name&quot;. If &quot;dst_name&quot; does not exist, the file/directory &quot;src_name&quot; will be moved to &quot;dst_dir&quot; and renamed to &quot;dst_dir/dst_name&quot;. </p>
-<h5>&nbsp;</h5>
-<p>&nbsp;</p>
-
+<p>Suppose SRC_PATH is &quot;src_dir/src_name&quot; and DST_PATH is &quot;dst_dir/dst_name&quot;. SRC_PATH and dst_dir must exist, otherwise &quot;file not exist&quot; error will return. If &quot;dst_name&quot; exist and it is a file rather than a directory, &quot;file already exist&quot; error will return. If &quot;dst_name&quot; is an existing directory, the file/directory &quot;src_name&quot; will be moved to &quot;dst_dir/dst_name/src_name&quot;. If &quot;dst_name&quot; does not exist, the file/directory &quot;src_name&quot; will be moved to &quot;dst_dir&quot; and renamed to &quot;dst_dir/dst_name&quot;.</p>
+<p>Wildcard characters * and ? are supported to specify the source files or directories.</p>
+<p><strong>See Also</strong></p>
+<p><strong><a href="t-r-cp.htm">cp</a></strong></p>
 </body>
 </html>
