@@ -1,26 +1,27 @@
 #include <fsclient.h>
 #include <iostream>
+#include <util.h>
 
 using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 4)
+   if (argc != 2)
    {
-      cout << "USAGE: stat <ip> <port> file\n";
+      cout << "USAGE: stat file\n";
       return -1;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
+   Session s;
+   s.loadInfo("../client.conf");
 
-   if (Sector::login("test", "xxx") < 0)
-   {
-      cerr << "login failed. check password or IP ACL.\n";
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
       return -1;
-   }
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
 
    SNode attr;
-   int r = Sector::stat(argv[3], attr);
+   int r = Sector::stat(argv[1], attr);
 
    if (r < 0)
    {
@@ -28,7 +29,7 @@ int main(int argc, char** argv)
    }
    else if (attr.m_bIsDir)
    {
-      cout << argv[3] << " is a directory.\n";
+      cout << argv[1] << " is a directory.\n";
    }
    else
    {

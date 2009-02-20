@@ -25,7 +25,6 @@ int main(int argc, char** argv)
 
    if (!wc)
    {
-cout << "cp " << argv[1] <<  " " << argv[2] << endl;
       int r = Sector::copy(argv[1], argv[2]);
       if (r < 0)
          cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
@@ -57,12 +56,8 @@ cout << "cp " << argv[1] <<  " " << argv[2] << endl;
          vector<string> filtered;
          for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
          {
-cout << "list " << i->m_strName << endl;
             if (WildCard::match(orig, i->m_strName))
-{
                filtered.push_back(path + "/" + i->m_strName);
-cout << "filtered " << path + "/" + i->m_strName << endl;
-}
          }
 
          for (vector<string>::iterator i = filtered.begin(); i != filtered.end(); ++ i)

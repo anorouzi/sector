@@ -6,7 +6,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 4)
+   if (argc != 2)
    {
       cout << "USAGE: mkdir <dir>\n";
       return -1;

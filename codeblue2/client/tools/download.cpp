@@ -12,6 +12,7 @@
 #include <string.h>
 #include <errno.h>
 #include <iostream>
+#include <util.h>
 
 using namespace std;
 
@@ -115,48 +116,80 @@ int getFileList(const string& path, vector<string>& fl)
 
 int main(int argc, char** argv)
 {
-   if (argc != 5)
+   if (argc != 3)
    {
-      cout << "USAGE: download <ip> <port> <src file/dir> <local dir>\n";
+      cout << "USAGE: download <src file/dir> <local dir>\n";
       return -1;
    }
 
-   if (-1 == Sector::init(argv[1], atoi(argv[2])))
+   Session s;
+   s.loadInfo("../client.conf");
+
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
    {
       cout << "unable to connect to the server at " << argv[1] << endl;
       return -1;
    }
-   if (-1 == Sector::login("test", "xxx"))
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
    {
       cout << "login failed\n";
       return -1;
    }
 
-   SNode attr;
-   int r = Sector::stat(argv[3], attr);
-   if (r < 0)
+
+   vector<string> fl;
+   bool wc = WildCard::isWildCard(argv[1]);
+   if (!wc)
    {
-      cout << "ERROR: source file does not exist.\n";
-      return -1;
+      SNode attr;
+      if (Sector::stat(argv[1], attr) < 0)
+      {
+         cout << "ERROR: source file does not exist.\n";
+         return -1;
+      }
+      getFileList(argv[1], fl);
+   }
+   else
+   {
+      string path = argv[1];
+      string orig = path;
+      size_t p = path.rfind('/');
+      if (p == string::npos)
+         path = "/";
+      else
+      {
+         path = path.substr(0, p);
+         orig = orig.substr(p + 1, orig.length() - p);
+      }
+
+      vector<SNode> filelist;
+      int r = Sector::list(path, filelist);
+      if (r < 0)
+         cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+
+      for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+      {
+         if (WildCard::match(orig, i->m_strName))
+            getFileList(path + "/" + i->m_strName, fl);
+      }
    }
 
-   struct stat s;
-   r = stat(argv[4], &s);
-   if ((r < 0) || !S_ISDIR(s.st_mode))
+
+   struct stat st;
+   int r = stat(argv[2], &st);
+   if ((r < 0) || !S_ISDIR(st.st_mode))
    {
       cout << "ERROR: destination directory does not exist.\n";
       return -1;
    }
 
-   vector<string> fl;
-   getFileList(argv[3], fl);
 
    string olddir;
-   for (int i = strlen(argv[3]) - 1; i >= 0; -- i)
+   for (int i = strlen(argv[1]) - 1; i >= 0; -- i)
    {
-      if (argv[3][i] != '/')
+      if (argv[1][i] != '/')
       {
-         olddir = string(argv[3]).substr(0, i);
+         olddir = string(argv[1]).substr(0, i);
          break;
       }
    }
@@ -166,7 +199,7 @@ int main(int argc, char** argv)
    else
       olddir = olddir.substr(0, p);
 
-   string newdir = argv[4];
+   string newdir = argv[2];
 
    for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
    {
@@ -179,7 +212,7 @@ int main(int argc, char** argv)
       string localdir = dst.substr(0, dst.rfind('/'));
 
       // if localdir does not exist, create it
-      if (stat(localdir.c_str(), &s) < 0)
+      if (stat(localdir.c_str(), &st) < 0)
       {
          for (unsigned int p = 0; p < localdir.length(); ++ p)
          {

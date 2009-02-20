@@ -8,7 +8,7 @@
 #include <string.h>
 #include <errno.h>
 #include <iostream>
-
+#include <util.h>
 #include <fsclient.h>
 
 using namespace std;
@@ -92,24 +92,73 @@ int getFileList(const string& path, vector<string>& fl)
 
 int main(int argc, char** argv)
 {
-   if (5 != argc)
+   if (3 != argc)
    {
-      cout << "usage: upload <ip> <port> <src file/dir> <dst dir>" << endl;
+      cout << "usage: upload <src file/dir> <dst dir>" << endl;
       return 0;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
-   Sector::login("test", "xxx");
+   Session s;
+   s.loadInfo("../client.conf");
+
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
+
 
    vector<string> fl;
-   getFileList(argv[3], fl);
+   bool wc = WildCard::isWildCard(argv[1]);
+   if (!wc)
+   {
+      struct stat st;
+      if (stat(argv[1], &st) < 0)
+      {
+         cout << "ERROR: source file does not exist.\n";
+         return -1;
+      }
+      getFileList(argv[1], fl);
+   }
+   else
+   {
+      string path = argv[1];
+      string orig = path;
+      size_t p = path.rfind('/');
+      if (p == string::npos)
+         path = "/";
+      else
+      {
+         path = path.substr(0, p);
+         orig = orig.substr(p + 1, orig.length() - p);
+      }
+
+      dirent **namelist;
+      int n = scandir(path.c_str(), &namelist, 0, alphasort);
+
+      if (n < 0)
+         return -1;
+
+      for (int i = 0; i < n; ++ i)
+      {
+         // skip "." and ".." and hidden directory
+         if (namelist[i]->d_name[0] == '.')
+         {
+            free(namelist[i]);
+            continue;
+         }
+
+         if (WildCard::match(orig, namelist[i]->d_name))
+            getFileList(path + "/" + namelist[i]->d_name, fl);
+      }
+   }
+
 
    string olddir;
-   for (int i = strlen(argv[3]) - 1; i >= 0; -- i)
+   for (int i = strlen(argv[1]) - 1; i >= 0; -- i)
    {
-      if (argv[3][i] != '/')
+      if (argv[1][i] != '/')
       {
-         olddir = string(argv[3]).substr(0, i);
+         olddir = string(argv[1]).substr(0, i);
          break;
       }
    }
@@ -119,7 +168,7 @@ int main(int argc, char** argv)
    else
       olddir = olddir.substr(0, p);
 
-   string newdir = argv[4];
+   string newdir = argv[2];
    SNode attr;
    int r = Sector::stat(newdir, attr);
    if ((r < 0) || (!attr.m_bIsDir))

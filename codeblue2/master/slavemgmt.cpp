@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/08/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/19/2009
 *****************************************************************************/
 
 #include <slavemgmt.h>

@@ -1,26 +1,24 @@
 #include <client.h>
+#include <util.h>
 #include <iostream>
 
 using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 3)
+   if (argc != 1)
    {
-      cout << "USAGE: sysinfo <ip> <port>\n";
+      cout << "USAGE: sysinfo\n";
       return -1;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
+   Session s;
+   s.loadInfo("../client.conf");
 
-   char password[128];
-   cout << "Please input password for root user: ";
-   cin >> password;
-   if (Sector::login("root", password) < 0)
-   {
-      cerr << "login failed. check password or IP ACL.\n";
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
       return -1;
-   }
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
 
    SysStat sys;
    Sector::sysinfo(sys);
