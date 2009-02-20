@@ -1,18 +1,24 @@
-#include "dcclient.h"
+#include <dcclient.h>
+#include <util.h>
 #include <iostream>
-#include <cmath>
+
 using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 4)
+   if (argc != 2)
    {
-      cerr << "usage: text.idx master_ip master_port text_file_name" << endl;
+      cerr << "usage: text.idx text_file_name" << endl;
       return -1;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
-   Sector::login("test", "xxx");
+   Session s;
+   s.loadInfo("../client.conf");
+
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
 
    vector<string> files;
    files.insert(files.end(), argv[3]);

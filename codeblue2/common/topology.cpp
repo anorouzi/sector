@@ -43,6 +43,9 @@ int SlaveNode::deserialize(const char* buf, int size)
 {
    char* p = (char*)buf;
 
+   if (size < 56 + 4 * 4)
+      return -1;
+
    m_llTimeStamp = *(int64_t*)p;
    m_llAvailDiskSpace = *(int64_t*)(p + 8);
    m_llTotalFileSize = *(int64_t*)(p + 16);
@@ -54,28 +57,28 @@ int SlaveNode::deserialize(const char* buf, int size)
    p += 56;
    int n = *(int32_t*)p;
    p += 4;
-   for (int j = 0; j < n; ++ j)
+   for (int i = 0; i < n; ++ i)
    {
       m_mSysIndInput[p] = *(int64_t*)(p + 16);
       p += 24;
    }
    n = *(int32_t*)p;
    p += 4;
-   for (int j = 0; j < n; ++ j)
+   for (int i = 0; i < n; ++ i)
    {
       m_mSysIndOutput[p] = *(int64_t*)(p + 16);
       p += 24;
    }
    n = *(int32_t*)p;
    p += 4;
-   for (int j = 0; j < n; ++ j)
+   for (int i = 0; i < n; ++ i)
    {
       m_mCliIndInput[p] = *(int64_t*)(p + 16);
       p += 24;
    }
    n = *(int32_t*)p;
    p += 4;
-   for (int j = 0; j < n; ++ j)
+   for (int i = 0; i < n; ++ i)
    {
       m_mCliIndOutput[p] = *(int64_t*)(p + 16);
       p += 24;

@@ -1,18 +1,28 @@
-#include "dcclient.h"
+#include <dcclient.h>
+#include <util.h>
 #include <iostream>
 #include <cmath>
+
 using namespace std;
 
 int main(int argc, char** argv)
 {
    if (3 != argc)
    {
-      cout << "usage: mrsort <ip> <port>" << endl;
+      cout << "usage: mrsort" << endl;
       return 0;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
-   Sector::login("test", "xxx");
+   Session s;
+   s.loadInfo("../client.conf");
+
+   if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+      return -1;
+
+   // remove result of last run
+   Sector::remove("/test/mr_sorted");
 
    SysStat sys;
    Sector::sysinfo(sys);
@@ -21,12 +31,7 @@ int main(int argc, char** argv)
    const int rn = (int)pow(2.0f, N);
 
    vector<string> files;
-   for (int i = 0; i < fn; ++ i)
-   {
-      char filename[256];
-      sprintf(filename, "test/sort_input.%d.dat", i);
-      files.insert(files.end(), filename);
-   }
+   files.push_back("/test");
 
    SphereStream input;
    if (input.init(files) < 0)

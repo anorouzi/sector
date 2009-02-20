@@ -1,18 +1,25 @@
-#include "dcclient.h"
+#include <dcclient.h>
+#include <util.h>
 #include <iostream>
 #include <cmath>
+
 using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (3 != argc)
+   if (1 != argc)
    {
-      cout << "usage: testdc <ip> <port>" << endl;
+      cout << "usage: testdc" << endl;
       return 0;
    }
 
-   Sector::init(argv[1], atoi(argv[2]));
-   Sector::login("test", "xxx");
+   Session se;
+   se.loadInfo("../client.conf");
+
+   if (Sector::init(se.m_ClientConf.m_strMasterIP, se.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (Sector::login(se.m_ClientConf.m_strUserName, se.m_ClientConf.m_strPassword) < 0)
+      return -1;
 
    // remove result of last run
    Sector::remove("/test/sorted");
