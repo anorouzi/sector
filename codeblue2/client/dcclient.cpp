@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/06/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/21/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -859,6 +859,12 @@ int SphereProcess::segmentData()
       int seq = 0;
       for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
       {
+         if ((0 == m_pInput->m_vFiles[i].length()) || (0 == m_pInput->m_vSize[i]))
+            continue;
+
+         if (m_pInput->m_vLocation[i].empty())
+            return -1;
+
          DS* ds = new DS;
          ds->m_iID = seq ++;
          ds->m_strDataFile = m_pInput->m_vFiles[i];
@@ -899,6 +905,12 @@ int SphereProcess::segmentData()
          int64_t off = 0;
          while (off < m_pInput->m_vRecNum[i])
          {
+            if ((0 == m_pInput->m_vFiles[i].length()) || (0 == m_pInput->m_vSize[i]))
+               continue;
+
+            if (m_pInput->m_vLocation[i].empty())
+               return -1;
+
             DS* ds = new DS;
             ds->m_iID = seq ++;
             ds->m_strDataFile = m_pInput->m_vFiles[i];

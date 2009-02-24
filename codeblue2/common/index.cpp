@@ -254,8 +254,7 @@ int Index::move(const char* oldpath, const char* newpath, const char* newname)
       return -3;
 
    vector<string> newdir;
-   if (parsePath(newpath, newdir) <= 0)
-      return -3;
+   parsePath(newpath, newdir);
 
    map<string, SNode>* od = &m_mDirectory;
    map<string, SNode>::iterator os;
