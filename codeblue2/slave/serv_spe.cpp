@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/13/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/05/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -515,8 +515,7 @@ void* Slave::SPEShuffler(void* p)
       {
          chn = i->second;
          msg.m_iDataLength = SectorMsg::m_iHdrSize;
-
-         // channel exists, no response to be sent; start receiving data
+         gmp->sendto(speip, speport, msgid, &msg);
       }
       else
       {
@@ -839,8 +838,8 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       {
          // channel exists, send a message immediately followed by data, no response expected
          msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
-         int id = 0;
-         m_GMP.sendto(dstip, shufflerport, id, &msg);
+         if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
+            return -1;
 
          chn = c->second;
       }
