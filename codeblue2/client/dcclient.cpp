@@ -300,11 +300,12 @@ int SphereProcess::loadOperator(const char* library)
 
 int SphereProcess::loadOperator(SPE& s)
 {
+   int num = m_vOP.size();
+   g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&num, 4);
+
    for (vector<OP>::iterator i = m_vOP.begin(); i != m_vOP.end(); ++ i)
    {
-      int32_t size = i->m_strLibrary.length() + 1;
-      s.m_DataChn.send((char*)&size, 4);
-      s.m_DataChn.send(i->m_strLibrary.c_str(), size);
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, i->m_strLibrary.c_str(), i->m_strLibrary.length() + 1);
 
       ifstream lib;
       lib.open(i->m_strLibPath.c_str(), ios::binary);
@@ -312,12 +313,8 @@ int SphereProcess::loadOperator(SPE& s)
       lib.read(buf, i->m_iSize);
       lib.close();
 
-      s.m_DataChn.send((char*)&(i->m_iSize), 4);
-      s.m_DataChn.send(buf, i->m_iSize);
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, buf, i->m_iSize);
    }
-
-   int32_t size = -1;
-   s.m_DataChn.send((char*)&size, 4);
 
    return 0;
 }
@@ -357,7 +354,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
       return -1;
    }
 
-   m_iSPENum = (msg.m_iDataLength - 4) / 68;
+   m_iSPENum = (msg.m_iDataLength - 4) / 72;
    if (0 == m_iSPENum)
    {
       cerr << "no available SPE found.\n";
@@ -375,7 +372,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    if (m_iOutputType == -1)
       m_pOutput->init(m_mpDS.size());
 
-   prepareOutput();
+   prepareOutput(msg.getData());
 
    m_iProgress = 0;
    m_iAvgRunTime = -1;
@@ -473,18 +470,15 @@ void* SphereProcess::run(void* param)
 
    // disconnect all SPEs and close all Shufflers
    for (map<int, SPE>::iterator i = self->m_mSPE.begin(); i != self->m_mSPE.end(); ++ i)
-   {
-      if (i->second.m_iStatus > 0)
-         i->second.m_DataChn.close();
+      g_DataChn.remove(i->second.m_strIP, i->second.m_iDataPort);
 
-      if (i->second.m_iShufflerPort > 0)
-      {
-         SectorMsg msg;
-         int32_t cmd = -1;
-         msg.setData(0, (char*)&cmd, 4);
-         int id = 0;
-         self->g_GMP.sendto(i->second.m_strIP.c_str(), i->second.m_iShufflerPort, id, &msg);
-      }
+   for(map<int, BUCKET>::iterator i = self->m_mBucket.begin(); i != self->m_mBucket.end(); ++ i)
+   {
+      SectorMsg msg;
+      int32_t cmd = -1;
+      msg.setData(0, (char*)&cmd, 4);
+      int id = 0;
+      self->g_GMP.sendto(i->second.m_strIP.c_str(), i->second.m_iShufflerPort, id, &msg);
    }
 
    while (self->checkBucket() > 0)
@@ -584,7 +578,7 @@ int SphereProcess::checkSPE()
       }
       else 
       {
-         if (s->second.m_DataChn.isConnected())
+         if (g_DataChn.isConnected(s->second.m_strIP, s->second.m_iDataPort))
             spe_busy = true;
          else
          {
@@ -598,7 +592,7 @@ int SphereProcess::checkSPE()
 
             // dismiss this SPE and release its job
             s->second.m_iStatus = -1;
-            s->second.m_DataChn.close();
+            g_DataChn.remove(s->second.m_strIP, s->second.m_iDataPort);
             m_iTotalSPE --;
 
             pthread_mutex_lock(&m_DSLock);
@@ -667,7 +661,7 @@ int SphereProcess::startSPE(SPE& s, DS* d)
    *(int32_t*)(dataseg + 16) = s.m_pDS->m_iID;
    strcpy(dataseg + 20, s.m_pDS->m_strDataFile.c_str());
 
-   if ((s.m_DataChn.send((char*)&size, 4) > 0) && (s.m_DataChn.send(dataseg, size) > 0))
+   if (g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, dataseg, size) > 0)
    {
       d->m_iSPEID = s.m_iID;
       d->m_iStatus = 1;
@@ -781,10 +775,10 @@ int SphereProcess::prepareSPE(const char* spenodes)
          spe.m_pDS = NULL;
          spe.m_iStatus = 0;
          spe.m_iProgress = 0;
-         spe.m_iShufflerPort = 0;
 
-         spe.m_strIP = spenodes + i * 68;
-         spe.m_iPort = *(int32_t*)(spenodes + i * 68 + 64);
+         spe.m_strIP = spenodes + i * 72;
+         spe.m_iPort = *(int32_t*)(spenodes + i * 72 + 64);
+         spe.m_iDataPort = *(int32_t*)(spenodes + i * 72 + 68);
 
          m_mSPE[spe.m_iID] = spe;
       }
@@ -798,17 +792,13 @@ int SphereProcess::connectSPE(SPE& s)
    if (s.m_iStatus != 0)
       return -1;
 
-   int port = g_iReusePort;
-   s.m_DataChn.open(port, true, true);
-   g_iReusePort = port;
-
    SectorMsg msg;
    msg.setType(203); // start processing engine
    msg.setKey(g_iKey);
    msg.setData(0, s.m_strIP.c_str(), s.m_strIP.length() + 1);
    msg.setData(64, (char*)&(s.m_iPort), 4);
-   msg.setData(68, (char*)&(s.m_iID), 4);
-   msg.setData(72, (char*)&port, 4);
+   // leave a 4-byte blank spot for data port
+   msg.setData(72, (char*)&(s.m_iID), 4);
    msg.setData(76, (char*)&g_iKey, 4);
    msg.setData(80, m_strOperator.c_str(), m_strOperator.length() + 1);
    int offset = 80 + m_strOperator.length() + 1;
@@ -821,29 +811,21 @@ int SphereProcess::connectSPE(SPE& s)
    if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
       cerr << "failed: " << s.m_strIP << " " << s.m_iPort << endl;
-      s.m_DataChn.close();
       return -1;
    }
+
+   s.m_iSession = *(int*)msg.getData();
+
+   g_DataChn.connect(s.m_strIP, s.m_iDataPort);
 
    cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
-   if (s.m_DataChn.connect(s.m_strIP.c_str(), *(int*)(msg.getData())) < 0)
-   {
-      s.m_DataChn.close();
-      return -1;
-   }
 
    // send output information
+   g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&m_iOutputType, 4);
    if (m_iOutputType > 0)
-      s.m_DataChn.send(m_pOutputLoc, 4 + m_pOutput->m_iFileNum * 72);
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, m_pOutput->m_iFileNum * 76);
    else if (m_iOutputType < 0)
-   {
-      s.m_DataChn.send(m_pOutputLoc, 4);
-      int size = strlen(m_pOutputLoc + 4) + 1;
-      s.m_DataChn.send((char*)&size, 4);
-      s.m_DataChn.send(m_pOutputLoc + 4, size);
-   }
-   else
-      s.m_DataChn.send(m_pOutputLoc, 4);
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, strlen(m_pOutputLoc) + 1);
 
    loadOperator(s);
 
@@ -936,19 +918,62 @@ int SphereProcess::segmentData()
    return m_mpDS.size();
 }
 
-int SphereProcess::prepareOutput()
+int SphereProcess::prepareOutput(const char* spenodes)
 {
-   char* outputloc = NULL;
+   m_pOutputLoc = NULL;
 
    // prepare output stream locations
    if (m_iOutputType > 0)
    {
+      m_pOutputLoc = new char[m_pOutput->m_iFileNum * 76];
+
       SectorMsg msg;
+      msg.setType(204);
+      msg.setKey(g_iKey);
 
-      outputloc = new char[m_pOutput->m_iFileNum * 72];
-      map<int, SPE>::iterator s = m_mSPE.begin();
-      int id = -1;
+      for (int i = 0; i < m_iSPENum; ++ i)
+      {
+         msg.setData(0, spenodes + i * 72, strlen(spenodes + i * 72));
+         msg.setData(64, spenodes + i * 72 + 64, 4);
+         msg.setData(68, (char*)&(m_pOutput->m_iFileNum), 4);
+         msg.setData(72, (char*)&i, 4);
+         int size = m_pOutput->m_strPath.length() + 1;
+         int offset = 76;
+         msg.setData(offset, (char*)&size, 4);
+         msg.setData(offset + 4, m_pOutput->m_strPath.c_str(), m_pOutput->m_strPath.length() + 1);
+         offset += 4 + size;
+         size = m_pOutput->m_strName.length() + 1;
+         msg.setData(offset, (char*)&size, 4);
+         msg.setData(offset + 4, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
+         offset += 4 + size;
+         msg.setData(offset, (char*)&g_iKey, 4);
+         offset += 4;
+         msg.setData(offset, (char*)&m_iProcType, 4);
+         if (m_iProcType == 1)
+         {
+            offset += 4;
+            size = m_strOperator.length() + 1;
+            msg.setData(offset, (char*)&size, 4);
+            msg.setData(offset + 4, m_strOperator.c_str(), m_strOperator.length() + 1);
+         }
 
+         cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
+         if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+            continue;
+
+         BUCKET b;
+         b.m_iID = i;
+         b.m_strIP = spenodes + i * 72;
+         b.m_iPort = *(int32_t*)(spenodes + i * 72 + 64);
+         b.m_iDataPort = *(int32_t*)(spenodes + i * 72 + 68);
+         b.m_iShufflerPort = *(int32_t*)msg.getData();
+         b.m_iSession = *(int32_t*)(msg.getData() + 4);
+         b.m_iProgress = 0;
+         gettimeofday(&b.m_LastUpdateTime, 0);
+         m_mBucket[b.m_iID] = b;
+      }
+
+      map<int, BUCKET>::iterator b = m_mBucket.begin();
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
       {
          char* tmp = new char[m_pOutput->m_strPath.length() + m_pOutput->m_strName.length() + 64];
@@ -957,86 +982,26 @@ int SphereProcess::prepareOutput()
          delete [] tmp;
 
          Address loc;
-         loc.m_strIP = s->second.m_strIP;
-         loc.m_iPort = s->second.m_iPort;
+         loc.m_strIP = b->second.m_strIP;
+         loc.m_iPort = b->second.m_iPort;
          m_pOutput->m_vLocation[i].insert(loc);
 
-         // start one shuffler on the SPE, if there is no shuffler yet
-         if (0 == s->second.m_iShufflerPort)
-         {
-            msg.setType(204);
-            msg.setKey(g_iKey);
+         strcpy(m_pOutputLoc + i * 76, b->second.m_strIP.c_str());
+         *(int32_t*)(m_pOutputLoc + i * 76 + 64) = b->second.m_iDataPort;
+         *(int32_t*)(m_pOutputLoc + i * 76 + 68) = b->second.m_iShufflerPort;
+         *(int32_t*)(m_pOutputLoc + i * 76 + 72) = b->second.m_iSession;
 
-            msg.setData(0, loc.m_strIP.c_str(), loc.m_strIP.length() + 1);
-            msg.setData(64, (char*)&(loc.m_iPort), 4);
-            msg.setData(68, (char*)&(m_pOutput->m_iFileNum), 4);
-            msg.setData(72, (char*)&id, 4);
-            int size = m_pOutput->m_strPath.length() + 1;
-            int offset = 76;
-            msg.setData(offset, (char*)&size, 4);
-            msg.setData(offset + 4, m_pOutput->m_strPath.c_str(), m_pOutput->m_strPath.length() + 1);
-            offset += 4 + size;
-            size = m_pOutput->m_strName.length() + 1;
-            msg.setData(offset, (char*)&size, 4);
-            msg.setData(offset + 4, m_pOutput->m_strName.c_str(), m_pOutput->m_strName.length() + 1);
-            offset += 4 + size;
-            msg.setData(offset, (char*)&g_iKey, 4);
-            offset += 4;
-            msg.setData(offset, (char*)&m_iProcType, 4);
-            if (m_iProcType == 1)
-            {
-               offset += 4;
-               size = m_strOperator.length() + 1;
-               msg.setData(offset, (char*)&size, 4);
-               msg.setData(offset + 4, m_strOperator.c_str(), m_strOperator.length() + 1);
-            }
-
-            cout << "request shuffler " << loc.m_strIP << " " << loc.m_iPort << endl;
-            if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
-               continue;
-
-            s->second.m_iShufflerPort = *(int32_t*)msg.getData();
-
-            BUCKET b;
-            b.m_iID = id --;
-            b.m_strIP = loc.m_strIP;
-            b.m_iPort = *(int32_t*)msg.getData();
-            b.m_iProgress = 0;
-            gettimeofday(&b.m_LastUpdateTime, 0);
-            m_mBucket[b.m_iID] = b;
-         }
-
-         memcpy(outputloc + i * 72, s->second.m_strIP.c_str(), 64);
-         *(int32_t*)(outputloc + i * 72 + 64) = s->second.m_iPort;
-         *(int32_t*)(outputloc + i * 72 + 68) = s->second.m_iShufflerPort;
-
-         if (++ s == m_mSPE.end())
-            s = m_mSPE.begin();
+         if (++ b == m_mBucket.end())
+            b = m_mBucket.begin();
       }
    }
-
-   // prepare and submit output locations
-   int size;
-   if (m_iOutputType > 0)
-      size = 4 + m_pOutput->m_iFileNum * 72;
-   else if (m_iOutputType < 0)
-      size = 4 + m_pOutput->m_strPath.length() + m_pOutput->m_strName.length() + 64;
-   else
-      size = 4;
-   m_pOutputLoc = new char[size];
-
-   *(int32_t*)m_pOutputLoc = m_iOutputType;
-
-   if (m_iOutputType > 0)
-      memcpy(m_pOutputLoc + 4, outputloc, m_pOutput->m_iFileNum * 72);
    else if (m_iOutputType < 0)
    {
       char* localname = new char[m_pOutput->m_strPath.length() + m_pOutput->m_strName.length() + 64];
       sprintf(localname, "%s/%s", m_pOutput->m_strPath.c_str(), m_pOutput->m_strName.c_str());
-      memcpy(m_pOutputLoc + 4, localname, strlen(localname) + 1);
+      m_pOutputLoc = new char[strlen(localname) + 1];
+      memcpy(m_pOutputLoc, localname, strlen(localname) + 1);
    }
-
-   delete [] outputloc;
 
    return m_pOutput->m_iFileNum;
 }
@@ -1050,21 +1015,20 @@ int SphereProcess::readResult(SPE* s)
 
    if (m_iOutputType == 0)
    {
-      s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iDataLen, 4);
-      s->m_pDS->m_pResult->m_pcData = new char[s->m_pDS->m_pResult->m_iDataLen];
-      s->m_DataChn.recv(s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
-      s->m_DataChn.recv((char*)&s->m_pDS->m_pResult->m_iIndexLen, 4);
-      s->m_pDS->m_pResult->m_pllIndex = new int64_t[s->m_pDS->m_pResult->m_iIndexLen];
-      s->m_DataChn.recv((char*)s->m_pDS->m_pResult->m_pllIndex, s->m_pDS->m_pResult->m_iIndexLen * 8);
+      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
+      char* tmp;
+      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, s->m_pDS->m_pResult->m_iIndexLen);
+      s->m_pDS->m_pResult->m_pllIndex = (int64_t*)s->m_pDS->m_pResult->m_pllIndex;
+      s->m_pDS->m_pResult->m_iIndexLen /= 8;
    }
    else if (m_iOutputType == -1)
    {
       int size = 0;
-      s->m_DataChn.recv((char*)&size, 4);
+      g_DataChn.recv4(s->m_strIP, s->m_iDataPort, s->m_iSession, size);
       m_pOutput->m_vSize[s->m_pDS->m_iID] = size;
       m_pOutput->m_llSize += size;
 
-      s->m_DataChn.recv((char*)&size, 4);
+      g_DataChn.recv4(s->m_strIP, s->m_iDataPort, s->m_iSession, size);
       m_pOutput->m_vRecNum[s->m_pDS->m_iID] = size - 1;
       m_pOutput->m_llRecNum += size -1;
 
@@ -1075,10 +1039,15 @@ int SphereProcess::readResult(SPE* s)
    }
    else
    {
-      int* sarray = new int[m_pOutput->m_iFileNum];
-      int* rarray = new int[m_pOutput->m_iFileNum];
-      s->m_DataChn.recv((char*)sarray, m_pOutput->m_iFileNum * 4);
-      s->m_DataChn.recv((char*)rarray, m_pOutput->m_iFileNum * 4);
+      int32_t* sarray = NULL;
+      int32_t* rarray = NULL;
+      char* tmp;
+      int size;
+      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, size);
+      sarray = (int32_t*)tmp;
+      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, size);
+      rarray = (int32_t*)tmp;
+
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
       {
          m_pOutput->m_vSize[i] += sarray[i];

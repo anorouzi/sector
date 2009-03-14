@@ -52,7 +52,8 @@ public:
    string m_strName;				// user name
 
    string m_strIP;				// client IP address
-   int m_iPort;					// client port
+   int m_iPort;					// client port (GMP)
+   int m_iDataPort;				// data channel port
 
    int32_t m_iKey;				// client key
 

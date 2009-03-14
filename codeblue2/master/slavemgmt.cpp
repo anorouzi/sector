@@ -238,7 +238,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    return 1;
 }
  
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, map<int, Address>& loc, int replica)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica)
 {
    CGuard sg(m_SlaveLock);
 
@@ -266,10 +266,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          }
       }
 
-      Address addr;
-      addr.m_strIP = m_mSlaveList[*n].m_strIP;
-      addr.m_iPort = m_mSlaveList[*n].m_iPort;
-      loc[m_mSlaveList[*n].m_iNodeID] = addr;
+      sl.push_back(m_mSlaveList[*n]);
 
       // if this is a READ_ONLY operation, one node is enough
       if ((mode & SF_MODE::WRITE) == 0)
@@ -280,9 +277,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          if (i == n)
             continue;
 
-         addr.m_strIP = m_mSlaveList[*i].m_strIP;
-         addr.m_iPort = m_mSlaveList[*i].m_iPort;
-         loc[m_mSlaveList[*n].m_iNodeID] = addr;
+         sl.push_back(m_mSlaveList[*i]);
       }
    }
    else
@@ -304,10 +299,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       set<int>::iterator n = avail.begin();
       for (int i = 0; i < r; ++ i)
          n ++;
-      Address addr;
-      addr.m_strIP = m_mSlaveList[*n].m_strIP;
-      addr.m_iPort = m_mSlaveList[*n].m_iPort;
-      loc[m_mSlaveList[*n].m_iNodeID] = addr;
+      sl.push_back(m_mSlaveList[*n]);
 
       // if this is not a high reliable write, one node is enough
       if ((mode & SF_MODE::HiRELIABLE) == 0)
@@ -318,20 +310,18 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       {
          SlaveNode sn;
          set<int> locid;
-         for (map<int, Address>::iterator j = loc.begin(); j != loc.end(); ++ j)
-            locid.insert(j->first);
+         for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
+            locid.insert(j->m_iNodeID);
 
          pthread_mutex_unlock(&m_SlaveLock);
          if (chooseReplicaNode(locid, sn, 10000000000LL) < 0)
             continue;
 
-         addr.m_strIP = sn.m_strIP;
-         addr.m_iPort = sn.m_iPort;
-         loc[sn.m_iNodeID] = addr;
+         sl.push_back(sn);
       }
    }
 
-   return loc.size();
+   return sl.size();
 }
 
 int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize)
@@ -345,7 +335,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
    return chooseReplicaNode(locid, sn, filesize);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, map<int, Address>& loc, int replica)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica)
 {
    set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -353,7 +343,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, client, mode, loc, replica);
+   return chooseIONode(locid, client, mode, sl, replica);
 }
 
 unsigned int SlaveManager::getTotalSlaves()

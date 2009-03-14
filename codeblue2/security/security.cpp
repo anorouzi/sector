@@ -27,6 +27,7 @@ written by
 *****************************************************************************/
 
 #include "security.h"
+#include <constant.h>
 #include <fstream>
 #include <iostream>
 #include <sys/types.h>
@@ -351,7 +352,9 @@ void* SServer::process(void* p)
          if (s->recv(ip, 64) <= 0)
             goto EXIT;
 
-         int32_t res = self->m_ACL.match(ip);
+         int32_t res = 1;
+         if (!self->m_ACL.match(ip))
+            res = SectorError::E_ACL;
          if (s->send((char*)&res, 4) <= 0)
             goto EXIT;
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/25/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/08/2009
 *****************************************************************************/
 
 #include "security.h"
@@ -42,20 +42,28 @@ int main(int argc, char** argv)
    if (ss.init(port, "security_node.cert", "security_node.key") < 0)
    {
       cerr << "failed to initialize security server at port " << port << endl;
+      cerr << "Secuirty server failed to start. Please fix the problem.\n";
       return -1;
    }
 
    if (ss.loadACL("slave_acl.conf") < 0)
    {
       cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf in the current directory. No slaves would be able to join.\n";
+      cerr << "Secuirty server failed to start. Please fix the problem.\n";
+      return -1;
    }
 
    if (ss.loadShadowFile("users") < 0)
    {
       cerr << "WARNING: no users account initialized.\n";
+      cerr << "Secuirty server failed to start. Please fix the problem.\n";
+      return -1;
    }
 
-   cout << "Sector Security server running at port " << port << endl;
+   cout << "Sector Security server running at port " << port << endl << endl;
+   cout << "The server is started successfully; there is no further output from this program. \
+           Please do not shutdown the security server; otherwise no client may be able to login. \
+           If the server is down for any reason, you can restart it without restarting the masters and the lsaves.\n";
 
    ss.run();
 

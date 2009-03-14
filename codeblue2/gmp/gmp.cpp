@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Group Messaging Protocol (GMP)
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/12/2009
 *****************************************************************************/
 
 
@@ -39,6 +39,9 @@ written by
 
 #include <common.h>
 #include <gmp.h>
+
+using namespace std;
+
 
 int32_t CGMPMessage::g_iSession = CGMPMessage::initSession();
 int32_t CGMPMessage::g_iID = 1;
@@ -188,8 +191,10 @@ int CGMP::init(const int& port)
    else
       m_iPort = 0;
 
-   if ((m_UDTSocket.open(m_iPort, false) < 0) || (m_UDTSocket.listen() < 0))
+   if ((m_UDTSocket.open(m_iPort, false, true) < 0) || (m_UDTSocket.listen() < 0))
       return -1;
+
+   m_iUDTReusePort = m_iPort;
 
    m_iPort ++;
 
@@ -222,8 +227,6 @@ int CGMP::init(const int& port)
    #endif
 
    m_bInit = true;
-
-   m_iUDTReusePort = 0;
 
    return 1;
 }
@@ -375,10 +378,8 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
 int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 {
    Transport t;
-   int dataport = m_iUDTReusePort;
-   if (t.open(dataport, false, true) < 0)
+   if (t.open(m_iUDTReusePort, false, true) < 0)
       return -1;
-   m_iUDTReusePort = dataport;
 
    if (t.connect(ip, port) < 0)
    {
@@ -742,8 +743,8 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          if (NULL == (ip = inet_ntoa(addr.sin_addr)))
             continue;
       #endif
-      int32_t lastid = self->m_PeerHistory.getLastID(ip, ntohs(addr.sin_port), session);
 
+      int32_t lastid = self->m_PeerHistory.getLastID(ip, ntohs(addr.sin_port), session);
       if ((lastid >= 0) && (((id <= lastid) && (lastid - id < (1 << 29))) || ((id > lastid) && (id - lastid > (1 << 29)))))
       {
          ack[2] = id;

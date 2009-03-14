@@ -60,8 +60,9 @@ public:
 
    //Address m_Addr;
    std::string m_strIP;
-   int m_iPort;
    std::string m_strPublicIP;
+   int m_iPort;
+   int m_iDataPort;
 
    int64_t m_llAvailDiskSpace;
    int64_t m_llTotalFileSize;

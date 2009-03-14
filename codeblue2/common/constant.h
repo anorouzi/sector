@@ -48,6 +48,7 @@ public:
    static const int E_PASSWORD = -2003;		// incorrect password
    static const int E_ACL = -2004;		// visit from unallowd IP address
    static const int E_INITCTX = -2005;		// failed to initialize CTX
+   static const int E_NOSECSERV = -2006;	// security server is down or cannot connect to it
    static const int E_CONNECTION = - 3000;	// cannot connect to master
    static const int E_RESOURCE = -4000;		// no available resources
    static const int E_TIMEDOUT = -5000;		// timeout

@@ -33,7 +33,6 @@ written by
 #include <index.h>
 #include <pthread.h>
 #include <string>
-#include <transport.h>
 
 class SphereStream
 {
@@ -148,23 +147,26 @@ private:
    struct SPE
    {
       int32_t m_iID;
-      std::string m_strIP;
-      int m_iPort;
+      std::string m_strIP;		// SPE IP
+      int m_iPort;			// SPE GMP port
+      int m_iDataPort;			// SPE data port
       DS* m_pDS;
       int m_iStatus;			// -1: abandond; 0: uninitialized; 1: ready; 2; running
       int m_iProgress;			// 0 - 100 (%)
       timeval m_StartTime;
       timeval m_LastUpdateTime;
-      Transport m_DataChn;
-      int m_iShufflerPort;              // GMP port for the shuffler on this SPE
+      int m_iSession;			// SPE session ID
    };
    std::map<int, SPE> m_mSPE;
 
    struct BUCKET
    {
       int32_t m_iID;
-      std::string m_strIP;
-      int m_iPort;
+      std::string m_strIP;		// slave IP address
+      int m_iPort;			// slave GMP port
+      int m_iDataPort;			// slave Data port
+      int m_iShufflerPort;		// Shuffer GMP port
+      int m_iSession;			// Shuffler session ID
       int m_iProgress;
       timeval m_LastUpdateTime;
    };
@@ -196,7 +198,7 @@ private:
 private:
    int prepareSPE(const char* spenodes);
    int segmentData();
-   int prepareOutput();
+   int prepareOutput(const char* spenodes);
 
    static void* run(void*);
    pthread_mutex_t m_RunLock;

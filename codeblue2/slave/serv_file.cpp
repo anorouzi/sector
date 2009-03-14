@@ -38,8 +38,6 @@ void* Slave::fileHandler(void* p)
    Slave* self = ((Param2*)p)->serv_instance;
    string filename = self->m_strHomeDir + ((Param2*)p)->filename;
    string sname = ((Param2*)p)->filename;
-   Transport* datachn = ((Param2*)p)->datachn;
-   int dataport = ((Param2*)p)->dataport;
    int key = ((Param2*)p)->key;
    int mode = ((Param2*)p)->mode;
    int transid = ((Param2*)p)->transid;
@@ -57,27 +55,21 @@ void* Slave::fileHandler(void* p)
    bool bWrite = mode & 2;
    bool bSecure = mode & 16;
 
-   int32_t cmd;
    bool run = true;
 
    cout << "rendezvous connect source " << src_ip << " " << src_port << " " << filename << endl;
 
-   if (datachn->connect(src_ip.c_str(), src_port) < 0)
+   if (self->m_DataChn.connect(src_ip, src_port) < 0)
    {
       self->logError(1, src_ip, src_port, sname);
       return NULL;
    }
 
    if (bSecure)
-      datachn->initCoder(crypto_key, crypto_iv);
+      self->m_DataChn.setCryptoKey(src_ip, src_port, crypto_key, crypto_iv);
 
-
-   Transport uplink;
    if (dst_port > 0)
-   {
-      uplink.open(dataport, true, true);
-      uplink.connect(dst_ip.c_str(), dst_port);
-   }
+      self->m_DataChn.connect(dst_ip, dst_port);
 
    //create a new directory or file in case it does not exist
    int change = 0;
@@ -101,11 +93,11 @@ void* Slave::fileHandler(void* p)
    int64_t rb = 0;
    int64_t wb = 0;
 
-   int32_t response = 0;
+   int32_t cmd = 0;
 
    while (run)
    {
-      if (datachn->recv((char*)&cmd, 4) < 0)
+      if (self->m_DataChn.recv4(src_ip, src_port, transid, cmd) < 0)
          break;
 
       ifstream ifs;
@@ -113,7 +105,7 @@ void* Slave::fileHandler(void* p)
 
       if (5 != cmd)
       {
-         response = -1;
+         int32_t response = -1;
 
          if (((2 == cmd) || (4 == cmd)) && bWrite)
          {
@@ -128,7 +120,7 @@ void* Slave::fileHandler(void* p)
                response = 0;
          }
 
-         if (datachn->send((char*)&response, 4) < 0)
+         if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
             break;
 
          if (-1 == response)
@@ -143,14 +135,18 @@ void* Slave::fileHandler(void* p)
       {
       case 1: // read
          {
-            int64_t param[2];
-            if (datachn->recv((char*)param, 8 * 2) < 0)
+            char* param = NULL;
+            int tmp = 8 * 2;
+            if (self->m_DataChn.recv(src_ip, src_port, transid, param, tmp) < 0)
             {
                run = false;
                break;
             }
+            int64_t offset = *(int64_t*)param;
+            int64_t size = *(int64_t*)(param + 8);
+            delete [] param;
 
-            if (datachn->sendfileEx(ifs, param[0], param[1], bSecure) < 0)
+            if (self->m_DataChn.sendfile(src_ip, src_port, transid, ifs, offset, size, bSecure) < 0)
                run = false;
 
             // update total sent data size
@@ -162,97 +158,18 @@ void* Slave::fileHandler(void* p)
 
       case 2: // write
          {
-            int64_t param[2];
-
-            if (datachn->recv((char*)param, 8 * 2) < 0)
+            char* param = NULL;
+            int tmp = 8 * 2;
+            if (self->m_DataChn.recv(src_ip, src_port, transid, param, tmp) < 0)
             {
                run = false;
                break;
             }
+            int64_t offset = *(int64_t*)param;
+            int64_t size = *(int64_t*)(param + 8);
+            delete [] param;
 
-            if (datachn->recvfileEx(ofs, param[0], param[1], bSecure) < 0)
-               run = false;
-            else
-               wb += param[1];
-
-            // update total received data size
-            self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 0 : 2);
-
-            if (change != 1)
-               change = 2;
-
-            ofs.close();
-
-            if (dst_port > 0)
-            {
-               // replicate data to another node
-               char req[20];
-               *(int32_t*)req = 2; // cmd write
-               *(int64_t*)(req + 4) = param[0];
-               *(int64_t*)(req + 12) = param[1];
-
-               int32_t response = -1;
-
-               if (uplink.send(req, 20) < 0)
-                  break;
-               if ((uplink.recv((char*)&response, 4) < 0) || (-1 == response))
-                  break;
-
-               ifs.open(filename.c_str());
-               uplink.sendfile(ifs, param[0], param[1]);
-               ifs.close();
-            }
-
-            break;
-         }
-
-      case 3: // download
-         {
-            int64_t offset = 0;
-            int64_t size = 0;
-
-            if (datachn->recv((char*)&offset, 8) < 0)
-            {
-               run = false;
-               break;
-            }
-
-            ifs.seekg(0, ios::end);
-            size = (int64_t)(ifs.tellg());
-            ifs.seekg(0, ios::beg);
-
-            size -= offset;
-
-            if (datachn->send((char*)&size, 8) < 0)
-            {
-               run = false;
-               ifs.close();
-               break;
-            }
-
-            if (datachn->sendfileEx(ifs, offset, size, bSecure) < 0)
-               run = false;
-            else
-               rb += size;
-
-            // update total sent data size
-            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 1 : 3);
-
-            break;
-         }
-
-      case 4: // upload
-         {
-            int64_t offset = 0;
-            int64_t size = 0;
-
-            if (datachn->recv((char*)&size, 8) < 0)
-            {
-               run = false;
-               break;
-            }
-
-            if (datachn->recvfileEx(ofs, offset, size, bSecure) < 0)
+            if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset, size, bSecure) < 0)
                run = false;
             else
                wb += size;
@@ -267,20 +184,88 @@ void* Slave::fileHandler(void* p)
 
             if (dst_port > 0)
             {
-                // upload
-               char req[12];
-               *(int32_t*)req = 4; // cmd write
-               *(int64_t*)(req + 4) = size;
-
-               int32_t response = -1;
-
-               if (uplink.send(req, 12) < 0)
+               self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
+               int response;
+               if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
                   break;
-               if ((uplink.recv((char*)&response, 4) < 0) || (-1 == response))
+
+               // replicate data to another node
+               char req[16];
+               *(int64_t*)req = offset;
+               *(int64_t*)(req + 8) = size;
+
+               if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
                   break;
 
                ifs.open(filename.c_str());
-               uplink.sendfile(ifs, 0, size);
+               self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset, size);
+               ifs.close();
+            }
+
+            break;
+         }
+
+      case 3: // download
+         {
+            int64_t offset;
+            if (self->m_DataChn.recv8(src_ip, src_port, transid, offset) < 0)
+            {
+               run = false;
+               break;
+            }
+
+            ifs.seekg(0, ios::end);
+            int64_t size = (int64_t)(ifs.tellg());
+            ifs.seekg(0, ios::beg);
+
+            size -= offset;
+
+            if (self->m_DataChn.sendfile(src_ip, src_port, transid, ifs, offset, size, bSecure) < 0)
+               run = false;
+            else
+               rb += size;
+
+            // update total sent data size
+            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 1 : 3);
+
+            break;
+         }
+
+      case 4: // upload
+         {
+            int64_t offset = 0;
+            int64_t size;
+            if (self->m_DataChn.recv8(src_ip, src_port, transid, size) < 0)
+            {
+               run = false;
+               break;
+            }
+
+            if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset, size, bSecure) < 0)
+               run = false;
+            else
+               wb += size;
+
+            // update total received data size
+            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
+
+            if (change != 1)
+               change = 2;
+
+            ofs.close();
+
+            if (dst_port > 0)
+            {
+               self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
+               int response;
+               if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
+                  break;
+
+               if (self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&size, 8) < 0)
+                  break;
+
+               ifs.open(filename.c_str());
+               self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset, size);
                ifs.close();
             }
 
@@ -316,19 +301,8 @@ void* Slave::fileHandler(void* p)
    //report to master the task is completed
    self->report(transid, sname, change);
 
-   if (dst_port > 0)
-   {
-      cmd = 5;
-      uplink.send((char*)&cmd, 4);
-      uplink.recv((char*)&cmd, 4);
-      uplink.close();
-   }
-
-   datachn->send((char*)&cmd, 4);
-   if (bSecure)
-      datachn->releaseCoder();
-   datachn->close();
-   delete datachn;
+   self->m_DataChn.send(src_ip, src_port, transid, (char*)&cmd, 4);
+   //self->m_DataChn.remove(src_ip, src_port);
 
    return NULL;
 }
@@ -346,39 +320,36 @@ void* Slave::copy(void* p)
    msg.setType(110); // open the file
    msg.setKey(0);
 
-   Transport datachn;
-   int port = 0;
-   datachn.open(port, true, true);
-
    int mode = 1;
-   msg.setData(0, (char*)&port, 4);
-   msg.setData(4, (char*)&mode, 4);
-   msg.setData(8, src.c_str(), src.length() + 1);
+   msg.setData(0, (char*)&mode, 4);
+   msg.setData(4, src.c_str(), src.length() + 1);
 
    if (self->m_GMP.rpc(self->m_strMasterIP.c_str(), self->m_iMasterPort, &msg, &msg) < 0)
       return NULL;
    if (msg.getType() < 0)
       return NULL;
 
-   cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
+   string ip = msg.getData();
+   int session = *(int*)(msg.getData() + 64);
+   int port = *(int*)(msg.getData() + 68);
 
-   if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
+   int64_t size = *(int64_t*)(msg.getData() + 72);
+
+   //cout << "rendezvous connect " << ip << " " << port << endl;
+
+   if (self->m_DataChn.connect(ip, port) < 0)
       return NULL;
 
+   // download command: 3
    int32_t cmd = 3;
-   int64_t offset = 0LL;
-   int64_t size;
-   int32_t response = -1;
+   self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
 
-   char req[12];
-   *(int32_t*)req = cmd;
-   *(int64_t*)(req + 4) = offset;
+   int response = -1;
+   if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
+      return NULL;
 
-   if (datachn.send(req, 12) < 0)
-      return NULL;
-   if ((datachn.recv((char*)&response, 4) < 0) || (-1 == response))
-      return NULL;
-   if (datachn.recv((char*)&size, 8) < 0)
+   int64_t offset = 0;
+   if (self->m_DataChn.send(ip, port, session, (char*)&offset, 8) < 0)
       return NULL;
 
    //copy to .tmp first, then move to real location
@@ -386,18 +357,16 @@ void* Slave::copy(void* p)
 
    ofstream ofs;
    ofs.open((self->m_strHomeDir + ".tmp" + dst).c_str(), ios::out | ios::binary | ios::trunc);
-   if (datachn.recvfile(ofs, offset, size) < 0)
+   if (self->m_DataChn.recvfile(ip, port, session, ofs, offset, size) < 0)
       unlink((self->m_strHomeDir + ".tmp" + dst).c_str());
-
    ofs.close();
 
    // update total received data size
-   self->m_SlaveStat.updateIO(msg.getData(), size, 0);
+   self->m_SlaveStat.updateIO(ip, size, 0);
 
    cmd = 5;
-   datachn.send((char*)&cmd, 4);
-   datachn.recv((char*)&cmd, 4);
-   datachn.close();
+   self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+   self->m_DataChn.recv4(ip, port, session, cmd);
 
    //utime: update timestamp according to the original copy
    utimbuf ut;

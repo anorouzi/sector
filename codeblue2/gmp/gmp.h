@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Group Messaging Protocol (GMP)
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/12/2009
 *****************************************************************************/
 
 
@@ -58,7 +58,7 @@ written by
 #include <map>
 #include <list>
 #include <queue>
-using namespace std;
+
 
 class CGMPMessage
 {
@@ -178,9 +178,9 @@ private:
    Transport m_UDTSocket;
    int m_iUDTReusePort;
 
-   list<CMsgRecord*> m_lSndQueue;
-   queue<CMsgRecord*> m_qRcvQueue;
-   map<int32_t, CMsgRecord*> m_mResQueue;
+   std::list<CMsgRecord*> m_lSndQueue;
+   std::queue<CMsgRecord*> m_qRcvQueue;
+   std::map<int32_t, CMsgRecord*> m_mResQueue;
    CPeerManagement m_PeerHistory;
 
    volatile bool m_bInit;

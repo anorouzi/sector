@@ -110,12 +110,14 @@ int Master::init()
    // read configuration from master.conf
    if (m_SysConfig.init("master.conf") < 0)
    {
+      cerr << "unable to read/parse configuration file.\n";
       m_SectorLog.insert("unable to read/parse configuration file.");
       return -1;
    }
 
    if (m_SlaveManager.init("topology.conf") < 0)
    {
+      cerr << "Warning: no topology configuration found.\n";
       m_SectorLog.insert("Warning: no topology configuration found.");
    }
    else
@@ -152,6 +154,7 @@ int Master::init()
       if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
       {
          cerr << "unable to create home directory.\n";
+         m_SectorLog.insert("unable to create home directory.");
          return -1;
       }
    }
@@ -179,6 +182,7 @@ int Master::init()
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
    {
       cerr << "cannot initialize GMP.\n";
+      m_SectorLog.insert("cannot initialize GMP.");
       return -1;
    }
 
@@ -193,12 +197,15 @@ int Master::init()
    pthread_detach(msgserver);
 
    // start replica thread
-   //pthread_t repserver;
-   //pthread_create(&repserver, NULL, replica, this);
-   //pthread_detach(repserver);
+   pthread_t repserver;
+   pthread_create(&repserver, NULL, replica, this);
+   pthread_detach(repserver);
 
    m_SysStat.m_llStartTime = time(NULL);
    m_SectorLog.insert("Sector started.");
+
+   cout << "Sector master is successfully running now. check sector.log for more details.\n";
+   cout << "There is no further screen output from this program.\n";
 
    return 1;
 }
@@ -434,7 +441,7 @@ void* Master::serviceEx(void* p)
 
    if (r < 0)
    {
-      cmd = -cmd;
+      cmd = SectorError::E_NOSECSERV;
       s->send((char*)&cmd, 4);
       goto EXIT;
    }
@@ -457,6 +464,7 @@ void* Master::serviceEx(void* p)
             SlaveNode sn;
             sn.m_strIP = ip;
             s->recv((char*)&sn.m_iPort, 4);
+            s->recv((char*)&sn.m_iDataPort, 4);
             sn.m_llLastUpdateTime = CTimer::getTime();
             sn.m_iRetryNum = 0;
             sn.m_llLastVoteTime = CTimer::getTime();
@@ -555,6 +563,7 @@ void* Master::serviceEx(void* p)
             au.m_llLastRefreshTime = CTimer::getTime();
 
             s->recv((char*)&au.m_iPort, 4);
+            s->recv((char*)&au.m_iDataPort, 4);
             s->recv((char*)au.m_pcKey, 16);
             s->recv((char*)au.m_pcIV, 8);
 
@@ -624,22 +633,6 @@ void* Master::process(void* s)
 
    while (self->m_Status == RUNNING)
    {
-      //create a replica if necessary. the code is put here just to be better syncronized and avoid deadlock.
-      pthread_mutex_lock(&self->m_ReplicaLock);
-      if (!self->m_vstrToBeReplicated.empty() && (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() < self->m_SlaveManager.getTotalSlaves()))
-      {
-         vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
-         if (self->m_sstrOnReplicate.find(*r) == self->m_sstrOnReplicate.end())
-         {
-            int pos = r->find('\t');
-            self->createReplica(r->substr(0, pos), r->substr(pos + 1, r->length()));
-         }
-         self->m_vstrToBeReplicated.erase(r);
-      }
-      pthread_mutex_unlock(&self->m_ReplicaLock);
-
-
-      //////////////////////////////////////////////////////////////////////////////////////////
       self->m_GMP.recvfrom(ip, port, id, msg);
 
       int32_t key = msg->getKey();
@@ -649,7 +642,6 @@ void* Master::process(void* s)
          self->reject(ip, port, id, SectorError::E_SECURITY);
          continue;
       }
-
       ActiveUser* user = &(i->second);
 
       if (key > 0)
@@ -902,7 +894,7 @@ void* Master::process(void* s)
             client.m_strIP = ip;
             client.m_iPort = port;
             set<int> empty;
-            map<int, Address> addr;
+            vector<SlaveNode> addr;
             if (self->m_SlaveManager.chooseIONode(empty, client, SF_MODE::WRITE, addr, 1) <= 0)
             {
                self->reject(ip, port, id, SectorError::E_RESOURCE);
@@ -910,13 +902,13 @@ void* Master::process(void* s)
             }
 
             int msgid = 0;
-            self->m_GMP.sendto(addr.begin()->second.m_strIP.c_str(), addr.begin()->second.m_iPort, msgid, msg);
+            self->m_GMP.sendto(addr.begin()->m_strIP.c_str(), addr.begin()->m_iPort, msgid, msg);
 
             self->m_Metadata.create(msg->getData(), true);
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", addr.begin()->second.m_strIP.c_str());
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", addr.begin()->m_strIP.c_str());
 
             break;
          }
@@ -1096,8 +1088,8 @@ void* Master::process(void* s)
 
          case 110: // open file
          {
-            int32_t dataport = *(int32_t*)(msg->getData());
-            int32_t mode = *(int32_t*)(msg->getData() + 4);
+            int32_t mode = *(int32_t*)(msg->getData());
+            int32_t dataport = *(int32_t*)(msg->getData() + 4);
             string path = msg->getData() + 8;
 
             // check user's permission on that file
@@ -1115,7 +1107,7 @@ void* Master::process(void* s)
             Address client;
             client.m_strIP = ip;
             client.m_iPort = port;
-            map<int, Address> addr;
+            vector<SlaveNode> addr;
 
             if (r < 0)
             {
@@ -1150,17 +1142,6 @@ void* Master::process(void* s)
                }
             }
 
-            // collect data port information
-            vector<int> vports;
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-            vector<int>::iterator d = vports.begin();
-            for (map<int, Address>::iterator i = addr.begin(); i != addr.end(); ++ i)
-            {
-               if ((self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
-                  break;
-               vports.push_back(*(int32_t*)msg->getData());
-            }
-
             int transid = self->m_TransManager.create(0, key, msg->getType(), path, mode);
 
             //set up all slave nodes, chain of write
@@ -1169,7 +1150,6 @@ void* Master::process(void* s)
             string dstip = "";
             int dstport = 0;
 
-            msg->setType(112);
             msg->setData(136, (char*)&key, 4);
             msg->setData(140, (char*)&mode, 4);
             msg->setData(144, (char*)&transid, 4);
@@ -1177,11 +1157,9 @@ void* Master::process(void* s)
             msg->setData(164, (char*)user->m_pcIV, 8);
             msg->setData(172, path.c_str(), path.length() + 1);
 
-            d = vports.begin();
-            for (map<int, Address>::iterator i = addr.begin(); i != addr.end();)
+            for (vector<SlaveNode>::iterator i = addr.begin(); i != addr.end();)
             {
-               map<int, Address>::iterator curraddr = i ++;
-               vector<int>::iterator currport = d ++;
+               vector<SlaveNode>::iterator curraddr = i ++;
 
                if (i == addr.end())
                {
@@ -1190,8 +1168,8 @@ void* Master::process(void* s)
                }
                else
                {
-                  srcip = i->second.m_strIP;
-                  srcport = *d;
+                  srcip = i->m_strIP;
+                  srcport = i->m_iDataPort;
                   // do not use secure transfer between slave nodes
                   int m = mode & (0xFFFFFFFF - SF_MODE::SECURE);
                   msg->setData(140, (char*)&m, 4);
@@ -1202,30 +1180,31 @@ void* Master::process(void* s)
                msg->setData(68, dstip.c_str(), dstip.length() + 1);
                msg->setData(132, (char*)&(dstport), 4);
                SectorMsg response;
-               if ((self->m_GMP.rpc(curraddr->second.m_strIP.c_str(), curraddr->second.m_iPort, msg, &response) < 0) || (response.getType() < 0))
+               if ((self->m_GMP.rpc(curraddr->m_strIP.c_str(), curraddr->m_iPort, msg, &response) < 0) || (response.getType() < 0))
                {
                   self->reject(ip, port, id, SectorError::E_RESOURCE);
                   self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "FAIL", "");
+
+                  //TODO: FIX THIS, ROLLBACK TRANS
                }
 
-               dstip = curraddr->second.m_strIP;
-               dstport = *currport;
+               dstip = curraddr->m_strIP;
+               dstport = curraddr->m_iDataPort;
 
-               self->m_TransManager.addSlave(transid, curraddr->first);
+               self->m_TransManager.addSlave(transid, curraddr->m_iNodeID);
             }
 
             // send the connection information back to the client
-            msg->setType(110);
             msg->setData(0, dstip.c_str(), dstip.length() + 1);
-            msg->setData(64, (char*)&(addr.rbegin()->second.m_iPort), 4);
-            msg->setData(68, (char*)&dstport, 4);
+            msg->setData(64, (char*)&dstport, 4);
+            msg->setData(68, (char*)&transid, 4);
             msg->setData(72, (char*)&attr.m_llSize, 8);
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 80;
 
             self->m_GMP.sendto(ip, port, id, msg);
 
             if (key != 0)
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.rbegin()->second.m_strIP.c_str());
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.rbegin()->m_strIP.c_str());
 
             break;
          }
@@ -1296,8 +1275,9 @@ void* Master::process(void* s)
             int c = 0;
             for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
             {
-               msg->setData(c * 68, i->second.m_strIP.c_str(), i->second.m_strIP.length() + 1);
-               msg->setData(c * 68 + 64, (char*)&(i->second.m_iPort), 4);
+               msg->setData(c * 72, i->second.m_strIP.c_str(), i->second.m_strIP.length() + 1);
+               msg->setData(c * 72 + 64, (char*)&(i->second.m_iPort), 4);
+               msg->setData(c * 72 + 68, (char*)&(i->second.m_iDataPort), 4);
                c ++;
             }
 
@@ -1322,10 +1302,12 @@ void* Master::process(void* s)
             addr.m_iPort = *(int32_t*)(msg->getData() + 64);
 
             int transid = self->m_TransManager.create(1, key, msg->getType(), "", 0);
-            self->m_TransManager.addSlave(transid, self->m_SlaveManager.m_mAddrList[addr]);
+            int slaveid = self->m_SlaveManager.m_mAddrList[addr];
+            self->m_TransManager.addSlave(transid, slaveid);
 
             msg->setData(0, ip, strlen(ip) + 1);
             msg->setData(64, (char*)&port, 4);
+            msg->setData(68, (char*)&user->m_iDataPort, 4);
             msg->setData(msg->m_iDataLength - SectorMsg::m_iHdrSize, (char*)&transid, 4);
 
             if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
@@ -1335,6 +1317,8 @@ void* Master::process(void* s)
                break;
             }
 
+            msg->setData(0, (char*)&transid, 4);
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
 
             self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SUCCESS", addr.m_strIP.c_str());

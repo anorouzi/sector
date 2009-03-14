@@ -31,7 +31,6 @@ written by
 
 #include <gmp.h>
 #include <index.h>
-#include <transport.h>
 #include <constant.h>
 #include <client.h>
 
@@ -56,9 +55,12 @@ public:
    bool eof();
 
 private:
+   int32_t m_iSession;
+   std::string m_strSlaveIP;
+   int32_t m_iSlaveDataPort;
+
    unsigned char m_pcKey[16];
    unsigned char m_pcIV[8];
-   Transport m_DataChn;
 
    string m_strFileName;
 

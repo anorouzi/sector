@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/15/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/04/2009
 *****************************************************************************/
 
 
@@ -113,9 +113,7 @@ int Slave::connect()
    SSLTransport secconn;
    secconn.initClientCTX(cert.c_str());
    secconn.open(NULL, 0);
-   int r = secconn.connect(m_strMasterHost.c_str(), m_iMasterPort);
-
-   if (r < 0)
+   if (secconn.connect(m_strMasterHost.c_str(), m_iMasterPort) < 0)
    {
       cerr << "unable to set up secure channel to the master.\n";
       return -1;
@@ -123,18 +121,27 @@ int Slave::connect()
 
    secconn.getLocalIP(m_strLocalHost);
 
+   // init data exchange channel
+   int32_t port = 0;
+   if (m_DataChn.init(m_strLocalHost, port) < 0)
+   {
+      cerr << "unable to create data channel.\n";
+      secconn.close();
+      return -1;
+   }
+
    int cmd = 1;
    secconn.send((char*)&cmd, 4);
    int res = -1;
    secconn.recv((char*)&res, 4);
-
    if (res < 0)
    {
-      cerr << "security check failed.\n";
+      cerr << "security check failed. code: " << res << endl;
       return -1;
    }
 
    secconn.send((char*)&m_iLocalPort, 4);
+   secconn.send((char*)&port, 4);
 
    struct stat s;
    stat((m_strHomeDir + ".metadata/metadata.txt").c_str(), &s);
@@ -184,7 +191,7 @@ int Slave::connect()
    // initialize slave statistics
    m_SlaveStat.init();
 
-   cout << "Slave initialized. Running.\n";
+   cout << "This Sector slave is successfully initialized and running now.\n";
 
    return 1;
 }
@@ -197,7 +204,7 @@ void Slave::run()
    SectorMsg* msg = new SectorMsg;
    msg->resize(65536);
 
-   cout << "slave process " << m_iLocalPort << endl;
+   cout << "slave process: " << "GMP " << m_iLocalPort << " DATA " << m_DataChn.getPort() << endl;
 
    while (true)
    {
@@ -285,28 +292,8 @@ void Slave::run()
          {
             cout << "===> start file server " << ip << " " << port << endl;
 
-            Transport* datachn = new Transport;
-            int dataport = 0;
-            datachn->open(dataport, true, true);
-
-            msg->setData(0, (char*)&dataport, 4);
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-            m_GMP.sendto(ip, port, id, msg);
-
-            // receive address information of the neighbor nodes
-            m_GMP.recvfrom(ip, port, id, msg);
-            if (msg->getType() != 112)
-            {
-               msg->setType(-112);
-               msg->m_iDataLength = SectorMsg::m_iHdrSize;
-               m_GMP.sendto(ip, port, id, msg);
-               break;
-            }
-
             Param2* p = new Param2;
             p->serv_instance = this;
-            p->datachn = datachn;
-            p->dataport = dataport;
             p->src_ip = msg->getData();
             p->src_port = *(int*)(msg->getData() + 64);
             p->dst_ip = msg->getData() + 68;
@@ -358,23 +345,12 @@ void Slave::run()
 
          case 203: // processing engine
          {
-            Transport* datachn = new Transport;
-            int dataport = 0;
-
-            if (datachn->open(dataport, true, false) < 0)
-            {
-               msg->setType(-1);
-               m_GMP.sendto(ip, port, id, msg);
-               break;
-            }
-
             Param4* p = new Param4;
             p->serv_instance = this;
-            p->datachn = datachn;
             p->client_ip = msg->getData();
             p->client_ctrl_port = *(int32_t*)(msg->getData() + 64);
-            p->speid = *(int32_t*)(msg->getData() + 68);
-            p->client_data_port = *(int32_t*)(msg->getData() + 72);
+            p->client_data_port = *(int32_t*)(msg->getData() + 68);
+            p->speid = *(int32_t*)(msg->getData() + 72);
             p->key = *(int32_t*)(msg->getData() + 76);
             p->function = msg->getData() + 80;
             int offset = 80 + p->function.length() + 1;
@@ -390,9 +366,9 @@ void Slave::run()
             p->type = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 8);
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
-            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << dataport << " " << p->transid << endl;
+            cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << endl;
             char* tmp = new char[64 + p->function.length()];
-            sprintf(tmp, "starting SPE ... %d %d %s %d %d.", p->speid, p->client_data_port, p->function.c_str(), dataport, p->transid);
+            sprintf(tmp, "starting SPE ... %d %d %s %d.", p->speid, p->client_data_port, p->function.c_str(), p->transid);
             m_SectorLog.insert(tmp);
             delete [] tmp;
 
@@ -400,9 +376,7 @@ void Slave::run()
             pthread_create(&spe_handler, NULL, SPEHandler, p);
             pthread_detach(spe_handler);
 
-            msg->setData(0, (char*)&dataport, 4);
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
             m_GMP.sendto(ip, port, id, msg);
 
             break;

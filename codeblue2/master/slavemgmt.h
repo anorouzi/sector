@@ -46,9 +46,9 @@ public:
 
 public:
    int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::map<int, Address>& loc, int replica);
+   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica);
    int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::map<int, Address>& loc, int replica);
+   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica);
 
 public:
    unsigned int getTotalSlaves();

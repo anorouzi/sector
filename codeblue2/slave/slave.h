@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 11/09/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/04/2009
 *****************************************************************************/
 
 
@@ -31,7 +31,7 @@ written by
 #define __SERVER_H__
 
 #include <gmp.h>
-#include <transport.h>
+#include <datachn.h>
 #include <conf.h>
 #include <index.h>
 #include <log.h>
@@ -147,10 +147,10 @@ private:
    struct Param2
    {
       Slave* serv_instance;	// self
+
       string filename;		// filename
-      Transport* datachn;	// data channel
-      int dataport;		// data port
       int mode;			// file access mode
+
       int transid;		// transaction ID
       int key;                  // client key
 
@@ -175,13 +175,15 @@ private:
    struct Param4
    {
       Slave* serv_instance;	// self
-      Transport* datachn;	// data channel
-      int transid;		// transaction id
+
       string client_ip;		// client IP
       int client_ctrl_port;	// client GMP port
       int client_data_port;	// client data port
+
       int key;			// client key
+      int transid;		// transaction id
       int speid;		// speid
+
       string function;		// SPE or Map operator
       int rows;                 // number of rows per processing: -1 means all in the block
       char* param;		// SPE parameter
@@ -215,10 +217,10 @@ private:
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
    int sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset);
-   int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations, map<Address, Transport*, AddrComp>* outputchn);
-   int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, Transport* datachn);
+   int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations);
+   int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, const string& clientip, int clientport, int session);
 
-   int acceptLibrary(const int& key, Transport* datachn);
+   int acceptLibrary(const int& key, const string& ip, int port, int session);
    int openLibrary(const int& key, const string& lib, void*& lh);
    int getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& process);
    int getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITION& partition);
@@ -228,7 +230,7 @@ private:
    int sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red);
    int reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, void* param, int psize);
 
-   int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
+   int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, int buckets, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
    int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);
 
 private:
@@ -249,6 +251,7 @@ private:
    int m_iSlaveID;			// unique ID assigned by the master
 
    CGMP m_GMP;				// GMP messenger
+   DataChn m_DataChn;			// data exchange channel
 
    string m_strLocalHost;		// local host IP address
    int m_iLocalPort;			// local port number

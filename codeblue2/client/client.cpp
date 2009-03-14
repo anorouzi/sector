@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/16/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/06/2009
 *****************************************************************************/
 
 
@@ -39,13 +39,13 @@ string Client::g_strServerHost = "";
 string Client::g_strServerIP = "";
 int Client::g_iServerPort = 0;
 CGMP Client::g_GMP;
+DataChn Client::g_DataChn;
 Topology Client::g_Topology;
 SectorError Client::g_ErrorInfo;
 int32_t Client::g_iKey = 0;
 int Client::g_iCount = 0;
 unsigned char Client::g_pcCryptoKey[16];
 unsigned char Client::g_pcCryptoIV[8];
-int Client::g_iReusePort = 0;
 
 Client::Client()
 {
@@ -76,7 +76,18 @@ int Client::init(const string& server, const int& port)
    Crypto::generateKey(g_pcCryptoKey, g_pcCryptoIV);
 
    Transport::initialize();
-   g_GMP.init(0);
+   if (g_GMP.init(0) < 0)
+   {
+      cerr << "unable to init GMP.\n ";
+      return -1;
+   }
+
+   int dataport = 0;
+   if (g_DataChn.init("", dataport) < 0)
+   {
+      cerr << "unable to init data channel.\n";
+      return -1;
+   }
 
    return 1;
 }
@@ -117,6 +128,8 @@ int Client::login(const string& username, const string& password, const char* ce
       return SectorError::E_SECURITY;
 
    int32_t port = g_GMP.getPort();
+   secconn.send((char*)&port, 4);
+   port = g_DataChn.getPort();
    secconn.send((char*)&port, 4);
 
    // send encryption key/iv

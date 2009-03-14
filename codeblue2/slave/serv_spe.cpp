@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/05/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/11/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -166,12 +166,11 @@ void SPEDestination::init(const int& buckets)
 void* Slave::SPEHandler(void* p)
 {
    Slave* self = ((Param4*)p)->serv_instance;
-   Transport* datachn = ((Param4*)p)->datachn;
-   const int transid = ((Param4*)p)->transid;
    const string ip = ((Param4*)p)->client_ip;
    const int ctrlport = ((Param4*)p)->client_ctrl_port;
    const int dataport = ((Param4*)p)->client_data_port;
    const int speid = ((Param4*)p)->speid;
+   const int transid = ((Param4*)p)->transid;
    const int key = ((Param4*)p)->key;
    const string function = ((Param4*)p)->function;
    const int rows = ((Param4*)p)->rows;
@@ -183,7 +182,7 @@ void* Slave::SPEHandler(void* p)
    SectorMsg msg;
 
    cout << "rendezvous connect " << ip << " " << dataport << endl;
-   if (datachn->connect(ip.c_str(), dataport) < 0)
+   if (self->m_DataChn.connect(ip, dataport) < 0)
    {
       self->logError(2, ip, ctrlport, function);
       return NULL;
@@ -192,24 +191,22 @@ void* Slave::SPEHandler(void* p)
 
    // read outupt parameters
    int buckets;
-   if (datachn->recv((char*)&buckets, 4) < 0)
+   if (self->m_DataChn.recv4(ip, dataport, transid, buckets) < 0)
       return NULL;
 
    SPEDestination dest;
    if (buckets > 0)
    {
-      dest.m_pcOutputLoc = new char[buckets * 72];
-      if (datachn->recv(dest.m_pcOutputLoc, buckets * 72) < 0)
+      dest.m_pcOutputLoc = NULL;
+      int len = buckets * 76;
+      if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
          return NULL;
    }
    else if (buckets < 0)
    {
-      int32_t size = 0;
-      if (datachn->recv((char*)&size, 4) < 0)
-         return NULL;
-
-      dest.m_pcOutputLoc = new char[size];
-      if (datachn->recv(dest.m_pcOutputLoc, size) < 0)
+      dest.m_pcOutputLoc = NULL;
+      int32_t len;
+      if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
          return NULL;
       dest.m_strLocalFile = dest.m_pcOutputLoc;
    }
@@ -217,7 +214,7 @@ void* Slave::SPEHandler(void* p)
 
 
    // initialize processing function
-   self->acceptLibrary(key, datachn);
+   self->acceptLibrary(key, ip, dataport, transid);
    SPHERE_PROCESS process = NULL;
    MR_MAP map = NULL;
    MR_PARTITION partition = NULL;
@@ -249,11 +246,9 @@ void* Slave::SPEHandler(void* p)
    // processing...
    while (true)
    {
+      char* dataseg = NULL;
       int size = 0;
-      if (datachn->recv((char*)&size, 4) < 0)
-         break;
-      char* dataseg = new char[size];
-      if (datachn->recv(dataseg, size) < 0)
+      if (self->m_DataChn.recv(ip, dataport, transid, dataseg, size) < 0)
          break;
 
       // read data segment parameters
@@ -262,7 +257,6 @@ void* Slave::SPEHandler(void* p)
       int32_t dsid = *(int32_t*)(dataseg + 16);
       string datafile = dataseg + 20;
       sprintf(dest.m_pcLocalFileID, ".%d", dsid);
-
       delete [] dataseg;
       cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
 
@@ -333,7 +327,7 @@ void* Slave::SPEHandler(void* p)
          input.m_iRows = unitrows;
          input.m_pllIndex = index + i;
 
-         self->processData(input, output, file, result, process, map, partition);
+         self->processData(input, output, file, result, buckets, process, map, partition);
 
          if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, speid, result, dest);
@@ -366,7 +360,7 @@ void* Slave::SPEHandler(void* p)
 
          for (int i = 0; (i == 0) || (output.m_llOffset > 0); ++ i)
          {
-            self->processData(input, output, file, result, process, map, partition);
+            self->processData(input, output, file, result, buckets, process, map, partition);
 
             if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
                deliverystatus = self->deliverResult(buckets, speid, result, dest);
@@ -394,7 +388,7 @@ void* Slave::SPEHandler(void* p)
       if (100 == progress)
       {
          cout << "sending data back... " << buckets << endl;
-         self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, datachn);
+         self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, ip, dataport, transid);
 
          // report new files
          for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
@@ -414,8 +408,7 @@ void* Slave::SPEHandler(void* p)
    int duration = t2.tv_sec - t1.tv_sec;
 
    self->closeLibrary(lh);
-   datachn->close();
-   delete datachn;
+   self->m_DataChn.remove(ip, dataport);
 
    cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
 
@@ -473,9 +466,6 @@ void* Slave::SPEShuffler(void* p)
    for (vector<int64_t>::iterator i = offset.begin(); i != offset.end(); ++ i)
       *i = 0;
 
-   // data channels
-   map<Address, Transport*, AddrComp> DataChn;
-   int reuseport = 0;
    set<int> fileid;
 
    while (true)
@@ -492,6 +482,8 @@ void* Slave::SPEShuffler(void* p)
          break;
 
       int bucket = *(int32_t*)msg.getData();
+      int srcport = *(int32_t*)(msg.getData() + 4);
+      int session = *(int32_t*)(msg.getData() + 8);
       fileid.insert(bucket);
 
       char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
@@ -504,59 +496,22 @@ void* Slave::SPEShuffler(void* p)
       if (0 == start)
          indexfile.write((char*)&start, 8);
 
-      Address n;
-      n.m_strIP = speip;
-      n.m_iPort = *(int32_t*)(msg.getData() + 4); // SPE ID
+      msg.m_iDataLength = SectorMsg::m_iHdrSize;
+      gmp->sendto(speip, speport, msgid, &msg);
 
-      Transport* chn = NULL;
-
-      map<Address, Transport*, AddrComp>::iterator i = DataChn.find(n);
-      if (i != DataChn.end())
-      {
-         chn = i->second;
-         msg.m_iDataLength = SectorMsg::m_iHdrSize;
-         gmp->sendto(speip, speport, msgid, &msg);
-      }
-      else
-      {
-         Transport* t = new Transport;
-         int dataport;
-         int remoteport = *(int32_t*)(msg.getData() + 8);
-	 if (speip != self->m_strLocalHost)
-         {
-            dataport = reuseport;
-            t->open(dataport, true, true);
-            reuseport = dataport;
-         }
-         else
-         {
-            dataport = 0;
-            t->open(dataport, true, false);
-         }
-
-         *(int32_t*)msg.getData() = dataport;
-         msg.m_iDataLength = SectorMsg::m_iHdrSize + 4;
-         gmp->sendto(speip, speport, msgid, &msg);
-
-         t->connect(speip, remoteport);
-
-         DataChn[n] = t;
-         chn = t;
-      }
+      self->m_DataChn.connect(speip, srcport);
 
       int32_t len;
-      chn->recv((char*)&len, 4);
-      char* data = new char[len];
-      chn->recv(data, len);
+      char* data = NULL;
+      self->m_DataChn.recv(speip, srcport, session, data, len);
       datafile.write(data, len);
       delete [] data;
 
       // update total received data
       self->m_SlaveStat.updateIO(speip, len, 0);
 
-      chn->recv((char*)&len, 4);
-      int64_t* index = new int64_t[len];
-      chn->recv((char*)index, len * 8);
+      char* index = NULL;
+      self->m_DataChn.recv(speip, srcport, session, index, len);
       for (int i = 0; i < len; ++ i)
          index[i] += start;
       offset[bucket] = index[len - 1];
@@ -596,16 +551,8 @@ void* Slave::SPEShuffler(void* p)
       self->closeLibrary(lh);
    }
 
-
    gmp->close();
    delete gmp;
-
-   // release data channels
-   for (map<Address, Transport*, AddrComp>::iterator i = DataChn.begin(); i != DataChn.end(); ++ i)
-   {
-      i->second->close();
-      delete i->second;
-   }
 
    // report sphere output files
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
@@ -653,13 +600,10 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       msg.setType(110); // open the index file
       msg.setKey(0);
 
-      Transport datachn;
-      int port = 0;
-      datachn.open(port, true, true);
-
-      msg.setData(0, (char*)&port, 4);
       int32_t mode = 1;
-      msg.setData(4, (char*)&mode, 4);
+      msg.setData(0, (char*)&mode, 4);
+      int32_t port = m_DataChn.getPort();
+      msg.setData(4, (char*)&port, 4);
       msg.setData(8, idxfile.c_str(), idxfile.length() + 1);
 
       if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
@@ -667,30 +611,42 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       if (msg.getType() < 0)
          return -1;
 
-      cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
-      if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
+      string srcip = msg.getData();
+      int srcport = *(int*)(msg.getData() + 64);
+      int session = *(int*)(msg.getData() + 68);
+
+      cout << "rendezvous connect " << srcip << " " << srcport << endl;
+      if (m_DataChn.connect(srcip, srcport) < 0)
          return -1;
 
-      char req[20];
-      *(int32_t*)req = 1;
-      *(int64_t*)(req + 4) = offset * 8;
-      *(int64_t*)(req + 12) = (totalrows + 1) * 8;
-      int32_t response = -1;
+      int32_t cmd = 1;
+      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
 
-      if (datachn.send(req, 20) < 0)
-         return -1;
-      if ((datachn.recv((char*)&response, 4) < 0) || (-1 == response))
-         return -1;
-      if (datachn.recv((char*)index, (totalrows + 1) * 8) < 0)
+      int response = -1;
+      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
          return -1;
 
-      int32_t cmd = 5;
-      datachn.send((char*)&cmd, 4);
-      datachn.recv((char*)&cmd, 4);
-      datachn.close();
+      char req[16];
+      *(int64_t*)req = offset * 8;
+      *(int64_t*)(req + 8) = (totalrows + 1) * 8;
+
+      if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
+         return -1;
+
+      char* tmp = NULL;
+      int size = (totalrows + 1) * 8;
+      m_DataChn.recv(srcip, srcport, session, tmp, size);
+      if (size > 0)
+         memcpy((char*)index, tmp, size);
+      delete [] tmp;
+
+      // file close command: 5
+      cmd = 5;
+      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
+      m_DataChn.recv4(srcip, srcport, session, response);
 
       // update total received data
-      m_SlaveStat.updateIO(msg.getData(), (totalrows + 1) * 8, 0);
+      m_SlaveStat.updateIO(srcip, (totalrows + 1) * 8, 0);
    }
 
    size = index[totalrows] - index[0];
@@ -708,16 +664,13 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    else
    {
       SectorMsg msg;
-      msg.setType(110); // open the file
+      msg.setType(110); // open the index file
       msg.setKey(0);
 
-      Transport datachn;
-      int port = 0;
-      datachn.open(port, true, true);
-
-      msg.setData(0, (char*)&port, 4);
       int32_t mode = 1;
-      msg.setData(4, (char*)&mode, 4);
+      msg.setData(0, (char*)&mode, 4);
+      int32_t port = m_DataChn.getPort();
+      msg.setData(4, (char*)&port, 4);
       msg.setData(8, datafile.c_str(), datafile.length() + 1);
 
       if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
@@ -725,30 +678,42 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       if (msg.getType() < 0)
          return -1;
 
-      cout << "rendezvous connect " << msg.getData() << " " << *(int*)(msg.getData() + 68) << endl;
-      if (datachn.connect(msg.getData(), *(int*)(msg.getData() + 68)) < 0)
+      string srcip = msg.getData();
+      int srcport = *(int*)(msg.getData() + 64);
+      int session = *(int*)(msg.getData() + 68);
+
+      cout << "rendezvous connect " << srcip << " " << srcport << endl;
+      if (m_DataChn.connect(srcip, srcport) < 0)
          return -1;
 
-      char req[20];
-      *(int32_t*)req = 1; // cmd read
-      *(int64_t*)(req + 4) = index[0];
-      *(int64_t*)(req + 12) = index[totalrows] - index[0];
-      int32_t response = -1;
+      int32_t cmd = 1;
+      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
 
-      if (datachn.send(req, 20) < 0)
-         return -1;
-      if ((datachn.recv((char*)&response, 4) < 0) || (-1 == response))
-         return -1;
-      if (datachn.recv(block, index[totalrows] - index[0]) < 0)
+      int response = -1;
+      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
          return -1;
 
-      int32_t cmd = 5;
-      datachn.send((char*)&cmd, 4);
-      datachn.recv((char*)&cmd, 4);
-      datachn.close();
+      char req[16];
+      *(int64_t*)req = index[0];
+      *(int64_t*)(req + 8) = index[totalrows] - index[0];
+
+      if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
+         return -1;
+
+      char* tmp = NULL;
+      int size = index[totalrows] - index[0];
+      m_DataChn.recv(srcip, srcport, session, tmp, size);
+      if (size > 0)
+         memcpy(block, tmp, size);
+      delete [] tmp;
+
+      // file close command: 5
+      cmd = 5;
+      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
+      m_DataChn.recv4(srcip, srcport, session, response);
 
       // update total received data
-      m_SlaveStat.updateIO(msg.getData(), index[totalrows] - index[0], 0);
+      m_SlaveStat.updateIO(srcip, index[totalrows] - index[0], 0);
    }
 
    return totalrows;
@@ -777,37 +742,32 @@ int Slave::sendResultToFile(const SPEResult& result, const string& localfile, co
    return 0;
 }
 
-int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, Transport* datachn)
+int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, const string& clientip, int clientport, int session)
 {
    if (buckets == -1)
    {
       // send back result file/record size
-      datachn->send((char*)sarray, 4);
-      datachn->send((char*)rarray, 4);
+      m_DataChn.send(clientip, clientport, session, (char*)sarray, 4);
+      m_DataChn.send(clientip, clientport, session, (char*)rarray, 4);
    }
    else if (buckets == 0)
    {
-      int32_t size = result.m_vDataLen[0];
-      datachn->send((char*)&size, 4);
-      datachn->send(result.m_vData[0], result.m_vDataLen[0]);
-      size = result.m_vIndexLen[0];
-      datachn->send((char*)&size, 4);
-      datachn->send((char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
+      // send back the result data
+      m_DataChn.send(clientip, clientport, session, result.m_vData[0], result.m_vDataLen[0]);
+      m_DataChn.send(clientip, clientport, session, (char*)result.m_vIndex[0], result.m_vIndexLen[0] * 8);
    }
    else
    {
-      // send back size and recnum information
-      datachn->send((char*)sarray, buckets * 4);
-      datachn->send((char*)rarray, buckets * 4);
+      // send back size and rec_num information
+      m_DataChn.send(clientip, clientport, session, (char*)sarray, buckets * 4);
+      m_DataChn.send(clientip, clientport, session, (char*)rarray, buckets * 4);
    }
 
    return 0;
 }
 
-int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations, map<Address, Transport*, AddrComp>* outputchn)
+int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations)
 {
-   int reuseport = 0;
-
    for (int r = speid; r < buckets + speid; ++ r)
    {
       // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
@@ -816,70 +776,25 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       if (0 == result.m_vDataLen[i])
          continue;
 
-      char* dstip = locations + i * 72;
-      int32_t dstport = *(int32_t*)(locations + i * 72 + 64);
-      int32_t shufflerport = *(int32_t*)(locations + i * 72 + 68);
+      char* dstip = locations + i * 76;
+      int32_t dstport = *(int32_t*)(locations + i * 76 + 64);
+      int32_t shufflerport = *(int32_t*)(locations + i * 76 + 68);
+      int32_t session = *(int32_t*)(locations + i * 76 + 72);
 
       SectorMsg msg;
       msg.setData(0, (char*)&i, 4);
-      msg.setData(4, (char*)&speid, 4);
-
-      Transport* chn;
-
-      Address n;
-      n.m_strIP = dstip;
-      n.m_iPort = shufflerport;
-      char tmp[16];
-      sprintf(tmp, "%d", dstport);
-      n.m_strInfo = tmp;
-
-      map<Address, Transport*, AddrComp>::iterator c = outputchn->find(n);
-      if (c != outputchn->end())
-      {
-         // channel exists, send a message immediately followed by data, no response expected
-         msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
-         if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
-            return -1;
-
-         chn = c->second;
-      }
-      else
-      {
-         Transport* t = new Transport;
-         int dataport;
-         if (dstip != m_strLocalHost)
-         {
-            dataport = reuseport;
-            t->open(dataport, true, true);
-            reuseport = dataport;
-         }
-         else
-         {
-            dataport = 0;
-            t->open(dataport, true, false);
-         }
-
-         msg.setData(8, (char*)&dataport, 4);
-         msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
-
-         m_GMP.rpc(dstip, shufflerport, &msg, &msg);
-
-         t->connect(dstip, *(int32_t*)msg.getData());
-
-         (*outputchn)[n] = t;
-         chn = t;
-      }
-
-      // currently, Sphere cannot recover from a broken data channel.
-      if (!chn->isConnected())
+      int32_t srcport = m_DataChn.getPort();
+      msg.setData(4, (char*)&srcport, 4);
+      msg.setData(8, (char*)&session, 4);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
+      if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
          return -1;
 
-      int32_t size = result.m_vDataLen[i];
-      chn->send((char*)&size, 4);
-      chn->send(result.m_vData[i], size);
-      size = result.m_vIndexLen[i] - 1;
-      chn->send((char*)&size, 4);
-      chn->send((char*)(result.m_vIndex[i] + 1), size * 8);
+      if (m_DataChn.connect(dstip, dstport) < 0)
+         return -1;
+
+      m_DataChn.send(dstip, dstport, session, result.m_vData[i], result.m_vDataLen[i]);
+      m_DataChn.send(dstip, dstport, session, (char*)(result.m_vIndex[i] + 1), (result.m_vIndexLen[i] - 1) * 8);
 
       // update total sent data
       m_SlaveStat.updateIO(dstip, result.m_vDataLen[i] + (result.m_vIndexLen[i] - 1) * 8, 1);
@@ -888,19 +803,18 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
    return 1;
 }
 
-int Slave::acceptLibrary(const int& key, Transport* datachn)
+int Slave::acceptLibrary(const int& key, const string& ip, int port, int session)
 {
-   int32_t size = -1;
+   int32_t num = -1;
+   m_DataChn.recv4(ip, port, session, num);
 
-   datachn->recv((char*)&size, 4);
-
-   while (size > 0)
+   for(int i = 0; i < num; ++ i)
    {
-      char* lib = new char[size];
-      datachn->recv(lib, size);
-      datachn->recv((char*)&size, 4);
-      char* buf = new char[size];
-      datachn->recv(buf, size);
+      char* lib = NULL;
+      int size = 0;
+      m_DataChn.recv(ip, port, session, lib, size);
+      char* buf = NULL;
+      m_DataChn.recv(ip, port, session, buf, size);
 
       char* path = new char[m_strHomeDir.length() + 64];
       sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
@@ -920,8 +834,6 @@ int Slave::acceptLibrary(const int& key, Transport* datachn)
       delete [] lib;
       delete [] buf;
       delete [] path;
-
-      datachn->recv((char*)&size, 4);
    }
 
    return 0;
@@ -1128,7 +1040,7 @@ int Slave::reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, voi
    return 0;
 }
 
-int Slave::processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition)
+int Slave::processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, int buckets, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition)
 {
    // pass relative offset, from 0, to the processing function
    int64_t uoff = (input.m_pllIndex != NULL) ? input.m_pllIndex[0] : 0;
@@ -1138,8 +1050,17 @@ int Slave::processData(SInput& input, SOutput& output, SFile& file, SPEResult& r
    if (NULL != process)
    {
       process(&input, &output, &file);
-      for (int r = 0; r < output.m_iRows; ++ r)
-         result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+      if (buckets > 0)
+      {
+         for (int r = 0; r < output.m_iRows; ++ r)
+            result.addData(output.m_piBucketID[r], output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+      }
+      else
+      {
+         // if no bucket is used, do NOT check the BucketID field, so devlopers do not need to assign these values
+         for (int r = 0; r < output.m_iRows; ++ r)
+            result.addData(0, output.m_pcResult + output.m_pllIndex[r], output.m_pllIndex[r + 1] - output.m_pllIndex[r]);
+      }
    }
    else
    {
@@ -1179,7 +1100,7 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
    if (buckets == -1)
       ret = sendResultToFile(result, dest.m_strLocalFile + dest.m_pcLocalFileID, dest.m_piSArray[0]);
    else if (buckets > 0)
-      ret = sendResultToBuckets(speid, buckets, result, dest.m_pcOutputLoc, &dest.m_mOutputChn);
+      ret = sendResultToBuckets(speid, buckets, result, dest.m_pcOutputLoc);
 
    for (int b = 0; b < buckets; ++ b)
    {

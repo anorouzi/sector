@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/01/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/13/2009
 *****************************************************************************/
 
 
@@ -184,7 +184,7 @@ int Transport::close()
 
 bool Transport::isConnected()
 {
-   return (UDT::recv(m_Socket, NULL, 0, 0) == 0);
+   return (UDT::send(m_Socket, NULL, 0, 0) == 0);
 }
 
 int64_t Transport::getRealSndSpeed()

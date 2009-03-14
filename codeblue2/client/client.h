@@ -36,6 +36,7 @@ written by
 #include <topology.h>
 #include <constant.h>
 #include <pthread.h>
+#include <datachn.h>
 
 class Client
 {
@@ -69,6 +70,7 @@ protected:
    static string g_strServerIP;
    static int g_iServerPort;
    static CGMP g_GMP;
+   static DataChn g_DataChn;
    static int32_t g_iKey;
 
    // this is the global key/iv for this client. do not use this for any connection; a new connection should duplicate this
@@ -81,9 +83,6 @@ protected:
 
 private:
    static int g_iCount;
-
-protected:
-   static int g_iReusePort;
 };
 
 typedef Client Sector;
