@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/11/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/15/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -496,9 +496,6 @@ void* Slave::SPEShuffler(void* p)
       if (0 == start)
          indexfile.write((char*)&start, 8);
 
-      msg.m_iDataLength = SectorMsg::m_iHdrSize;
-      gmp->sendto(speip, speport, msgid, &msg);
-
       self->m_DataChn.connect(speip, srcport);
 
       int32_t len;
@@ -787,7 +784,8 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       msg.setData(4, (char*)&srcport, 4);
       msg.setData(8, (char*)&session, 4);
       msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
-      if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
+      int id = 0;
+      if (m_GMP.sendto(dstip, shufflerport, id, &msg) < 0)
          return -1;
 
       if (m_DataChn.connect(dstip, dstport) < 0)

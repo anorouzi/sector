@@ -933,7 +933,7 @@ int SphereProcess::prepareOutput(const char* spenodes)
 
       for (int i = 0; i < m_iSPENum; ++ i)
       {
-         msg.setData(0, spenodes + i * 72, strlen(spenodes + i * 72));
+         msg.setData(0, spenodes + i * 72, strlen(spenodes + i * 72) + 1);
          msg.setData(64, spenodes + i * 72 + 64, 4);
          msg.setData(68, (char*)&(m_pOutput->m_iFileNum), 4);
          msg.setData(72, (char*)&i, 4);

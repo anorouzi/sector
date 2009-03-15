@@ -272,8 +272,8 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       if (NULL == c->m_pTrans)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
-         usleep(10);
          pthread_mutex_unlock(&c->m_RcvLock);
+         usleep(10);
          continue;
       }
 
@@ -401,8 +401,8 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, ofstream& ofs
       if (NULL == c->m_pTrans)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
-         usleep(10);
          pthread_mutex_unlock(&c->m_RcvLock);
+         usleep(10);
          continue;
       }
 

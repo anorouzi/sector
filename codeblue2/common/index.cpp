@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/15/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/15/2009
 *****************************************************************************/
 
 
@@ -753,7 +753,7 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, string
          if (i->second.m_bIsDir && s->second.m_bIsDir)
          {
             // directories with same name
-            merge(s->second.m_mDirectory, i->second.m_mDirectory, path + i->first, left);
+            merge(s->second.m_mDirectory, i->second.m_mDirectory, path + "/" + i->first, left);
          }
          else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) && (i->second.m_llSize == s->second.m_llSize))
          {
