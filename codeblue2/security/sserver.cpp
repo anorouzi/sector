@@ -61,9 +61,7 @@ int main(int argc, char** argv)
    }
 
    cout << "Sector Security server running at port " << port << endl << endl;
-   cout << "The server is started successfully; there is no further output from this program. \
-           Please do not shutdown the security server; otherwise no client may be able to login. \
-           If the server is down for any reason, you can restart it without restarting the masters and the lsaves.\n";
+   cout << "The server is started successfully; there is no further output from this program. Please do not shutdown the security server; otherwise no client may be able to login. If the server is down for any reason, you can restart it without restarting the masters and the lsaves.\n";
 
    ss.run();
 

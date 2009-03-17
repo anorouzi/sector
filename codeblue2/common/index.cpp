@@ -276,19 +276,28 @@ int Index::move(const char* oldpath, const char* newpath, const char* newname)
    {
       ns = nd->find(*d);
       if (ns == nd->end())
-         return -1;
+      {
+         SNode n;
+         n.m_strName = *d;
+         n.m_bIsDir = true;
+         n.m_llTimeStamp = 0;
+         n.m_llSize = 0;
+         n.m_iReadLock = n.m_iWriteLock = 0;
+         (*nd)[*d] = n;
+         ns = nd->find(*d);
+      }
 
       nd = &(ns->second.m_mDirectory);
    }
 
-   // check if the file/dir already exist in the dst dir
-   if (nd->find(os->first) != nd->end())
-      return -1;
-
-   if (NULL == newname)
+   if ((NULL == newname) || ("" == newname))
       (*nd)[os->first] = os->second;
    else
+   {
+      os->second.m_strName = newname;
       (*nd)[newname] = os->second;
+   }
+
    od->erase(os->first);
 
    return 1;

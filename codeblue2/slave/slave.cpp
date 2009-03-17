@@ -170,7 +170,7 @@ int Slave::connect()
          char tmp[65536];
          ifs.getline(tmp, 65536);
          if (strlen(tmp) > 0)
-            move(tmp, ".attic/");
+            move(tmp, ".attic/", "");
       }
       ifs.close();
 
@@ -264,11 +264,11 @@ void Slave::run()
          case 104: // move dir/file
          {
             string src = msg->getData();
-            string dstdir = msg->getData() + src.length() + 1;
-            string newname = msg->getData() + src.length() + 1 + dstdir.length() + 1;
+            string dst = msg->getData() + src.length() + 1;
+            string newname = msg->getData() + src.length() + 1 + dst.length() + 1;
 
-            m_LocalFile.move(src.c_str(), dstdir.c_str(), newname.c_str());
-            move(src, dstdir + newname);
+            m_LocalFile.move(src.c_str(), dst.c_str(), newname.c_str());
+            move(src, dst, newname);
 
             break;
          }
@@ -581,11 +581,10 @@ string Slave::reviseSysCmdPath(const string& path)
    return rpath;
 }
 
-int Slave::move(const string& src, const string& dst)
+int Slave::move(const string& src, const string& dst, const string& newname)
 {
-   string tmp = dst + src.substr(src.rfind('/'), src.length());
-   createDir(tmp.substr(0, tmp.rfind('/')));
-   system((string("mv ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + tmp)).c_str());
+   createDir(dst);
+   system((string("mv ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + dst + newname)).c_str());
    return 1;
 }
 

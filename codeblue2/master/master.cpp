@@ -917,7 +917,7 @@ void* Master::process(void* s)
          {
             string src = msg->getData() + 4;
             string dst = msg->getData() + 4 + src.length() + 1 + 4;
-            string uplevel = dst.substr(0, dst.find('/'));
+            string uplevel = dst.substr(0, dst.rfind('/') + 1);
             string sublevel = dst + src.substr(src.rfind('/'), src.length());
 
             SNode tmp;
@@ -962,7 +962,8 @@ void* Master::process(void* s)
                break;
             }
 
-            string newname = dst.substr(dst.rfind('/'), dst.length());
+            string newname = dst.substr(dst.rfind('/') + 1, dst.length());
+
             if (rt < 0)
                self->m_Metadata.move(src.c_str(), uplevel.c_str(), newname.c_str());
             else
