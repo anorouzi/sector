@@ -1020,9 +1020,9 @@ int SphereProcess::readResult(SPE* s)
    if (m_iOutputType == 0)
    {
       g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
-      char* tmp;
+      char* tmp = NULL;
       g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, s->m_pDS->m_pResult->m_iIndexLen);
-      s->m_pDS->m_pResult->m_pllIndex = (int64_t*)s->m_pDS->m_pResult->m_pllIndex;
+      s->m_pDS->m_pResult->m_pllIndex = (int64_t*)tmp;
       s->m_pDS->m_pResult->m_iIndexLen /= 8;
    }
    else if (m_iOutputType == -1)
@@ -1045,7 +1045,7 @@ int SphereProcess::readResult(SPE* s)
    {
       int32_t* sarray = NULL;
       int32_t* rarray = NULL;
-      char* tmp;
+      char* tmp = NULL;
       int size;
       g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, size);
       sarray = (int32_t*)tmp;

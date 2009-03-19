@@ -571,5 +571,5 @@ int DataChn::recv8(const std::string& ip, int port, int session, int64_t& val)
 
    val = *(int64_t*)buf;
    delete [] buf;
-   return 4;
+   return 8;
 }

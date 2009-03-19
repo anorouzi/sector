@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/15/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -508,17 +508,18 @@ void* Slave::SPEShuffler(void* p)
       // update total received data
       self->m_SlaveStat.updateIO(speip, len, 0);
 
-      char* index = NULL;
-      if (self->m_DataChn.recv(speip, srcport, session, index, len) < 0)
+      tmp = NULL;
+      if (self->m_DataChn.recv(speip, srcport, session, tmp, len) < 0)
          continue;
-      for (int i = 0; i < len; ++ i)
+      int64_t* index = (int64_t*)tmp;
+      for (int i = 0; i < len / 8; ++ i)
          index[i] += start;
-      offset[bucket] = index[len - 1];
-      indexfile.write((char*)index, len * 8);
-      delete [] index;
+      offset[bucket] = index[len / 8 - 1];
+      indexfile.write(tmp, len);
+      delete [] tmp;
 
       // update total received data
-      self->m_SlaveStat.updateIO(speip, len * 8, 0);
+      self->m_SlaveStat.updateIO(speip, len, 0);
 
       datafile.close();
       indexfile.close();
