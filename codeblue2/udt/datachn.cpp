@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/17/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
 *****************************************************************************/
 
 #include <pthread.h>
@@ -97,11 +97,15 @@ int DataChn::init(const string& ip, int& port)
 
 bool DataChn::isConnected(const std::string& ip, int port)
 {
+   // no need to connect to self
+   if ((ip == m_strIP) && (port == m_iPort))
+      return true;
+
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
       return false;
 
-   return c->m_pTrans->isConnected();
+   return ((NULL != c->m_pTrans) && c->m_pTrans->isConnected());
 }
 
 int DataChn::connect(const string& ip, int port)
@@ -118,36 +122,55 @@ int DataChn::connect(const string& ip, int port)
    map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
    if (i != m_mChannel.end())
    {
-      if (i->second->m_pTrans->isConnected())
+      if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
       {
          pthread_mutex_unlock(&m_ChnLock);
          return 0;
       }
       delete i->second->m_pTrans;
+      i->second->m_pTrans = NULL;
    }
-   pthread_mutex_unlock(&m_ChnLock);
 
-   Transport* t = new Transport;
-   t->open(m_iPort, true, true);
-   t->connect(ip.c_str(), port);
-
-   pthread_mutex_lock(&m_ChnLock);
-   if (i != m_mChannel.end())
+   ChnInfo* c = NULL;
+   if (i == m_mChannel.end())
    {
-      i->second->m_pTrans = t;
-   }
-   else
-   {
-      ChnInfo* c = new ChnInfo;
-      c->m_pTrans = t;
+      c = new ChnInfo;
+      c->m_pTrans = NULL;
       pthread_mutex_init(&c->m_SndLock, NULL);
       pthread_mutex_init(&c->m_RcvLock, NULL);
       pthread_mutex_init(&c->m_QueueLock, NULL);
       m_mChannel[addr] = c;
    }
+   else
+   {
+      c = i->second;
+   }
+
    pthread_mutex_unlock(&m_ChnLock);
 
-   return 1;
+   pthread_mutex_lock(&c->m_SndLock);
+   if ((NULL != c->m_pTrans) && c->m_pTrans->isConnected())
+   {
+      pthread_mutex_unlock(&c->m_SndLock);
+      return 0;
+   }
+
+   Transport* t = new Transport;
+   t->open(m_iPort, true, true);
+   int r = t->connect(ip.c_str(), port);
+
+   if (NULL == c->m_pTrans)
+      c->m_pTrans = t;
+   else
+   {
+      Transport* tmp = c->m_pTrans;
+      c->m_pTrans = t;
+      delete tmp;
+   }
+
+   pthread_mutex_unlock(&c->m_SndLock);
+
+   return r;
 }
 
 int DataChn::remove(const std::string& ip, int port)
@@ -395,6 +418,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, ofstream& ofs
             size = q->m_iSize;
             ofs.seekp(offset);
             ofs.write(q->m_pcData, size);
+            delete [] q->m_pcData;
             c->m_vDataQueue.erase(q);
 
             pthread_mutex_unlock(&c->m_QueueLock);
@@ -419,6 +443,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, ofstream& ofs
             size = q->m_iSize;
             ofs.seekp(offset);
             ofs.write(q->m_pcData, size);
+            delete [] q->m_pcData;
             c->m_vDataQueue.erase(q);
 
             found = true;
@@ -548,4 +573,3 @@ int DataChn::recv8(const std::string& ip, int port, int session, int64_t& val)
    delete [] buf;
    return 4;
 }
-

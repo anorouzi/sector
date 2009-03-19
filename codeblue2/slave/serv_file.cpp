@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/06/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
 *****************************************************************************/
 
 
@@ -220,14 +220,28 @@ void* Slave::fileHandler(void* p)
 
             size -= offset;
 
-            if (self->m_DataChn.sendfile(src_ip, src_port, transid, ifs, offset, size, bSecure) < 0)
-               run = false;
-            else
-               rb += size;
+            int64_t unit = 64000000; //send 64MB each time
+            int64_t tosend = size;
+            int64_t sent = 0;
+            while (tosend > 0)
+            {
+               int64_t block = (tosend < unit) ? tosend : unit;
+               if (self->m_DataChn.sendfile(src_ip, src_port, transid, ifs, offset + sent, block, bSecure) < 0)
+               {
+                  run = false;
+                  break;
+               }
+
+               sent += block;
+               tosend -= block;
+            }
+
+            rb += sent;
 
             // update total sent data size
             self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 1 : 3);
 
+            ifs.close();
             break;
          }
 
@@ -241,33 +255,57 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset, size, bSecure) < 0)
-               run = false;
-            else
-               wb += size;
+            int64_t unit = 64000000; //send 64MB each time
+            int64_t torecv = size;
+            int64_t recd = 0;
+
+            // previously openned, closed here
+            ofs.close();
+
+            while (torecv > 0)
+            {
+               int64_t block = (torecv < unit) ? torecv : unit;
+               ofs.open(filename.c_str());
+               if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset + recd, block, bSecure) < 0)
+               {
+                  run = false;
+                  break;
+               }
+               ofs.close();
+
+               if (dst_port > 0)
+               {
+                  // write to uplink
+
+                  int write = 2;
+                  self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&write, 4);
+                  int response;
+                  if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
+                     break;
+
+                  char req[16];
+                  *(int64_t*)req = offset + recd;
+                  *(int64_t*)(req + 8) = block;
+
+                  if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
+                     break;
+
+                  ifs.open(filename.c_str());
+                  self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset + recd, block);
+                  ifs.close();
+               }
+
+               recd += block;
+               torecv -= block;
+            }
+
+            wb += recd;
 
             // update total received data size
             self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
 
             if (change != 1)
                change = 2;
-
-            ofs.close();
-
-            if (dst_port > 0)
-            {
-               self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
-               int response;
-               if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
-                  break;
-
-               if (self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&size, 8) < 0)
-                  break;
-
-               ifs.open(filename.c_str());
-               self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset, size);
-               ifs.close();
-            }
 
             break;
          }
@@ -320,9 +358,11 @@ void* Slave::copy(void* p)
    msg.setType(110); // open the file
    msg.setKey(0);
 
-   int mode = 1;
+   int32_t mode = 1;
    msg.setData(0, (char*)&mode, 4);
-   msg.setData(4, src.c_str(), src.length() + 1);
+   int32_t localport = self->m_DataChn.getPort();
+   msg.setData(4, (char*)&localport, 4);
+   msg.setData(8, src.c_str(), src.length() + 1);
 
    if (self->m_GMP.rpc(self->m_strMasterIP.c_str(), self->m_iMasterPort, &msg, &msg) < 0)
       return NULL;
@@ -330,8 +370,8 @@ void* Slave::copy(void* p)
       return NULL;
 
    string ip = msg.getData();
-   int session = *(int*)(msg.getData() + 64);
-   int port = *(int*)(msg.getData() + 68);
+   int port = *(int*)(msg.getData() + 64);
+   int session = *(int*)(msg.getData() + 68);
 
    int64_t size = *(int64_t*)(msg.getData() + 72);
 
@@ -357,8 +397,20 @@ void* Slave::copy(void* p)
 
    ofstream ofs;
    ofs.open((self->m_strHomeDir + ".tmp" + dst).c_str(), ios::out | ios::binary | ios::trunc);
-   if (self->m_DataChn.recvfile(ip, port, session, ofs, offset, size) < 0)
-      unlink((self->m_strHomeDir + ".tmp" + dst).c_str());
+
+   int64_t unit = 64000000; //send 64MB each time
+   int64_t torecv = size;
+   int64_t recd = 0;
+   while (torecv > 0)
+   {
+      int64_t block = (torecv < unit) ? torecv : unit;
+      if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
+         unlink((self->m_strHomeDir + ".tmp" + dst).c_str());
+
+      recd += block;
+      torecv -= block;
+   }
+
    ofs.close();
 
    // update total received data size

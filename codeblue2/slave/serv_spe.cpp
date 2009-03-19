@@ -500,7 +500,8 @@ void* Slave::SPEShuffler(void* p)
 
       int32_t len;
       char* data = NULL;
-      self->m_DataChn.recv(speip, srcport, session, data, len);
+      if (self->m_DataChn.recv(speip, srcport, session, data, len) < 0)
+         continue;
       datafile.write(data, len);
       delete [] data;
 
@@ -508,7 +509,8 @@ void* Slave::SPEShuffler(void* p)
       self->m_SlaveStat.updateIO(speip, len, 0);
 
       char* index = NULL;
-      self->m_DataChn.recv(speip, srcport, session, index, len);
+      if (self->m_DataChn.recv(speip, srcport, session, index, len) < 0)
+         continue;
       for (int i = 0; i < len; ++ i)
          index[i] += start;
       offset[bucket] = index[len - 1];
@@ -632,7 +634,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
       char* tmp = NULL;
       int size = (totalrows + 1) * 8;
-      m_DataChn.recv(srcip, srcport, session, tmp, size);
+      if (m_DataChn.recv(srcip, srcport, session, tmp, size) < 0)
+         return -1;
       if (size > 0)
          memcpy((char*)index, tmp, size);
       delete [] tmp;
@@ -699,7 +702,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
       char* tmp = NULL;
       int size = index[totalrows] - index[0];
-      m_DataChn.recv(srcip, srcport, session, tmp, size);
+      if (m_DataChn.recv(srcip, srcport, session, tmp, size) < 0)
+         return -1;
       if (size > 0)
          memcpy(block, tmp, size);
       delete [] tmp;

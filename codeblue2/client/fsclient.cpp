@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/12/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
 *****************************************************************************/
 
 
@@ -164,7 +164,21 @@ int SectorFile::download(const char* localpath, const bool& cont)
       return SectorError::E_CONNECTION;
 
    int64_t realsize = m_llSize - offset;
-   if (g_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, offset, realsize, m_bSecure) < 0)
+
+   int64_t unit = 64000000; //send 64MB each time
+   int64_t torecv = realsize;
+   int64_t recd = 0;
+   while (torecv > 0)
+   {
+      int64_t block = (torecv < unit) ? torecv : unit;
+      if (g_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, offset + recd, block, m_bSecure) < 0)
+         break;
+
+      recd += block;
+      torecv -= block;
+   }
+
+   if (recd < realsize)
       return SectorError::E_CONNECTION;
 
    ofs.close();
@@ -195,7 +209,20 @@ int SectorFile::upload(const char* localpath, const bool& cont)
    if (g_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&size, 8) < 0)
       return SectorError::E_CONNECTION;
 
-   if (g_DataChn.sendfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ifs, 0, size, m_bSecure) < 0)
+   int64_t unit = 64000000; //send 64MB each time
+   int64_t tosend = size;
+   int64_t sent = 0;
+   while (tosend > 0)
+   {
+      int64_t block = (tosend < unit) ? tosend : unit;
+      if (g_DataChn.sendfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ifs, sent, block, m_bSecure) < 0)
+         break;
+
+      sent += block;
+      tosend -= block;
+   }
+
+   if (sent < size)
       return SectorError::E_CONNECTION;
 
    ifs.close();
