@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/20/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -329,7 +329,7 @@ void* Slave::SPEHandler(void* p)
 
          self->processData(input, output, file, result, buckets, process, map, partition);
 
-         if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
+         if ((result.m_llTotalDataSize > 64000000) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
          gettimeofday(&t4, 0);
@@ -362,7 +362,7 @@ void* Slave::SPEHandler(void* p)
          {
             self->processData(input, output, file, result, buckets, process, map, partition);
 
-            if ((result.m_llTotalDataSize > 16000000) && (buckets != 0))
+            if ((result.m_llTotalDataSize > 64000000) && (buckets != 0))
                deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
             if (deliverystatus < 0)

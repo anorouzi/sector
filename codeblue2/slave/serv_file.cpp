@@ -265,7 +265,8 @@ void* Slave::fileHandler(void* p)
             while (torecv > 0)
             {
                int64_t block = (torecv < unit) ? torecv : unit;
-               ofs.open(filename.c_str());
+
+               ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
                if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset + recd, block, bSecure) < 0)
                {
                   run = false;
@@ -290,7 +291,7 @@ void* Slave::fileHandler(void* p)
                   if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
                      break;
 
-                  ifs.open(filename.c_str());
+                  ifs.open(filename.c_str(), ios::in | ios::binary);
                   self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset + recd, block);
                   ifs.close();
                }
@@ -311,6 +312,13 @@ void* Slave::fileHandler(void* p)
          }
 
       case 5: // end session
+         if (dst_port > 0)
+         {
+            // disconnet uplink
+            self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
+            self->m_DataChn.recv4(dst_ip, dst_port, transid, cmd);
+         }
+
          run = false;
          break;
 

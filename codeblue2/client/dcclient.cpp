@@ -1043,21 +1043,18 @@ int SphereProcess::readResult(SPE* s)
    }
    else
    {
-      int32_t* sarray = NULL;
-      int32_t* rarray = NULL;
-      char* tmp = NULL;
+      char* sarray = NULL;
+      char* rarray = NULL;
       int size;
-      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, size);
-      sarray = (int32_t*)tmp;
-      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, size);
-      rarray = (int32_t*)tmp;
+      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, sarray, size);
+      g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, rarray, size);
 
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
       {
-         m_pOutput->m_vSize[i] += sarray[i];
-         m_pOutput->m_vRecNum[i] += rarray[i];
-         m_pOutput->m_llSize += sarray[i];
-         m_pOutput->m_llRecNum += rarray[i];
+         m_pOutput->m_vSize[i] += *(int32_t*)(sarray + 4 * i);
+         m_pOutput->m_vRecNum[i] += *(int32_t*)(rarray + 4 * i);
+         m_pOutput->m_llSize += *(int32_t*)(sarray + 4 * i);;
+         m_pOutput->m_llRecNum += *(int32_t*)(rarray + 4 * i);
       }
 
       delete [] sarray;
