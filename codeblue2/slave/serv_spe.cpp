@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/20/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/21/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -432,6 +432,92 @@ void* Slave::SPEHandler(void* p)
 void* Slave::SPEShuffler(void* p)
 {
    Slave* self = ((Param5*)p)->serv_instance;
+   string client_ip = ((Param5*)p)->client_ip;
+   int client_port = ((Param5*)p)->client_ctrl_port;
+   string path = ((Param5*)p)->path;
+   string localfile = ((Param5*)p)->filename;
+   int bucketnum = ((Param5*)p)->bucketnum;
+   CGMP* gmp = ((Param5*)p)->gmp;
+   string function = ((Param5*)p)->function;
+
+   queue<Bucket> bq;
+   pthread_mutex_t bqlock;
+   pthread_mutex_init(&bqlock, NULL);
+   pthread_cond_t bqcond;
+   pthread_cond_init(&bqcond, NULL);
+
+   ((Param5*)p)->bq = &bq;
+   ((Param5*)p)->bqlock = &bqlock;
+   ((Param5*)p)->bqcond = &bqcond;
+
+   pthread_t ex;
+   pthread_create(&ex, NULL, SPEShufflerEx, p);
+   pthread_detach(ex);
+
+   cout << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << endl;
+
+
+   while (true)
+   {
+      char speip[64];
+      int speport;
+      SectorMsg msg;
+      int msgid;
+      if (gmp->recvfrom(speip, speport, msgid, &msg) < 0)
+         continue;
+
+      // client releases the task
+      if ((speip == client_ip) && (speport == client_port))
+      {
+         Bucket b;
+         b.bucketid = -1;
+         pthread_mutex_lock(&bqlock);
+         bq.push(b);
+         pthread_cond_signal(&bqcond);
+         pthread_mutex_unlock(&bqlock);
+
+         break;
+      }
+
+      int bucket = *(int32_t*)msg.getData();
+      int srcport = *(int32_t*)(msg.getData() + 4);
+      int session = *(int32_t*)(msg.getData() + 8);
+
+      if ((bq.size() > bucketnum) && (1 == msg.getType()))
+      {
+         // too many incoming results, ask the sender to wait
+         msg.setType(-msg.getType());
+         gmp->sendto(speip, speport, msgid, &msg);
+      }
+      else
+      {
+         if (1 == msg.getType())
+            gmp->sendto(speip, speport, msgid, &msg);
+
+         Bucket b;
+         b.bucketid = bucket;
+         b.src_ip = speip;
+         b.src_dataport = srcport;
+         b.session = session;
+
+         pthread_mutex_lock(&bqlock);
+         bq.push(b);
+         pthread_cond_signal(&bqcond);
+         pthread_mutex_unlock(&bqlock);
+
+         self->m_DataChn.connect(speip, srcport);
+      }
+   }
+
+   gmp->close();
+   delete gmp;
+
+   return NULL;
+}
+
+void* Slave::SPEShufflerEx(void* p)
+{
+   Slave* self = ((Param5*)p)->serv_instance;
    int transid = ((Param5*)p)->transid;
    string client_ip = ((Param5*)p)->client_ip;
    int client_port = ((Param5*)p)->client_ctrl_port;
@@ -439,13 +525,13 @@ void* Slave::SPEShuffler(void* p)
    string localfile = ((Param5*)p)->filename;
    int bucketnum = ((Param5*)p)->bucketnum;
    int bucketid = ((Param5*)p)->bucketid;
-   CGMP* gmp = ((Param5*)p)->gmp;
    const int key = ((Param5*)p)->key;
    const int type = ((Param5*)p)->type;
    string function = ((Param5*)p)->function;
+   queue<Bucket>* bq = ((Param5*)p)->bq;
+   pthread_mutex_t* bqlock = ((Param5*)p)->bqlock;
+   pthread_cond_t* bqcond = ((Param5*)p)->bqcond;
    delete (Param5*)p;
-
-   cout << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << endl;
 
    self->createDir(path);
 
@@ -465,25 +551,24 @@ void* Slave::SPEShuffler(void* p)
    offset.resize(bucketnum);
    for (vector<int64_t>::iterator i = offset.begin(); i != offset.end(); ++ i)
       *i = 0;
-
    set<int> fileid;
 
    while (true)
    {
-      char speip[64];
-      int speport;
-      SectorMsg msg;
-      int msgid;
-      if (gmp->recvfrom(speip, speport, msgid, &msg) < 0)
-         continue;
+      pthread_mutex_lock(bqlock);
+      while (bq->empty())
+         pthread_cond_wait(bqcond, bqlock);
+      Bucket b = bq->front();
+      bq->pop();
+      pthread_mutex_unlock(bqlock);
 
-      // client releases the task
-      if ((speip == client_ip) && (speport == client_port))
+      if (b.bucketid == -1)
          break;
 
-      int bucket = *(int32_t*)msg.getData();
-      int srcport = *(int32_t*)(msg.getData() + 4);
-      int session = *(int32_t*)(msg.getData() + 8);
+      int bucket = b.bucketid;
+      string speip = b.src_ip;
+      int srcport = b.src_dataport;
+      int session = b.session;
       fileid.insert(bucket);
 
       char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
@@ -495,8 +580,6 @@ void* Slave::SPEShuffler(void* p)
       int64_t start = offset[bucket];
       if (0 == start)
          indexfile.write((char*)&start, 8);
-
-      self->m_DataChn.connect(speip, srcport);
 
       int32_t len;
       char* data = NULL;
@@ -525,6 +608,10 @@ void* Slave::SPEShuffler(void* p)
       indexfile.close();
    }
 
+   pthread_mutex_destroy(bqlock);
+   pthread_cond_destroy(bqcond);
+
+
    // sort and reduce
    if (type == 1)
    {
@@ -551,8 +638,6 @@ void* Slave::SPEShuffler(void* p)
       self->closeLibrary(lh);
    }
 
-   gmp->close();
-   delete gmp;
 
    // report sphere output files
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
@@ -770,13 +855,20 @@ int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* 
 
 int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations)
 {
-   for (int r = speid; r < buckets + speid; ++ r)
-   {
-      // start from a random location, to avoid writing to the same SPE shuffler, which lead to slow synchronization problem
-      int i = r % buckets;
+   set<int> tosend;
 
-      if (0 == result.m_vDataLen[i])
-         continue;
+   for (int r = 0; r < buckets; ++ r)
+   {
+      if (0 != result.m_vDataLen[r])
+         tosend.insert(r);
+   }
+
+   map<string, bool> busy_flag;
+   unsigned int tn = 0;
+
+   while(!tosend.empty())
+   {
+      int i = *tosend.begin();
 
       char* dstip = locations + i * 76;
       int32_t dstport = *(int32_t*)(locations + i * 76 + 64);
@@ -789,9 +881,35 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       msg.setData(4, (char*)&srcport, 4);
       msg.setData(8, (char*)&session, 4);
       msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
-      int id = 0;
-      if (m_GMP.sendto(dstip, shufflerport, id, &msg) < 0)
-         return -1;
+
+      if (busy_flag.find(dstip) == busy_flag.end())
+         busy_flag[dstip] = true;
+
+      if (busy_flag[dstip])
+      {
+         msg.setType(1);
+         if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
+            return -1;
+
+         if (msg.getType() < 0)
+         {
+            // if all shufflers are busy, wait here a little while
+            if (tn ++ > tosend.size())
+            {
+               tn = 0;
+               usleep(10);
+            }
+            continue;
+         }
+         else
+            busy_flag[dstip] = false;
+      }
+      else
+      {
+         msg.setType(2);
+         int id = 0;
+         m_GMP.sendto(dstip, shufflerport, id, &msg);
+      }
 
       if (m_DataChn.connect(dstip, dstport) < 0)
          return -1;
@@ -801,6 +919,8 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
 
       // update total sent data
       m_SlaveStat.updateIO(dstip, result.m_vDataLen[i] + (result.m_vIndexLen[i] - 1) * 8, 1);
+
+      tosend.erase(tosend.begin());
    }
 
    return 1;

@@ -191,6 +191,14 @@ private:
       int type;			// process type
    };
 
+   struct Bucket
+   {
+      int bucketid;
+      string src_ip;
+      int src_dataport;
+      int session;
+   };
+
    struct Param5
    {
       Slave* serv_instance;     // self
@@ -207,12 +215,17 @@ private:
       string function;          // Reduce operator
       char* param;              // Reduce parameter
       int psize;                // parameter size
+
+      std::queue<Bucket>* bq;
+      pthread_mutex_t* bqlock;
+      pthread_cond_t* bqcond;
    };
 
    static void* fileHandler(void* p2);
    static void* copy(void* p3);
    static void* SPEHandler(void* p4);
    static void* SPEShuffler(void* p5);
+   static void* SPEShufflerEx(void* p5);
 
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
