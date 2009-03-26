@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/25/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -329,7 +329,8 @@ void* Slave::SPEHandler(void* p)
 
          self->processData(input, output, file, result, buckets, process, map, partition);
 
-         if ((result.m_llTotalDataSize > 64000000) && (buckets != 0))
+         // TODO: the size of buffer 128MB might need to be set dynamically
+         if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
          gettimeofday(&t4, 0);
@@ -362,7 +363,7 @@ void* Slave::SPEHandler(void* p)
          {
             self->processData(input, output, file, result, buckets, process, map, partition);
 
-            if ((result.m_llTotalDataSize > 64000000) && (buckets != 0))
+            if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
                deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
             if (deliverystatus < 0)
@@ -440,22 +441,21 @@ void* Slave::SPEShuffler(void* p)
    CGMP* gmp = ((Param5*)p)->gmp;
    string function = ((Param5*)p)->function;
 
-   queue<Bucket> bq;
-   pthread_mutex_t bqlock;
-   pthread_mutex_init(&bqlock, NULL);
-   pthread_cond_t bqcond;
-   pthread_cond_init(&bqcond, NULL);
+   queue<Bucket>* bq = new queue<Bucket>;
+   pthread_mutex_t* bqlock = new pthread_mutex_t;
+   pthread_mutex_init(bqlock, NULL);
+   pthread_cond_t* bqcond = new pthread_cond_t;
+   pthread_cond_init(bqcond, NULL);
 
-   ((Param5*)p)->bq = &bq;
-   ((Param5*)p)->bqlock = &bqlock;
-   ((Param5*)p)->bqcond = &bqcond;
+   ((Param5*)p)->bq = bq;
+   ((Param5*)p)->bqlock = bqlock;
+   ((Param5*)p)->bqcond = bqcond;
 
    pthread_t ex;
    pthread_create(&ex, NULL, SPEShufflerEx, p);
    pthread_detach(ex);
 
    cout << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << endl;
-
 
    while (true)
    {
@@ -471,10 +471,10 @@ void* Slave::SPEShuffler(void* p)
       {
          Bucket b;
          b.bucketid = -1;
-         pthread_mutex_lock(&bqlock);
-         bq.push(b);
-         pthread_cond_signal(&bqcond);
-         pthread_mutex_unlock(&bqlock);
+         pthread_mutex_lock(bqlock);
+         bq->push(b);
+         pthread_cond_signal(bqcond);
+         pthread_mutex_unlock(bqlock);
 
          break;
       }
@@ -483,7 +483,8 @@ void* Slave::SPEShuffler(void* p)
       int srcport = *(int32_t*)(msg.getData() + 4);
       int session = *(int32_t*)(msg.getData() + 8);
 
-      if ((bq.size() > bucketnum) && (1 == msg.getType()))
+      // TODO: this size of bucket queue might need to be set dynamically
+      if ((bq->size() > 256) && (1 == msg.getType()))
       {
          // too many incoming results, ask the sender to wait
          msg.setType(-msg.getType());
@@ -500,10 +501,10 @@ void* Slave::SPEShuffler(void* p)
          b.src_dataport = srcport;
          b.session = session;
 
-         pthread_mutex_lock(&bqlock);
-         bq.push(b);
-         pthread_cond_signal(&bqcond);
-         pthread_mutex_unlock(&bqlock);
+         pthread_mutex_lock(bqlock);
+         bq->push(b);
+         pthread_cond_signal(bqcond);
+         pthread_mutex_unlock(bqlock);
 
          self->m_DataChn.connect(speip, srcport);
       }
@@ -610,7 +611,8 @@ void* Slave::SPEShufflerEx(void* p)
 
    pthread_mutex_destroy(bqlock);
    pthread_cond_destroy(bqcond);
-
+   delete bqlock;
+   delete bqcond;
 
    // sort and reduce
    if (type == 1)
@@ -624,14 +626,14 @@ void* Slave::SPEShufflerEx(void* p)
       MR_REDUCE reduce = NULL;
       self->getReduceFunc(lh, function, comp, reduce);
 
-      for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
+      if (NULL != comp)
       {
          char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
-         sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), *i);
-
-         if (comp != NULL)
+         for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
+         {
+            sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), *i);
             self->sort(tmp, comp, reduce);
-
+         }
          delete [] tmp;
       }
 
@@ -640,15 +642,15 @@ void* Slave::SPEShufflerEx(void* p)
 
 
    // report sphere output files
+   char* tmp = new char[path.length() + localfile.length() + 64];
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
    {
-      char* tmp = new char[path.length() + localfile.length() + 64];
       sprintf(tmp, "%s.%d", (path + "/" + localfile).c_str(), *i);
       self->report(0, tmp, 1);
       sprintf(tmp, "%s.%d.idx", (path + "/" + localfile).c_str(), *i);
       self->report(0, tmp, 1);
-      delete [] tmp;
    }
+   delete [] tmp;
 
    self->reportSphere(transid);
 
@@ -856,7 +858,6 @@ int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* 
 int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations)
 {
    set<int> tosend;
-
    for (int r = 0; r < buckets; ++ r)
    {
       if (0 != result.m_vDataLen[r])
@@ -865,10 +866,13 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
 
    map<string, bool> busy_flag;
    unsigned int tn = 0;
+   set<int>::iterator p = tosend.begin();
 
    while(!tosend.empty())
    {
-      int i = *tosend.begin();
+      int i = *p;
+      if (++ p == tosend.end())
+         p = tosend.begin();
 
       char* dstip = locations + i * 76;
       int32_t dstport = *(int32_t*)(locations + i * 76 + 64);
@@ -920,7 +924,7 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       // update total sent data
       m_SlaveStat.updateIO(dstip, result.m_vDataLen[i] + (result.m_vIndexLen[i] - 1) * 8, 1);
 
-      tosend.erase(tosend.begin());
+      tosend.erase(i);
    }
 
    return 1;
