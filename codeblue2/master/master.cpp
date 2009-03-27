@@ -108,14 +108,14 @@ int Master::init()
    m_SectorLog.init("sector.log");
 
    // read configuration from master.conf
-   if (m_SysConfig.init("master.conf") < 0)
+   if (m_SysConfig.init("../conf/master.conf") < 0)
    {
       cerr << "unable to read/parse configuration file.\n";
       m_SectorLog.insert("unable to read/parse configuration file.");
       return -1;
    }
 
-   if (m_SlaveManager.init("topology.conf") < 0)
+   if (m_SlaveManager.init("../conf/topology.conf") < 0)
    {
       cerr << "Warning: no topology configuration found.\n";
       m_SectorLog.insert("Warning: no topology configuration found.");
@@ -398,7 +398,11 @@ void* Master::service(void* s)
 
    SSLTransport::init();
    SSLTransport serv;
-   serv.initServerCTX("master_node.cert", "master_node.key");
+   if (serv.initServerCTX("../conf/master_node.cert", "../conf/master_node.key") < 0)
+   {
+      self->m_SectorLog.insert("WARNING: No master_node certificate or key found.");
+      return NULL;
+   }
    serv.open(NULL, self->m_SysConfig.m_iServerPort);
    serv.listen();
 
@@ -432,7 +436,11 @@ void* Master::serviceEx(void* p)
    //int port = ((Param*)p)->port;
 
    SSLTransport secconn;
-   secconn.initClientCTX("security_node.cert");
+   if (secconn.initClientCTX("../conf/security_node.cert") < 0)
+   {
+      self->m_SectorLog.insert("No security node certificate found. All slave/client connection will be rejected.");
+      return NULL;
+   }
    secconn.open(NULL, 0);
    int r = secconn.connect(self->m_SysConfig.m_strSecServIP.c_str(), self->m_SysConfig.m_iSecServPort);
 

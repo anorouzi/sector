@@ -33,7 +33,8 @@ int main(int argc, char** argv)
       }
 
       gen_cert("security");
-      system("cp security_node.cert ../master");
+      system("mv security_node.* ../conf");
+      system("rm -f security_node.*");
    }
    else if (0 == strcmp(argv[1], "master"))
    {
@@ -45,9 +46,8 @@ int main(int argc, char** argv)
       }
 
       gen_cert("master");
-      system("cp master_node.cert ../client/tools");
-      system("cp master_node.cert ../client/examples");
-      system("cp master_node.cert ../slave");
+      system("mv master_node.* ../conf");
+      system("rm -f master_node.*");
    }
    else
       return -1;

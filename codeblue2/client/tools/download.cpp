@@ -123,14 +123,14 @@ int main(int argc, char** argv)
    }
 
    Session s;
-   s.loadInfo("../client.conf");
+   s.loadInfo("../../conf/client.conf");
 
    if (Sector::init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
    {
       cout << "unable to connect to the server at " << argv[1] << endl;
       return -1;
    }
-   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword) < 0)
+   if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
    {
       cout << "login failed\n";
       return -1;

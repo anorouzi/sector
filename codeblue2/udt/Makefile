@@ -1,9 +1,9 @@
 include ../Makefile.common
 
-CCFLAGS += -D LINUX -D IA32 -I../common -I../security
+CCFLAGS += -D LINUX -D IA32
 LDFLAGS += 
 
-OBJS = md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o core.o co-op.o api.o ccc.o transport.o datachn.o
+OBJS = md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o core.o co-op.o api.o ccc.o
 
 all: libudt.so libudt.a
 

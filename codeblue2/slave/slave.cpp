@@ -53,7 +53,7 @@ int Slave::init(const char* base)
    if (NULL != base)
       m_strBase = base;
 
-   string conf = m_strBase + "/slave.conf";
+   string conf = m_strBase + "/../conf/slave.conf";
    if (m_SysConfig.init(conf) < 0)
    {
       cerr << "unable to initialize from configuration file; quit.\n";
@@ -108,7 +108,7 @@ int Slave::connect()
    // join the server
    SSLTransport::init();
 
-   string cert = m_strBase + "/master_node.cert";
+   string cert = m_strBase + "/../conf/master_node.cert";
 
    SSLTransport secconn;
    secconn.initClientCTX(cert.c_str());

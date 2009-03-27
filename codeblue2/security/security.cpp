@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/05/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 03/27/2009
 *****************************************************************************/
 
 #include "security.h"
@@ -80,7 +80,7 @@ int ACL::addIPRange(const char* ip)
    buf[i] = '\0';
 
    in_addr addr;
-   if (inet_pton(AF_INET, buf, &addr) < 0)
+   if (inet_pton(AF_INET, buf, &addr) <= 0)
       return -1;
 
    IPRange entry;
@@ -317,6 +317,8 @@ void SServer::run()
       char ip[64];
       int port;
       SSLTransport* s = m_SSL.accept(ip, port);
+      if (NULL == s)
+         continue;
 
       Param* p = new Param;
       p->ip = ip;

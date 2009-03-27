@@ -1,11 +1,11 @@
 include ../Makefile.common
 
-CCFLAGS += -I../udt -I../security
+CCFLAGS += -I../udt -I../common
 
 ifeq ($(STATIC), 1)
-   LDFLAGS += librpc.a ../lib/libudt.a ../lib/libsecurity.a ../lib/libcommon.a
+   LDFLAGS += librpc.a ../lib/libudt.a ../lib/libcommon.a
 else
-   LDFLAGS += -L../lib -lrpc -ludt -lsecurity -lcommon
+   LDFLAGS += -L../lib -lrpc -ludt -lcommon
 endif
 
 OBJS = gmp.o message.o prec.o
@@ -13,7 +13,7 @@ OBJS = gmp.o message.o prec.o
 all: librpc.so librpc.a gs gc
 
 %.o: %.cpp %.h
-	$(C++) -fPIC  $(CCFLAGS) $< -c
+	$(C++) -fPIC $(CCFLAGS) $< -c
 
 librpc.so: $(OBJS)
 	$(C++) -shared -o $@ $^

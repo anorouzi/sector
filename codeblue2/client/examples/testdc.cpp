@@ -14,11 +14,11 @@ int main(int argc, char** argv)
    }
 
    Session se;
-   se.loadInfo("../client.conf");
+   se.loadInfo("../../conf/client.conf");
 
    if (Sector::init(se.m_ClientConf.m_strMasterIP, se.m_ClientConf.m_iMasterPort) < 0)
       return -1;
-   if (Sector::login(se.m_ClientConf.m_strUserName, se.m_ClientConf.m_strPassword) < 0)
+   if (Sector::login(se.m_ClientConf.m_strUserName, se.m_ClientConf.m_strPassword, se.m_ClientConf.m_strCertificate.c_str()) < 0)
       return -1;
 
    // remove result of last run

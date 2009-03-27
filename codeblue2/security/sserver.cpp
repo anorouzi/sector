@@ -39,21 +39,21 @@ int main(int argc, char** argv)
    if (argc == 2)
       port = atoi(argv[1]);
 
-   if (ss.init(port, "security_node.cert", "security_node.key") < 0)
+   if (ss.init(port, "../conf/security_node.cert", "../conf/security_node.key") < 0)
    {
       cerr << "failed to initialize security server at port " << port << endl;
       cerr << "Secuirty server failed to start. Please fix the problem.\n";
       return -1;
    }
 
-   if (ss.loadACL("slave_acl.conf") < 0)
+   if (ss.loadACL("../conf/slave_acl.conf") < 0)
    {
       cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf in the current directory. No slaves would be able to join.\n";
       cerr << "Secuirty server failed to start. Please fix the problem.\n";
       return -1;
    }
 
-   if (ss.loadShadowFile("users") < 0)
+   if (ss.loadShadowFile("../conf/users") < 0)
    {
       cerr << "WARNING: no users account initialized.\n";
       cerr << "Secuirty server failed to start. Please fix the problem.\n";
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
    }
 
    cout << "Sector Security server running at port " << port << endl << endl;
-   cout << "The server is started successfully; there is no further output from this program. Please do not shutdown the security server; otherwise no client may be able to login. If the server is down for any reason, you can restart it without restarting the masters and the lsaves.\n";
+   cout << "The server is started successfully; there is no further output from this program. Please do not shutdown the security server; otherwise no client may be able to login. If the server is down for any reason, you can restart it without restarting the masters and the slaves.\n";
 
    ss.run();
 
