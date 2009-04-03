@@ -28,6 +28,7 @@ written by
 
 #include "sysstat.h"
 #include <time.h>
+#include <cstring>
 #include <iostream>
 
 using namespace std;

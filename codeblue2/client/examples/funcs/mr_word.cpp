@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include <set>
 #include <vector>
 #include <sphere.h>

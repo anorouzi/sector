@@ -42,6 +42,7 @@ written by
 #include "core.h"
 #include "ccc.h"
 #include <cmath>
+#include <string.h>
 
 
 CCC::CCC():

@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdint.h>
+#include <cstring>
 #include <sphere.h>
 
 using namespace std;

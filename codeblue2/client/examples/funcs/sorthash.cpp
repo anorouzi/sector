@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <stdint.h>
+#include <cstring>
 #include <sphere.h>
 
 using namespace std;

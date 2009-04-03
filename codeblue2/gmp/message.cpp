@@ -39,6 +39,7 @@ written by
 *****************************************************************************/
 
 #include <string>
+#include <cstring>
 #include <message.h>
 
 using namespace std;

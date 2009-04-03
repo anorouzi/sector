@@ -31,6 +31,8 @@ written by
 *****************************************************************************/
 
 #include <util.h>
+#include <cstring>
+#include <cstdlib>
 #include <iostream>
 
 using namespace std;
@@ -133,6 +135,8 @@ int Session::loadInfo(const string& conf)
       cout << "please specify the location of the master certificate: ";
       cin >> m_ClientConf.m_strCertificate;
    }
+
+   //TODO: if m_strCert is relative dir, use getcwd to change it into absolute dir
 
    return 1;
 }

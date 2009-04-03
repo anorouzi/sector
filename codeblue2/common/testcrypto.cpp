@@ -1,4 +1,5 @@
 #include "crypto.h"
+#include <cstring>
 #include <iostream>
 
 using namespace std;
@@ -17,7 +18,7 @@ int main()
    //for (int i = 0; i < 16; i++)
    //   printf("%d \t", key[i]);
 
-   char* text = "hello world!";
+   const char* text = "hello world!";
    unsigned char hello[4096];
    memcpy(hello, text, strlen(text) + 1);
    unsigned char enc[4096];

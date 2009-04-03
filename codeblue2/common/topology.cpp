@@ -34,6 +34,8 @@ written by
 #include <arpa/inet.h>
 #include <fstream>
 #include <iostream>
+#include <cstring>
+#include <cstdlib>
 #include "constant.h"
 
 using namespace std;

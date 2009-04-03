@@ -48,6 +48,7 @@ written by
 #endif
 
 #include <fstream>
+#include <cstring>
 #include "transport.h"
 
 using namespace std;

@@ -37,6 +37,7 @@ written by
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstring>
 #include <constant.h>
 
 using namespace std;

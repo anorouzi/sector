@@ -30,6 +30,7 @@ written by
 #include "log.h"
 #include <time.h>
 #include <string>
+#include <cstring>
 #include <iostream>
 
 using namespace std;

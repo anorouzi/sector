@@ -31,6 +31,8 @@ written by
 #include <iostream>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include <cstring>
+#include <cstdlib>
 
 using namespace std;
 

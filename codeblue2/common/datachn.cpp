@@ -39,6 +39,7 @@ written by
 *****************************************************************************/
 
 #include <pthread.h>
+#include <cstring>
 #include <datachn.h>
 
 using namespace std;

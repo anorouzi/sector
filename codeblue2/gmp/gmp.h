@@ -67,6 +67,7 @@ written by
 #include <prec.h>
 
 #include <string>
+#include <cstring>
 #include <map>
 #include <list>
 #include <queue>
