@@ -19,6 +19,7 @@
 <p><b>client.conf</b></p>
 <p>A copy of the client configuration file can be found below. The MASTER_ADDRESS is the address of the master server in the format of &lt;ip:port&gt; or &lt;domain_name:port&gt;. The &quot;USERNAME&quot; and &quot;PASSWORD&quot; options specify the user's account name and password.  Finally, the CERTIFICATE option stores the location of the master's certificate, which is used to verify the identity of the master node.</p>
 <p>In the confiuguration file, <span class="style1">the option value must be preceded by a &quot;TAB&quot; charactor</span>. The &quot;#&quot; charactor can be used for comment lines. </p>
+<p>Note that in order to allow Sector-FUSE work properly, the &quot;CERTIFICATE&quot; path must be an abosolute path. </p>
 <div class="code">
     #Master address<br />
     MASTER_ADDRESS<br />
@@ -34,7 +35,7 @@
 	<br />
     #master's certificate file<br />
     CERTIFICATE<br />
-    &nbsp;&nbsp;&nbsp;&nbsp;master_node.cert<br />
+    &nbsp;&nbsp;&nbsp;&nbsp;/home/gu/master_node.cert<br />
 </div>
 
 <p>&nbsp;</p>
