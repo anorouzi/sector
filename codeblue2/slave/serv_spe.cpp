@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/25/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/04/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -484,7 +484,7 @@ void* Slave::SPEShuffler(void* p)
       int session = *(int32_t*)(msg.getData() + 8);
 
       // TODO: this size of bucket queue might need to be set dynamically
-      if ((bq->size() > 256) && (1 == msg.getType()))
+      if (bq->size() > 256)
       {
          // too many incoming results, ask the sender to wait
          msg.setType(-msg.getType());
@@ -492,8 +492,7 @@ void* Slave::SPEShuffler(void* p)
       }
       else
       {
-         if (1 == msg.getType())
-            gmp->sendto(speip, speport, msgid, &msg);
+         gmp->sendto(speip, speport, msgid, &msg);
 
          Bucket b;
          b.bucketid = bucket;
@@ -864,7 +863,6 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
          tosend.insert(r);
    }
 
-   map<string, bool> busy_flag;
    unsigned int tn = 0;
    set<int>::iterator p = tosend.begin();
 
@@ -886,33 +884,19 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       msg.setData(8, (char*)&session, 4);
       msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
 
-      if (busy_flag.find(dstip) == busy_flag.end())
-         busy_flag[dstip] = true;
+      msg.setType(1);
+      if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
+         return -1;
 
-      if (busy_flag[dstip])
+      if (msg.getType() < 0)
       {
-         msg.setType(1);
-         if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
-            return -1;
-
-         if (msg.getType() < 0)
+         // if all shufflers are busy, wait here a little while
+         if (tn ++ > tosend.size())
          {
-            // if all shufflers are busy, wait here a little while
-            if (tn ++ > tosend.size())
-            {
-               tn = 0;
-               usleep(10);
-            }
-            continue;
+            tn = 0;
+            usleep(10);
          }
-         else
-            busy_flag[dstip] = false;
-      }
-      else
-      {
-         msg.setType(2);
-         int id = 0;
-         m_GMP.sendto(dstip, shufflerport, id, &msg);
+         continue;
       }
 
       if (m_DataChn.connect(dstip, dstport) < 0)
