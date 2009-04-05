@@ -28,7 +28,7 @@ int main(int argc, char** argv)
    if (0 == strcmp(argv[1], "security"))
    {
       struct stat s;
-      if (stat("security_node.key", &s) != -1)
+      if (stat("../conf/security_node.key", &s) != -1)
       {
          cerr << "Key already exist\n";
          return -1;
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
    else if (0 == strcmp(argv[1], "master"))
    {
       struct stat s;
-      if (stat("master_node.key", &s) != -1)
+      if (stat("../conf/master_node.key", &s) != -1)
       {
          cerr << "Key already exist\n";
          return -1;

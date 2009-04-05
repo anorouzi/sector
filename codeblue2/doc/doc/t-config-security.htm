@@ -22,15 +22,15 @@
 <div class="code">
     #list of IP addresses or ranges from which a slave can join the system<br />
     #by default the system is open: i.e., any node can become a slave node<br />
-    #you should change this for a productivity system<br />
+    #you should change this for a production system<br />
     #E.g., 192.168.0.0/24 allows all IPs within 192.168.0.0-255 to join<br />
 	<br />
     0.0.0.0/0<br />
 </div>
 
 <p><b>User Accounts </b></p>
-<p>The user account information is stored in the ./users directory  of the security server (./codeblue2/security/users). Information about each user is stored in one text file. For example, information of user &quot;test&quot; is stored in ./codeblue2/security/users/test. </p>
-<p>Current the account informtion is only stored in clear text. We plan to encrypt in the first production quality release. The &quot;PASSWORD&quot; section is the user's password in clear text. The &quot;READ_PERMISSION&quot; lists files or directories that the user can read, one per line. Samiliarily, the &quot;WRITE_PERMISSION&quot; is a list of files or directories that the user can write. The &quot;EXEC_PERMISSION&quot; is a TRUE or FALSE value that indicates that if the user can run Sphere applications. The &quot;ACL&quot; lists IP addresses or IP addresses ranges from which the user can login, one per line. Finally, a quota of disk space usage can be applied to user. The quota includes the total size of the writable files or directories of the user, without counting the replicas.</p>
+<p>The user account information is stored in ./codeblue2/conf/users. Information about each user is stored in one text file. For example, information of user &quot;test&quot; is stored in ./codeblue2/conf/users/test. </p>
+<p>Current the account informtion is only stored in clear text. We plan to encrypt them in the first production quality release. The &quot;PASSWORD&quot; section is the user's password in clear text. The &quot;READ_PERMISSION&quot; lists files or directories that the user can read, one per line. Samiliarily, the &quot;WRITE_PERMISSION&quot; is a list of files or directories that the user can write. The &quot;EXEC_PERMISSION&quot; is a TRUE or FALSE value that indicates that if the user can run Sphere applications. The &quot;ACL&quot; lists IP addresses or IP addresses ranges from which the user can login, one per line. Finally, a quota of disk space usage can be applied to user. The quota includes the total size of the writable files or directories of the user, without counting the replicas.</p>
 <p>In the confiuguration file, <span class="style1">the option value must be preceded by a &quot;TAB&quot; charactor</span>. The &quot;#&quot; charactor can be used for comment lines. </p>
 <div class="code">
     #user's password<br />
