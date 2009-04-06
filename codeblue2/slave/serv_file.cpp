@@ -348,6 +348,8 @@ void* Slave::fileHandler(void* p)
    self->report(transid, sname, change);
 
    self->m_DataChn.send(src_ip, src_port, transid, (char*)&cmd, 4);
+
+   //TODO: remove client connection
    //self->m_DataChn.remove(src_ip, src_port);
 
    return NULL;

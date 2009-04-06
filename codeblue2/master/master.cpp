@@ -916,7 +916,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", addr.begin()->m_strIP.c_str());
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "SUCCESS", addr.begin()->m_strIP.c_str());
 
             break;
          }

@@ -7,7 +7,7 @@ using namespace std;
 
 Session SectorFS::g_SectorConfig;
 map<string, FileTracker*> SectorFS::m_mOpenFileList;
-
+pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 
 void* SectorFS::init(struct fuse_conn_info *conn)
 {
@@ -28,8 +28,9 @@ void SectorFS::destroy(void *)
 int SectorFS::getattr(const char* path, struct stat* st)
 {
    SNode s;
-   if (Sector::stat(path, s) < 0)
-      return -1;
+   int r = Sector::stat(path, s);
+   if (r < 0)
+      return translateErr(r);
 
    if (s.m_bIsDir)
       st->st_mode = S_IFDIR | 0755;
@@ -58,8 +59,9 @@ int SectorFS::mknod(const char *, mode_t, dev_t)
 
 int SectorFS::mkdir(const char* path, mode_t mode)
 {
-   if (Sector::mkdir(path) < 0)
-      return -1;
+   int r = Sector::mkdir(path);
+   if (r < 0)
+      return translateErr(r);
 
    return 0;
 }
@@ -82,8 +84,9 @@ int SectorFS::rmdir(const char* path)
 
 int SectorFS::rename(const char* src, const char* dst)
 {
-   if (Sector::move(src, dst) < 0)
-      return -1;
+   int r = Sector::move(src, dst);
+   if (r < 0)
+      return translateErr(r);
 
    return 0;
 }
@@ -91,8 +94,9 @@ int SectorFS::rename(const char* src, const char* dst)
 int SectorFS::statfs(const char* path, struct statvfs* buf)
 {
    SysStat s;
-   if (Sector::sysinfo(s) < 0)
-      return -1;
+   int r = Sector::sysinfo(s);
+   if (r < 0)
+      return translateErr(r);
 
    buf->f_namemax = 256;
    buf->f_bsize = 1024000;
@@ -121,8 +125,9 @@ int SectorFS::opendir(const char *, struct fuse_file_info *)
 int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* info)
 {
    vector<SNode> filelist;
-   if (Sector::list(path, filelist) < 0)
-      return -1;
+   int r = Sector::list(path, filelist);
+   if (r < 0)
+      return translateErr(r);
 
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
@@ -177,9 +182,15 @@ int SectorFS::chown(const char *, uid_t, gid_t)
    return 0;
 }
 
-int SectorFS::create(const char *, mode_t, struct fuse_file_info *)
+int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
 {
-   return 0;
+   SectorFile f;
+   int r = f.open(path, SF_MODE::WRITE);
+   if (r < 0)
+      return translateErr(r);
+   f.close();
+
+   return open(path, info);
 }
 
 int SectorFS::truncate(const char *, off_t)
@@ -194,18 +205,22 @@ int SectorFS::ftruncate(const char* path, off_t offset, struct fuse_file_info *)
 
 int SectorFS::open(const char* path, struct fuse_file_info* fi)
 {
+   pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator i = m_mOpenFileList.find(path);
    if (i != m_mOpenFileList.end())
    {
       i->second->m_iCount ++;
+      pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
    }
 
    SectorFile* f = new SectorFile;
-   if (f->open(path, SF_MODE::READ | SF_MODE::WRITE) < 0)
+   int r = f->open(path, SF_MODE::READ | SF_MODE::WRITE);
+   if (r < 0)
    {
       delete f;
-      return -1;
+      pthread_mutex_unlock(&m_OpenFileLock);
+      return translateErr(r);
    }
 
    FileTracker* t = new FileTracker;
@@ -215,29 +230,40 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
 
    m_mOpenFileList[path] = t;
 
+   pthread_mutex_unlock(&m_OpenFileLock);
    return 0;
 }
 
 int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* info)
 {
+   pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
-      return -1;
+   {
+      pthread_mutex_unlock(&m_OpenFileLock);
+      return -EBADF;
+   }
+   SectorFile* h = t->second->m_pHandle;
+   pthread_mutex_unlock(&m_OpenFileLock);
 
-   t->second->m_pHandle->seekg(offset);
-
-   return t->second->m_pHandle->read(buf, size);
+   h->seekg(offset);
+   return h->read(buf, size);
 }
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* info)
 {
+   pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
-      return -1;
+   {
+      pthread_mutex_unlock(&m_OpenFileLock);
+      return -EBADF;
+   }
+   SectorFile* h = t->second->m_pHandle;
+   pthread_mutex_unlock(&m_OpenFileLock);
 
-   t->second->m_pHandle->seekp(offset);
-
-   return t->second->m_pHandle->write(buf, size);
+   h->seekp(offset);
+   return h->write(buf, size);
 }
 
 int SectorFS::flush (const char *, struct fuse_file_info *)
@@ -252,14 +278,21 @@ int SectorFS::fsync(const char *, int, struct fuse_file_info *)
 
 int SectorFS::release(const char* path, struct fuse_file_info* info)
 {
+   pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
-      return -1;
+   {
+      pthread_mutex_unlock(&m_OpenFileLock);
+      return -EBADF;
+   }
 
    t->second->m_iCount --;
 
    if (t->second->m_iCount > 0)
+   {
+      pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
+   }
 
    t->second->m_pHandle->close();
    delete t->second->m_pHandle;
@@ -267,6 +300,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* info)
 
    m_mOpenFileList.erase(t);
 
+   pthread_mutex_unlock(&m_OpenFileLock);
    return 0;
 }
 
@@ -278,4 +312,21 @@ int SectorFS::access(const char *, int)
 int SectorFS::lock(const char *, struct fuse_file_info *, int cmd, struct flock *)
 {
    return 0;
+}
+
+int SectorFS::translateErr(int sferr)
+{
+   switch (sferr)
+   {
+   case SectorError::E_PERMISSION:
+      return -EACCES;
+
+   case SectorError::E_NOEXIST:
+      return -ENOENT;
+
+   case SectorError::E_EXIST:
+      return -EEXIST;
+   }
+
+   return -1;
 }

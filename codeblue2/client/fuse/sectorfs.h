@@ -77,6 +77,10 @@ public:
 
 private:
    static std::map<std::string, FileTracker*> m_mOpenFileList;
+   static pthread_mutex_t m_OpenFileLock;
+
+private:
+   static int translateErr(int sferr);
 };
 
 #endif
