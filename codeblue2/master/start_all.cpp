@@ -10,7 +10,7 @@ int main()
    system("nohup ./start_master > /dev/null &");
    cout << "start master ...\n";
 
-   ifstream ifs("slaves.list");
+   ifstream ifs("../conf/slaves.list");
 
    if (ifs.bad() || ifs.fail())
    {

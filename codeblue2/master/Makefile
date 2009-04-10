@@ -3,9 +3,9 @@ include ../Makefile.common
 CCFLAGS += -I../udt -I../gmp -I../security -I../common
 
 ifeq ($(STATIC), 1)
-   LDFLAGS += libmaster.a ../lib/librpc.a ../lib/libudt.a ../lib/libsecurity.a ../lib/libcommon.a
+   LDFLAGS += libmaster.a ../lib/librpc.a ../lib/libsecurity.a ../lib/libcommon.a ../lib/libudt.a
 else
-   LDFLAGS += -L../lib -lmaster -lrpc -ludt -lsecurity -lcommon
+   LDFLAGS += -L../lib -lmaster -lrpc -lsecurity -lcommon -ludt
 endif
 
 OBJS = slavemgmt.o transaction.o master.o

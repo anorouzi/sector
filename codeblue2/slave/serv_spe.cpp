@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/04/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/07/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -494,6 +494,8 @@ void* Slave::SPEShuffler(void* p)
       {
          gmp->sendto(speip, speport, msgid, &msg);
 
+         self->m_DataChn.connect(speip, srcport);
+
          Bucket b;
          b.bucketid = bucket;
          b.src_ip = speip;
@@ -504,8 +506,6 @@ void* Slave::SPEShuffler(void* p)
          bq->push(b);
          pthread_cond_signal(bqcond);
          pthread_mutex_unlock(bqlock);
-
-         self->m_DataChn.connect(speip, srcport);
       }
    }
 

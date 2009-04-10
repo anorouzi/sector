@@ -11,7 +11,7 @@ int main()
 
    cout << "master node stopped\n";
 
-   ifstream ifs("slaves.list");
+   ifstream ifs("../conf/slaves.list");
 
    if (ifs.bad() || ifs.fail())
    {
