@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/07/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -197,8 +197,10 @@ void* Slave::SPEHandler(void* p)
    SPEDestination dest;
    if (buckets > 0)
    {
+      if (self->m_DataChn.recv4(ip, dataport, transid, dest.m_iLocNum) < 0)
+         return NULL;
       dest.m_pcOutputLoc = NULL;
-      int len = buckets * 76;
+      int len = dest.m_iLocNum * 76;
       if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
          return NULL;
    }
@@ -416,11 +418,12 @@ void* Slave::SPEHandler(void* p)
    delete [] param;
 
    multimap<int64_t, Address> sndspd;
-   for (std::map<Address, Transport*, AddrComp>::iterator i = dest.m_mOutputChn.begin(); i != dest.m_mOutputChn.end(); ++ i)
+   for (int i = 0; i < dest.m_iLocNum; ++ i)
    {
-      sndspd.insert(pair<int64_t, Address>(i->second->getRealSndSpeed(), i->first));
-      //i->second->close();
-      delete i->second;
+      Address addr;
+      addr.m_strIP = dest.m_pcOutputLoc + i * 76;
+      addr.m_iPort = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 64);
+      sndspd.insert(pair<int64_t, Address>(self->m_DataChn.getRealSndSpeed(addr.m_strIP, addr.m_iPort), addr));
    }
    vector<Address> bad;
    self->checkBadDest(sndspd, bad);
@@ -446,10 +449,13 @@ void* Slave::SPEShuffler(void* p)
    pthread_mutex_init(bqlock, NULL);
    pthread_cond_t* bqcond = new pthread_cond_t;
    pthread_cond_init(bqcond, NULL);
+   int64_t* pendingSize = new int64_t;
+   *pendingSize = 0;
 
    ((Param5*)p)->bq = bq;
    ((Param5*)p)->bqlock = bqlock;
    ((Param5*)p)->bqcond = bqcond;
+   ((Param5*)p)->pending = pendingSize;
 
    pthread_t ex;
    pthread_create(&ex, NULL, SPEShufflerEx, p);
@@ -470,7 +476,8 @@ void* Slave::SPEShuffler(void* p)
       if ((speip == client_ip) && (speport == client_port))
       {
          Bucket b;
-         b.bucketid = -1;
+         b.totalnum = -1;
+         b.totalsize = 0;
          pthread_mutex_lock(bqlock);
          bq->push(b);
          pthread_cond_signal(bqcond);
@@ -479,14 +486,16 @@ void* Slave::SPEShuffler(void* p)
          break;
       }
 
-      int bucket = *(int32_t*)msg.getData();
-      int srcport = *(int32_t*)(msg.getData() + 4);
-      int session = *(int32_t*)(msg.getData() + 8);
+      int srcport = *(int32_t*)msg.getData();
+      int session = *(int32_t*)(msg.getData() + 4);
+      int totalnum = *(int32_t*)(msg.getData() + 8);
+      int totalsize = *(int32_t*)(msg.getData() + 12);
 
-      // TODO: this size of bucket queue might need to be set dynamically
-      if (bq->size() > 256)
+      if (*pendingSize > 256000000)
       {
          // too many incoming results, ask the sender to wait
+         // the receiver buffer size threshold is set to 256MB. This prevents the shuffler from being overflowed
+         // it also helps direct the traffic to less congested shuffer and leads to better load balance
          msg.setType(-msg.getType());
          gmp->sendto(speip, speport, msgid, &msg);
       }
@@ -497,13 +506,15 @@ void* Slave::SPEShuffler(void* p)
          self->m_DataChn.connect(speip, srcport);
 
          Bucket b;
-         b.bucketid = bucket;
+         b.totalnum = totalnum;
+         b.totalsize = totalsize;
          b.src_ip = speip;
          b.src_dataport = srcport;
          b.session = session;
 
          pthread_mutex_lock(bqlock);
          bq->push(b);
+         *pendingSize += b.totalsize;
          pthread_cond_signal(bqcond);
          pthread_mutex_unlock(bqlock);
       }
@@ -531,6 +542,7 @@ void* Slave::SPEShufflerEx(void* p)
    queue<Bucket>* bq = ((Param5*)p)->bq;
    pthread_mutex_t* bqlock = ((Param5*)p)->bqlock;
    pthread_cond_t* bqcond = ((Param5*)p)->bqcond;
+   int64_t* pendingSize = ((Param5*)p)->pending;
    delete (Param5*)p;
 
    self->createDir(path);
@@ -560,58 +572,64 @@ void* Slave::SPEShufflerEx(void* p)
          pthread_cond_wait(bqcond, bqlock);
       Bucket b = bq->front();
       bq->pop();
+      *pendingSize -= b.totalsize;
       pthread_mutex_unlock(bqlock);
 
-      if (b.bucketid == -1)
+      if (b.totalnum == -1)
          break;
 
-      int bucket = b.bucketid;
       string speip = b.src_ip;
       int srcport = b.src_dataport;
       int session = b.session;
-      fileid.insert(bucket);
 
-      char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
-      sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
-      ofstream datafile(tmp, ios::app);
-      sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
-      ofstream indexfile(tmp, ios::app);
-      delete [] tmp;
-      int64_t start = offset[bucket];
-      if (0 == start)
-         indexfile.write((char*)&start, 8);
+      for (int i = 0; i < b.totalnum; ++ i)
+      {
+         int bucket = 0;
+         if (self->m_DataChn.recv4(speip, srcport, session, bucket) < 0)
+            continue;
 
-      int32_t len;
-      char* data = NULL;
-      if (self->m_DataChn.recv(speip, srcport, session, data, len) < 0)
-         continue;
-      datafile.write(data, len);
-      delete [] data;
+         fileid.insert(bucket);
+
+         char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
+         sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
+         ofstream datafile(tmp, ios::app);
+         sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
+         ofstream indexfile(tmp, ios::app);
+         delete [] tmp;
+         int64_t start = offset[bucket];
+         if (0 == start)
+            indexfile.write((char*)&start, 8);
+
+         int32_t len;
+         char* data = NULL;
+         if (self->m_DataChn.recv(speip, srcport, session, data, len) < 0)
+            continue;
+         datafile.write(data, len);
+         delete [] data;
+
+         tmp = NULL;
+         if (self->m_DataChn.recv(speip, srcport, session, tmp, len) < 0)
+            continue;
+         int64_t* index = (int64_t*)tmp;
+         for (int i = 0; i < len / 8; ++ i)
+            index[i] += start;
+         offset[bucket] = index[len / 8 - 1];
+         indexfile.write(tmp, len);
+         delete [] tmp;
+
+         datafile.close();
+         indexfile.close();
+      }
 
       // update total received data
-      self->m_SlaveStat.updateIO(speip, len, 0);
-
-      tmp = NULL;
-      if (self->m_DataChn.recv(speip, srcport, session, tmp, len) < 0)
-         continue;
-      int64_t* index = (int64_t*)tmp;
-      for (int i = 0; i < len / 8; ++ i)
-         index[i] += start;
-      offset[bucket] = index[len / 8 - 1];
-      indexfile.write(tmp, len);
-      delete [] tmp;
-
-      // update total received data
-      self->m_SlaveStat.updateIO(speip, len, 0);
-
-      datafile.close();
-      indexfile.close();
+      self->m_SlaveStat.updateIO(speip, b.totalsize, 0);
    }
 
    pthread_mutex_destroy(bqlock);
    pthread_cond_destroy(bqcond);
    delete bqlock;
    delete bqcond;
+   delete pendingSize;
 
    // sort and reduce
    if (type == 1)
@@ -854,35 +872,51 @@ int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* 
    return 0;
 }
 
-int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations)
+int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, const SPEDestination& dest)
 {
-   set<int> tosend;
+   map<int, set<int> > ResByLoc;
+   map<int, int> SizeByLoc;
+
+   for (int i = 0; i < dest.m_iLocNum; ++ i)
+   {
+      set<int> tmp;
+      ResByLoc[i] = tmp;
+      SizeByLoc[i] = 0;
+   }
+
    for (int r = 0; r < buckets; ++ r)
    {
+      int i = r % dest.m_iLocNum;
       if (0 != result.m_vDataLen[r])
-         tosend.insert(r);
+      {
+         ResByLoc[i].insert(r);
+         SizeByLoc[i] += result.m_vDataLen[r] + (result.m_vIndexLen[r] - 1) * 8;
+      }
    }
 
    unsigned int tn = 0;
-   set<int>::iterator p = tosend.begin();
+   map<int, set<int> >::iterator p = ResByLoc.begin();
 
-   while(!tosend.empty())
+   while(!ResByLoc.empty())
    {
-      int i = *p;
-      if (++ p == tosend.end())
-         p = tosend.begin();
+      int i = p->first;
+      if (++ p == ResByLoc.end())
+         p = ResByLoc.begin();
 
-      char* dstip = locations + i * 76;
-      int32_t dstport = *(int32_t*)(locations + i * 76 + 64);
-      int32_t shufflerport = *(int32_t*)(locations + i * 76 + 68);
-      int32_t session = *(int32_t*)(locations + i * 76 + 72);
+      char* dstip = dest.m_pcOutputLoc + i * 76;
+      int32_t dstport = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 64);
+      int32_t shufflerport = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 68);
+      int32_t session = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 72);
 
       SectorMsg msg;
-      msg.setData(0, (char*)&i, 4);
       int32_t srcport = m_DataChn.getPort();
-      msg.setData(4, (char*)&srcport, 4);
-      msg.setData(8, (char*)&session, 4);
-      msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
+      msg.setData(0, (char*)&srcport, 4);
+      msg.setData(4, (char*)&session, 4);
+      int totalnum = ResByLoc[i].size();
+      msg.setData(8, (char*)&totalnum, 4);
+      int totalsize = SizeByLoc[i];
+      msg.setData(12, (char*)&totalsize, 4);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize + 16;
 
       msg.setType(1);
       if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
@@ -891,10 +925,10 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       if (msg.getType() < 0)
       {
          // if all shufflers are busy, wait here a little while
-         if (tn ++ > tosend.size())
+         if (tn ++ > ResByLoc.size())
          {
             tn = 0;
-            usleep(10);
+            usleep(100000);
          }
          continue;
       }
@@ -902,13 +936,19 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       if (m_DataChn.connect(dstip, dstport) < 0)
          return -1;
 
-      m_DataChn.send(dstip, dstport, session, result.m_vData[i], result.m_vDataLen[i]);
-      m_DataChn.send(dstip, dstport, session, (char*)(result.m_vIndex[i] + 1), (result.m_vIndexLen[i] - 1) * 8);
+      for (set<int>::iterator r = ResByLoc[i].begin(); r != ResByLoc[i].end(); ++ r)
+      {
+         int32_t id = *r;
+         m_DataChn.send(dstip, dstport, session, (char*)&id, 4);
+         m_DataChn.send(dstip, dstport, session, result.m_vData[id], result.m_vDataLen[id]);
+         m_DataChn.send(dstip, dstport, session, (char*)(result.m_vIndex[id] + 1), (result.m_vIndexLen[id] - 1) * 8);
+      }
 
       // update total sent data
-      m_SlaveStat.updateIO(dstip, result.m_vDataLen[i] + (result.m_vIndexLen[i] - 1) * 8, 1);
+      m_SlaveStat.updateIO(dstip, SizeByLoc[i], 1);
 
-      tosend.erase(i);
+      ResByLoc.erase(i);
+      SizeByLoc.erase(i);
    }
 
    return 1;
@@ -1211,7 +1251,7 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
    if (buckets == -1)
       ret = sendResultToFile(result, dest.m_strLocalFile + dest.m_pcLocalFileID, dest.m_piSArray[0]);
    else if (buckets > 0)
-      ret = sendResultToBuckets(speid, buckets, result, dest.m_pcOutputLoc);
+      ret = sendResultToBuckets(speid, buckets, result, dest);
 
    for (int b = 0; b < buckets; ++ b)
    {

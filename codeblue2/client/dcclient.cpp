@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -827,7 +827,11 @@ int SphereProcess::connectSPE(SPE& s)
    // send output information
    g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&m_iOutputType, 4);
    if (m_iOutputType > 0)
-      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, m_pOutput->m_iFileNum * 76);
+   {
+      int bnum = m_mBucket.size();
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&bnum, 4);
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, bnum * 76);
+   }
    else if (m_iOutputType < 0)
       g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, strlen(m_pOutputLoc) + 1);
 
@@ -929,8 +933,6 @@ int SphereProcess::prepareOutput(const char* spenodes)
    // prepare output stream locations
    if (m_iOutputType > 0)
    {
-      m_pOutputLoc = new char[m_pOutput->m_iFileNum * 76];
-
       SectorMsg msg;
       msg.setType(204);
       msg.setKey(g_iKey);
@@ -977,6 +979,7 @@ int SphereProcess::prepareOutput(const char* spenodes)
          m_mBucket[b.m_iID] = b;
       }
 
+      // result locations
       map<int, BUCKET>::iterator b = m_mBucket.begin();
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
       {
@@ -990,13 +993,20 @@ int SphereProcess::prepareOutput(const char* spenodes)
          loc.m_iPort = b->second.m_iPort;
          m_pOutput->m_vLocation[i].insert(loc);
 
-         strcpy(m_pOutputLoc + i * 76, b->second.m_strIP.c_str());
-         *(int32_t*)(m_pOutputLoc + i * 76 + 64) = b->second.m_iDataPort;
-         *(int32_t*)(m_pOutputLoc + i * 76 + 68) = b->second.m_iShufflerPort;
-         *(int32_t*)(m_pOutputLoc + i * 76 + 72) = b->second.m_iSession;
-
          if (++ b == m_mBucket.end())
             b = m_mBucket.begin();
+      }
+
+      // bucket locations: result will be sent to bucket_id % m_mBucket.size()
+      m_pOutputLoc = new char[m_mBucket.size() * 76];
+      int l = 0;
+      for (b = m_mBucket.begin(); b != m_mBucket.end(); ++ b)
+      {
+         strcpy(m_pOutputLoc + l * 76, b->second.m_strIP.c_str());
+         *(int32_t*)(m_pOutputLoc + l * 76 + 64) = b->second.m_iDataPort;
+         *(int32_t*)(m_pOutputLoc + l * 76 + 68) = b->second.m_iShufflerPort;
+         *(int32_t*)(m_pOutputLoc + l * 76 + 72) = b->second.m_iSession;
+         ++ l;
       }
    }
    else if (m_iOutputType < 0)

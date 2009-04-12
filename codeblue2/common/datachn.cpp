@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
 *****************************************************************************/
 
 #include <pthread.h>
@@ -573,4 +573,13 @@ int DataChn::recv8(const std::string& ip, int port, int session, int64_t& val)
    val = *(int64_t*)buf;
    delete [] buf;
    return 8;
+}
+
+int64_t DataChn::getRealSndSpeed(const std::string& ip, int port)
+{
+   ChnInfo* c = locate(ip, port);
+   if ((NULL == c) || (NULL == c->m_pTrans))
+      return -1;
+
+   return c->m_pTrans->getRealSndSpeed();
 }

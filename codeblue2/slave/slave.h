@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/04/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
 *****************************************************************************/
 
 
@@ -82,8 +82,8 @@ public:
    int* m_piRArray;
    string m_strLocalFile;
    char m_pcLocalFileID[64];
+   int m_iLocNum;
    char* m_pcOutputLoc;
-   map<Address, Transport*, AddrComp> m_mOutputChn;
 };
 
 struct MRRecord
@@ -193,7 +193,8 @@ private:
 
    struct Bucket
    {
-      int bucketid;
+      int totalnum;
+      int totalsize;
       string src_ip;
       int src_dataport;
       int session;
@@ -219,6 +220,7 @@ private:
       std::queue<Bucket>* bq;
       pthread_mutex_t* bqlock;
       pthread_cond_t* bqcond;
+      int64_t* pending;
    };
 
    static void* fileHandler(void* p2);
@@ -230,7 +232,7 @@ private:
 private:
    int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
    int sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset);
-   int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, char* locations);
+   int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, const SPEDestination& dest);
    int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, const string& clientip, int clientport, int session);
 
    int acceptLibrary(const int& key, const string& ip, int port, int session);

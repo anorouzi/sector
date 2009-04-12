@@ -60,6 +60,8 @@ public:
    int recv4(const std::string& ip, int port, int session, int32_t& val);
    int recv8(const std::string& ip, int port, int session, int64_t& val);
 
+   int64_t getRealSndSpeed(const std::string& ip, int port);
+
 private:
    struct RcvData
    {
