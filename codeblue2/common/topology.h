@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/08/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
 *****************************************************************************/
 
 
@@ -40,7 +40,6 @@ struct Address
 {
    std::string m_strIP;
    unsigned short int m_iPort;
-   std::string m_strInfo;		// additional information, such as 2nd IP address
 };
 
 struct AddrComp
@@ -123,6 +122,15 @@ public:
    int lookup(const char* ip, std::vector<int>& path);
 
    unsigned int match(std::vector<int>& p1, std::vector<int>& p2);
+
+      // Functionality:
+      //    compute the distance between two IP addresses.
+      // Parameters:
+      //    0) [in] ip1: first IP address
+      //    1) [in] ip2: second IP address
+      // Returned value:
+      //    0 if ip1 = ip2, 1 if on the same rack, etc.
+
    unsigned int distance(const char* ip1, const char* ip2);
    unsigned int distance(const Address& addr, const std::set<Address, AddrComp>& loclist);
 

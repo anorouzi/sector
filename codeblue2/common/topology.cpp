@@ -192,14 +192,20 @@ unsigned int Topology::match(vector<int>& p1, vector<int>& p2)
 
 unsigned int Topology::distance(const char* ip1, const char* ip2)
 {
+   if (strcmp(ip1, ip2) == 0)
+      return 0;
+
    vector<int> p1, p2;
    lookup(ip1, p1);
    lookup(ip2, p2);
-   return m_uiLevel - match(p1, p2);
+   return m_uiLevel - match(p1, p2) + 1;
 }
 
 unsigned int Topology::distance(const Address& addr, const set<Address, AddrComp>& loclist)
 {
+   if (loclist.find(addr) != loclist.end())
+      return 0;
+
    unsigned int dist = 1000000000;
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {

@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -341,6 +341,10 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    m_iRows = rows;
    m_iOutputType = m_pOutput->m_iFileNum;
 
+   // when processing files, data will not be moved
+   if (rows == 0)
+      m_bDataMove = false;
+
    m_mpDS.clear();
    m_mBucket.clear();
    m_mSPE.clear();
@@ -376,7 +380,11 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    if (m_iOutputType == -1)
       m_pOutput->init(m_mpDS.size());
 
-   prepareOutput(msg.getData());
+   if (prepareOutput(msg.getData()) < 0)
+   {
+      cerr << "fail to locate any shufflers.\n";
+      return -1;
+   }
 
    m_iProgress = 0;
    m_iAvgRunTime = -1;
@@ -543,6 +551,9 @@ int SphereProcess::checkSPE()
          for (int i = 0; i < rs; ++ i)
             ++ d;
 
+         unsigned int MinDist = 1000000000;
+         unsigned int MinLoc = 1000000000;
+
          for (int i = 0, n = m_mpDS.size(); i < n; ++ i)
          {
             if (++ d == m_mpDS.end())
@@ -551,25 +562,36 @@ int SphereProcess::checkSPE()
             if (0 != d->second->m_iStatus)
                continue;
 
-            unsigned int distance = 1000000000;
+            unsigned int dist = Client::g_Topology.distance(sn, *(d->second->m_pLoc));
 
-            if (d->second->m_pLoc->find(sn) != d->second->m_pLoc->end())
+            if (dist < MinDist)
             {
+               // find nearest data segment
                dss = d;
-               break;
+               MinDist = dist;
+               MinLoc = d->second->m_pLoc->size();
             }
-            else if ((0 != m_iRows) && (m_bDataMove))
+            else if (dist == MinDist)
             {
-               // if a file is processed via pass by filename, it must be processed on its original location
-               // also, this depends on if the source data is allowed to move
-               // process data on the nearest node first
-               unsigned int tmp = Client::g_Topology.distance(sn, *(d->second->m_pLoc));
-               if (tmp < distance)
+               if (d->second->m_pLoc->size() < MinLoc)
                {
-                  distance = tmp;
+                  // for same distrance, process DS with less copies first
                   dss = d;
+                  MinLoc = d->second->m_pLoc->size();
+               }
+               else if (d->second->m_pLoc->size() == MinLoc)
+               {
+                  // process data file with the slower progress first
                }
             }
+         }
+
+         if ((MinDist != 0) && !m_bDataMove)
+         {
+            // if a file is processed via pass by filename, it must be processed on its original location
+            // also, this depends on if the source data is allowed to move
+
+            dss = m_mpDS.end();
          }
 
          if (dss != m_mpDS.end())
@@ -814,7 +836,7 @@ int SphereProcess::connectSPE(SPE& s)
 
    if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
-      cerr << "failed: " << s.m_strIP << " " << s.m_iPort << endl;
+      cerr << "failed to connect SPE " << s.m_strIP << " " << s.m_iPort << endl;
       return -1;
    }
 
@@ -830,7 +852,7 @@ int SphereProcess::connectSPE(SPE& s)
    {
       int bnum = m_mBucket.size();
       g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&bnum, 4);
-      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, bnum * 76);
+      g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, bnum * 80);
    }
    else if (m_iOutputType < 0)
       g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, strlen(m_pOutputLoc) + 1);
@@ -979,6 +1001,9 @@ int SphereProcess::prepareOutput(const char* spenodes)
          m_mBucket[b.m_iID] = b;
       }
 
+      if (m_mBucket.empty())
+         return -1;
+
       // result locations
       map<int, BUCKET>::iterator b = m_mBucket.begin();
       for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
@@ -998,14 +1023,15 @@ int SphereProcess::prepareOutput(const char* spenodes)
       }
 
       // bucket locations: result will be sent to bucket_id % m_mBucket.size()
-      m_pOutputLoc = new char[m_mBucket.size() * 76];
+      m_pOutputLoc = new char[m_mBucket.size() * 80];
       int l = 0;
       for (b = m_mBucket.begin(); b != m_mBucket.end(); ++ b)
       {
-         strcpy(m_pOutputLoc + l * 76, b->second.m_strIP.c_str());
-         *(int32_t*)(m_pOutputLoc + l * 76 + 64) = b->second.m_iDataPort;
-         *(int32_t*)(m_pOutputLoc + l * 76 + 68) = b->second.m_iShufflerPort;
-         *(int32_t*)(m_pOutputLoc + l * 76 + 72) = b->second.m_iSession;
+         strcpy(m_pOutputLoc + l * 80, b->second.m_strIP.c_str());
+         *(int32_t*)(m_pOutputLoc + l * 80 + 64) = b->second.m_iPort;
+         *(int32_t*)(m_pOutputLoc + l * 80 + 68) = b->second.m_iDataPort;
+         *(int32_t*)(m_pOutputLoc + l * 80 + 72) = b->second.m_iShufflerPort;
+         *(int32_t*)(m_pOutputLoc + l * 80 + 76) = b->second.m_iSession;
          ++ l;
       }
    }

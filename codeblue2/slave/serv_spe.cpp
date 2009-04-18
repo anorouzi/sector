@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -134,6 +134,7 @@ void SPEResult::clear()
 SPEDestination::SPEDestination():
 m_piSArray(NULL),
 m_piRArray(NULL),
+m_iLocNum(0),
 m_pcOutputLoc(NULL)
 {
 }
@@ -162,6 +163,16 @@ void SPEDestination::init(const int& buckets)
    }
 }
 
+void SPEDestination::reset(const int& buckets)
+{
+   if (buckets > 0)
+   {
+      for (int i = 0; i < buckets; ++ i)
+         m_piSArray[i] = m_piRArray[i] = 0;
+   }
+   else
+      m_piSArray[0] = m_piRArray[0] = 0;
+}
 
 void* Slave::SPEHandler(void* p)
 {
@@ -199,14 +210,12 @@ void* Slave::SPEHandler(void* p)
    {
       if (self->m_DataChn.recv4(ip, dataport, transid, dest.m_iLocNum) < 0)
          return NULL;
-      dest.m_pcOutputLoc = NULL;
-      int len = dest.m_iLocNum * 76;
+      int len = dest.m_iLocNum * 80;
       if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
          return NULL;
    }
    else if (buckets < 0)
    {
-      dest.m_pcOutputLoc = NULL;
       int32_t len;
       if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
          return NULL;
@@ -329,9 +338,9 @@ void* Slave::SPEHandler(void* p)
          input.m_iRows = unitrows;
          input.m_pllIndex = index + i;
 
+         //TODO: check processdata return value
          self->processData(input, output, file, result, buckets, process, map, partition);
 
-         // TODO: the size of buffer 128MB might need to be set dynamically
          if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
@@ -363,6 +372,7 @@ void* Slave::SPEHandler(void* p)
 
          for (int i = 0; (i == 0) || (output.m_llOffset > 0); ++ i)
          {
+            //TODO: check process data return value
             self->processData(input, output, file, result, buckets, process, map, partition);
 
             if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
@@ -392,6 +402,7 @@ void* Slave::SPEHandler(void* p)
       {
          cout << "sending data back... " << buckets << endl;
          self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, ip, dataport, transid);
+         dest.reset(buckets);
 
          // report new files
          for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
@@ -421,9 +432,10 @@ void* Slave::SPEHandler(void* p)
    for (int i = 0; i < dest.m_iLocNum; ++ i)
    {
       Address addr;
-      addr.m_strIP = dest.m_pcOutputLoc + i * 76;
-      addr.m_iPort = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 64);
-      sndspd.insert(pair<int64_t, Address>(self->m_DataChn.getRealSndSpeed(addr.m_strIP, addr.m_iPort), addr));
+      addr.m_strIP = dest.m_pcOutputLoc + i * 80;
+      addr.m_iPort = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 64);
+      int dataport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 68);
+      sndspd.insert(pair<int64_t, Address>(self->m_DataChn.getRealSndSpeed(addr.m_strIP, dataport), addr));
    }
    vector<Address> bad;
    self->checkBadDest(sndspd, bad);
@@ -903,10 +915,10 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       if (++ p == ResByLoc.end())
          p = ResByLoc.begin();
 
-      char* dstip = dest.m_pcOutputLoc + i * 76;
-      int32_t dstport = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 64);
-      int32_t shufflerport = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 68);
-      int32_t session = *(int32_t*)(dest.m_pcOutputLoc + i * 76 + 72);
+      char* dstip = dest.m_pcOutputLoc + i * 80;
+      int32_t dstport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 68);
+      int32_t shufflerport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 72);
+      int32_t session = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 76);
 
       SectorMsg msg;
       int32_t srcport = m_DataChn.getPort();
@@ -1284,8 +1296,6 @@ int Slave::checkBadDest(multimap<int64_t, Address>& sndspd, vector<Address>& bad
       if (i->first > (median / 2))
          return bad.size();
 
-      // replace the shuffler port with the real slave node port
-      i->second.m_iPort = atoi(i->second.m_strInfo.c_str());
       bad.push_back(i->second);
       locpos ++;
    }

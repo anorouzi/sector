@@ -76,6 +76,7 @@ public:
 
 public:
    void init(const int& buckets);
+   void reset(const int& buckets);
 
 public:
    int* m_piSArray;

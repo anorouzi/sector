@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/10/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -162,7 +162,7 @@ int Master::init()
 
 
    // load slave list and addresses
-   loadSlaveAddr("slaves.list");
+   loadSlaveAddr("../conf/slaves.list");
 
    // add "slave" as a special user
    m_mActiveUser.clear();
@@ -1322,7 +1322,7 @@ void* Master::process(void* s)
             if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
             {
                self->reject(ip, port, id, SectorError::E_RESOURCE);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SALVE FAILURE", "");
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SLAVE FAILURE", "");
                break;
             }
 

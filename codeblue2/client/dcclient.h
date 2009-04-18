@@ -117,7 +117,7 @@ public:
    inline void setMinUnitSize(int size) {m_iMinUnitSize = size;}
    inline void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}
    inline void setProcNumPerNode(int num) {m_iCore = num;}
-   inline void setDataMoveAttr(bool move) {}
+   inline void setDataMoveAttr(bool move) {m_bDataMove = move;}
 
 private:
    int m_iProcType;			// 0: sphere 1: mapreduce
