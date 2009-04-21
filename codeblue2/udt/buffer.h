@@ -73,7 +73,7 @@ public:
       // Returned value:
       //    actual size of data added from the file.
 
-   int addBufferFromFile(std::ifstream& ifs, const int& len);
+   int addBufferFromFile(std::fstream& ifs, const int& len);
 
       // Functionality:
       //    Find data position to pack a DATA packet from the furthest reading point.
@@ -190,7 +190,7 @@ public:
       // Returned value:
       //    size of data read.
 
-   int readBufferToFile(std::ofstream& file, const int& len);
+   int readBufferToFile(std::fstream& file, const int& len);
 
       // Functionality:
       //    Update the ACK point of the buffer.

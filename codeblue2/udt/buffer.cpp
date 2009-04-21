@@ -158,7 +158,7 @@ void CSndBuffer::addBuffer(const char* data, const int& len, const int& ttl, con
    m_iNextMsgNo ++;
 }
 
-int CSndBuffer::addBufferFromFile(ifstream& ifs, const int& len)
+int CSndBuffer::addBufferFromFile(fstream& ifs, const int& len)
 {
    int size = len / m_iMSS;
    if ((len % m_iMSS) != 0)
@@ -416,7 +416,7 @@ int CRcvBuffer::readBuffer(char* data, const int& len)
    return len - rs;
 }
 
-int CRcvBuffer::readBufferToFile(ofstream& file, const int& len)
+int CRcvBuffer::readBufferToFile(fstream& file, const int& len)
 {
    int p = m_iStartPos;
    int lastack = m_iLastAckPos;

@@ -136,7 +136,7 @@ int64_t SectorFile::write(const char* buf, const int64_t& size)
 int SectorFile::download(const char* localpath, const bool& cont)
 {
    int64_t offset;
-   ofstream ofs;
+   fstream ofs;
 
    if (cont)
    {
@@ -188,7 +188,7 @@ int SectorFile::download(const char* localpath, const bool& cont)
 
 int SectorFile::upload(const char* localpath, const bool& cont)
 {
-   ifstream ifs;
+   fstream ifs;
    ifs.open(localpath, ios::in | ios::binary);
 
    if (ifs.fail() || ifs.bad())

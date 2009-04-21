@@ -53,6 +53,7 @@ int main(int argc, char *argv[])
    sector_ops.mknod = SectorFS::mknod;
    sector_ops.mkdir = SectorFS::mkdir;
    sector_ops.unlink = SectorFS::unlink;
+   sector_ops.rmdir = SectorFS::rmdir;
    sector_ops.rename = SectorFS::rename;
    sector_ops.statfs = SectorFS::statfs;
    sector_ops.readdir = SectorFS::readdir;

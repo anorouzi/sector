@@ -100,35 +100,26 @@ void* Slave::fileHandler(void* p)
       if (self->m_DataChn.recv4(src_ip, src_port, transid, cmd) < 0)
          break;
 
-      ifstream ifs;
-      ofstream ofs;
+      fstream fhandle;
 
       if (5 != cmd)
       {
-         int32_t response = -1;
+         int32_t response = 0;
 
-         if (((2 == cmd) || (4 == cmd)) && bWrite)
-         {
-            ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-            if (!ofs.fail() && !ofs.bad())
-               response = 0;
-         }
-         else if (((1 == cmd) || (3 == cmd)) && bRead)
-         {
-            ifs.open(filename.c_str(), ios::in | ios::binary);
-            if (!ifs.fail() && !ifs.bad())
-               response = 0;
-         }
+         if (((2 == cmd) || (4 == cmd)) && !bWrite)
+            response = -1;
+         else if (((1 == cmd) || (3 == cmd)) && !bRead)
+            response = -1;
+
+         fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
+         if (fhandle.fail() || fhandle.bad())
+            response = -1;
+
+         if (-1 == response)
+            break;
 
          if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
             break;
-
-         if (-1 == response)
-         {
-            ifs.close();
-            ofs.close();
-            break;
-         }
       }
 
       switch (cmd)
@@ -146,13 +137,12 @@ void* Slave::fileHandler(void* p)
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
 
-            if (self->m_DataChn.sendfile(src_ip, src_port, transid, ifs, offset, size, bSecure) < 0)
+            if (self->m_DataChn.sendfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
                run = false;
 
             // update total sent data size
             self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 1 : 3);
 
-            ifs.close();
             break;
          }
 
@@ -169,7 +159,7 @@ void* Slave::fileHandler(void* p)
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
 
-            if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset, size, bSecure) < 0)
+            if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
                run = false;
             else
                wb += size;
@@ -179,8 +169,6 @@ void* Slave::fileHandler(void* p)
 
             if (change != 1)
                change = 2;
-
-            ofs.close();
 
             if (dst_port > 0)
             {
@@ -197,9 +185,7 @@ void* Slave::fileHandler(void* p)
                if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
                   break;
 
-               ifs.open(filename.c_str());
-               self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset, size);
-               ifs.close();
+               self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset, size);
             }
 
             break;
@@ -214,9 +200,9 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
-            ifs.seekg(0, ios::end);
-            int64_t size = (int64_t)(ifs.tellg());
-            ifs.seekg(0, ios::beg);
+            fhandle.seekg(0, ios::end);
+            int64_t size = (int64_t)(fhandle.tellg());
+            fhandle.seekg(0, ios::beg);
 
             size -= offset;
 
@@ -226,7 +212,7 @@ void* Slave::fileHandler(void* p)
             while (tosend > 0)
             {
                int64_t block = (tosend < unit) ? tosend : unit;
-               if (self->m_DataChn.sendfile(src_ip, src_port, transid, ifs, offset + sent, block, bSecure) < 0)
+               if (self->m_DataChn.sendfile(src_ip, src_port, transid, fhandle, offset + sent, block, bSecure) < 0)
                {
                   run = false;
                   break;
@@ -241,7 +227,6 @@ void* Slave::fileHandler(void* p)
             // update total sent data size
             self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 1 : 3);
 
-            ifs.close();
             break;
          }
 
@@ -259,20 +244,15 @@ void* Slave::fileHandler(void* p)
             int64_t torecv = size;
             int64_t recd = 0;
 
-            // previously openned, closed here
-            ofs.close();
-
             while (torecv > 0)
             {
                int64_t block = (torecv < unit) ? torecv : unit;
 
-               ofs.open(filename.c_str(), ios::out | ios::binary | ios::app);
-               if (self->m_DataChn.recvfile(src_ip, src_port, transid, ofs, offset + recd, block, bSecure) < 0)
+               if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, bSecure) < 0)
                {
                   run = false;
                   break;
                }
-               ofs.close();
 
                if (dst_port > 0)
                {
@@ -291,9 +271,7 @@ void* Slave::fileHandler(void* p)
                   if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
                      break;
 
-                  ifs.open(filename.c_str(), ios::in | ios::binary);
-                  self->m_DataChn.sendfile(dst_ip, dst_port, transid, ifs, offset + recd, block);
-                  ifs.close();
+                  self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset + recd, block);
                }
 
                recd += block;
@@ -325,6 +303,8 @@ void* Slave::fileHandler(void* p)
       default:
          break;
       }
+
+      fhandle.close();
    }
 
    gettimeofday(&t2, 0);
@@ -405,7 +385,7 @@ void* Slave::copy(void* p)
    //copy to .tmp first, then move to real location
    self->createDir(string(".tmp") + dst.substr(0, dst.rfind('/')));
 
-   ofstream ofs;
+   fstream ofs;
    ofs.open((self->m_strHomeDir + ".tmp" + dst).c_str(), ios::out | ios::binary | ios::trunc);
 
    int64_t unit = 64000000; //send 64MB each time

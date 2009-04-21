@@ -49,29 +49,29 @@ public:
    virtual ~Client();
 
 public:
-   static int init(const string& server, const int& port);
-   static int login(const string& username, const string& password, const char* cert = NULL);
+   static int init(const std::string& server, const int& port);
+   static int login(const std::string& username, const std::string& password, const char* cert = NULL);
    static int logout();
    static int close();
 
-   static int list(const string& path, vector<SNode>& attr);
-   static int stat(const string& path, SNode& attr);
-   static int mkdir(const string& path);
-   static int move(const string& oldpath, const string& newpath);
-   static int remove(const string& path);
-   static int copy(const string& src, const string& dst);
+   static int list(const std::string& path, std::vector<SNode>& attr);
+   static int stat(const std::string& path, SNode& attr);
+   static int mkdir(const std::string& path);
+   static int move(const std::string& oldpath, const std::string& newpath);
+   static int remove(const std::string& path);
+   static int copy(const std::string& src, const std::string& dst);
 
    static int sysinfo(SysStat& sys);
 
 public:
-   static int dataInfo(const vector<string>& files, vector<string>& info);
+   static int dataInfo(const std::vector<std::string>& files, std::vector<std::string>& info);
 
 protected:
-   static string revisePath(const string& path);
+   static std::string revisePath(const std::string& path);
 
 protected:
-   static string g_strServerHost;
-   static string g_strServerIP;
+   static std::string g_strServerHost;
+   static std::string g_strServerIP;
    static int g_iServerPort;
    static CGMP g_GMP;
    static DataChn g_DataChn;

@@ -604,9 +604,9 @@ void* Slave::SPEShufflerEx(void* p)
 
          char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
          sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
-         ofstream datafile(tmp, ios::app);
+         fstream datafile(tmp, ios::app);
          sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
-         ofstream indexfile(tmp, ios::app);
+         fstream indexfile(tmp, ios::app);
          delete [] tmp;
          int64_t start = offset[bucket];
          if (0 == start)
@@ -704,7 +704,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    //read index
    if (m_LocalFile.lookup(idxfile.c_str(), sn) > 0)
    {
-      ifstream idx;
+      fstream idx;
       idx.open((m_strHomeDir + idxfile).c_str());
       idx.seekg(offset * 8);
       idx.read((char*)index, (totalrows + 1) * 8);
@@ -772,7 +772,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    // read data file
    if (m_LocalFile.lookup(datafile.c_str(), sn) > 0)
    {
-      ifstream ifs;
+      fstream ifs;
       ifs.open((m_strHomeDir + datafile).c_str());
       ifs.seekg(index[0]);
       ifs.read(block, size);
@@ -839,7 +839,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
 int Slave::sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset)
 {
-   ofstream datafile, idxfile;
+   fstream datafile, idxfile;
    datafile.open((m_strHomeDir + localfile).c_str(), ios::app);
    idxfile.open((m_strHomeDir + localfile + ".idx").c_str(), ios::app);
 
@@ -987,7 +987,7 @@ int Slave::acceptLibrary(const int& key, const string& ip, int port, int session
       {
          ::mkdir(path, S_IRWXU);
 
-         ofstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
+         fstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
          ofs.write(buf, size);
          ofs.close();
 
@@ -1068,7 +1068,7 @@ int Slave::closeLibrary(void* lh)
 
 int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
 {
-   ifstream ifs(bucket.c_str());
+   fstream ifs(bucket.c_str());
    if (ifs.fail())
       return -1;
 
@@ -1111,8 +1111,8 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    if (red != NULL)
       reduce(vr, bucket, red, NULL, 0);
 
-   ofstream sorted((bucket + ".sorted").c_str(), ios::trunc);
-   ofstream sortedidx((bucket + ".sorted.idx").c_str(), ios::trunc);
+   fstream sorted((bucket + ".sorted").c_str(), ios::trunc);
+   fstream sortedidx((bucket + ".sorted.idx").c_str(), ios::trunc);
    offset = 0;
    sortedidx.write((char*)&offset, 8);
    for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end(); ++ i)
@@ -1157,8 +1157,8 @@ int Slave::reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, voi
    char* idata = new char[256000000];
    int64_t* iidx = new int64_t[1000000];
 
-   ofstream reduced((bucket + ".reduced").c_str(), ios::trunc);
-   ofstream reducedidx((bucket + ".reduced.idx").c_str(), ios::trunc);
+   fstream reduced((bucket + ".reduced").c_str(), ios::trunc);
+   fstream reducedidx((bucket + ".reduced.idx").c_str(), ios::trunc);
    int64_t roff = 0;
 
    for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end();)

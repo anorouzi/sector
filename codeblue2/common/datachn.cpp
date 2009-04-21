@@ -371,7 +371,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
    return -1;
 }
 
-int64_t DataChn::sendfile(const string& ip, int port, int session, ifstream& ifs, int64_t offset, int64_t size, bool secure)
+int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs, int64_t offset, int64_t size, bool secure)
 {
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
@@ -403,7 +403,7 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, ifstream& ifs
    return size;
 }
 
-int64_t DataChn::recvfile(const string& ip, int port, int session, ofstream& ofs, int64_t offset, int64_t& size, bool secure)
+int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs, int64_t offset, int64_t& size, bool secure)
 {
    ChnInfo* c = locate(ip, port);
    if (NULL == c)

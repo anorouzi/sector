@@ -45,20 +45,20 @@ public:
    ~SphereStream();
 
 public:
-   int init(const vector<string>& files);
+   int init(const std::vector<std::string>& files);
 
    int init(const int& num);
-   void setOutputPath(const string& path, const string& name);
+   void setOutputPath(const std::string& path, const std::string& name);
 
 public:
-   string m_strPath;
-   string m_strName;
+   std::string m_strPath;
+   std::string m_strName;
 
    std::vector<std::string> m_vFiles;	// list of files
    std::vector<int64_t> m_vSize;	// size per file
    std::vector<int64_t> m_vRecNum;	// number of record per file
 
-   std::vector< set<Address, AddrComp> > m_vLocation;            // locations for each file
+   std::vector< std::set<Address, AddrComp> > m_vLocation;            // locations for each file
 
    int m_iFileNum;		// number of files
    int64_t m_llSize;		// total data size
@@ -101,8 +101,8 @@ public:
 
    int loadOperator(const char* library);
 
-   int run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param = NULL, const int& size = 0, const int& type = 0);
-   int run_mr(const SphereStream& input, SphereStream& output, const string& mr, const int& rows, const char* param = NULL, const int& size = 0);
+   int run(const SphereStream& input, SphereStream& output, const std::string& op, const int& rows, const char* param = NULL, const int& size = 0, const int& type = 0);
+   int run_mr(const SphereStream& input, SphereStream& output, const std::string& mr, const int& rows, const char* param = NULL, const int& size = 0);
 
    // rows:
    // 	n (n > 0): n rows per time
@@ -135,7 +135,7 @@ private:
    struct DS
    {
       int m_iID;				// DS ID
-      string m_strDataFile;			// input data file
+      std::string m_strDataFile;		// input data file
       int64_t m_llOffset;			// input data offset
       int64_t m_llSize;				// input data size
       int m_iSPEID;				// processing SPE

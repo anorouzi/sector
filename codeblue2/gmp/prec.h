@@ -51,11 +51,10 @@ written by
 
 #include <set>
 #include <string>
-using namespace std;
 
 struct CPeerRecord
 {
-   string m_strIP;
+   std::string m_strIP;
    int m_iPort;
    int m_iSession;
    int32_t m_iID;
@@ -102,15 +101,15 @@ public:
    ~CPeerManagement();
 
 public:
-   void insert(const string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1);
-   int getRTT(const string& ip);
-   int getLastID(const string& ip, const int& port, const int& session);
-   void clearRTT(const string& ip);
+   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1);
+   int getRTT(const std::string& ip);
+   int getLastID(const std::string& ip, const int& port, const int& session);
+   void clearRTT(const std::string& ip);
 
 private:
-   set<CPeerRecord*, CFPeerRec> m_sPeerRec;
-   set<CPeerRecord*, CFPeerRecByTS> m_sPeerRecByTS;
-   multiset<CPeerRecord*, CFPeerRecByIP> m_sPeerRecByIP;
+   std::set<CPeerRecord*, CFPeerRec> m_sPeerRec;
+   std::set<CPeerRecord*, CFPeerRecByTS> m_sPeerRecByTS;
+   std::multiset<CPeerRecord*, CFPeerRecByIP> m_sPeerRecByIP;
 
    pthread_mutex_t m_PeerRecLock;
 

@@ -58,12 +58,12 @@ public:
 public:
    int m_iBucketNum;
 
-   vector<int32_t> m_vIndexLen;
-   vector<int64_t*> m_vIndex;
-   vector<int32_t> m_vIndexPhyLen;
-   vector<int32_t> m_vDataLen;
-   vector<char*> m_vData;
-   vector<int32_t> m_vDataPhyLen;
+   std::vector<int32_t> m_vIndexLen;
+   std::vector<int64_t*> m_vIndex;
+   std::vector<int32_t> m_vIndexPhyLen;
+   std::vector<int32_t> m_vDataLen;
+   std::vector<char*> m_vData;
+   std::vector<int32_t> m_vDataPhyLen;
 
    int64_t m_llTotalDataSize;
 };
@@ -81,7 +81,7 @@ public:
 public:
    int* m_piSArray;
    int* m_piRArray;
-   string m_strLocalFile;
+   std::string m_strLocalFile;
    char m_pcLocalFileID[64];
    int m_iLocNum;
    char* m_pcOutputLoc;
@@ -117,16 +117,16 @@ public:
    int64_t m_llTotalInputData;
    int64_t m_llTotalOutputData;
 
-   map<string, int64_t> m_mSysIndInput;
-   map<string, int64_t> m_mSysIndOutput;
-   map<string, int64_t> m_mCliIndInput;
-   map<string, int64_t> m_mCliIndOutput;
+   std::map<std::string, int64_t> m_mSysIndInput;
+   std::map<std::string, int64_t> m_mSysIndOutput;
+   std::map<std::string, int64_t> m_mCliIndInput;
+   std::map<std::string, int64_t> m_mCliIndOutput;
 
 public:
    void init();
    void refresh();
 
-   void updateIO(const string& ip, const int64_t& size, const int& type);
+   void updateIO(const std::string& ip, const int64_t& size, const int& type);
    int serializeIOStat(char* buf, unsigned int size);
 
 private:
@@ -149,15 +149,15 @@ private:
    {
       Slave* serv_instance;	// self
 
-      string filename;		// filename
+      std::string filename;	// filename
       int mode;			// file access mode
 
       int transid;		// transaction ID
       int key;                  // client key
 
-      string src_ip;		// downlink IP
+      std::string src_ip;	// downlink IP
       int src_port;		// downlink port
-      string dst_ip;		// uplink IP
+      std::string dst_ip;	// uplink IP
       int dst_port;		// uplink port
 
       unsigned char crypto_key[16];
@@ -168,8 +168,8 @@ private:
    {
       Slave* serv_instance;
       int transid;
-      string src;
-      string dst;
+      std::string src;
+      std::string dst;
       time_t timestamp;
    };
 
@@ -177,7 +177,7 @@ private:
    {
       Slave* serv_instance;	// self
 
-      string client_ip;		// client IP
+      std::string client_ip;	// client IP
       int client_ctrl_port;	// client GMP port
       int client_data_port;	// client data port
 
@@ -185,7 +185,7 @@ private:
       int transid;		// transaction id
       int speid;		// speid
 
-      string function;		// SPE or Map operator
+      std::string function;	// SPE or Map operator
       int rows;                 // number of rows per processing: -1 means all in the block
       char* param;		// SPE parameter
       int psize;		// parameter size
@@ -196,7 +196,7 @@ private:
    {
       int totalnum;
       int totalsize;
-      string src_ip;
+      std::string src_ip;
       int src_dataport;
       int session;
    };
@@ -205,16 +205,16 @@ private:
    {
       Slave* serv_instance;     // self
       int transid;		// transaction id
-      string client_ip;         // client IP
+      std::string client_ip;    // client IP
       int client_ctrl_port;     // client GMP port
-      string path;		// output path
-      string filename;		// SPE output file name
+      std::string path;		// output path
+      std::string filename;	// SPE output file name
       int bucketnum;		// number of buckets
       CGMP* gmp;		// GMP
       int key;			// client key
       int bucketid;		// bucket id
       int type;			// process type
-      string function;          // Reduce operator
+      std::string function;     // Reduce operator
       char* param;              // Reduce parameter
       int psize;                // parameter size
 
@@ -231,35 +231,35 @@ private:
    static void* SPEShufflerEx(void* p5);
 
 private:
-   int SPEReadData(const string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
-   int sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset);
+   int SPEReadData(const std::string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
+   int sendResultToFile(const SPEResult& result, const std::string& localfile, const int64_t& offset);
    int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, const SPEDestination& dest);
-   int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, const string& clientip, int clientport, int session);
+   int sendResultToClient(const int& buckets, const int* sarray, const int* rarray, const SPEResult& result, const std::string& clientip, int clientport, int session);
 
-   int acceptLibrary(const int& key, const string& ip, int port, int session);
-   int openLibrary(const int& key, const string& lib, void*& lh);
-   int getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& process);
-   int getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITION& partition);
-   int getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, MR_REDUCE& reduce);
+   int acceptLibrary(const int& key, const std::string& ip, int port, int session);
+   int openLibrary(const int& key, const std::string& lib, void*& lh);
+   int getSphereFunc(void* lh, const std::string& function, SPHERE_PROCESS& process);
+   int getMapFunc(void* lh, const std::string& function, MR_MAP& map, MR_PARTITION& partition);
+   int getReduceFunc(void* lh, const std::string& function, MR_COMPARE& compare, MR_REDUCE& reduce);
    int closeLibrary(void* lh);
 
-   int sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red);
-   int reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, void* param, int psize);
+   int sort(const std::string& bucket, MR_COMPARE comp, MR_REDUCE red);
+   int reduce(std::vector<MRRecord>& vr, const std::string& bucket, MR_REDUCE red, void* param, int psize);
 
    int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, int buckets, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
    int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);
 
 private:
-   int createDir(const string& path);
+   int createDir(const std::string& path);
    int createSysDir();
-   string reviseSysCmdPath(const string& path);
-   int move(const string& src, const string& dst, const string& newname);
+   std::string reviseSysCmdPath(const std::string& path);
+   int move(const std::string& src, const std::string& dst, const std::string& newname);
 
 private:
-   int report(const int32_t& transid, const string& path, const int& change = 0);
+   int report(const int32_t& transid, const std::string& path, const int& change = 0);
    int reportSphere(const int32_t& transid, const std::vector<Address>* bad = NULL);
 
-   void logError(int type, const string& ip, const int& port, const string& name);
+   void logError(int type, const std::string& ip, const int& port, const std::string& name);
 
    int checkBadDest(std::multimap<int64_t, Address>& sndspd, std::vector<Address>& bad);
 
@@ -269,17 +269,17 @@ private:
    CGMP m_GMP;				// GMP messenger
    DataChn m_DataChn;			// data exchange channel
 
-   string m_strLocalHost;		// local host IP address
+   std::string m_strLocalHost;		// local host IP address
    int m_iLocalPort;			// local port number
 
-   string m_strMasterHost;		// host name of the master node
-   string m_strMasterIP;		// IP address of the master node
+   std::string m_strMasterHost;		// host name of the master node
+   std::string m_strMasterIP;		// IP address of the master node
    int m_iMasterPort;			// port number of the master node
 
-   string m_strHomeDir;			// data directory
+   std::string m_strHomeDir;     	// data directory
    time_t m_HomeDirMTime;		// last modified time
 
-   string m_strBase;                    // the local directory that stores Sector configuration files
+   std::string m_strBase;               // the local directory that stores Sector configuration files
    SlaveConf m_SysConfig;		// system configuration
    Index m_LocalFile;			// local file index
    SlaveStat m_SlaveStat;		// slave statistics

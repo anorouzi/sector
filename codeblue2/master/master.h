@@ -45,13 +45,13 @@ written by
 class ActiveUser
 {
 public:
-   int deserialize(std::vector<string>& dirs, const std::string& buf);
+   int deserialize(std::vector<std::string>& dirs, const std::string& buf);
    bool match(const std::string& path, int rwx);
 
 public:
-   string m_strName;				// user name
+   std::string m_strName;			// user name
 
-   string m_strIP;				// client IP address
+   std::string m_strIP;				// client IP address
    int m_iPort;					// client port (GMP)
    int m_iDataPort;				// data channel port
 
@@ -62,15 +62,15 @@ public:
 
    int64_t m_llLastRefreshTime;			// timestamp of last activity
 
-   std::vector<string> m_vstrReadList;		// readable directories
-   std::vector<string> m_vstrWriteList;		// writable directories
+   std::vector<std::string> m_vstrReadList;	// readable directories
+   std::vector<std::string> m_vstrWriteList;	// writable directories
    bool m_bExec;				// permission to run Sphere application
 };
 
 struct SlaveAddr
 {
-   string m_strAddr;
-   string m_strBase;
+   std::string m_strAddr;
+   std::string m_strBase;
 };
 
 class Master
@@ -111,7 +111,7 @@ private:
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
    void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath, std::vector<std::string>& replica);
-   int createReplica(const string& src, const string& dst);
+   int createReplica(const std::string& src, const std::string& dst);
 
 private:
    CGMP m_GMP;						// GMP messenger
@@ -136,8 +136,8 @@ private:
    int m_iTopoDataSize;					// size of the topology data
 
 private:
-   std::map<string, SlaveAddr> m_mSlaveAddrRec;
-   void loadSlaveAddr(string file);
+   std::map<std::string, SlaveAddr> m_mSlaveAddrRec;
+   void loadSlaveAddr(const std::string& file);
 };
 
 #endif

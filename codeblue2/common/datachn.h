@@ -54,8 +54,8 @@ public:
 
    int send(const std::string& ip, int port, int session, const char* data, int size, bool secure = false);
    int recv(const std::string& ip, int port, int session, char*& data, int& size, bool secure = false);
-   int64_t sendfile(const std::string& ip, int port, int session, std::ifstream& ifs, int64_t offset, int64_t size, bool secure = false);
-   int64_t recvfile(const std::string& ip, int port, int session, std::ofstream& ofs, int64_t offset, int64_t& size, bool secure = false);
+   int64_t sendfile(const std::string& ip, int port, int session, std::fstream& ifs, int64_t offset, int64_t size, bool secure = false);
+   int64_t recvfile(const std::string& ip, int port, int session, std::fstream& ofs, int64_t offset, int64_t& size, bool secure = false);
 
    int recv4(const std::string& ip, int port, int session, int32_t& val);
    int recv8(const std::string& ip, int port, int session, int64_t& val);

@@ -1153,7 +1153,7 @@ int CUDT::recvmsg(char* data, const int& len)
    return res;
 }
 
-int64_t CUDT::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size, const int& block)
+int64_t CUDT::sendfile(fstream& ifs, const int64_t& offset, const int64_t& size, const int& block)
 {
    if (UDT_DGRAM == m_iSockType)
       throw CUDTException(5, 10, 0);
@@ -1217,7 +1217,7 @@ int64_t CUDT::sendfile(ifstream& ifs, const int64_t& offset, const int64_t& size
    return size - tosend;
 }
 
-int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size, const int& block)
+int64_t CUDT::recvfile(fstream& ofs, const int64_t& offset, const int64_t& size, const int& block)
 {
    if (UDT_DGRAM == m_iSockType)
       throw CUDTException(5, 10, 0);
@@ -1239,7 +1239,7 @@ int64_t CUDT::recvfile(ofstream& ofs, const int64_t& offset, const int64_t& size
    // positioning...
    try
    {
-      ofs.seekp((streamoff)offset);
+      ofs.seekp((streamoff)offset, ios::beg);
    }
    catch (...)
    {

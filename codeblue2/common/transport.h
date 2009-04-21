@@ -51,8 +51,8 @@ public:
    int connect(const char* ip, int port);
    int send(const char* buf, int size);
    int recv(char* buf, int size);
-   int64_t sendfile(std::ifstream& ifs, int64_t offset, int64_t size);
-   int64_t recvfile(std::ofstream& ofs, int64_t offset, int64_t size);
+   int64_t sendfile(std::fstream& ifs, int64_t offset, int64_t size);
+   int64_t recvfile(std::fstream& ofs, int64_t offset, int64_t size);
    int close();
    bool isConnected();
    int64_t getRealSndSpeed();
@@ -63,14 +63,14 @@ public: // secure data/file transfer
 
    int secure_send(const char* buf, int size);
    int secure_recv(char* buf, int size);
-   int64_t secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size);
-   int64_t secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size);
+   int64_t secure_sendfile(std::fstream& ifs, int64_t offset, int64_t size);
+   int64_t secure_recvfile(std::fstream& ofs, int64_t offset, int64_t size);
 
 public:
    int sendEx(const char* buf, int size, bool secure);
    int recvEx(char* buf, int size, bool secure);
-   int64_t sendfileEx(std::ifstream& ifs, int64_t offset, int64_t size, bool secure);
-   int64_t recvfileEx(std::ofstream& ofs, int64_t offset, int64_t size, bool secure);
+   int64_t sendfileEx(std::fstream& ifs, int64_t offset, int64_t size, bool secure);
+   int64_t recvfileEx(std::fstream& ofs, int64_t offset, int64_t size, bool secure);
 
 private:
    UDTSOCKET m_Socket;

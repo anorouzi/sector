@@ -180,12 +180,12 @@ int Transport::recv(char* buf, int size)
    return rsize;
 }
 
-int64_t Transport::sendfile(ifstream& ifs, int64_t offset, int64_t size)
+int64_t Transport::sendfile(fstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::sendfile(m_Socket, ifs, offset, size);
 }
 
-int64_t Transport::recvfile(ofstream& ifs, int64_t offset, int64_t size)
+int64_t Transport::recvfile(fstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::recvfile(m_Socket, ifs, offset, size);
 }
@@ -262,7 +262,7 @@ int Transport::secure_recv(char* buf, int size)
    return size;
 }
 
-int64_t Transport::secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t size)
+int64_t Transport::secure_sendfile(std::fstream& ifs, int64_t offset, int64_t size)
 {
    const int block = 640000;
    char* tmp = new char[block];
@@ -283,7 +283,7 @@ int64_t Transport::secure_sendfile(std::ifstream& ifs, int64_t offset, int64_t s
    return size - tosend;
 }
 
-int64_t Transport::secure_recvfile(std::ofstream& ofs, int64_t offset, int64_t size)
+int64_t Transport::secure_recvfile(std::fstream& ofs, int64_t offset, int64_t size)
 {
    const int block = 640000;
    char* tmp = new char[block];
@@ -318,14 +318,14 @@ int Transport::recvEx(char* buf, int size, bool secure)
    return secure_recv(buf, size);
 }
 
-int64_t Transport::sendfileEx(std::ifstream& ifs, int64_t offset, int64_t size, bool secure)
+int64_t Transport::sendfileEx(std::fstream& ifs, int64_t offset, int64_t size, bool secure)
 {
    if (!secure)
       return sendfile(ifs, offset, size);
    return secure_sendfile(ifs, offset, size);
 }
 
-int64_t Transport::recvfileEx(std::ofstream& ofs, int64_t offset, int64_t size, bool secure)
+int64_t Transport::recvfileEx(std::fstream& ofs, int64_t offset, int64_t size, bool secure)
 {
    if (!secure)
       return recvfile(ofs, offset, size);

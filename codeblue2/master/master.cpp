@@ -885,7 +885,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", "");
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT E_PERMISSION", "");
                break;
             }
 
@@ -893,8 +893,8 @@ void* Master::process(void* s)
             if (self->m_Metadata.lookup(msg->getData(), attr) >= 0)
             {
                // directory already exist
-               self->reject(ip, port, id, SectorError::E_EXIST);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT", "");
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
+               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT E_NOEXIST", "");
                break;
             }
 
@@ -1018,7 +1018,7 @@ void* Master::process(void* s)
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", filename.c_str(), "SUCCESS", "");
+            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", filename.c_str(), "SUCCESS", "");
 
             break;
          }
@@ -1506,7 +1506,7 @@ int Master::createReplica(const string& src, const string& dst)
    return 0;
 }
 
-void Master::loadSlaveAddr(string file)
+void Master::loadSlaveAddr(const string& file)
 {   
    ifstream ifs(file.c_str());
 

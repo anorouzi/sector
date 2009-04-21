@@ -45,7 +45,7 @@ public:
    virtual ~SectorFile() {}
 
 public:
-   int open(const string& filename, int mode = SF_MODE::READ);
+   int open(const std::string& filename, int mode = SF_MODE::READ);
    int64_t read(char* buf, const int64_t& size);
    int64_t write(const char* buf, const int64_t& size);
    int download(const char* localpath, const bool& cont = false);
@@ -66,7 +66,7 @@ private:
    unsigned char m_pcKey[16];
    unsigned char m_pcIV[8];
 
-   string m_strFileName;
+   std::string m_strFileName;
 
    int64_t m_llSize;
    int64_t m_llCurReadPos;
