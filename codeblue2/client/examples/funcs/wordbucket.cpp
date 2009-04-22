@@ -25,9 +25,12 @@ int wordbucket(const SInput* input, SOutput* output, SFile* file)
    output->m_iRows = 0;
    output->m_pllIndex[0] = 0;
 
-   ifstream ifs(html.c_str());
+   ifstream ifs(html.c_str(), ios::in | ios::binary);
    if (ifs.bad() || ifs.fail())
+   {
+      cout << "failed reading input file " << html << endl;
       return 0;
+   }
 
    int delim[256];
    for (int i = 0; i < 256; ++ i)

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -604,9 +604,9 @@ void* Slave::SPEShufflerEx(void* p)
 
          char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
          sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
-         fstream datafile(tmp, ios::app);
+         fstream datafile(tmp, ios::out | ios::binary | ios::app);
          sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), bucket);
-         fstream indexfile(tmp, ios::app);
+         fstream indexfile(tmp, ios::out | ios::binary | ios::app);
          delete [] tmp;
          int64_t start = offset[bucket];
          if (0 == start)
@@ -705,7 +705,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    if (m_LocalFile.lookup(idxfile.c_str(), sn) > 0)
    {
       fstream idx;
-      idx.open((m_strHomeDir + idxfile).c_str());
+      idx.open((m_strHomeDir + idxfile).c_str(), ios::in | ios::binary);
       idx.seekg(offset * 8);
       idx.read((char*)index, (totalrows + 1) * 8);
       idx.close();
@@ -773,7 +773,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    if (m_LocalFile.lookup(datafile.c_str(), sn) > 0)
    {
       fstream ifs;
-      ifs.open((m_strHomeDir + datafile).c_str());
+      ifs.open((m_strHomeDir + datafile).c_str(), ios::in | ios::binary);
       ifs.seekg(index[0]);
       ifs.read(block, size);
       ifs.close();
@@ -840,8 +840,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 int Slave::sendResultToFile(const SPEResult& result, const string& localfile, const int64_t& offset)
 {
    fstream datafile, idxfile;
-   datafile.open((m_strHomeDir + localfile).c_str(), ios::app);
-   idxfile.open((m_strHomeDir + localfile + ".idx").c_str(), ios::app);
+   datafile.open((m_strHomeDir + localfile).c_str(), ios::out | ios::binary | ios::app);
+   idxfile.open((m_strHomeDir + localfile + ".idx").c_str(), ios::out | ios::binary | ios::app);
 
    datafile.write(result.m_vData[0], result.m_vDataLen[0]);
 
@@ -987,7 +987,7 @@ int Slave::acceptLibrary(const int& key, const string& ip, int port, int session
       {
          ::mkdir(path, S_IRWXU);
 
-         fstream ofs((string(path) + "/" + lib).c_str(), ios::trunc);
+         fstream ofs((string(path) + "/" + lib).c_str(), ios::out | ios::trunc | ios::binary);
          ofs.write(buf, size);
          ofs.close();
 
@@ -1068,7 +1068,7 @@ int Slave::closeLibrary(void* lh)
 
 int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
 {
-   fstream ifs(bucket.c_str());
+   fstream ifs(bucket.c_str(), ios::in | ios::binary);
    if (ifs.fail())
       return -1;
 
@@ -1111,8 +1111,8 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    if (red != NULL)
       reduce(vr, bucket, red, NULL, 0);
 
-   fstream sorted((bucket + ".sorted").c_str(), ios::trunc);
-   fstream sortedidx((bucket + ".sorted.idx").c_str(), ios::trunc);
+   fstream sorted((bucket + ".sorted").c_str(), ios::out | ios::binary | ios::trunc);
+   fstream sortedidx((bucket + ".sorted.idx").c_str(), ios::out | ios::binary | ios::trunc);
    offset = 0;
    sortedidx.write((char*)&offset, 8);
    for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end(); ++ i)
@@ -1157,8 +1157,8 @@ int Slave::reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, voi
    char* idata = new char[256000000];
    int64_t* iidx = new int64_t[1000000];
 
-   fstream reduced((bucket + ".reduced").c_str(), ios::trunc);
-   fstream reducedidx((bucket + ".reduced.idx").c_str(), ios::trunc);
+   fstream reduced((bucket + ".reduced").c_str(), ios::out | ios::binary | ios::trunc);
+   fstream reducedidx((bucket + ".reduced.idx").c_str(), ios::out | ios::binary | ios::trunc);
    int64_t roff = 0;
 
    for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end();)

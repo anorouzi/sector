@@ -58,10 +58,13 @@ int hash(const Key* k, const int& n)
 
 void sortbucket(const char* bucket)
 {
-   ifstream ifs(bucket);
+   ifstream ifs(bucket, ios::in | ios::binary);
 
    if (ifs.fail())
+   {
+      cout << "failed reading input file " << bucket << endl;
       return;
+   }
 
    ifs.seekg(0, ios::end);
    int size = ifs.tellg();
@@ -79,7 +82,7 @@ void sortbucket(const char* bucket)
 
    sort(vr.begin(), vr.end(), ltrec());
 
-   ofstream ofs(bucket, ios::trunc);
+   ofstream ofs(bucket, ios::out | ios::binary | ios::trunc);
    for (vector<Record*>::iterator i = vr.begin(); i != vr.end(); ++ i)
       ofs.write((char*)*i, 100);
    ofs.close();

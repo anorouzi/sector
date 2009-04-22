@@ -487,22 +487,22 @@ void* Master::serviceEx(void* p)
             char* buf = new char[size];
             s->recv(buf, size);
 
-            ofstream meta((self->m_strHomeDir + ".metadata/" + ip).c_str());
+            ofstream meta((self->m_strHomeDir + ".metadata/" + ip).c_str(), ios::out | ios::trunc);
             meta.write(buf, size);
             delete [] buf;
             meta.close();
             map<string, SNode> branch;
-            ifstream ifs((self->m_strHomeDir + ".metadata/" + ip).c_str());
+            ifstream ifs((self->m_strHomeDir + ".metadata/" + ip).c_str(), ios::in);
             Index::deserialize(ifs, branch, addr);
             ifs.close();
 
-            ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str());
+            ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::out);
             CGuard::enterCS(self->m_Metadata.m_MetaLock);
             Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left);
             CGuard::leaveCS(self->m_Metadata.m_MetaLock);
             left.close();
 
-            ifs.open((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str());
+            ifs.open((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::in);
             ifs.seekg(0, ios::end);
             size = ifs.tellg();
             s->send((char*)&size, 4);
@@ -1508,7 +1508,7 @@ int Master::createReplica(const string& src, const string& dst)
 
 void Master::loadSlaveAddr(const string& file)
 {   
-   ifstream ifs(file.c_str());
+   ifstream ifs(file.c_str(), ios::in);
 
    if (ifs.bad() || ifs.fail())
       return;

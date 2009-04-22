@@ -80,7 +80,7 @@ void* Slave::fileHandler(void* p)
       struct stat t;
       if (stat(filename.c_str(), &t) == -1)
       {
-         ofstream newfile(filename.c_str());
+         ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
          change = 1;
       }

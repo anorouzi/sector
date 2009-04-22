@@ -15,8 +15,8 @@ int gen_idx(const SInput* input, SOutput* output, SFile* file)
 
    string idxfile = textfile + ".idx";
 
-   ifstream in(textfile.c_str());
-   ofstream out(idxfile.c_str());
+   ifstream in(textfile.c_str(), ios::binary);
+   ofstream out(idxfile.c_str(), ios::binary);
 
    // maximum line is 65536 charactors
    char* buf = new char[65536];

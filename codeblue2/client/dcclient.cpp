@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -279,7 +279,7 @@ int SphereProcess::loadOperator(const char* library)
    }
 
    ifstream lib;
-   lib.open(library, ios::binary);
+   lib.open(library, ios::in | ios::binary);
    if (lib.bad() || lib.fail())
    {
       cerr << "loadOperator: bad file.\n";
@@ -312,7 +312,7 @@ int SphereProcess::loadOperator(SPE& s)
       g_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, i->m_strLibrary.c_str(), i->m_strLibrary.length() + 1);
 
       ifstream lib;
-      lib.open(i->m_strLibPath.c_str(), ios::binary);
+      lib.open(i->m_strLibPath.c_str(), ios::in | ios::binary);
       char* buf = new char[i->m_iSize];
       lib.read(buf, i->m_iSize);
       lib.close();

@@ -44,7 +44,7 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
    sprintf(filename, "%s.%d.dat", input->m_pcParam, *(int32_t*)input->m_pcUnit);
 
    ofstream ofs;
-   ofs.open((file->m_strHomeDir + filename).c_str(), ios::binary | ios::trunc);
+   ofs.open((file->m_strHomeDir + filename).c_str(), ios::out | ios::binary | ios::trunc);
 
    if (ofs.bad() || ofs.fail())
       return -1;
@@ -62,7 +62,7 @@ int randwriter(const SInput* input, SOutput* output, SFile* file)
 
    ofs.close();
 
-   ofstream idx((file->m_strHomeDir + filename + ".idx").c_str(), ios::binary);
+   ofstream idx((file->m_strHomeDir + filename + ".idx").c_str(), ios::out | ios::binary | ios::trunc);
 
    for (long long int i = 0; i < 100000001; ++ i)
    {

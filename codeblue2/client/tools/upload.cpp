@@ -18,7 +18,7 @@ int upload(const char* file, const char* dst)
    timeval t1, t2;
    gettimeofday(&t1, 0);
 
-   ifstream ifs(file);
+   ifstream ifs(file, ios::in | ios::binary);
    ifs.seekg(0, ios::end);
    long long int size = ifs.tellg();
    ifs.seekg(0);

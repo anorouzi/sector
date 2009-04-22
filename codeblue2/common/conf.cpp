@@ -38,7 +38,7 @@ using namespace std;
 
 int ConfParser::init(const string& path)
 {
-   m_ConfFile.open(path.c_str());
+   m_ConfFile.open(path.c_str(), ios::in);
 
    if (m_ConfFile.bad() || m_ConfFile.fail())
    {

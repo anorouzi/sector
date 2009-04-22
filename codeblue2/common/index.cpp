@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/15/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
 *****************************************************************************/
 
 
@@ -736,7 +736,7 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
       {
          mi->second.m_bIsDir = false;
 
-         ifstream ifs((currdir + namelist[i]->d_name).c_str());
+         ifstream ifs((currdir + namelist[i]->d_name).c_str(), ios::in);
          ifs.seekg(0, ios::end);
          mi->second.m_llSize = ifs.tellg();
       }

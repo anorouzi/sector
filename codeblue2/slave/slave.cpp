@@ -94,7 +94,7 @@ int Slave::init(const char* base)
    cout << "scaning " << m_strHomeDir << endl;
    m_LocalFile.scan(m_strHomeDir.c_str(), m_LocalFile.m_mDirectory);
 
-   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str());
+   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
    m_LocalFile.serialize(ofs, m_LocalFile.m_mDirectory, 1);
    ofs.close();
 
@@ -147,7 +147,7 @@ int Slave::connect()
    stat((m_strHomeDir + ".metadata/metadata.txt").c_str(), &s);
    int32_t size = s.st_size;
 
-   ifstream meta((m_strHomeDir + ".metadata/metadata.txt").c_str());
+   ifstream meta((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
    char* buf = new char[size];
    meta.read(buf, size);
    meta.close();
@@ -161,10 +161,10 @@ int Slave::connect()
    {
       buf = new char[size];
       secconn.recv(buf, size);
-      ofstream left((m_strHomeDir + ".metadata/metadata.left.txt").c_str());
+      ofstream left((m_strHomeDir + ".metadata/metadata.left.txt").c_str(), ios::out);
       left.write(buf, size);
       left.close();
-      ifstream ifs((m_strHomeDir + ".metadata/metadata.left.txt").c_str());
+      ifstream ifs((m_strHomeDir + ".metadata/metadata.left.txt").c_str(), ios::in);
       while (!ifs.eof())
       {
          char tmp[65536];
@@ -440,7 +440,7 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    sn.m_strName = filename;
    sn.m_bIsDir = 0;
    sn.m_llTimeStamp = s.st_mtime;
-   ifstream ifs((m_strHomeDir + filename).c_str());
+   ifstream ifs((m_strHomeDir + filename).c_str(), ios::in);
    ifs.seekg(0, ios::end);
    sn.m_llSize = ifs.tellg();
 
@@ -616,7 +616,7 @@ void SlaveStat::refresh()
    sprintf(memfile, "/proc/%d/status", pid);
 
    ifstream ifs;
-   ifs.open(memfile);
+   ifs.open(memfile, ios::in);
    char buf[1024];
    for (int i = 0; i < 12; ++ i)
       ifs.getline(buf, 1024);

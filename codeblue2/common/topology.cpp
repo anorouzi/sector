@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/08/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
 *****************************************************************************/
 
 #include <topology.h>
@@ -101,7 +101,7 @@ Topology::~Topology()
 
 int Topology::init(const char* topoconf)
 {
-   ifstream ifs(topoconf);
+   ifstream ifs(topoconf, ios::in);
 
    if (ifs.bad() || ifs.fail())
       return -1;
