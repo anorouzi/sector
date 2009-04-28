@@ -291,7 +291,7 @@ int Index::move(const char* oldpath, const char* newpath, const char* newname)
       nd = &(ns->second.m_mDirectory);
    }
 
-   if ((NULL == newname) || ("" == newname))
+   if ((NULL == newname) || (strlen(newname) == 0))
       (*nd)[os->first] = os->second;
    else
    {
@@ -748,7 +748,7 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
    return metadata.size();
 }
 
-int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, string path, ofstream& left)
+int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, string path, ofstream& left, const unsigned int& replica)
 {
    for (map<string, SNode>::iterator i = branch.begin(); i != branch.end(); ++ i)
    {
@@ -763,11 +763,15 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, string
          if (i->second.m_bIsDir && s->second.m_bIsDir)
          {
             // directories with same name
-            merge(s->second.m_mDirectory, i->second.m_mDirectory, path + "/" + i->first, left);
+            merge(s->second.m_mDirectory, i->second.m_mDirectory, path + "/" + i->first, left, replica);
          }
-         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) && (i->second.m_llSize == s->second.m_llSize))
+         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) 
+                  && (i->second.m_llSize == s->second.m_llSize) 
+                  && (i->second.m_llTimeStamp == s->second.m_llTimeStamp)
+                  && (s->second.m_sLocation.size() < replica))
          {
-            // files with same name, size, timestamp, ...
+            // files with same name, size, timestamp
+            // and the number of replicas is below the threshold
             for (set<Address>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
                s->second.m_sLocation.insert(*a);
          }

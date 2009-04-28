@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/09/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/22/2009
 *****************************************************************************/
 
 
@@ -50,6 +50,16 @@ int ConfParser::init(const string& path)
    {
       char buf[1024];
       m_ConfFile.getline(buf, 1024);
+
+      if (strlen(buf) == 0)
+         continue;
+
+      //skip comments
+      if ('#' == buf[0])
+         continue;
+
+      //TODO: skip lines with all blanks and tabs
+
       m_vstrLines.insert(m_vstrLines.end(), buf);
    }
 
@@ -84,14 +94,6 @@ int ConfParser::getNextParam(Param& param)
    {
       char buf[1024];
       strcpy(buf, m_ptrLine->c_str());
-
-      // skip blank lines and comments
-      if ((0 == strlen(buf)) || ('#' == buf[0]))
-      {
-         m_ptrLine ++;
-         m_iLineCount ++;
-         continue;
-      }
 
       // no blanks or tabs in front of name line
       if ((' ' == buf[0]) || ('\t' == buf[0]))

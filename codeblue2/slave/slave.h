@@ -207,6 +207,7 @@ private:
       int transid;		// transaction id
       std::string client_ip;    // client IP
       int client_ctrl_port;     // client GMP port
+      int client_data_port;	// client data port
       std::string path;		// output path
       std::string filename;	// SPE output file name
       int bucketnum;		// number of buckets

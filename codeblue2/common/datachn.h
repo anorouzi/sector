@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/06/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
 *****************************************************************************/
 
 
@@ -77,6 +77,7 @@ private:
       pthread_mutex_t m_SndLock;
       pthread_mutex_t m_RcvLock;
       pthread_mutex_t m_QueueLock;
+      int m_iCount;
    };
 
    std::map<Address, ChnInfo*, AddrComp> m_mChannel;

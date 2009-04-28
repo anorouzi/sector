@@ -78,6 +78,8 @@ public:
 public:
    int m_iResID;		// result ID
 
+   int m_iStatus;		// if this DS is processed successfully (> 0, number of rows). If not (<0), m_pcData may contain error msg
+
    char* m_pcData;		// result data
    int m_iDataLen;		// result data length
    int64_t* m_pllIndex;		// result data index
@@ -86,9 +88,6 @@ public:
    std::string m_strOrigFile;	// original input file
    int64_t m_llOrigStartRec;	// first record of the original input file
    int64_t m_llOrigEndRec;	// last record of the original input file
-
-   std::string m_strIP;
-   int m_iPort;
 };
 
 class SphereProcess: public Client

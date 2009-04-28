@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -221,6 +221,7 @@ void SphereStream::setOutputPath(const string& path, const string& name)
 //
 SphereResult::SphereResult():
 m_iResID(-1),
+m_iStatus(0),
 m_pcData(NULL),
 m_iDataLen(0),
 m_pllIndex(NULL),
@@ -456,6 +457,14 @@ void* SphereProcess::run(void* param)
          s->second.m_pDS->m_iSPEID = -1;
          s->second.m_iStatus = 1;
 
+         s->second.m_pDS->m_pResult->m_iStatus = *(int32_t*)(msg.getData() + 8);
+         int errsize = msg.m_iDataLength - SectorMsg::m_iHdrSize - 12;
+         if (errsize > 0)
+         {
+            s->second.m_pDS->m_pResult->m_pcData = new char[errsize];
+            strcpy(s->second.m_pDS->m_pResult->m_pcData, msg.getData() + 12);
+         }
+
          ++ self->m_iProgress;
          pthread_mutex_lock(&self->m_ResLock);
          ++ self->m_iAvailRes;
@@ -507,6 +516,7 @@ void* SphereProcess::run(void* param)
       if (b == self->m_mBucket.end())
          continue;
       b->second.m_iProgress = 100;
+      g_DataChn.remove(b->second.m_strIP, b->second.m_iDataPort);
    }
 
    // set totalSPE = 0, so that read() will return error immediately
@@ -885,7 +895,12 @@ int SphereProcess::segmentData()
          ds->m_iSPEID = -1;
          ds->m_iStatus = 0;
          ds->m_pLoc = &m_pInput->m_vLocation[i];
+
          ds->m_pResult = new SphereResult;
+         ds->m_pResult->m_iResID = ds->m_iID;
+         ds->m_pResult->m_strOrigFile = ds->m_strDataFile;
+         ds->m_pResult->m_llOrigStartRec = 0;
+         ds->m_pResult->m_llOrigEndRec = -1;
 
          m_mpDS[ds->m_iID] = ds;
       }
@@ -931,7 +946,12 @@ int SphereProcess::segmentData()
             ds->m_iSPEID = -1;
             ds->m_iStatus = 0;
             ds->m_pLoc = &m_pInput->m_vLocation[i];
+
             ds->m_pResult = new SphereResult;
+            ds->m_pResult->m_iResID = ds->m_iID;
+            ds->m_pResult->m_strOrigFile = ds->m_strDataFile;
+            ds->m_pResult->m_llOrigStartRec = ds->m_llOffset;
+            ds->m_pResult->m_llOrigEndRec = ds->m_llSize;
 
             m_mpDS[ds->m_iID] = ds;
 
@@ -999,6 +1019,9 @@ int SphereProcess::prepareOutput(const char* spenodes)
          b.m_iProgress = 0;
          gettimeofday(&b.m_LastUpdateTime, 0);
          m_mBucket[b.m_iID] = b;
+
+         // set up data connection, not for data transfter, but for keep-alive
+         g_DataChn.connect(b.m_strIP, b.m_iDataPort);
       }
 
       if (m_mBucket.empty())
@@ -1048,11 +1071,6 @@ int SphereProcess::prepareOutput(const char* spenodes)
 
 int SphereProcess::readResult(SPE* s)
 {
-   s->m_pDS->m_pResult->m_iResID = s->m_pDS->m_iID;
-   s->m_pDS->m_pResult->m_strOrigFile = s->m_pDS->m_strDataFile;
-   s->m_pDS->m_pResult->m_strIP = s->m_strIP;
-   s->m_pDS->m_pResult->m_iPort = s->m_iPort;
-
    if (m_iOutputType == 0)
    {
       g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, s->m_pDS->m_pResult->m_pcData, s->m_pDS->m_pResult->m_iDataLen);
@@ -1060,6 +1078,8 @@ int SphereProcess::readResult(SPE* s)
       g_DataChn.recv(s->m_strIP, s->m_iDataPort, s->m_iSession, tmp, s->m_pDS->m_pResult->m_iIndexLen);
       s->m_pDS->m_pResult->m_pllIndex = (int64_t*)tmp;
       s->m_pDS->m_pResult->m_iIndexLen /= 8;
+
+      s->m_pDS->m_pResult->m_iStatus = s->m_pDS->m_pResult->m_iIndexLen;
    }
    else if (m_iOutputType == -1)
    {

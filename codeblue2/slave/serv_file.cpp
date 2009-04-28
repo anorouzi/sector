@@ -329,8 +329,7 @@ void* Slave::fileHandler(void* p)
 
    self->m_DataChn.send(src_ip, src_port, transid, (char*)&cmd, 4);
 
-   //TODO: remove client connection
-   //self->m_DataChn.remove(src_ip, src_port);
+   self->m_DataChn.remove(src_ip, src_port);
 
    return NULL;
 }
@@ -366,7 +365,6 @@ void* Slave::copy(void* p)
    int64_t size = *(int64_t*)(msg.getData() + 72);
 
    //cout << "rendezvous connect " << ip << " " << port << endl;
-
    if (self->m_DataChn.connect(ip, port) < 0)
       return NULL;
 
@@ -409,6 +407,8 @@ void* Slave::copy(void* p)
    cmd = 5;
    self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
    self->m_DataChn.recv4(ip, port, session, cmd);
+
+   self->m_DataChn.remove(ip, port);
 
    //utime: update timestamp according to the original copy
    utimbuf ut;

@@ -102,14 +102,15 @@ public:
       // Functionality:
       //    merge a slave's index with the system file index.
       // Parameters:
-      //    [1] currdir: system directory
-      //    [2] branch: slave index
-      //    [3] path: current path (this is a recursive function)
-      //    [4] left: all the conflict files in the branch
+      //    1) [in, out] currdir: system directory
+      //    2) [in] branch: slave index
+      //    3) [in] path: current path (this is a recursive function)
+      //    4) [out] left: all the conflict files in the branch
+      //    5) [in] replica: number of replicas
       // Returned value:
       //    1 on success, or -1 on error.
 
-   static int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch, std::string path, std::ofstream& left);
+   static int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch, std::string path, std::ofstream& left, const unsigned int& replica);
    static int substract(std::map<std::string, SNode>& currdir, const Address& addr);
 
    static int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);

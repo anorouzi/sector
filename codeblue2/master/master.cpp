@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/17/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -498,7 +498,7 @@ void* Master::serviceEx(void* p)
 
             ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::out);
             CGuard::enterCS(self->m_Metadata.m_MetaLock);
-            Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left);
+            Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left, self->m_SysConfig.m_iReplicaNum);
             CGuard::leaveCS(self->m_Metadata.m_MetaLock);
             left.close();
 
@@ -1354,6 +1354,7 @@ void* Master::process(void* s)
             msg->setData(0, ip, strlen(ip) + 1);
             msg->setData(64, (char*)&port, 4);
             msg->setData(msg->m_iDataLength - SectorMsg::m_iHdrSize, (char*)&transid, 4);
+            msg->setData(msg->m_iDataLength - SectorMsg::m_iHdrSize, (char*)&(user->m_iDataPort), 4);
 
             if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
             {

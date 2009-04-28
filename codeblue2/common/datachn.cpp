@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
 *****************************************************************************/
 
 #include <pthread.h>
@@ -87,6 +87,7 @@ int DataChn::init(const string& ip, int& port)
    pthread_mutex_init(&c->m_SndLock, NULL);
    pthread_mutex_init(&c->m_RcvLock, NULL);
    pthread_mutex_init(&c->m_QueueLock, NULL);
+   c->m_iCount = 1;
 
    Address addr;
    addr.m_strIP = ip;
@@ -152,6 +153,7 @@ int DataChn::connect(const string& ip, int port)
    pthread_mutex_lock(&c->m_SndLock);
    if ((NULL != c->m_pTrans) && c->m_pTrans->isConnected())
    {
+      c->m_iCount ++;
       pthread_mutex_unlock(&c->m_SndLock);
       return 0;
    }
@@ -184,13 +186,17 @@ int DataChn::remove(const std::string& ip, int port)
    map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
    if (i != m_mChannel.end())
    {
-      if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
-         i->second->m_pTrans->close();
-      delete i->second->m_pTrans;
-      pthread_mutex_destroy(&i->second->m_SndLock);
-      pthread_mutex_destroy(&i->second->m_RcvLock);
-      pthread_mutex_destroy(&i->second->m_QueueLock);
-      m_mChannel.erase(i);
+      -- i->second->m_iCount;
+      if (0 == i->second->m_iCount)
+      {
+         if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
+            i->second->m_pTrans->close();
+         delete i->second->m_pTrans;
+         pthread_mutex_destroy(&i->second->m_SndLock);
+         pthread_mutex_destroy(&i->second->m_RcvLock);
+         pthread_mutex_destroy(&i->second->m_QueueLock);
+         m_mChannel.erase(i);
+      }
    }
    pthread_mutex_unlock(&m_ChnLock);
 

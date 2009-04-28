@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/22/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -327,6 +327,7 @@ void* Slave::SPEHandler(void* p)
       gettimeofday(&t3, 0);
 
       int deliverystatus = 0;
+      int processstatus = 0;
 
       // process data segments
       for (int i = 0; i < totalrows; i += unitrows)
@@ -338,19 +339,26 @@ void* Slave::SPEHandler(void* p)
          input.m_iRows = unitrows;
          input.m_pllIndex = index + i;
 
-         //TODO: check processdata return value
-         self->processData(input, output, file, result, buckets, process, map, partition);
+         processstatus = self->processData(input, output, file, result, buckets, process, map, partition);
+         if (processstatus < 0)
+         {
+            progress = -1;
+            break;
+         }
 
          if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
+         if (deliverystatus < 0)
+         {
+            progress = -1;
+            break;
+         }
+
          gettimeofday(&t4, 0);
          if (t4.tv_sec - t3.tv_sec > 1)
          {
-            if (deliverystatus < 0)
-               progress = -1;
-            else
-               progress = i * 100 / totalrows;
+            progress = i * 100 / totalrows;
             msg.setData(4, (char*)&progress, 4);
             msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
             int id = 0;
@@ -358,9 +366,6 @@ void* Slave::SPEHandler(void* p)
 
             t3 = t4;
          }
-
-         if (deliverystatus < 0)
-            break;
       }
 
       // process files
@@ -372,34 +377,43 @@ void* Slave::SPEHandler(void* p)
 
          for (int i = 0; (i == 0) || (output.m_llOffset > 0); ++ i)
          {
-            //TODO: check process data return value
-            self->processData(input, output, file, result, buckets, process, map, partition);
+            processstatus = self->processData(input, output, file, result, buckets, process, map, partition);
+            if (processstatus < 0)
+            {
+               progress = -1;
+               break;
+            }
 
             if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
                deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
             if (deliverystatus < 0)
+            {
+               progress = -1;
                break;
+            }
          }
       }
 
       // if buckets = 0, send back to clients, otherwise deliver to local or network locations
-      if ((buckets != 0) && (deliverystatus >= 0))
+      if ((buckets != 0) && (progress >= 0))
          deliverystatus = self->deliverResult(buckets, speid, result, dest);
-
-      cout << "completed 100 " << ip << " " << ctrlport << endl;
 
       if (deliverystatus < 0)
          progress = -1;
       else
          progress = 100;
+
+      cout << "completed " << progress << " " << ip << " " << ctrlport << endl;
+
       msg.setData(4, (char*)&progress, 4);
-      msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
-      int id = 0;
-      self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
       if (100 == progress)
       {
+         msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
+         int id = 0;
+         self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
+
          cout << "sending data back... " << buckets << endl;
          self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, ip, dataport, transid);
          dest.reset(buckets);
@@ -407,6 +421,23 @@ void* Slave::SPEHandler(void* p)
          // report new files
          for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
             self->report(transid, *i, true);
+      }
+      else
+      {
+         if (processstatus > 0)
+            processstatus = -1001; // data transfer error
+         msg.setData(8, (char*)&processstatus, 4);
+         msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
+         if (output.m_strError.length() > 0)
+            msg.setData(12, output.m_strError.c_str(), output.m_strError.length() + 1);
+         else if (deliverystatus < 0)
+         {
+            char* tmp = "System Error: data transfer to buckets failed.";
+            msg.setData(12, tmp, strlen(tmp) + 1);
+         }
+
+         int id = 0;
+         self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
       }
 
       delete [] index;
@@ -450,6 +481,7 @@ void* Slave::SPEShuffler(void* p)
    Slave* self = ((Param5*)p)->serv_instance;
    string client_ip = ((Param5*)p)->client_ip;
    int client_port = ((Param5*)p)->client_ctrl_port;
+   int client_data_port = ((Param5*)p)->client_data_port;
    string path = ((Param5*)p)->path;
    string localfile = ((Param5*)p)->filename;
    int bucketnum = ((Param5*)p)->bucketnum;
@@ -481,11 +513,11 @@ void* Slave::SPEShuffler(void* p)
       int speport;
       SectorMsg msg;
       int msgid;
-      if (gmp->recvfrom(speip, speport, msgid, &msg) < 0)
-         continue;
+      int r = gmp->recvfrom(speip, speport, msgid, &msg, false);
 
-      // client releases the task
-      if ((speip == client_ip) && (speport == client_port))
+      // client releases the task or client has already been shutdown
+      if (((r > 0) && (speip == client_ip) && (speport == client_port))
+         || ((r < 0) && (!self->m_DataChn.isConnected(client_ip, client_data_port))))
       {
          Bucket b;
          b.totalnum = -1;
@@ -497,6 +529,9 @@ void* Slave::SPEShuffler(void* p)
 
          break;
       }
+
+      if (r < 0)
+         continue;
 
       int srcport = *(int32_t*)msg.getData();
       int session = *(int32_t*)(msg.getData() + 4);
@@ -515,7 +550,8 @@ void* Slave::SPEShuffler(void* p)
       {
          gmp->sendto(speip, speport, msgid, &msg);
 
-         self->m_DataChn.connect(speip, srcport);
+         if (!self->m_DataChn.isConnected(speip, speport))
+            self->m_DataChn.connect(speip, speport);
 
          Bucket b;
          b.totalnum = totalnum;
@@ -544,6 +580,7 @@ void* Slave::SPEShufflerEx(void* p)
    int transid = ((Param5*)p)->transid;
    string client_ip = ((Param5*)p)->client_ip;
    int client_port = ((Param5*)p)->client_ctrl_port;
+   int client_data_port = ((Param5*)p)->client_data_port;
    string path = ((Param5*)p)->path;
    string localfile = ((Param5*)p)->filename;
    int bucketnum = ((Param5*)p)->bucketnum;
@@ -692,6 +729,9 @@ void* Slave::SPEShufflerEx(void* p)
    msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
    int id = 0;
    self->m_GMP.sendto(client_ip.c_str(), client_port, id, &msg);
+
+   //remove this client data channel
+   self->m_DataChn.remove(client_ip, client_data_port);
 
    return NULL;
 }
@@ -945,8 +985,11 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
          continue;
       }
 
-      if (m_DataChn.connect(dstip, dstport) < 0)
-         return -1;
+      if (!m_DataChn.isConnected(dstip, dstport))
+      {
+         if (m_DataChn.connect(dstip, dstport) < 0)
+            return -1;
+      }
 
       for (set<int>::iterator r = ResByLoc[i].begin(); r != ResByLoc[i].end(); ++ r)
       {

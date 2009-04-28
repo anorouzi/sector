@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/04/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
 *****************************************************************************/
 
 
@@ -407,12 +407,16 @@ void Slave::run()
             {
                p->function = msg->getData() + offset + 4 + 4 + 4;
             }
-            p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
+            p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 8);
+            p->client_data_port = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
             char* tmp = new char[64 + p->filename.length()];
             sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
             m_SectorLog.insert(tmp);
             delete [] tmp;
+
+            //set up data connection, for keep-alive purpose
+            m_DataChn.connect(p->client_ip, p->client_data_port);
 
             pthread_t spe_shuffler;
             pthread_create(&spe_shuffler, NULL, SPEShuffler, p);

@@ -8,6 +8,7 @@ using namespace std;
 Session SectorFS::g_SectorConfig;
 map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
+bool SectorFS::m_bRunning = false;
 
 void* SectorFS::init(struct fuse_conn_info *conn)
 {
@@ -16,11 +17,18 @@ void* SectorFS::init(struct fuse_conn_info *conn)
    if (Sector::login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
       return NULL;
 
+   g_bRunning = true;
+   pthread_t heartbeat;
+   pthread_create(&heartbeat, NULL, HeartBeat, NULL);
+   pthread_detach(heartbeat);
+
    return NULL;
 }
 
 void SectorFS::destroy(void *)
 {
+   g_bRunning = false;
+
    Sector::logout();
    Sector::close();
 }
@@ -99,10 +107,12 @@ int SectorFS::statfs(const char* path, struct statvfs* buf)
       return translateErr(r);
 
    buf->f_namemax = 256;
-   buf->f_bsize = 1024000;
+   buf->f_bsize = 1024;
    buf->f_frsize = buf->f_bsize;
-   buf->f_bfree = buf->f_bavail = s.m_llAvailDiskSpace;
-   buf->f_files = buf->f_ffree = s.m_llTotalFileNum;
+   buf->f_blocks = (s.m_llAvailDiskSpace + s.m_llTotalFileSize) / buf->f_bsize;
+   buf->f_bfree = buf->f_bavail = s.m_llAvailDiskSpace / buf->f_bsize;
+   buf->f_files = s.m_llTotalFileNum;
+   buf->f_ffree = 0xFFFFFFFFULL;
 
    return 0;
 }
@@ -329,4 +339,17 @@ int SectorFS::translateErr(int sferr)
    }
 
    return -1;
+}
+
+void* SectorFS::HeartBeat(void*)
+{
+   while (g_bRunning)
+   {
+      SNode attr;
+      Sector::stat("/", attr);
+
+      sleep(60);
+   }
+
+   return NULL;
 }
