@@ -23,9 +23,14 @@
     <td width="75%" class="table_headline"><strong>Description</strong></td>
   </tr>
   <tr>
-    <td><a href="r-t-download.html"></a> m_iResID</td>
+    <td>m_iResID</td>
     <td>int</td>	
     <td>result ID </td>
+  </tr>
+  <tr>
+    <td>m_iStatus</td>
+    <td>int</td>	
+    <td>Result status: if this DS is processed successfully (&gt; 0, number of rows); If not (&lt;0), m_pcData may contain error message.</td>
   </tr>
   <tr>
     <td>m_pcData</td>
@@ -61,16 +66,6 @@
     <td>m_llOridEndRec</td>
     <td>int64_t</td>
     <td>the ending record in the input stream </td>
-  </tr>
-  <tr>
-    <td>m_strIP</td>
-    <td>string</td>
-    <td>the IP address of the SPE </td>
-  </tr>
-  <tr>
-    <td>m_iPort</td>
-    <td>int</td>
-    <td>the port number of the SPE </td>
   </tr>
 </table>
 <h5><strong>Class Interfaces</strong></h5>
