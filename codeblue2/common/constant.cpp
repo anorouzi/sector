@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/04/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/28/2009
 *****************************************************************************/
 
 #include "constant.h"
@@ -48,6 +48,8 @@ int SectorError::init()
    s_mErrorMsg[-2003] = "the password is incorrect.";
    s_mErrorMsg[-2004] = "the request is from an illegal IP address.";
    s_mErrorMsg[-2005] = "failed to initialize SSL CTX.";
+   s_mErrorMsg[-2006] = "no response from security server.";
+   s_mErrorMsg[-2007] = "client timeout and was kicked out by server.";
    s_mErrorMsg[-3000] = "connection fails.";
    s_mErrorMsg[-4000] = "no enough resource (memory/disk) is available.";
    s_mErrorMsg[-5000] = "a timeout event happened.";

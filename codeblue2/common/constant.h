@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/24/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 04/28/2009
 *****************************************************************************/
 
 #ifndef __SECTOR_CONSTANT_H__
@@ -49,6 +49,7 @@ public:
    static const int E_ACL = -2004;		// visit from unallowd IP address
    static const int E_INITCTX = -2005;		// failed to initialize CTX
    static const int E_NOSECSERV = -2006;	// security server is down or cannot connect to it
+   static const int E_EXPIRED = - 2007;		// connection time out due to no activity
    static const int E_CONNECTION = - 3000;	// cannot connect to master
    static const int E_RESOURCE = -4000;		// no available resources
    static const int E_TIMEDOUT = -5000;		// timeout

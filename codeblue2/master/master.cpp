@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/02/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -445,7 +445,8 @@ void* Master::serviceEx(void* p)
    int r = secconn.connect(self->m_SysConfig.m_strSecServIP.c_str(), self->m_SysConfig.m_iSecServPort);
 
    int32_t cmd;
-   s->recv((char*)&cmd, 4);
+   if (s->recv((char*)&cmd, 4) < 0)
+      goto EXIT;
 
    if (r < 0)
    {
@@ -647,7 +648,7 @@ void* Master::process(void* s)
       map<int, ActiveUser>::iterator i = self->m_mActiveUser.find(key);
       if (i == self->m_mActiveUser.end())
       {
-         self->reject(ip, port, id, SectorError::E_SECURITY);
+         self->reject(ip, port, id, SectorError::E_EXPIRED);
          continue;
       }
       ActiveUser* user = &(i->second);

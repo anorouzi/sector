@@ -8,7 +8,7 @@ using namespace std;
 Session SectorFS::g_SectorConfig;
 map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
-bool SectorFS::m_bRunning = false;
+bool SectorFS::g_bRunning = false;
 
 void* SectorFS::init(struct fuse_conn_info *conn)
 {
