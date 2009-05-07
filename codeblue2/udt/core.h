@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/15/2009
+   Yunhong Gu, last updated 05/06/2009
 *****************************************************************************/
 
 #ifndef __UDT_CORE_H__
@@ -51,18 +51,18 @@ written by
 #include "channel.h"
 #include "api.h"
 #include "ccc.h"
-#include "co-op.h"
+#include "cache.h"
 #include "queue.h"
 
 enum UDTSockType {UDT_STREAM = 1, UDT_DGRAM};
 
 class CUDT
 {
-friend struct CUDTSocket;
+friend class CUDTSocket;
 friend class CUDTUnited;
 friend class CCC;
 friend struct CUDTComp;
-friend class CControl;
+friend class CCache;
 friend class CSndQueue;
 friend class CRcvQueue;
 friend class CSndUList;
@@ -282,7 +282,7 @@ private: // Options
 private: // congestion control
    CCCVirtualFactory* m_pCCFactory;             // Factory class to create a specific CC instance
    CCC* m_pCC;                                  // congestion control class
-   CControl* m_pController;			// congestion control manager
+   CCache* m_pCache;				// network information cache
 
 private: // Status
    volatile bool m_bListening;                  // If the UDT entit is listening to connection
@@ -311,8 +311,8 @@ private: // Sending related data
    volatile double m_dCongestionWindow;         // congestion window size
 
    volatile int32_t m_iSndLastAck;              // Last ACK received
-   int32_t m_iSndLastDataAck;                   // The real last ACK that updates the sender buffer and loss list
-   int32_t m_iSndCurrSeqNo;                     // The largest sequence number that has been sent
+   volatile int32_t m_iSndLastDataAck;          // The real last ACK that updates the sender buffer and loss list
+   volatile int32_t m_iSndCurrSeqNo;            // The largest sequence number that has been sent
    int32_t m_iLastDecSeq;                       // Sequence number sent last decrease occurs
    int32_t m_iSndLastAck2;                      // Last ACK2 sent back
    uint64_t m_ullSndLastAck2Time;               // The time when last ACK2 was sent back
@@ -411,7 +411,7 @@ private: // Timers
 
 private: // for UDP multiplexer
    CSndQueue* m_pSndQueue;			// packet sending queue
-   CRcvQueue* m_pRcvQueue;			// packet receivinf queue
+   CRcvQueue* m_pRcvQueue;			// packet receiving queue
    sockaddr* m_pPeerAddr;			// peer address
    CSNode* m_pSNode;				// node information for UDT list used in snd queue
    CRNode* m_pRNode;                            // node information for UDT list used in rcv queue

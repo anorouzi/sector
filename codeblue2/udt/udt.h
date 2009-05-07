@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/02/2009
+   Yunhong Gu, last updated 05/06/2009
 *****************************************************************************/
 
 #ifndef __UDT_H__
@@ -48,6 +48,9 @@ written by
    #include <netinet/in.h>
 #else
    #include <windows.h>
+   #ifdef __MINGW__
+      #include <ws2tcpip.h>
+   #endif
 #endif
 #include <fstream>
 #include <set>
@@ -56,16 +59,25 @@ written by
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//if compiling on VC6.0 or pre-WindowsXP systems
+//use -DLEGACY_WIN32
+
+//if compiling with MinGW, only works on XP or above
+//use -D_WIN32_WINNT=0x0501
+
+
 #ifdef WIN32
-   // Explicitly define 32-bit and 64-bit numbers
-   typedef __int32 int32_t;
-   typedef __int64 int64_t;
-   typedef unsigned __int32 uint32_t;
-   #if _MSC_VER >= 1300
-      typedef unsigned __int64 uint64_t;
-   #else
-      // VC 6.0 does not support unsigned __int64: may cause potential problems.
-      typedef __int64 uint64_t;
+   #ifndef __MINGW__
+      // Explicitly define 32-bit and 64-bit numbers
+      typedef __int32 int32_t;
+      typedef __int64 int64_t;
+      typedef unsigned __int32 uint32_t;
+      #ifndef LEGACY_WIN32
+         typedef unsigned __int64 uint64_t;
+      #else
+         // VC 6.0 does not support unsigned __int64: may cause potential problems.
+         typedef __int64 uint64_t;
+      #endif
    #endif
 
    #ifdef UDT_EXPORTS
@@ -79,10 +91,14 @@ written by
 
 #define NO_BUSY_WAITING
 
-#ifndef WIN32
-   typedef int UDPSOCKET;
+#ifdef WIN32
+   #ifndef __MINGW__
+      typedef SOCKET UDPSOCKET;
+   #else
+      typedef int UDPSOCKET;
+   #endif
 #else
-   typedef SOCKET UDPSOCKET;
+   typedef int UDPSOCKET;
 #endif
 
 typedef int UDTSOCKET;
@@ -113,7 +129,7 @@ enum UDTOpt
    UDT_SNDTIMEO,        // send() timeout
    UDT_RCVTIMEO,        // recv() timeout
    UDT_REUSEADDR,	// reuse an existing port or create a new one
-   UDT_MAXBW		// maximum bandwidth (bps) that the connection can use
+   UDT_MAXBW		// maximum bandwidth (bytes per second) that the connection can use
 };
 
 ////////////////////////////////////////////////////////////////////////////////

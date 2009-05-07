@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/15/2009
+   Yunhong Gu, last updated 04/21/2009
 *****************************************************************************/
 
 #ifndef WIN32
@@ -48,7 +48,9 @@ written by
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
-   #include <wspiapi.h>
+   #ifdef LEGACY_WIN32
+      #include <wspiapi.h>
+   #endif
 #endif
 #include <cmath>
 #include "queue.h"
@@ -115,7 +117,7 @@ CUDT::CUDT()
 
    m_pCCFactory = new CCCFactory<CUDTCC>;
    m_pCC = NULL;
-   m_pController = NULL;
+   m_pCache = NULL;
 
    // Initial status
    m_bOpened = false;
@@ -165,7 +167,7 @@ CUDT::CUDT(const CUDT& ancestor)
 
    m_pCCFactory = ancestor.m_pCCFactory->clone();
    m_pCC = NULL;
-   m_pController = ancestor.m_pController;
+   m_pCache = ancestor.m_pCache;
 
    // Initial status
    m_bOpened = false;
@@ -559,7 +561,7 @@ void CUDT::connect(const sockaddr* serv_addr)
 
    uint64_t timeo = 3000000;
    if (m_bRendezvous)
-      timeo *= 60;
+      timeo *= 10;
    uint64_t entertime = CTimer::getTime();
    CUDTException e(0, 0);
 
@@ -681,10 +683,14 @@ void CUDT::connect(const sockaddr* serv_addr)
    m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
    m_dCongestionWindow = m_pCC->m_dCWndSize;
 
-   m_pController->join(this, serv_addr, m_iIPversion, m_iRTT, m_iBandwidth);
+   CInfoBlock ib;
+   m_pCache->lookup(serv_addr, m_iIPversion, &ib);
+   m_iRTT = ib.m_iRTT;
+   m_iBandwidth = ib.m_iBandwidth;
+
    m_pCC->setMSS(m_iMSS);
    m_pCC->setMaxCWndSize((int&)m_iFlowWindowSize);
-   m_pCC->setSndCurrSeqNo(m_iSndCurrSeqNo);
+   m_pCC->setSndCurrSeqNo((int32_t&)m_iSndCurrSeqNo);
    m_pCC->setRcvRate(m_iDeliveryRate);
    m_pCC->setRTT(m_iRTT);
    m_pCC->setBandwidth(m_iBandwidth);
@@ -771,10 +777,14 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
    m_dCongestionWindow = m_pCC->m_dCWndSize;
 
-   m_pController->join(this, peer, m_iIPversion, m_iRTT, m_iBandwidth);
+   CInfoBlock ib;
+   m_pCache->lookup(peer, m_iIPversion, &ib);
+   m_iRTT = ib.m_iRTT;
+   m_iBandwidth = ib.m_iBandwidth;
+
    m_pCC->setMSS(m_iMSS);
    m_pCC->setMaxCWndSize((int&)m_iFlowWindowSize);
-   m_pCC->setSndCurrSeqNo(m_iSndCurrSeqNo);
+   m_pCC->setSndCurrSeqNo((int32_t&)m_iSndCurrSeqNo);
    m_pCC->setRcvRate(m_iDeliveryRate);
    m_pCC->setRTT(m_iRTT);
    m_pCC->setBandwidth(m_iBandwidth);
@@ -839,7 +849,11 @@ void CUDT::close()
          sendCtrl(5);
 
       m_pCC->close();
-      m_pController->leave(this, m_iRTT, m_iBandwidth);
+
+      CInfoBlock ib;
+      ib.m_iRTT = m_iRTT;
+      ib.m_iBandwidth = m_iBandwidth;
+      m_pCache->update(m_pPeerAddr, m_iIPversion, &ib);
 
       m_bConnected = false;
    }
@@ -967,8 +981,9 @@ int CUDT::recv(char* data, const int& len)
     
                locktime.tv_sec = exptime / 1000000;
                locktime.tv_nsec = (exptime % 1000000) * 1000;
-    
-               pthread_cond_timedwait(&m_RecvDataCond, &m_RecvDataLock, &locktime); 
+
+               while (!m_bBroken && m_bConnected && !m_bClosing && (0 == m_pRcvBuffer->getRcvDataSize()))
+                  pthread_cond_timedwait(&m_RecvDataCond, &m_RecvDataLock, &locktime); 
             }
             pthread_mutex_unlock(&m_RecvDataLock);
          #else
@@ -978,7 +993,15 @@ int CUDT::recv(char* data, const int& len)
                   WaitForSingleObject(m_RecvDataCond, INFINITE);
             }
             else
-               WaitForSingleObject(m_RecvDataCond, DWORD(m_iRcvTimeOut));
+            {
+               uint64_t enter_time = CTimer::getTime();
+
+               while (!m_bBroken && m_bConnected && !m_bClosing && (0 == m_pRcvBuffer->getRcvDataSize()))
+               {
+                  int diff = int(CTimer::getTime() - enter_time) / 1000;
+                  WaitForSingleObject(m_RecvDataCond, DWORD(m_iRcvTimeOut - diff ));
+               }
+            }
          #endif
       }
    }
@@ -1239,7 +1262,7 @@ int64_t CUDT::recvfile(fstream& ofs, const int64_t& offset, const int64_t& size,
    // positioning...
    try
    {
-      ofs.seekp((streamoff)offset, ios::beg);
+      ofs.seekp((streamoff)offset);
    }
    catch (...)
    {
@@ -1327,7 +1350,7 @@ void CUDT::sample(CPerfMon* perf, bool clear)
    perf->usPktSndPeriod = m_ullInterval / double(m_ullCPUFrequency);
    perf->pktFlowWindow = m_iFlowWindowSize;
    perf->pktCongestionWindow = (int)m_dCongestionWindow;
-   perf->pktFlightSize = CSeqNo::seqlen(const_cast<int32_t&>(m_iSndLastAck), m_iSndCurrSeqNo);
+   perf->pktFlightSize = CSeqNo::seqlen(const_cast<int32_t&>(m_iSndLastAck), const_cast<int32_t&>(m_iSndCurrSeqNo));
    perf->msRTT = m_iRTT/1000.0;
    perf->mbpsBandwidth = m_iBandwidth * m_iPayloadSize * 8.0 / 1000000.0;
 
@@ -1657,7 +1680,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
          break;
       }
 
-      // read ACK seq. no.
+       // read ACK seq. no.
       ack = ctrlpkt.getAckSeqNo();
 
       // send ACK acknowledgement
@@ -1692,7 +1715,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       // protect packet retransmission
       CGuard::enterCS(m_AckLock);
 
-      int offset = CSeqNo::seqoff(m_iSndLastDataAck, ack);
+      int offset = CSeqNo::seqoff((int32_t&)m_iSndLastDataAck, ack);
       if (offset <= 0)
       {
          // discard it if it is a repeated ACK
@@ -1709,7 +1732,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
       // update sending variables
       m_iSndLastDataAck = ack;
-      m_pSndLossList->remove(CSeqNo::decseq(m_iSndLastDataAck));
+      m_pSndLossList->remove(CSeqNo::decseq((int32_t&)m_iSndLastDataAck));
 
       CGuard::leaveCS(m_AckLock);
 
@@ -1809,7 +1832,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
       {
          if (0 != (losslist[i] & 0x80000000))
          {
-            if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0) || (CSeqNo::seqcmp(losslist[i + 1], m_iSndCurrSeqNo) > 0))
+            if ((CSeqNo::seqcmp(losslist[i] & 0x7FFFFFFF, losslist[i + 1]) > 0) || (CSeqNo::seqcmp(losslist[i + 1], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0))
             {
                // seq_a must not be greater than seq_b; seq_b must not be greater than the most recent sent seq
                secure = false;
@@ -1825,7 +1848,7 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
          }
          else if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndLastAck)) >= 0)
          {
-            if (CSeqNo::seqcmp(losslist[i], m_iSndCurrSeqNo) > 0)
+            if (CSeqNo::seqcmp(losslist[i], const_cast<int32_t&>(m_iSndCurrSeqNo)) > 0)
             {
                //seq_a must not be greater than the most recent sent seq
                secure = false;
@@ -1844,9 +1867,6 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
          break;
       }
 
-      // Wake up the waiting sender (avoiding deadlock on an infinite sleeping)
-      m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), const_cast<int32_t&>(m_iSndLastAck));
-	  
       // the lost packet (retransmission) should be sent out immediately
       m_pSndQueue->m_pSndUList->update(this);
 
@@ -1934,7 +1954,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
       // protect m_iSndLastDataAck from updating by ACK processing
       CGuard ackguard(m_AckLock);
 
-      int offset = CSeqNo::seqoff(m_iSndLastDataAck, packet.m_iSeqNo);
+      int offset = CSeqNo::seqoff((int32_t&)m_iSndLastDataAck, packet.m_iSeqNo);
       if (offset < 0)
          return 0;
 
@@ -1970,7 +1990,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
          if (0 != (payload = m_pSndBuffer->readData(&(packet.m_pcData), packet.m_iMsgNo)))
          {
             m_iSndCurrSeqNo = CSeqNo::incseq(m_iSndCurrSeqNo);
-            m_pCC->setSndCurrSeqNo(m_iSndCurrSeqNo);
+            m_pCC->setSndCurrSeqNo((int32_t&)m_iSndCurrSeqNo);
 
             packet.m_iSeqNo = m_iSndCurrSeqNo;
 
@@ -2212,9 +2232,9 @@ void CUDT::checkTimers()
    {
       // Haven't receive any information from the peer, is it dead?!
       // timeout: at least 16 expirations and must be greater than 3 seconds and be less than 30 seconds
-      if (((m_iEXPCount > 16) && (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
-          || (m_iEXPCount > 30)
-          || (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
+      if ((m_iEXPCount > 16) && (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
+          //|| (m_iEXPCount > 30)
+          //|| (m_iEXPCount * ((m_iEXPCount - 1) * (m_iRTT + 4 * m_iRTTVar) / 2 + m_iSYNInterval) > 30000000))
       {
          //
          // Connection is broken. 
