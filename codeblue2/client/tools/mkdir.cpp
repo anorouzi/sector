@@ -20,9 +20,14 @@ int main(int argc, char** argv)
    if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
       return -1;
 
-   int r = Sector::mkdir(argv[1]);
-   if (r < 0)
-      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+   SectorFile haha;
+   haha.open(argv[1], SF_MODE::READ);
+
+   char buf[1024];
+   haha.read(buf, 1024);
+   buf[1023] = 0;
+   cout << buf << endl;
+   haha.close();
 
    Sector::logout();
    Sector::close();

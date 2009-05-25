@@ -104,13 +104,14 @@ int SectorFile::open(const string& filename, int mode)
 
    if (m_strSlaveIP == localip)
    {
+
       // the file is on the same node, check if the file can be read directly
       int32_t cmd = 6;
       g_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
       int size = 0;
       g_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, m_pcLocalPath, size);
 
-      fstream test(m_pcLocalPath, ios::binary | ios::in);
+      fstream test((m_pcLocalPath + filename).c_str(), ios::binary | ios::in);
       if (!test.bad() && !test.fail())
          m_bLocal = true;
    }
@@ -135,7 +136,7 @@ int64_t SectorFile::read(char* buf, const int64_t& size)
 
    if (m_bLocal)
    {
-      fstream ifs(m_pcLocalPath, ios::binary | ios::in);
+      fstream ifs((m_pcLocalPath + m_strFileName).c_str(), ios::binary | ios::in);
       ifs.read(buf, realsize);
       ifs.close();
       m_llCurReadPos += realsize;

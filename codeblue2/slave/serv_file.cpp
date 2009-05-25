@@ -102,7 +102,7 @@ void* Slave::fileHandler(void* p)
 
       fstream fhandle;
 
-      if (5 != cmd)
+      if (cmd <= 4)
       {
          int32_t response = 0;
 
@@ -300,7 +300,7 @@ void* Slave::fileHandler(void* p)
          break;
 
       case 6: // read file path for local IO optimization
-         self->m_DataChn.send(dst_ip, dst_port, transid, filename.c_str(), filename.length() + 1);
+         self->m_DataChn.send(src_ip, src_port, transid, self->m_strHomeDir.c_str(), self->m_strHomeDir.length() + 1);
          break;
 
       default:

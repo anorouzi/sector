@@ -581,6 +581,8 @@ void CUDT::connect(const sockaddr* serv_addr)
             // in this situation, a previously recorded response (tmp) will be used
             memcpy(resdata, tmp, sizeof(CHandShake));
             delete [] tmp;
+         memcpy(m_piSelfIP, res->m_piPeerIP, 16);
+
             break;
          }
 
