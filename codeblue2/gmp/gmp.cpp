@@ -294,14 +294,7 @@ int CGMP::sendto(const char* ip, const int& port, int32_t& id, const CUserMessag
 
 int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
 {
-   // block shortly if there are too many messages in the queue
-   CGuard::enterCS(m_SndQueueLock);
-   int size = m_lSndQueue.size();
-   CGuard::leaveCS(m_SndQueueLock);
-   if (size > 100)
-      usleep(100000);
-   else if (size > 10)
-      usleep(1);
+   m_PeerHistory.flowControl(ip, port, CGMPMessage::g_iSession);
 
    CGMPMessage* msg = new CGMPMessage;
    msg->pack(data, len, id);
@@ -714,7 +707,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
                      char* ip;
                      if (NULL != (ip = inet_ntoa(addr.sin_addr)))
                   #endif
-                  self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), session, -1, rtt);
+                     self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), CGMPMessage::g_iSession, -1, rtt, info);
 
                   #ifndef WIN32
                      pthread_cond_signal(&self->m_RTTCond);
@@ -839,14 +832,8 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          #endif
       }
 
-      // block shortly if there are too many messages in the queue
-      if (qsize > 100)
-         usleep(1000000);
-      else if (qsize > 10)
-         usleep(100000);
-
       ack[2] = id;
-      ack[3] = 0;
+      ack[3] = qsize; // flow control
       ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
    }
 

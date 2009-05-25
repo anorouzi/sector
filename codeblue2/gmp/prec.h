@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/25/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2009
 *****************************************************************************/
 
 
@@ -60,6 +60,7 @@ struct CPeerRecord
    int32_t m_iID;
    int64_t m_llTimeStamp;
    int m_iRTT;
+   int32_t m_iFlowWindow;
 };
 
 struct CFPeerRec
@@ -101,10 +102,11 @@ public:
    ~CPeerManagement();
 
 public:
-   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1);
+   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1, const int& fw = 0);
    int getRTT(const std::string& ip);
    int getLastID(const std::string& ip, const int& port, const int& session);
    void clearRTT(const std::string& ip);
+   int flowControl(const std::string& ip, const int& port, const int& session);
 
 private:
    std::set<CPeerRecord*, CFPeerRec> m_sPeerRec;

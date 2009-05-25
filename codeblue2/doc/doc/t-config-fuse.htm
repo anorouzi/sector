@@ -19,8 +19,8 @@
 
 <h3><font color="#000080">Mounting Sector as a User Space File System</font></h3>
 <p>Sector includes  a mountable user space file system interface implemented using <a href="http://fuse.sourceforge.net/" target="_blank">FUSE</a>. This allows Sector to be mounted and used just like a directory on the local file system.</p>
-<p>Sector-FUSE is located in ./client/fuse. By default,  this directory is not compiled together with rest of the system. To use this feature, install FUSE (version 2.6 or above) first (if it is not installed previously), then compile ./client/fuse, and run sector-fuse to mount the Sector file system. </p>
-<p><span class="style1">NOTE</span>: <u>Becuase Sector is a network file system and FUSE incurs additional round trip messages, using Sector-FUSE is inefficient for small files</u>. </p>
+<p>Sector-FUSE is located in ./client/fuse. By default,  this directory is not compiled together with rest of the system. To use this feature, install FUSE (<strong>version 2.6 or above</strong>) first, if it is not installed previously, then compile ./client/fuse, and run sector-fuse to mount the Sector file system. </p>
+<p><span class="style1">NOTE</span>: <u>Becuase Sector is a network file system and FUSE also incurs additional round trip messages, using Sector-FUSE is inefficient for small IO </u>. </p>
 <p><b>Install FUSE </b></p>
 <p>FUSE has been officially merged into Linux kernel tree since kernel version 2.6. To install FUSE, you may simply use the FUSE package for the specific Linux distribution. For example, on Debian, you can use: </p>
 

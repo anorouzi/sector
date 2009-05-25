@@ -117,14 +117,14 @@ int SectorFS::statfs(const char* path, struct statvfs* buf)
    return 0;
 }
 
-int SectorFS::utime(const char *, struct utimbuf *)
+int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 {
-   return 0;
+    return Sector::utime(path, ubuf->modtime);;
 }
 
-int SectorFS::utimens(const char *, const struct timespec tv[2])
+int SectorFS::utimens(const char* path, const struct timespec tv[2])
 {
-   return 0;
+   return Sector::utime(path, tv[1].tv_sec);
 }
 
 int SectorFS::opendir(const char *, struct fuse_file_info *)

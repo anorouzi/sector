@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/08/2007
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2009
 *****************************************************************************/
 
 #ifndef WIN32
@@ -68,7 +68,7 @@ CPeerManagement::~CPeerManagement()
    #endif
 }
 
-void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt)
+void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
 {
    CGuard recguard(m_PeerRecLock);
 
@@ -94,6 +94,8 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
 
       (*i)->m_llTimeStamp = CTimer::getTime();
 
+      (*i)->m_iFlowWindow = fw;
+
       delete pr;
    }
    else
@@ -109,6 +111,8 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          pr->m_iRTT = -1;
 
       pr->m_llTimeStamp = CTimer::getTime();
+
+      pr->m_iFlowWindow = fw;
 
       m_sPeerRec.insert(pr);
       m_sPeerRecByTS.insert(pr);
@@ -192,4 +196,35 @@ void CPeerManagement::clearRTT(const string& ip)
    p = m_sPeerRecByIP.equal_range(&pr);
    for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
       (*i)->m_iRTT = -1;
+}
+
+int CPeerManagement::flowControl(const std::string& ip, const int& port, const int& session)
+{
+   CPeerRecord pr;
+   pr.m_strIP = ip;
+   pr.m_iPort = port;
+   pr.m_iSession = session;
+
+   CGuard recguard(m_PeerRecLock);
+
+   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
+   if (i == m_sPeerRec.end())
+      return 0;
+
+
+   int thresh = (*i)->m_iFlowWindow - (CTimer::getTime() - (*i)->m_llTimeStamp) / 1000;
+
+   if (thresh > 100)
+   {
+      usleep(100000);
+      return 100000;
+   }
+
+   if (thresh > 10)
+   {
+      usleep(10000);
+      return 10000;
+   }
+
+   return 0;
 }
