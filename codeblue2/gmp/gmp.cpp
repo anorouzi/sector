@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/12/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/24/2009
 *****************************************************************************/
 
 
@@ -294,6 +294,15 @@ int CGMP::sendto(const char* ip, const int& port, int32_t& id, const CUserMessag
 
 int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
 {
+   // block shortly if there are too many messages in the queue
+   CGuard::enterCS(m_SndQueueLock);
+   int size = m_lSndQueue.size();
+   CGuard::leaveCS(m_SndQueueLock);
+   if (size > 100)
+      usleep(100000);
+   else if (size > 10)
+      usleep(1);
+
    CGMPMessage* msg = new CGMPMessage;
    msg->pack(data, len, id);
    id = msg->m_iID;
@@ -798,11 +807,14 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
 
       self->m_PeerHistory.insert(rec->m_pcIP, rec->m_iPort, session, id);
 
+      int qsize = 0;
+
       if (0 == info)
       {
          #ifndef WIN32
             pthread_mutex_lock(&self->m_RcvQueueLock);
             self->m_qRcvQueue.push(rec);
+            qsize += self->m_qRcvQueue.size();
             pthread_mutex_unlock(&self->m_RcvQueueLock);
             pthread_cond_signal(&self->m_RcvQueueCond);
          #else
@@ -826,6 +838,12 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             SetEvent(self->m_ResQueueCond);
          #endif
       }
+
+      // block shortly if there are too many messages in the queue
+      if (qsize > 100)
+         usleep(1000000);
+      else if (qsize > 10)
+         usleep(100000);
 
       ack[2] = id;
       ack[3] = 0;

@@ -41,6 +41,7 @@ written by
 #include <constant.h>
 #include <pthread.h>
 #include <datachn.h>
+#include "fscache.h"
 
 class Client
 {
@@ -60,6 +61,7 @@ public:
    static int move(const std::string& oldpath, const std::string& newpath);
    static int remove(const std::string& path);
    static int copy(const std::string& src, const std::string& dst);
+   static int utime(const std::string& path, const int64_t& ts);
 
    static int sysinfo(SysStat& sys);
 
@@ -84,6 +86,8 @@ protected:
    static Topology g_Topology;
 
    static SectorError g_ErrorInfo;
+
+   static StatCache g_StatCache;
 
 private:
    static int g_iCount;

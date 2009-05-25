@@ -434,6 +434,31 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type)
    return -1;
 }
 
+int Index::utime(const char* path, const int64_t& ts)
+{
+   CGuard mg(m_MetaLock);
+
+   vector<string> dir;
+   parsePath(path, dir);
+
+   if (dir.empty())
+      return 0;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return -1;
+
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   s->second.m_llTimeStamp = ts;
+   return 1;
+}
+
 int Index::lock(const char* path, int mode)
 {
    CGuard mg(m_MetaLock);

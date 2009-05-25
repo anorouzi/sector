@@ -115,9 +115,6 @@ void* Slave::fileHandler(void* p)
          if (fhandle.fail() || fhandle.bad())
             response = -1;
 
-         if (-1 == response)
-            break;
-
          if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
             break;
       }
@@ -139,6 +136,8 @@ void* Slave::fileHandler(void* p)
 
             if (self->m_DataChn.sendfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
                run = false;
+            else
+               rb += size;
 
             // update total sent data size
             self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 1 : 3);
@@ -298,6 +297,10 @@ void* Slave::fileHandler(void* p)
          }
 
          run = false;
+         break;
+
+      case 6: // read file path for local IO optimization
+         self->m_DataChn.send(dst_ip, dst_port, transid, filename.c_str(), filename.length() + 1);
          break;
 
       default:

@@ -27,14 +27,38 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/21/2009
 *****************************************************************************/
 
 
+#include <common.h>
 #include <fsclient.h>
 #include <iostream>
 
 using namespace std;
+
+SectorFile::SectorFile():
+m_iSession(),
+m_strSlaveIP(),
+m_iSlaveDataPort(),
+m_strFileName(),
+m_llSize(0),
+m_llCurReadPos(0),
+m_llCurWritePos(0),
+m_bRead(false),
+m_bWrite(false),
+m_bSecure(false),
+m_bLocal(false),
+m_pcLocalPath(NULL)
+{
+   pthread_mutex_init(&m_FileLock, NULL);
+}
+
+SectorFile::~SectorFile()
+{
+   delete [] m_pcLocalPath;
+   pthread_mutex_destroy(&m_FileLock);
+}
 
 int SectorFile::open(const string& filename, int mode)
 {
@@ -62,25 +86,61 @@ int SectorFile::open(const string& filename, int mode)
    m_bWrite = mode & 2;
    m_bSecure = mode & 16;
 
+   // check APPEND
+   if (mode & 8)
+      m_llCurWritePos = m_llSize;
+
    m_strSlaveIP = msg.getData();
    m_iSlaveDataPort = *(int*)(msg.getData() + 64);
    m_iSession = *(int*)(msg.getData() + 68);
 
    cerr << "open file " << filename << " " << m_strSlaveIP << " " << m_iSlaveDataPort << endl;
-   g_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort);
+   if (g_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)
+      return SectorError::E_CONNECTION;
+
+   string localip;
+   int localport;
+   g_DataChn.getSelfAddr(m_strSlaveIP, m_iSlaveDataPort, localip, localport);
+
+   if (m_strSlaveIP == localip)
+   {
+      // the file is on the same node, check if the file can be read directly
+      int32_t cmd = 6;
+      g_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
+      int size = 0;
+      g_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, m_pcLocalPath, size);
+
+      fstream test(m_pcLocalPath, ios::binary | ios::in);
+      if (!test.bad() && !test.fail())
+         m_bLocal = true;
+   }
 
    memcpy(m_pcKey, g_pcCryptoKey, 16);
    memcpy(m_pcIV, g_pcCryptoIV, 8);
    g_DataChn.setCryptoKey(m_strSlaveIP, m_iSlaveDataPort, m_pcKey, m_pcIV);
+
+   if (m_bWrite)
+      g_StatCache.insert(filename);
 
    return 0;
 }
 
 int64_t SectorFile::read(char* buf, const int64_t& size)
 {
+   CGuard fg(m_FileLock);
+
    int realsize = size;
    if (m_llCurReadPos + size > m_llSize)
       realsize = int(m_llSize - m_llCurReadPos);
+
+   if (m_bLocal)
+   {
+      fstream ifs(m_pcLocalPath, ios::binary | ios::in);
+      ifs.read(buf, realsize);
+      ifs.close();
+      m_llCurReadPos += realsize;
+      return realsize;
+   }
 
    // read command: 1
    int32_t cmd = 1;
@@ -110,6 +170,8 @@ int64_t SectorFile::read(char* buf, const int64_t& size)
 
 int64_t SectorFile::write(const char* buf, const int64_t& size)
 {
+   CGuard fg(m_FileLock);
+
    // write command: 2
    int32_t cmd = 2;
    g_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
@@ -128,13 +190,22 @@ int64_t SectorFile::write(const char* buf, const int64_t& size)
    int64_t sentsize = g_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, size, m_bSecure);
 
    if (sentsize > 0)
+   {
       m_llCurWritePos += sentsize;
+      if (m_llCurWritePos > m_llSize)
+         m_llSize = m_llCurWritePos;
+
+      // update the file stat information in local cache, for correct stat() call
+      g_StatCache.update(m_strFileName, CTimer::getTime(), m_llSize);
+   }
 
    return sentsize;
 }
 
 int SectorFile::download(const char* localpath, const bool& cont)
 {
+   CGuard fg(m_FileLock);
+
    int64_t offset;
    fstream ofs;
 
@@ -188,6 +259,8 @@ int SectorFile::download(const char* localpath, const bool& cont)
 
 int SectorFile::upload(const char* localpath, const bool& cont)
 {
+   CGuard fg(m_FileLock);
+
    fstream ifs;
    ifs.open(localpath, ios::in | ios::binary);
 
@@ -232,6 +305,8 @@ int SectorFile::upload(const char* localpath, const bool& cont)
 
 int SectorFile::close()
 {
+   CGuard fg(m_FileLock);
+
    // file close command: 5
    int32_t cmd = 5;
    g_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
@@ -241,11 +316,16 @@ int SectorFile::close()
    //g_DataChn.releaseCoder();
    g_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
 
+   if (m_bWrite)
+      g_StatCache.remove(m_strFileName);
+
    return 1;
 }
 
 int SectorFile::seekp(int64_t off, int pos)
 {
+   CGuard fg(m_FileLock);
+
    switch (pos)
    {
    case SF_POS::BEG:
@@ -272,6 +352,8 @@ int SectorFile::seekp(int64_t off, int pos)
 
 int SectorFile::seekg(int64_t off, int pos)
 {
+   CGuard fg(m_FileLock);
+
    switch (pos)
    {
    case SF_POS::BEG:

@@ -62,6 +62,8 @@ public:
 
    int64_t getRealSndSpeed(const std::string& ip, int port);
 
+   int getSelfAddr(const std::string& peerip, int peerport, std::string& localip, int& localport);
+
 private:
    struct RcvData
    {

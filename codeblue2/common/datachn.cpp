@@ -38,6 +38,9 @@ written by
    Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
 *****************************************************************************/
 
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <pthread.h>
 #include <cstring>
 #include <datachn.h>
@@ -588,4 +591,26 @@ int64_t DataChn::getRealSndSpeed(const std::string& ip, int port)
       return -1;
 
    return c->m_pTrans->getRealSndSpeed();
+}
+
+int DataChn::getSelfAddr(const string& peerip, int peerport, string& localip, int& localport)
+{
+   ChnInfo* c = locate(peerip, peerport);
+   if (NULL == c)
+      return -1;
+
+   if ((peerip == m_strIP) && (peerport == m_iPort))
+   {
+      localip = m_strIP;
+      localport = m_iPort;
+      return 0;
+   }
+
+   sockaddr_in addr;
+   if (c->m_pTrans->getsockname((sockaddr*)&addr) < 0)
+      return -1;
+
+   localip = inet_ntoa(addr.sin_addr);
+   localport = ntohs(addr.sin_port);
+   return 0;
 }

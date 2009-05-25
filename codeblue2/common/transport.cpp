@@ -215,6 +215,12 @@ int64_t Transport::getRealSndSpeed()
    return int64_t(8.0 * perf.pktSent * mss / (perf.usSndDuration / 1000000.0));
 }
 
+int Transport::getsockname(sockaddr* addr)
+{
+   int size = sizeof(sockaddr_in);
+   return UDT::getsockname(m_Socket, addr, &size);
+}
+
 int Transport::initCoder(unsigned char key[16], unsigned char iv[16])
 {
    m_Encoder.initEnc(key, iv);

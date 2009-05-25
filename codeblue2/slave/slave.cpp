@@ -35,7 +35,8 @@ written by
 #include <sys/vfs.h>
 #include <unistd.h>
 #include <sys/times.h>
-#include "../udt/common.h"
+#include <utime.h>
+#include "common.h"
 
 using namespace std;
 
@@ -284,6 +285,18 @@ void Slave::run()
             sprintf(tmp, "removed directory %s.", path);
             m_SectorLog.insert(tmp);
             delete [] tmp;
+
+            break;
+         }
+
+         case 107: // utime
+         {
+            char* path = msg->getData();
+
+            utimbuf ut;
+            ut.actime = *(int64_t*)(msg->getData() + strlen(path) + 1);
+            ut.modtime = *(int64_t*)(msg->getData() + strlen(path) + 1);;
+            utime((m_strHomeDir + path).c_str(), &ut);
 
             break;
          }

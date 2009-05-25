@@ -50,6 +50,7 @@ int32_t Client::g_iKey = 0;
 int Client::g_iCount = 0;
 unsigned char Client::g_pcCryptoKey[16];
 unsigned char Client::g_pcCryptoIV[8];
+StatCache Client::g_StatCache;
 
 Client::Client()
 {
@@ -239,6 +240,9 @@ int Client::stat(const string& path, SNode& attr)
       attr.m_sLocation.insert(addr);
    }
 
+   // check local cache: updated files may not be sent to the master yet
+   g_StatCache.stat(path, attr);
+
    return 1;
 }
 
@@ -318,6 +322,25 @@ int Client::copy(const string& src, const string& dst)
    size = rdst.length() + 1;
    msg.setData(4 + rsrc.length() + 1, (char*)&size, 4);
    msg.setData(4 + rsrc.length() + 1 + 4, rdst.c_str(), rdst.length() + 1);
+
+   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   return 1;
+}
+
+int Client::utime(const string& path, const int64_t& ts)
+{
+   string revised_path = revisePath(path);
+
+   SectorMsg msg;
+   msg.setType(107);
+   msg.setKey(g_iKey);
+   msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
+   msg.setData(revised_path.length() + 1, (char*)&ts, 8);
 
    if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;

@@ -27,60 +27,65 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2009
 *****************************************************************************/
 
-#ifndef __SECTOR_FS_CLIENT_H__
-#define __SECTOR_FS_CLIENT_H__
+#include "fscache.h"
 
-#include <gmp.h>
-#include <index.h>
-#include <constant.h>
-#include <client.h>
+using namespace std;
 
-class SectorFile: public Client
+void StatCache::insert(const string& path)
 {
-public:
-   SectorFile();
-   virtual ~SectorFile();
+   map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
-public:
-   int open(const std::string& filename, int mode = SF_MODE::READ);
-   int64_t read(char* buf, const int64_t& size);
-   int64_t write(const char* buf, const int64_t& size);
-   int download(const char* localpath, const bool& cont = false);
-   int upload(const char* localpath, const bool& cont = false);
-   int close();
+   if (s == m_mOpenedFiles.end())
+   {
+      StatRec r;
+      r.m_iCount = 1;
+      r.m_bChange = false;
+      m_mOpenedFiles[path] = r;
+   }
+   else
+   {
+      s->second.m_iCount ++;
+   }
+}
 
-   int seekp(int64_t off, int pos = SF_POS::BEG);
-   int seekg(int64_t off, int pos = SF_POS::BEG);
-   int64_t tellp();
-   int64_t tellg();
-   bool eof();
+void StatCache::update(const string& path, const int64_t& ts, const int64_t& size)
+{
+   map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
-private:
-   int32_t m_iSession;
-   std::string m_strSlaveIP;
-   int32_t m_iSlaveDataPort;
+   if (s == m_mOpenedFiles.end())
+      return;
 
-   unsigned char m_pcKey[16];
-   unsigned char m_pcIV[8];
+   s->second.m_llTimeStamp = ts;
+   s->second.m_llSize = size;
 
-   std::string m_strFileName;
+   s->second.m_bChange = true;
+}
 
-   int64_t m_llSize;
-   int64_t m_llCurReadPos;
-   int64_t m_llCurWritePos;
+int StatCache::stat(const string& path, SNode& attr)
+{
+   map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
-   bool m_bRead;
-   bool m_bWrite;
-   bool m_bSecure;
+   if (s == m_mOpenedFiles.end())
+      return -1;
 
-   bool m_bLocal;
-   char* m_pcLocalPath;
+   if (!s->second.m_bChange)
+      return 0;
 
-private:
-   pthread_mutex_t m_FileLock;
-};
+   attr.m_llTimeStamp = s->second.m_llTimeStamp;
+   attr.m_llSize = s->second.m_llSize;
+   return 1;
+}
 
-#endif
+void StatCache::remove(const string& path)
+{
+   map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
+
+   if (s == m_mOpenedFiles.end())
+      return;
+
+   if (-- s->second.m_iCount == 0)
+      m_mOpenedFiles.erase(s);
+}

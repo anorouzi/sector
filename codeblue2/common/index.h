@@ -86,6 +86,7 @@ public:
       //    number of replicas of the file, or -1 on error.
 
    int update(const char* fileinfo, const Address& addr, const int& type);
+   int utime(const char* path, const int64_t& ts);
 
 public:
    int lock(const char* path, int mode);

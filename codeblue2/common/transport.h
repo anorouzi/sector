@@ -56,6 +56,7 @@ public:
    int close();
    bool isConnected();
    int64_t getRealSndSpeed();
+   int getsockname(sockaddr* addr);
 
 public: // secure data/file transfer
    int initCoder(unsigned char key[16], unsigned char iv[8]);

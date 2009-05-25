@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/02/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -768,7 +768,7 @@ void* Master::process(void* s)
                //TODO: send current users, current transactions
             }
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "sysinfo", "", "SUCCESS", "");
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "sysinfo", "", "SUCCESS", "");
 
             break;
          }
@@ -817,7 +817,7 @@ void* Master::process(void* s)
             if (!user->match(dir, rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "ls", dir.c_str(), "REJECT", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "ls", dir.c_str(), "REJECT", "");
                break;
             }
 
@@ -837,7 +837,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "ls", dir.c_str(), "SUCCESS", "");
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "ls", dir.c_str(), "SUCCESS", "");
 
             break;
          }
@@ -856,7 +856,7 @@ void* Master::process(void* s)
             if (r < 0)
             {
                self->reject(ip, port, id, SectorError::E_NOEXIST);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "stat", msg->getData(), "REJECT", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "stat", msg->getData(), "REJECT", "");
             }
             else
             {
@@ -874,7 +874,7 @@ void* Master::process(void* s)
 
                self->m_GMP.sendto(ip, port, id, msg);
 
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "stat", msg->getData(), "SUCCESS", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "stat", msg->getData(), "SUCCESS", "");
             }
 
             break;
@@ -886,7 +886,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT E_PERMISSION", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT E_PERMISSION", "");
                break;
             }
 
@@ -894,8 +894,8 @@ void* Master::process(void* s)
             if (self->m_Metadata.lookup(msg->getData(), attr) >= 0)
             {
                // directory already exist
-               self->reject(ip, port, id, SectorError::E_NOEXIST);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT E_NOEXIST", "");
+               self->reject(ip, port, id, SectorError::E_EXIST);
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "REJECT E_EXIST", "");
                break;
             }
 
@@ -917,7 +917,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "SUCCESS", addr.begin()->m_strIP.c_str());
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "SUCCESS", addr.begin()->m_strIP.c_str());
 
             break;
          }
@@ -998,7 +998,7 @@ void* Master::process(void* s)
             if (!user->match(msg->getData(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", msg->getData(), "REJECT", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -1019,7 +1019,7 @@ void* Master::process(void* s)
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", filename.c_str(), "SUCCESS", "");
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", filename.c_str(), "SUCCESS", "");
 
             break;
          }
@@ -1096,6 +1096,36 @@ void* Master::process(void* s)
             break;
          }
 
+         case 107: // utime
+         {
+            int rwx = SF_MODE::WRITE;
+            if (!user->match(msg->getData(), rwx))
+            {
+               self->reject(ip, port, id, SectorError::E_PERMISSION);
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "delete", msg->getData(), "REJECT", "");
+               break;
+            }
+
+            SNode attr;
+            if (self->m_Metadata.lookup(msg->getData(), attr) < 0)
+            {
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
+               break;
+            }
+
+            for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+            {
+               int msgid = 0;
+               self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
+            }
+
+            self->m_Metadata.utime(msg->getData(), *(int64_t*)(msg->getData() + strlen(msg->getData()) + 1));
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize;
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
          case 110: // open file
          {
             int32_t mode = *(int32_t*)(msg->getData());
@@ -1107,7 +1137,7 @@ void* Master::process(void* s)
             if (!user->match(path.c_str(), rwx))
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                break;
             }
 
@@ -1125,7 +1155,7 @@ void* Master::process(void* s)
                if (!(mode & SF_MODE::WRITE))
                {
                   self->reject(ip, port, id, SectorError::E_NOEXIST);
-                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "REJECT", "");
+                  //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "REJECT", "");
                   break;
                }
 
@@ -1135,7 +1165,7 @@ void* Master::process(void* s)
                if (self->m_SlaveManager.chooseIONode(empty, client, mode, addr, self->m_SysConfig.m_iReplicaNum) <= 0)
                {
                   self->reject(ip, port, id, SectorError::E_RESOURCE);
-                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
+                  //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                   break;
                }
             }
@@ -1147,7 +1177,7 @@ void* Master::process(void* s)
                if (r < 0)
                {
                   self->reject(ip, port, id, SectorError::E_BUSY);
-                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "REJECT", "");
+                  //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "REJECT", "");
                   break;
                }
             }
@@ -1193,7 +1223,7 @@ void* Master::process(void* s)
                if ((self->m_GMP.rpc(curraddr->m_strIP.c_str(), curraddr->m_iPort, msg, &response) < 0) || (response.getType() < 0))
                {
                   self->reject(ip, port, id, SectorError::E_RESOURCE);
-                  self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "FAIL", "");
+                  //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "FAIL", "");
 
                   //TODO: FIX THIS, ROLLBACK TRANS
                }
@@ -1213,8 +1243,8 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            if (key != 0)
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.rbegin()->m_strIP.c_str());
+            //if (key != 0)
+            //   self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", path.c_str(), "SUCCESS", addr.rbegin()->m_strIP.c_str());
 
             break;
          }
@@ -1226,7 +1256,7 @@ void* Master::process(void* s)
             if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "REJECTED DUE TO PERMISSION", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "REJECTED DUE TO PERMISSION", "");
                break;
             }
 
@@ -1254,7 +1284,7 @@ void* Master::process(void* s)
             if (notfound)
             {
                self->reject(ip, port, id, SectorError::E_NOEXIST);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "REJECTED: FILE NO EXIST", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "REJECTED: FILE NO EXIST", "");
                break;
             }
 
@@ -1268,7 +1298,7 @@ void* Master::process(void* s)
             msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "SUCCESS", "");
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "request SPE", "", "SUCCESS", "");
 
             break;
          }
@@ -1278,7 +1308,7 @@ void* Master::process(void* s)
             if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "locate SPE", "", "REJECTED DUE TO PERMISSION", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "locate SPE", "", "REJECTED DUE TO PERMISSION", "");
                break;
             }
 
@@ -1293,7 +1323,7 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "locate SPE", "", "SUCCESS", "");
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "locate SPE", "", "SUCCESS", "");
 
             break;
          }
@@ -1303,7 +1333,7 @@ void* Master::process(void* s)
             if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "REJECTED DUE TO PERMISSION", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "REJECTED DUE TO PERMISSION", "");
                break;
             }
 
@@ -1323,7 +1353,7 @@ void* Master::process(void* s)
             if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
             {
                self->reject(ip, port, id, SectorError::E_RESOURCE);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SLAVE FAILURE", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SLAVE FAILURE", "");
                break;
             }
 
@@ -1331,7 +1361,7 @@ void* Master::process(void* s)
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SUCCESS", addr.m_strIP.c_str());
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start SPE", "", "SUCCESS", addr.m_strIP.c_str());
 
             break;
          }
@@ -1341,7 +1371,7 @@ void* Master::process(void* s)
             if (!user->m_bExec)
             {
                self->reject(ip, port, id, SectorError::E_PERMISSION);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "REJECTED DUE TO PERMISSION", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "REJECTED DUE TO PERMISSION", "");
                break;
             }
 
@@ -1360,13 +1390,13 @@ void* Master::process(void* s)
             if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
             {
                self->reject(ip, port, id, SectorError::E_RESOURCE);
-               self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "SLAVE FAILURE", "");
+               //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "SLAVE FAILURE", "");
                break;
             }
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "SUCCESS", addr.m_strIP.c_str());
+            //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "SUCCESS", addr.m_strIP.c_str());
 
             break;
          }
