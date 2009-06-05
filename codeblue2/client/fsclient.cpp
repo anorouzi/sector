@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/04/2009
 *****************************************************************************/
 
 
@@ -137,6 +137,7 @@ int64_t SectorFile::read(char* buf, const int64_t& size)
    if (m_bLocal)
    {
       fstream ifs((m_pcLocalPath + m_strFileName).c_str(), ios::binary | ios::in);
+      ifs.seekg(m_llCurReadPos);
       ifs.read(buf, realsize);
       ifs.close();
       m_llCurReadPos += realsize;
