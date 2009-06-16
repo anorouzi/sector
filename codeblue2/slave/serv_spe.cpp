@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/22/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/16/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -466,7 +466,9 @@ void* Slave::SPEHandler(void* p)
       addr.m_strIP = dest.m_pcOutputLoc + i * 80;
       addr.m_iPort = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 64);
       int dataport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 68);
-      sndspd.insert(pair<int64_t, Address>(self->m_DataChn.getRealSndSpeed(addr.m_strIP, dataport), addr));
+      int64_t spd = self->m_DataChn.getRealSndSpeed(addr.m_strIP, dataport);
+      if (spd > 0)
+         sndspd.insert(pair<int64_t, Address>(spd, addr));
    }
    vector<Address> bad;
    self->checkBadDest(sndspd, bad);
@@ -487,6 +489,10 @@ void* Slave::SPEShuffler(void* p)
    int bucketnum = ((Param5*)p)->bucketnum;
    CGMP* gmp = ((Param5*)p)->gmp;
    string function = ((Param5*)p)->function;
+
+   //set up data connection, for keep-alive purpose
+   if (self->m_DataChn.connect(client_ip, client_data_port) < 0)
+      return NULL;
 
    queue<Bucket>* bq = new queue<Bucket>;
    pthread_mutex_t* bqlock = new pthread_mutex_t;
@@ -533,7 +539,7 @@ void* Slave::SPEShuffler(void* p)
       if (r < 0)
          continue;
 
-      int srcport = *(int32_t*)msg.getData();
+      int dataport = *(int32_t*)msg.getData();
       int session = *(int32_t*)(msg.getData() + 4);
       int totalnum = *(int32_t*)(msg.getData() + 8);
       int totalsize = *(int32_t*)(msg.getData() + 12);
@@ -550,14 +556,14 @@ void* Slave::SPEShuffler(void* p)
       {
          gmp->sendto(speip, speport, msgid, &msg);
 
-         if (!self->m_DataChn.isConnected(speip, speport))
-            self->m_DataChn.connect(speip, speport);
+         if (!self->m_DataChn.isConnected(speip, dataport))
+            self->m_DataChn.connect(speip, dataport);
 
          Bucket b;
          b.totalnum = totalnum;
          b.totalsize = totalsize;
          b.src_ip = speip;
-         b.src_dataport = srcport;
+         b.src_dataport = dataport;
          b.session = session;
 
          pthread_mutex_lock(bqlock);
@@ -628,13 +634,13 @@ void* Slave::SPEShufflerEx(void* p)
          break;
 
       string speip = b.src_ip;
-      int srcport = b.src_dataport;
+      int dataport = b.src_dataport;
       int session = b.session;
 
       for (int i = 0; i < b.totalnum; ++ i)
       {
          int bucket = 0;
-         if (self->m_DataChn.recv4(speip, srcport, session, bucket) < 0)
+         if (self->m_DataChn.recv4(speip, dataport, session, bucket) < 0)
             continue;
 
          fileid.insert(bucket);
@@ -651,13 +657,13 @@ void* Slave::SPEShufflerEx(void* p)
 
          int32_t len;
          char* data = NULL;
-         if (self->m_DataChn.recv(speip, srcport, session, data, len) < 0)
+         if (self->m_DataChn.recv(speip, dataport, session, data, len) < 0)
             continue;
          datafile.write(data, len);
          delete [] data;
 
          tmp = NULL;
-         if (self->m_DataChn.recv(speip, srcport, session, tmp, len) < 0)
+         if (self->m_DataChn.recv(speip, dataport, session, tmp, len) < 0)
             continue;
          int64_t* index = (int64_t*)tmp;
          for (int i = 0; i < len / 8; ++ i)
@@ -712,9 +718,9 @@ void* Slave::SPEShufflerEx(void* p)
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
    {
       sprintf(tmp, "%s.%d", (path + "/" + localfile).c_str(), *i);
-      self->report(0, tmp, 1);
+      self->report(transid, tmp, 1);
       sprintf(tmp, "%s.%d.idx", (path + "/" + localfile).c_str(), *i);
-      self->report(0, tmp, 1);
+      self->report(transid, tmp, 1);
    }
    delete [] tmp;
 
@@ -1323,8 +1329,10 @@ int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result
 
 int Slave::checkBadDest(multimap<int64_t, Address>& sndspd, vector<Address>& bad)
 {
+   bad.clear();
+
    if (sndspd.empty())
-      return -1;
+      return 0;
 
    int m = sndspd.size() / 2;
    multimap<int64_t, Address>::iterator p = sndspd.begin();

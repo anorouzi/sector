@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/18/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2009
 *****************************************************************************/
 
 
@@ -345,6 +345,30 @@ void* Slave::copy(void* p)
    string src = ((Param3*)p)->src;
    string dst = ((Param3*)p)->dst;
    delete (Param3*)p;
+
+   SNode tmp;
+   if (self->m_LocalFile.lookup(src.c_str(), tmp) > 0)
+   {
+      //if file is local, copy directly
+      self->createDir(dst.substr(0, dst.rfind('/')));
+      string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
+      string rsrc = self->reviseSysCmdPath(src);
+      string rdst = self->reviseSysCmdPath(dst);
+      system(("cp " + rhome + src + " " + rhome + rdst).c_str());
+
+      // if the file has been modified during the replication, remove this replica
+      int type = (src == dst) ? 3 : 1;
+      if (self->report(transid, dst, type) < 0)
+         system(("rm " + rhome + rdst).c_str());
+
+      //utime: update timestamp according to the original copy
+      utimbuf ut;
+      ut.actime = ts;
+      ut.modtime = ts;
+      utime((rhome + rdst).c_str(), &ut);
+
+      return NULL;
+   }
 
    SectorMsg msg;
    msg.setType(110); // open the file
