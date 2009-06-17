@@ -221,7 +221,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    }
 
    if (candidate.empty())
-      return -1;
+      return SF_ERROR::E_NODISK;
 
    timeval t;
    gettimeofday(&t, 0);
@@ -295,7 +295,9 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
             avail.insert(i->first);
       }
 
-      int r = int(avail.size() * (double(rand()) / RAND_MAX)) % avail.size();
+      int r = 0;
+      if (avail.size() > 0)
+         r = int(avail.size() * (double(rand()) / RAND_MAX)) % avail.size();
       set<int>::iterator n = avail.begin();
       for (int i = 0; i < r; ++ i)
          n ++;
@@ -303,7 +305,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
       // if this is not a high reliable write, one node is enough
       if ((mode & SF_MODE::HiRELIABLE) == 0)
-         return 1;
+         return sl.size();
 
       // otherwise choose more nodes for immediate replica
       for (int i = 0; i < replica - 1; ++ i)
