@@ -42,6 +42,7 @@ public:
    static const int E_NOEXIST = -1003;		// file/dir not found
    static const int E_BUSY = -1004;		// file busy
    static const int E_LOCALFILE = -1005;	// local file failure
+   static const int E_NOTEMPTY = -1006;         // directory is not empty (for rmdir)
    static const int E_SECURITY = -2000;		// security check failed
    static const int E_NOCERT = -2001;		// no certificate found
    static const int E_ACCOUNT = -2002;		// account does not exist
@@ -52,9 +53,13 @@ public:
    static const int E_EXPIRED = - 2007;		// connection time out due to no activity
    static const int E_CONNECTION = - 3000;	// cannot connect to master
    static const int E_RESOURCE = -4000;		// no available resources
+   static const int E_NODISK = -4001;		// no enough disk
    static const int E_TIMEDOUT = -5000;		// timeout
    static const int E_INVALID = -6000;		// invalid parameter
    static const int E_SUPPORT = -6001;		// operation not supported
+
+public: // internal error
+   static const int E_MASTER = -101;		// incorrect master node to handle the request
 
 public:
    static int init();

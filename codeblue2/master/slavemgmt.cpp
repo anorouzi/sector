@@ -221,7 +221,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    }
 
    if (candidate.empty())
-      return SF_ERROR::E_NODISK;
+      return SectorError::E_NODISK;
 
    timeval t;
    gettimeofday(&t, 0);
