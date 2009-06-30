@@ -15,7 +15,7 @@
 <div class="ref_head">&nbsp;User's Guide </div>
 
 <h3><font color="#000080">Understanding the Sphere Programming Paradigm  </font></h3>
-<p>To introduce Sphere, consider the following example  application. Assume we have a collection of astronomical images from the Sloan  Digital Sky Survey and the goal is to find brown dwarfs (a stellar object) in  these images. The SDSS dataset is stored in <em>N</em> files, named SDSS1.dat, …,  SDSSn.dat, each consisting one or more images.</p>
+<p>To introduce Sphere, consider the following example  application. Assume we have a collection of astronomical images from the Sloan  Digital Sky Survey and the goal is to find brown dwarfs (a stellar object) in  these images. The SDSS dataset is stored in <em>N</em> files, named SDSS1.dat, …,  SDSSn.dat, each consisting of one or more images.</p>
 <p>In order to access an image randomly in the dataset, we  built a record index for each file. The record index indicates the start and  end positions (i.e., offset and size) of each record (in this case, an image)  in the data file. The record indexes are named by adding an &quot;.idx&quot;  postfix to the data file name: SDSS1.dat.idx, …, SDSSn.dat.idx.</p>
 <p>To use Sphere, the user writes a function “findBrownDwarf”  to find brown dwarfs from each image. In this function, the input is an image  and its size, while the output indicates the brown dwarfs in &quot;result&quot;  of size &quot;rsize&quot;.</p>
 <div class="code">findBrownDwarf(char*  image, int isize, char* result, int rsize);</div>

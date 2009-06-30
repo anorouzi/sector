@@ -23,68 +23,19 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/23/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
 *****************************************************************************/
 
 #include <common.h>
 #include <ssltransport.h>
-#include "master.h"
 #include <dirent.h>
+#include <signal.h>
 #include <constant.h>
 #include <iostream>
 #include <stack>
+#include "master.h"
 
 using namespace std;
-
-
-int ActiveUser::deserialize(vector<string>& dirs, const string& buf)
-{
-   unsigned int s = 0;
-   while (s < buf.length())
-   {
-      unsigned int t = buf.find(';', s);
-
-      if (buf.c_str()[s] == '/')
-         dirs.insert(dirs.end(), buf.substr(s, t - s));
-      else
-         dirs.insert(dirs.end(), "/" + buf.substr(s, t - s));
-      s = t + 1;
-   }
-
-   return dirs.size();
-}
-
-bool ActiveUser::match(const string& path, int32_t rwx)
-{
-   // check read flag bit 1 and write flag bit 2
-   rwx &= 3;
-
-   if ((rwx & 1) != 0)
-   {
-      for (vector<string>::iterator i = m_vstrReadList.begin(); i != m_vstrReadList.end(); ++ i)
-      {
-         if ((path.length() >= i->length()) && (path.substr(0, i->length()) == *i) && ((path.length() == i->length()) || (path.c_str()[i->length()] == '/') || (*i == "/")))
-         {
-            rwx ^= 1;
-            break;
-         }
-      }
-   }
-
-   if ((rwx & 2) != 0)
-   {
-      for (vector<string>::iterator i = m_vstrWriteList.begin(); i != m_vstrWriteList.end(); ++ i)
-      {
-         if ((path.length() >= i->length()) && (path.substr(0, i->length()) == *i) && ((path.length() == i->length()) || (path.c_str()[i->length()] == '/') || (*i == "/")))
-         {
-            rwx ^= 2;
-            break;
-         }
-      }
-   }
-
-   return (rwx == 0);
-}
 
 
 Master::Master():
@@ -186,6 +137,35 @@ int Master::init()
       return -1;
    }
 
+   //connect security server to get ID
+   SSLTransport::init();
+   SSLTransport secconn;
+   if (secconn.initClientCTX("../conf/security_node.cert") < 0)
+   {
+      m_SectorLog.insert("No security node certificate found.");
+      return -1;
+   }
+   secconn.open(NULL, 0);
+   int r = secconn.connect(m_SysConfig.m_strSecServIP.c_str(), m_SysConfig.m_iSecServPort);
+   if (r < 0)
+   {
+      secconn.close();
+      SSLTransport::destroy();
+      m_SectorLog.insert("Failed to found security server.");
+      return -1;
+   }
+
+   int32_t cmd = 4;
+   secconn.send((char*)&cmd, 4);
+   secconn.recv((char*)&m_iRouterKey, 4);
+   secconn.close();
+   SSLTransport::destroy();
+
+   Address addr;
+   addr.m_strIP = "";
+   addr.m_iPort = m_SysConfig.m_iServerPort;
+   m_Routing.insert(m_iRouterKey, addr);
+
    // start service thread
    pthread_t svcserver;
    pthread_create(&svcserver, NULL, service, this);
@@ -210,6 +190,119 @@ int Master::init()
    return 1;
 }
 
+int Master::join(const char* ip, const int& port)
+{
+   // join the server
+   SSLTransport::init();
+
+   string cert = "../conf/master_node.cert";
+
+   SSLTransport s;
+   s.initClientCTX(cert.c_str());
+   s.open(NULL, 0);
+   if (s.connect(ip, port) < 0)
+   {
+      cerr << "unable to set up secure channel to the existing master.\n";
+      return -1;
+   }
+
+   int cmd = 3;
+   s.send((char*)&cmd, 4);
+   int32_t key = -1;
+   s.recv((char*)&key, 4);
+   if (key < 0)
+   {
+      cerr << "security check failed. code: " << key << endl;
+      return -1;
+   }
+
+   Address addr;
+   addr.m_strIP = ip;
+   addr.m_iPort = port;
+   m_Routing.insert(key, addr);
+
+   s.send((char*)&m_SysConfig.m_iServerPort, 4);
+   s.send((char*)&m_iRouterKey, 4);
+
+   // recv master list
+   int num = 0;
+   if (s.recv((char*)&num, 4) < 0)
+      return -1;
+   for (int i = 0; i < num; ++ i)
+   {
+      char ip[64];
+      int port = 0;
+      int id = 0;
+      int size = 0;
+      s.recv((char*)&id, 4);
+      s.recv((char*)&size, 4);
+      s.recv(ip, size);
+      s.recv((char*)&port, 4);
+      Address addr;
+      addr.m_strIP = ip;
+      addr.m_iPort = port;
+      m_Routing.insert(id, addr);
+   }
+
+   // recv slave list
+   if (s.recv((char*)&num, 4) < 0)
+       return -1;
+   for (int i = 0; i < num; ++ i)
+   {
+      char ip[64];
+      int port = 0;
+      int dataport = 0;
+      int size = 0;
+      s.recv((char*)&size, 4);
+      s.recv(ip, size);
+      s.recv((char*)&port, 4);
+      s.recv((char*)&dataport, 4);
+      SlaveNode sn;
+      sn.m_strIP = ip;
+      sn.m_iPort = port;
+      sn.m_iDataPort = dataport;
+      sn.m_llLastUpdateTime = CTimer::getTime();
+      sn.m_iRetryNum = 0;
+      sn.m_llLastVoteTime = CTimer::getTime();
+      m_SlaveManager.insert(sn);
+      m_SlaveManager.updateClusterStat();
+   }
+
+   // recv user list
+   if (s.recv((char*)&num, 4) < 0)
+      return -1;
+   for (int i = 0; i < num; ++ i)
+   {
+      int size = 0;
+      s.recv((char*)&size, 4);
+      char* ubuf = new char[size];
+      s.recv(ubuf, size);
+      ActiveUser au;
+      au.deserialize(ubuf, size);
+      delete [] ubuf;
+      m_mActiveUser[au.m_iKey] = au;
+   }
+
+   // recv metadata
+   char* mbuf = NULL;
+   int size = 0;
+   s.recv((char*)&size, 4);
+   mbuf = new char[size];
+   s.recv(mbuf, size);;
+   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
+   ofs.write(mbuf, size);
+   ofs.close();
+   delete [] mbuf;
+   ifstream ifs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
+   m_Metadata.deserialize(ifs, m_Metadata.m_mDirectory);
+   ifs.close();
+
+   s.close();
+   SSLTransport::destroy();
+
+   return 0;
+}
+
 int Master::run()
 {
    while (m_Status == RUNNING)
@@ -219,6 +312,7 @@ int Master::run()
       // check each users, remove inactive ones
       vector<int> tbru;
 
+      /*
       for (map<int, ActiveUser>::iterator i = m_mActiveUser.begin(); i != m_mActiveUser.end(); ++ i)
       {
          if (0 == i->first)
@@ -241,6 +335,7 @@ int Master::run()
                tbru.insert(tbru.end(), i->first);
          }
       }
+      */
 
       // remove from active user list
       for (vector<int>::iterator i = tbru.begin(); i != tbru.end(); ++ i)
@@ -370,16 +465,38 @@ int Master::run()
       }
 
       // check replica, create or remove replicas if necessary
-      pthread_mutex_lock(&m_ReplicaLock);
-      if (m_vstrToBeReplicated.empty())
+      // only the first master is responsible for replica checking
+      if (m_Routing.getRouterID(m_iRouterKey) == 0)
       {
-         CGuard::enterCS(m_Metadata.m_MetaLock);
-         checkReplica(m_Metadata.m_mDirectory, "/", m_vstrToBeReplicated);
-         CGuard::leaveCS(m_Metadata.m_MetaLock);
+         pthread_mutex_lock(&m_ReplicaLock);
+         if (m_vstrToBeReplicated.empty())
+         {
+            CGuard::enterCS(m_Metadata.m_MetaLock);
+            checkReplica(m_Metadata.m_mDirectory, "/", m_vstrToBeReplicated);
+            CGuard::leaveCS(m_Metadata.m_MetaLock);
+         }
+         if (!m_vstrToBeReplicated.empty())
+            pthread_cond_signal(&m_ReplicaCond);
+         pthread_mutex_unlock(&m_ReplicaLock);
       }
-      if (!m_vstrToBeReplicated.empty())
-         pthread_cond_signal(&m_ReplicaCond);
-      pthread_mutex_unlock(&m_ReplicaLock);
+
+      // check other masters
+      vector<uint32_t> tbrm;
+
+      for (map<uint32_t, Address>::iterator i = m_Routing.m_mAddressList.begin(); i != m_Routing.m_mAddressList.end(); ++ i)
+      {
+         if (i->first == m_iRouterKey)
+            continue;
+
+         SectorMsg msg;
+         msg.setKey(0);
+         msg.setType(1001);
+         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0)
+            tbrm.push_back(i->first);
+      }
+
+      for (vector<uint32_t>::iterator i = tbrm.begin(); i != tbrm.end(); ++ i)
+         m_Routing.remove(*i);
    }
 
    return 1;
@@ -430,6 +547,8 @@ void* Master::service(void* s)
 
 void* Master::serviceEx(void* p)
 {
+   signal(SIGPIPE, SIG_IGN);
+
    Master* self = ((Param*)p)->self;
    SSLTransport* s = ((Param*)p)->ssl;
    string ip = ((Param*)p)->ip;
@@ -482,19 +601,19 @@ void* Master::serviceEx(void* p)
             addr.m_strIP = ip;
             addr.m_iPort = sn.m_iPort;
 
-            int32_t size = 0;
-            s->recv((char*)&size, 4);
+            int32_t msize = 0;
+            s->recv((char*)&msize, 4);
 
-            char* buf = new char[size];
-            s->recv(buf, size);
+            char* mbuf = NULL;
+            mbuf = new char[msize];
+            s->recv(mbuf, msize);
 
             ofstream meta((self->m_strHomeDir + ".metadata/" + ip).c_str(), ios::out | ios::trunc);
-            meta.write(buf, size);
-            delete [] buf;
+            meta.write(mbuf, msize);
             meta.close();
             map<string, SNode> branch;
             ifstream ifs((self->m_strHomeDir + ".metadata/" + ip).c_str(), ios::in);
-            Index::deserialize(ifs, branch, addr);
+            Index::deserialize(ifs, branch, &addr);
             ifs.close();
 
             ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::out);
@@ -505,15 +624,16 @@ void* Master::serviceEx(void* p)
 
             ifs.open((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::in);
             ifs.seekg(0, ios::end);
-            size = ifs.tellg();
-            s->send((char*)&size, 4);
-            if (size > 0)
+            int lsize = ifs.tellg();
+            s->send((char*)&lsize, 4);
+            if (lsize > 0)
             {
-               buf = new char[size];
+               char* lbuf = NULL;
+               lbuf = new char[lsize];
                ifs.seekg(0);
-               ifs.read(buf, size);
-               s->send(buf, size);
-               delete [] buf;
+               ifs.read(lbuf, lsize);
+               s->send(lbuf, lsize);
+               delete [] lbuf;
             }
             ifs.close();
 
@@ -530,9 +650,43 @@ void* Master::serviceEx(void* p)
 
             s->send((char*)&sn.m_iNodeID, 4);
 
+            // send the list of masters to the new slave
+            s->send((char*)&self->m_iRouterKey, 4);
+            int num = self->m_Routing.m_mAddressList.size() - 1;
+            s->send((char*)&num, 4);
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               s->send((char*)&i->first, 4);
+               int size = i->second.m_strIP.length() + 1;
+               s->send((char*)&size, 4);
+               s->send(i->second.m_strIP.c_str(), size);
+               s->send((char*)&i->second.m_iPort, 4);
+            }
+
             char text[64];
             sprintf(text, "Slave node %s:%d joined.", ip.c_str(), sn.m_iPort);
             self->m_SectorLog.insert(text);
+
+            // send new slave info to all existing masters
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1002);
+               msg.setData(0, sn.m_strIP.c_str(), sn.m_strIP.length() + 1);
+               msg.setData(64, (char*)&sn.m_iPort, 4);
+               msg.setData(68, (char*)&sn.m_iDataPort, 4);
+               msg.setData(72, mbuf, msize);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
+            }
+
+            delete [] mbuf;
          }
          else
          {
@@ -610,6 +764,39 @@ void* Master::serviceEx(void* p)
             char text[128];
             sprintf(text, "User %s login from %s", user, ip.c_str());
             self->m_SectorLog.insert(text);
+
+            // send new user info to all existing masters
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1003);
+               char* ubuf;
+               int size = 0;
+               au.serialize(ubuf, size);
+               msg.setData(0, ubuf, size);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
+               delete [] ubuf;
+            }
+
+            // send the list of masters to the new users
+            s->send((char*)&self->m_iRouterKey, 4);
+            int num = self->m_Routing.m_mAddressList.size() - 1;
+            s->send((char*)&num, 4);
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               s->send((char*)&i->first, 4);
+               int size = i->second.m_strIP.length() + 1;
+               s->send((char*)&size, 4);
+               s->send(i->second.m_strIP.c_str(), size);
+               s->send((char*)&i->second.m_iPort, 4);
+            }
          }
          else
          {
@@ -617,6 +804,115 @@ void* Master::serviceEx(void* p)
             sprintf(text, "User %s login rejected from %s", user, ip.c_str());
             self->m_SectorLog.insert(text);
          }
+
+         break;
+      }
+
+      case 3: // master join
+      {
+         secconn.send((char*)&cmd, 4);
+         char masterIP[64];
+         strcpy(masterIP, ip.c_str());
+         secconn.send(masterIP, 64);
+         int32_t res = -1;
+         secconn.recv((char*)&res, 4);
+
+         s->send((char*)&res, 4);
+
+         if (res == 1)
+         {
+            int masterPort;
+            int32_t key;
+            s->recv((char*)&masterPort, 4);
+            s->recv((char*)&key, 4);
+
+            // send master list
+            int num = self->m_Routing.m_mAddressList.size() - 1;
+            s->send((char*)&num, 4);
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               s->send((char*)&i->first, 4);
+               int size = i->second.m_strIP.length() + 1;
+               s->send((char*)&size, 4);
+               s->send(i->second.m_strIP.c_str(), size);
+               s->send((char*)&i->second.m_iPort, 4);
+            }
+
+            // send slave list
+            num = self->m_SlaveManager.m_mSlaveList.size();
+            s->send((char*)&num, 4);
+            for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
+            {
+               int size = i->second.m_strIP.length() + 1;
+               s->send((char*)&size, 4);
+               s->send(i->second.m_strIP.c_str(), size);
+               s->send((char*)&i->second.m_iPort, 4);
+               s->send((char*)&i->second.m_iDataPort, 4);
+            }
+
+            // send user list
+            num = self->m_mActiveUser.size();
+            s->send((char*)&num, 4);
+            for (map<int, ActiveUser>::iterator i = self->m_mActiveUser.begin(); i != self->m_mActiveUser.end(); ++ i)
+            {
+               char* ubuf = NULL;
+               int size = 0;
+               i->second.serialize(ubuf, size);
+               s->send((char*)&size, 4);
+               s->send(ubuf, size);
+               delete [] ubuf;
+            }
+
+            // send metadata
+            ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
+            self->m_Metadata.serialize(ofs, self->m_Metadata.m_mDirectory, 1);
+            ofs.close();
+            struct stat s;
+            stat((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), &s);
+            int32_t size = s.st_size;
+
+            ifstream meta((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
+            char* buf = new char[size];
+            meta.read(buf, size);
+            meta.close();
+            secconn.send((char*)&size, 4);
+            secconn.send(buf, size);
+            delete [] buf;
+
+            // send new master info to all existing masters
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1001);
+               msg.setData(0, (char*)&key, 4);
+               msg.setData(4, masterIP, strlen(masterIP) + 1);
+               msg.setData(68, (char*)&masterPort, 4);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
+            }
+
+            Address addr;
+            addr.m_strIP = masterIP;
+            addr.m_iPort = masterPort;
+            self->m_Routing.insert(key, addr);
+
+            // send new master info to all slaves
+            for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
+            {
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1001);
+               msg.setData(0, (char*)&key, 4);
+               msg.setData(4, masterIP, strlen(masterIP) + 1);
+               msg.setData(68, (char*)&masterPort, 4);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
+            }
+         }
+
+         break;
       }
 
       default:
@@ -653,28 +949,28 @@ void* Master::process(void* s)
       }
       ActiveUser* user = &(i->second);
 
+      bool secure = false;
+
       if (key > 0)
       {
-         if ((user->m_strIP != ip) || (user->m_iPort != port))
+         if ((user->m_strIP == ip) && (user->m_iPort == port))
          {
-            self->reject(ip, port, id, SectorError::E_SECURITY);
-            continue;
+            secure = true;
+            user->m_llLastRefreshTime = CTimer::getTime();
          }
-
-         user->m_llLastRefreshTime = CTimer::getTime();
       }
       else if (key == 0)
       {
          Address addr;
          addr.m_strIP = ip;
          addr.m_iPort = port;
-         if (self->m_SlaveManager.m_mAddrList.end() == self->m_SlaveManager.m_mAddrList.find(addr))
-         {
-            self->reject(ip, port, id, SectorError::E_SECURITY);
-            continue;
-         }
+         if (self->m_SlaveManager.m_mAddrList.end() != self->m_SlaveManager.m_mAddrList.find(addr))
+            secure = true;
+         else if (self->m_Routing.getRouterID(addr) >= 0)
+            secure = true;
       }
-      else
+
+      if (!secure)
       {
          self->reject(ip, port, id, SectorError::E_SECURITY);
          continue;
@@ -713,6 +1009,22 @@ void* Master::process(void* s)
                self->m_sstrOnReplicate.erase(attr.m_strName);
             }
 
+            // send file changes to all other masters
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg newmsg;
+               newmsg.setKey(0);
+               newmsg.setType(1014);
+               newmsg.setData(0, (char*)&change, 4);
+               newmsg.setData(4, ip, 64);
+               newmsg.setData(68, (char*)&port, 4);
+               newmsg.setData(72, path.c_str(), path.length() + 1);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
+            }
+
             // unlock the file, if this is a file operation
             // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
             if (t.m_iType == 0)
@@ -739,6 +1051,19 @@ void* Master::process(void* s)
             char text[128];
             sprintf(text, "User %s logout from %s.", user->m_strName.c_str(), ip);
             self->m_SectorLog.insert(text);
+
+            // send new user info to all existing masters
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg newmsg;
+               newmsg.setKey(0);
+               newmsg.setType(1004);
+               newmsg.setData(0, (char*)&key, 4);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
+            }
 
             self->m_mActiveUser.erase(key);
             self->m_GMP.sendto(ip, port, id, msg);
@@ -915,6 +1240,20 @@ void* Master::process(void* s)
 
             self->m_Metadata.create(msg->getData(), true);
 
+            // send file changes to all other masters
+            string path = msg->getData();
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg newmsg;
+               newmsg.setKey(0);
+               newmsg.setType(1011);
+               newmsg.setData(0, path.c_str(), path.length() + 1);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
+            }
+
             self->m_GMP.sendto(ip, port, id, msg);
 
             //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "mkdir", msg->getData(), "SUCCESS", addr.begin()->m_strIP.c_str());
@@ -987,6 +1326,32 @@ void* Master::process(void* s)
                self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
             }
 
+            // send file changes to all other masters
+            string path = msg->getData();
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg newmsg;
+               newmsg.setKey(0);
+               newmsg.setType(1013);
+               newmsg.setData(0, (char*)&rt, 4);
+               newmsg.setData(4, src.c_str(), src.length() + 1);
+               int pos = 4 + src.length() + 1;
+               if (rt < 0)
+               {
+                  newmsg.setData(pos, uplevel.c_str(), uplevel.length() + 1);
+                  pos += uplevel.length() + 1;
+                  newmsg.setData(pos, newname.c_str(), newname.length() + 1);
+               }
+               else
+               {
+                  newmsg.setData(pos, dst.c_str(), dst.length() + 1);
+               }
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
+            }
+
             self->m_GMP.sendto(ip, port, id, msg);
 
             break;
@@ -994,6 +1359,8 @@ void* Master::process(void* s)
 
          case 105: // delete dir/file
          {
+            //TODO: cannot remove a dir if it is not empty
+
             int rwx = SF_MODE::WRITE;
             if (!user->match(msg->getData(), rwx))
             {
@@ -1015,6 +1382,19 @@ void* Master::process(void* s)
             }
 
             self->m_Metadata.remove(filename.c_str(), true);
+
+            // send file changes to all other masters
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg newmsg;
+               newmsg.setKey(0);
+               newmsg.setType(1012);
+               newmsg.setData(0, filename.c_str(), filename.length() + 1);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
+            }
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
@@ -1121,6 +1501,22 @@ void* Master::process(void* s)
 
             self->m_Metadata.utime(msg->getData(), *(int64_t*)(msg->getData() + strlen(msg->getData()) + 1));
 
+            // send file changes to all other masters
+            string path = msg->getData();
+            int64_t newts = *(int64_t*)(msg->getData() + strlen(msg->getData()) + 1);
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               SectorMsg newmsg;
+               newmsg.setKey(0);
+               newmsg.setType(1015);
+               newmsg.setData(0, (char*)&newts, 8);
+               newmsg.setData(8, path.c_str(), path.length() + 1);
+               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
+            }
+
             msg->m_iDataLength = SectorMsg::m_iHdrSize;
             self->m_GMP.sendto(ip, port, id, msg);
             break;
@@ -1164,7 +1560,7 @@ void* Master::process(void* s)
                set<int> empty;
                if (self->m_SlaveManager.chooseIONode(empty, client, mode, addr, self->m_SysConfig.m_iReplicaNum) <= 0)
                {
-                  self->reject(ip, port, id, SectorError::E_RESOURCE);
+                  self->reject(ip, port, id, SectorError::E_NODISK);
                   //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                   break;
                }
@@ -1398,6 +1794,140 @@ void* Master::process(void* s)
 
             //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "start Shuffler", "", "SUCCESS", addr.m_strIP.c_str());
 
+            break;
+         }
+
+         case 1001: // new master
+         {
+            int32_t key = *(int32_t*)msg->getData();
+            Address addr;
+            addr.m_strIP = msg->getData() + 4;
+            addr.m_iPort = *(int32_t*)(msg->getData() + 68);
+            self->m_Routing.insert(key, addr);
+
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            break;
+         }
+
+         case 1002: // new slave
+         {
+            SlaveNode sn;
+            sn.m_strIP = msg->getData();
+            sn.m_iPort = *(int32_t*)(msg->getData() + 64);
+            sn.m_iDataPort = *(int32_t*)(msg->getData() + 68);
+            sn.m_llCurrMemUsed = 0;
+            sn.m_llCurrCPUUsed = 0;
+            sn.m_llTotalInputData = 0;
+            sn.m_llTotalOutputData = 0;
+
+            self->m_SlaveManager.insert(sn);
+            self->m_SlaveManager.updateClusterStat();
+
+            ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
+            ofs.write(msg->getData() + 72, msg->m_iDataLength - 72);
+            ofs.close();
+            map<string, SNode> branch;
+            ifstream ifs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
+            Address addr;
+            addr.m_strIP = sn.m_strIP;
+            addr.m_iPort = sn.m_iPort;
+            Index::deserialize(ifs, branch, &addr);
+            ifs.close();
+            CGuard::enterCS(self->m_Metadata.m_MetaLock);
+            ofstream left((self->m_strHomeDir + ".metadata/" + addr.m_strIP + ".left").c_str(), ios::out);
+            Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left, self->m_SysConfig.m_iReplicaNum);
+            left.close();
+            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
+
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            break;
+         }
+
+         case 1003: // new user
+         {
+            ActiveUser au;
+            au.deserialize(msg->getData(), msg->m_iDataLength);
+            self->m_mActiveUser[au.m_iKey] = au;
+
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            break;
+         }
+
+         case 1004: // remove user
+         {
+            self->m_mActiveUser.erase(*(int32_t*)msg->getData());
+            self->m_GMP.sendto(ip, port, id, msg);
+
+            break;
+         }
+
+         case 1005: // master probe
+         {
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 1011: // mkdir
+         {
+            self->m_Metadata.create(msg->getData(), true);
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 1012: // delete
+         {
+            self->m_Metadata.remove(msg->getData(), true);
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 1013: // mv
+         {
+            int rt = *(int32_t*)msg->getData();
+            string src = msg->getData() + 4;
+
+            if (rt < 0)
+            {
+               string uplevel = msg->getData() + 4 + src.length() + 1;
+               string newname = msg->getData() + 4 + src.length() + 1 + uplevel.length() + 1;
+               self->m_Metadata.move(src.c_str(), uplevel.c_str(), newname.c_str());
+            }
+            else
+            {
+               string dst = msg->getData() + 4 + src.length() + 1;
+               self->m_Metadata.move(src.c_str(), dst.c_str());
+            }
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 1014: // file change
+         {
+            int change = *(int32_t*)msg->getData();
+            Address addr;
+            addr.m_strIP = msg->getData() + 4;
+            addr.m_iPort = *(int32_t*)(msg->getData() + 68);
+            self->m_Metadata.update(msg->getData() + 72, addr, change);
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
+         case 1015: // utime
+         {
+            self->m_Metadata.utime(msg->getData() + 8, *(int64_t*)msg->getData());
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 

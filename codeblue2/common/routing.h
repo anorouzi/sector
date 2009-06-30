@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006 - 2009, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -27,35 +27,39 @@ written by
 *****************************************************************************/
 
 
-#ifndef __SECTOR_SYSSTAT_H__
-#define __SECTOR_SYSSTAT_H__
+#ifndef __SECTOR_ROUTING_H__
+#define __SECTOR_ROUTING_H__
 
-#include <stdint.h>
-#include <topology.h>
+#include <vector>
+#include <map>
+#include <string>
+#include "dhash.h"
+#include "topology.h"
 
-class SysStat
+class Routing
 {
 public:
-   int64_t m_llStartTime;
-
-   int64_t m_llAvailDiskSpace;
-   int64_t m_llTotalFileSize;
-   int64_t m_llTotalFileNum;
-
-   int64_t m_llTotalSlaves;
-
-   std::vector<Address> m_vMasterList;
-   std::vector<SlaveNode> m_vSlaveList;
-   std::vector<Cluster> m_vCluster;
+   Routing();
+   ~Routing();
 
 public:
-   int serialize(char* buf, int& size, std::map<int, SlaveNode>& sl, Cluster& c);
-   int deserialize(char* buf, const int& size);
+   int insert(const uint32_t& key, const Address& node);
+   int remove(const uint32_t& key);
 
-   void print();
+   int lookup(const std::string& path, Address& node);
+   int lookup(const uint32_t& key, Address& node);
+
+   int getEntityID(const std::string& path);
+
+   int getRouterID(const uint32_t& key);
+   int getRouterID(const Address& node);
 
 public:
-   static const int g_iSize;
+   std::vector<uint32_t> m_vFingerTable;
+   std::map<uint32_t, Address> m_mAddressList;
+   std::map<Address, uint32_t, AddrComp> m_mKeyList;
+
+   int m_iKeySpace;
 };
 
 #endif

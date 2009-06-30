@@ -103,7 +103,8 @@ public:
 
 public:
    int init(const int& port, const char* cert, const char* key);
-   int loadACL(const char* aclfile);
+   int loadMasterACL(const char* aclfile);
+   int loadSlaveACL(const char* aclfile);
    int loadShadowFile(const char* shadowfile);
    void close();
 
@@ -125,7 +126,8 @@ private:
 private:
    int m_iPort;
    SSLTransport m_SSL;
-   ACL m_ACL;
+   ACL m_MasterACL;
+   ACL m_SlaveACL;
    Shadow m_Shadow;
 };
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,39 +23,29 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/24/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
 *****************************************************************************/
 
 
-#ifndef __SECTOR_SYSSTAT_H__
-#define __SECTOR_SYSSTAT_H__
+#ifndef __DHASH_H__
+#define __DHASH_H__
 
-#include <stdint.h>
-#include <topology.h>
+#include <openssl/sha.h>
+#include <math.h>
+#include <string>
 
-class SysStat
+class DHash
 {
 public:
-   int64_t m_llStartTime;
+   DHash();
+   DHash(const int m);
+   ~DHash();
 
-   int64_t m_llAvailDiskSpace;
-   int64_t m_llTotalFileSize;
-   int64_t m_llTotalFileNum;
+   unsigned int hash(const char* str);
+   static unsigned int hash(const char* str, int m);
 
-   int64_t m_llTotalSlaves;
-
-   std::vector<Address> m_vMasterList;
-   std::vector<SlaveNode> m_vSlaveList;
-   std::vector<Cluster> m_vCluster;
-
-public:
-   int serialize(char* buf, int& size, std::map<int, SlaveNode>& sl, Cluster& c);
-   int deserialize(char* buf, const int& size);
-
-   void print();
-
-public:
-   static const int g_iSize;
+private:
+   unsigned int m_im;
 };
 
 #endif

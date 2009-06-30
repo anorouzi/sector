@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../lib -lcommon -ludt
 endif
 
-OBJS = conf.o index.o topology.o sysstat.o log.o sphere.o constant.o crypto.o transport.o datachn.o
+OBJS = conf.o index.o topology.o sysstat.o log.o sphere.o constant.o crypto.o transport.o datachn.o dhash.o routing.o
 
 all: libcommon.so libcommon.a testcrypto
 

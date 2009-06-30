@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/16/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
 *****************************************************************************/
 
 
@@ -186,6 +186,28 @@ int Slave::connect()
 
    secconn.recv((char*)&m_iSlaveID, 4);
 
+   Address addr;
+   int id = 0;
+   secconn.recv((char*)&id, 4);
+   addr.m_strIP = m_strMasterIP;
+   addr.m_iPort = m_iMasterPort;
+   m_Routing.insert(id, addr);
+
+   int num;
+   secconn.recv((char*)&num, 4);
+   for (int i = 0; i < num; ++ i)
+   {
+      char ip[64];
+      int size = 0;
+      secconn.recv((char*)&id, 4);
+      secconn.recv((char*)&size, 4);
+      secconn.recv(ip, size);
+      addr.m_strIP = ip;
+      secconn.recv((char*)&addr.m_iPort, 4);
+
+      m_Routing.insert(id, addr);
+   }
+
    secconn.close();
    SSLTransport::destroy();
 
@@ -214,9 +236,15 @@ void Slave::run()
 
       cout << "recv cmd " << ip << " " << port << " type " << msg->getType() << endl;
 
-      // a slave only accepts commands from the master
-      if ((m_strMasterIP != ip) || (m_iMasterPort != port))
+      // a slave only accepts commands from the masters
+      Address addr;
+      addr.m_strIP = ip;
+      addr.m_iPort = port;
+      if (m_Routing.getRouterID(addr) < 0)
+{
+cout << "duh!\n";
          continue;
+}
 
       switch (msg->getType())
       {
@@ -270,7 +298,7 @@ void Slave::run()
 
             m_LocalFile.move(src.c_str(), dst.c_str(), newname.c_str());
             move(src, dst, newname);
-
+cout << "move " << src << " " << dst << " " << newname << endl;
             break;
          }
 
@@ -438,6 +466,23 @@ void Slave::run()
 
             break;
          }
+
+         case 1001: // new master
+         {
+            int32_t key = *(int32_t*)msg->getData();
+            Address addr;
+            addr.m_strIP = msg->getData() + 4;
+            addr.m_iPort = *(int32_t*)(msg->getData() + 68);
+            m_Routing.insert(key, addr);
+cout << "NEW MASTER " << key << " " << addr.m_strIP << " " << addr.m_iPort << endl;
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            m_GMP.sendto(ip, port, id, msg);
+
+            break;
+         }
+
+         default:
+            break; 
       }
    }
 

@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/23/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -253,6 +253,12 @@ m_bDataMove(true)
    m_mBucket.clear();
    m_mSPE.clear();
 
+   m_iProgress = 0;
+   m_iAvgRunTime = -1;
+   m_iTotalDS = 0;
+   m_iTotalSPE = 0;
+   m_iAvailRes = 0;
+
    pthread_mutex_init(&m_DSLock, NULL);
    pthread_mutex_init(&m_ResLock, NULL);
    pthread_cond_init(&m_ResCond, NULL);
@@ -326,11 +332,11 @@ int SphereProcess::loadOperator(SPE& s)
 
 int SphereProcess::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size, const int& type)
 {
-   if (input.m_llSize <= 0)
-      return 0;
-
    pthread_mutex_lock(&m_RunLock);
    pthread_mutex_unlock(&m_RunLock);
+
+   if (input.m_llSize <= 0)
+      return 0;
 
    m_iProcType = type;
    m_strOperator = op;
@@ -413,8 +419,23 @@ int SphereProcess::close()
    pthread_mutex_lock(&m_RunLock);
    pthread_mutex_unlock(&m_RunLock);
 
-   m_mSPE.clear();
+   // restore initial value for next run
+   m_strOperator = "";
+   m_pcParam = NULL;
+   m_iParamSize = 0;
+   m_pOutput = NULL;
+   m_iOutputType = 0;
+   m_pOutputLoc = NULL;
+
    m_mpDS.clear();
+   m_mBucket.clear();
+   m_mSPE.clear();
+
+   m_iProgress = 0;
+   m_iAvgRunTime = -1;
+   m_iTotalDS = 0;
+   m_iTotalSPE = 0;
+   m_iAvailRes = 0;
 
    return 0;
 }
@@ -654,7 +675,7 @@ int SphereProcess::checkSPE()
       }
    }
 
-   // All SPEs, are spare but none of them can be assigned a DS. Error occurs!
+   // All SPEs are spare but none of them can be assigned a DS. Error occurs!
    if (!spe_busy && !ds_found && (m_iProgress < m_iTotalDS))
    {
       cerr << "Cannot allocate SPE for certain data segments. Process failed." << endl;
@@ -717,6 +738,9 @@ int SphereProcess::checkProgress()
 {
    if ((0 == m_iTotalSPE) && (m_iProgress < m_iTotalDS))
       return SectorError::E_RESOURCE;
+
+   if (m_iTotalDS <= 0)
+      return 100;
 
    return m_iProgress * 100 / m_iTotalDS;
 }

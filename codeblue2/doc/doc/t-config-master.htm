@@ -50,7 +50,7 @@
 </div>
 
 <p><strong>Topology.conf </strong></p>
-<p>Sector assumes that ther slave nodes are computers in or more clusters, while clusters can be allocated in one or more data centers, and so on. This is a multi-level hierarchical topology. The position of each IP range is represented by &quot;/L1/L2/.../Ln&quot; is an n-level structure and L1 is the first level. For example, in a 2-level topology, &quot;/1/2&quot; means the 2nd cluster in the 1st data center. The number of level for each IP address or IP address range must be equal. </p>
+<p>Sector assumes that ther slave nodes are computers in one or more clusters, while clusters can be allocated in one or more data centers, and so on. This is a multi-level hierarchical topology. The position of each IP range is represented by &quot;/L1/L2/.../Ln&quot; is an n-level structure and L1 is the first level. For example, in a 2-level topology, &quot;/1/2&quot; means the 2nd cluster in the 1st data center. The number of levels for each IP address or IP address range must be equal. </p>
 <p>The slave IPs can be either a single IP address, e.g., 192.168.1.1, or a group of continuous IPs represented by IP mask, e.g., 192.168.0.0/24 (means 192.168.0.0 - 192.168.0.255) .</p>
 <p>For those slaves whose IPs are not in this list, they will be put into &quot;/0/0/.../0&quot; by default. Therefore you should avoid using &quot;/0/0/.../0&quot; in this list. Also, the level ID does not need to be continuous. </p>
 <div class="code">

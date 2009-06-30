@@ -46,7 +46,14 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   if (ss.loadACL("../conf/slave_acl.conf") < 0)
+   if (ss.loadMasterACL("../conf/master_acl.conf") < 0)
+   {
+      cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf in the current directory. No slaves would be able to join.\n";
+      cerr << "Secuirty server failed to start. Please fix the problem.\n";
+      return -1;
+   }
+
+   if (ss.loadSlaveACL("../conf/slave_acl.conf") < 0)
    {
       cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf in the current directory. No slaves would be able to join.\n";
       cerr << "Secuirty server failed to start. Please fix the problem.\n";

@@ -31,7 +31,7 @@ int main(int argc, char** argv)
    }
 
    SphereStream temp;
-   temp.setOutputPath("html/rindex", "word_bucket");
+   temp.setOutputPath("/wordcount", "word_bucket");
    temp.init(256);
 
    SphereProcess myproc;

@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/11/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/21/2009
 *****************************************************************************/
 
 
@@ -36,6 +36,7 @@ written by
 #include <index.h>
 #include <log.h>
 #include <sphere.h>
+#include <routing.h>
 
 
 typedef int (*SPHERE_PROCESS)(const SInput*, SOutput*, SFile*);
@@ -285,6 +286,9 @@ private:
    Index m_LocalFile;			// local file index
    SlaveStat m_SlaveStat;		// slave statistics
    SectorLog m_SectorLog;		// slave log
+
+private:
+   Routing m_Routing;
 };
 
 #endif

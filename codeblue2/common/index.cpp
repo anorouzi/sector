@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/21/2009
 *****************************************************************************/
 
 
@@ -564,6 +564,12 @@ int SNode::serialize(char* buf)
 {
    int namelen = m_strName.length();
    sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, m_llTimeStamp, m_llSize);
+   char* p = buf + strlen(buf);
+   for (set<Address>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   {
+      sprintf(p, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
+      p = p + strlen(p);
+   }
    return 0;
 }
 
@@ -572,6 +578,7 @@ int SNode::deserialize(const char* buf)
    char buffer[4096];
    char* tmp = buffer;
 
+   // file name
    strcpy(tmp, buf);
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {
@@ -587,6 +594,7 @@ int SNode::deserialize(const char* buf)
    tmp[namelen] = '\0';
    m_strName = tmp;
 
+   // restore dir 
    tmp = tmp + strlen(tmp) + 1;
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {
@@ -598,6 +606,7 @@ int SNode::deserialize(const char* buf)
    }
    m_bIsDir = atoi(tmp);
 
+   // restore timestamp
    tmp = tmp + strlen(tmp) + 1;
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {
@@ -609,8 +618,38 @@ int SNode::deserialize(const char* buf)
    }
    m_llTimeStamp = atoll(tmp);
 
+   // restore size
    tmp = tmp + strlen(tmp) + 1;
    m_llSize = atoll(tmp);
+
+   // restore locations
+   tmp = tmp + strlen(tmp) + 1;
+   while (strlen(tmp) != 0)
+   {
+      Address addr;
+      for (unsigned int i = 0; i < strlen(tmp); ++ i)
+      {
+         if (tmp[i] == ',')
+         {
+            tmp[i] = '\0';
+            break;
+         }
+      }
+      addr.m_strIP = tmp;
+
+      tmp = tmp + strlen(tmp) + 1;
+      for (unsigned int i = 0; i < strlen(tmp); ++ i)
+      {
+         if (tmp[i] == ',')
+         {
+            tmp[i] = '\0';
+            break;
+         }
+      }
+      addr.m_iPort = atoi(tmp);
+
+      tmp = tmp + strlen(tmp) + 1;
+   }
 
    m_iReadLock = m_iWriteLock = 0;
 
@@ -634,7 +673,7 @@ int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
    return 0;
 }
 
-int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Address& addr)
+int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Address* addr)
 {
    vector<string> dirs;
    dirs.resize(1024);
@@ -665,8 +704,11 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
 
       SNode sn;
       sn.deserialize(buf + strlen(buf) + 1);
-      if (!sn.m_bIsDir)
-         sn.m_sLocation.insert(addr);
+      if ((!sn.m_bIsDir) && (NULL != addr))
+      {
+         sn.m_sLocation.clear();
+         sn.m_sLocation.insert(*addr);
+      }
 
       if (level == currlevel)
       {

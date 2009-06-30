@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/02/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/23/2009
 *****************************************************************************/
 
 #include <unistd.h>
@@ -73,7 +73,7 @@ void SSLTransport::destroy()
 
 int SSLTransport::initServerCTX(const char* cert, const char* key)
 {
-   m_pCTX = SSL_CTX_new(SSLv23_server_method());
+   m_pCTX = SSL_CTX_new(TLSv1_server_method());
    if (m_pCTX == NULL)
    {
       cerr << "Failed init CTX. Aborting.\n";
@@ -92,7 +92,7 @@ int SSLTransport::initServerCTX(const char* cert, const char* key)
 
 int SSLTransport::initClientCTX(const char* cert)
 {
-   m_pCTX = SSL_CTX_new(SSLv23_client_method());
+   m_pCTX = SSL_CTX_new(TLSv1_client_method());
 
    if(!SSL_CTX_load_verify_locations(m_pCTX, cert, NULL))
    {

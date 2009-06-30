@@ -7,7 +7,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (3 != argc)
+   if (1 != argc)
    {
       cout << "usage: mrsort" << endl;
       return 0;

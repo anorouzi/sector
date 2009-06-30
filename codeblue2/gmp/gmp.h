@@ -153,6 +153,8 @@ public:
    int recvfrom(char* ip, int& port, int32_t& id, CUserMessage* msg, const bool& block = true);
    int recv(const int32_t& id, CUserMessage* msg);
    int rpc(const char* ip, const int& port, CUserMessage* req, CUserMessage* res);
+   //int multicast();
+   //int multi_rpc();
 
    int rtt(const char* ip, const int& port, const bool& clear = false);
 

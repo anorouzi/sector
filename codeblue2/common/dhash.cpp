@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright © 2006 - 2008, The Board of Trustees of the University of Illinois.
+Copyright © 2006, 2007, The Board of Trustees of the University of Illinois.
 All Rights Reserved.
 
 Sector: A Distributed Storage and Computing Infrastructure
@@ -23,39 +23,45 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/24/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
 *****************************************************************************/
 
+#include "dhash.h"
 
-#ifndef __SECTOR_SYSSTAT_H__
-#define __SECTOR_SYSSTAT_H__
-
-#include <stdint.h>
-#include <topology.h>
-
-class SysStat
+DHash::DHash():
+m_im(32)
 {
-public:
-   int64_t m_llStartTime;
+}
 
-   int64_t m_llAvailDiskSpace;
-   int64_t m_llTotalFileSize;
-   int64_t m_llTotalFileNum;
+DHash::DHash(const int m):
+m_im(m)
+{
+}
 
-   int64_t m_llTotalSlaves;
+DHash::~DHash()
+{
+}
 
-   std::vector<Address> m_vMasterList;
-   std::vector<SlaveNode> m_vSlaveList;
-   std::vector<Cluster> m_vCluster;
+unsigned int DHash::hash(const char* str)
+{
+   unsigned char res[SHA_DIGEST_LENGTH];
 
-public:
-   int serialize(char* buf, int& size, std::map<int, SlaveNode>& sl, Cluster& c);
-   int deserialize(char* buf, const int& size);
+   SHA1((const unsigned char*)str, strlen(str), res);
 
-   void print();
+   return *(unsigned int*)(res + SHA_DIGEST_LENGTH - 4);
+}
 
-public:
-   static const int g_iSize;
-};
+unsigned int DHash::hash(const char* str, int m)
+{
+   unsigned char res[SHA_DIGEST_LENGTH];
 
-#endif
+   SHA1((const unsigned char*)str, strlen(str), res);
+
+   if (m >= 32)
+      return *(unsigned int*)(res + SHA_DIGEST_LENGTH - 4);
+
+   unsigned int mask = 1;
+   mask = (mask << m) - 1;
+
+   return (*(unsigned int*)(res + SHA_DIGEST_LENGTH - 4)) & mask;
+}

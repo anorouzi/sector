@@ -94,7 +94,7 @@ public:
 
 public:
    static int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
-   static int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address& addr);
+   static int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address* addr = NULL);
    static int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
 
 public:

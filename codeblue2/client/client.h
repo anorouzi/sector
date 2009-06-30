@@ -41,6 +41,7 @@ written by
 #include <constant.h>
 #include <pthread.h>
 #include <datachn.h>
+#include <routing.h>
 #include "fscache.h"
 
 class Client
@@ -91,6 +92,10 @@ protected:
 
 private:
    static int g_iCount;
+
+private:
+private: // master routing
+   static Routing g_Routing;
 };
 
 typedef Client Sector;

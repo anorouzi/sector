@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 02/06/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2009
 *****************************************************************************/
 
 
@@ -39,33 +39,11 @@ written by
 #include <vector>
 #include <ssltransport.h>
 #include <topology.h>
+#include <routing.h>
 #include <slavemgmt.h>
 #include <transaction.h>
+#include <user.h>
 
-class ActiveUser
-{
-public:
-   int deserialize(std::vector<std::string>& dirs, const std::string& buf);
-   bool match(const std::string& path, int rwx);
-
-public:
-   std::string m_strName;			// user name
-
-   std::string m_strIP;				// client IP address
-   int m_iPort;					// client port (GMP)
-   int m_iDataPort;				// data channel port
-
-   int32_t m_iKey;				// client key
-
-   unsigned char m_pcKey[16];			// client crypto key
-   unsigned char m_pcIV[8];			// client crypto iv
-
-   int64_t m_llLastRefreshTime;			// timestamp of last activity
-
-   std::vector<std::string> m_vstrReadList;	// readable directories
-   std::vector<std::string> m_vstrWriteList;	// writable directories
-   bool m_bExec;				// permission to run Sphere application
-};
 
 struct SlaveAddr
 {
@@ -81,6 +59,7 @@ public:
 
 public:
    int init();
+   int join(const char* ip, const int& port);
    int run();
    int stop();
 
@@ -138,6 +117,10 @@ private:
 private:
    std::map<std::string, SlaveAddr> m_mSlaveAddrRec;
    void loadSlaveAddr(const std::string& file);
+
+private: // master routing
+   Routing m_Routing;
+   uint32_t m_iRouterKey;
 };
 
 #endif

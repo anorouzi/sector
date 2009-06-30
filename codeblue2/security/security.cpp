@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 03/27/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2009
 *****************************************************************************/
 
 #include "security.h"
@@ -294,9 +294,14 @@ int SServer::init(const int& port, const char* cert, const char* key)
    return 1;
 }
 
-int SServer::loadACL(const char* aclfile)
+int SServer::loadMasterACL(const char* aclfile)
 {
-   return m_ACL.init(aclfile);
+   return m_MasterACL.init(aclfile);
+}
+
+int SServer::loadSlaveACL(const char* aclfile)
+{
+   return m_SlaveACL.init(aclfile);
 }
 
 int SServer::loadShadowFile(const char* shadowpath)
@@ -320,6 +325,13 @@ void SServer::run()
       if (NULL == s)
          continue;
 
+      // only a master node can query security information
+      if (!m_MasterACL.match(ip))
+      {
+         s->close();
+         continue;
+      };
+
       Param* p = new Param;
       p->ip = ip;
       p->port = port;
@@ -339,6 +351,8 @@ int32_t SServer::generateKey()
 
 void* SServer::process(void* p)
 {
+   signal(SIGPIPE, SIG_IGN);
+
    SServer* self = ((Param*)p)->sserver;
    SSLTransport* s = ((Param*)p)->ssl;
 
@@ -355,12 +369,12 @@ void* SServer::process(void* p)
             goto EXIT;
 
          int32_t res = 1;
-         if (!self->m_ACL.match(ip))
+         if (!self->m_SlaveACL.match(ip))
             res = SectorError::E_ACL;
          if (s->send((char*)&res, 4) <= 0)
             goto EXIT;
 
-          break;
+         break;
       }
 
       case 2: // user login
@@ -402,6 +416,31 @@ void* SServer::process(void* p)
             if (s->send((char*)&exec, 4) <= 0)
                goto EXIT;
          }
+
+         break;
+      }
+
+      case 3: // master join
+      {
+         char ip[64];
+         if (s->recv(ip, 64) <= 0)
+            goto EXIT;
+
+         int32_t res = 1;
+         if (!self->m_MasterACL.match(ip))
+            res = SectorError::E_ACL;
+         if (s->send((char*)&res, 4) <= 0)
+            goto EXIT;
+
+         break;
+      }
+
+      case 4: // master init
+      {
+         int32_t key = self->generateKey();
+
+         if (s->send((char*)&key, 4) <= 0)
+            goto EXIT;
 
          break;
       }
