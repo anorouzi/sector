@@ -71,6 +71,7 @@ public:
 
 protected:
    static std::string revisePath(const std::string& path);
+   static int updateMasters();
 
 protected:
    static std::string g_strServerHost;

@@ -43,6 +43,8 @@ public:
    ~Routing();
 
 public:
+   void init();
+
    int insert(const uint32_t& key, const Address& node);
    int remove(const uint32_t& key);
 
@@ -53,6 +55,9 @@ public:
 
    int getRouterID(const uint32_t& key);
    int getRouterID(const Address& node);
+
+   bool match(const uint32_t& cid, const uint32_t& key);
+   bool match(const char* path, const uint32_t& key);
 
 public:
    std::vector<uint32_t> m_vFingerTable;

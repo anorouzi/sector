@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/15/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
 *****************************************************************************/
 
 
@@ -49,6 +49,8 @@ void* Slave::fileHandler(void* p)
    unsigned char crypto_iv[8];
    memcpy(crypto_key, ((Param2*)p)->crypto_key, 16);
    memcpy(crypto_iv, ((Param2*)p)->crypto_iv, 8);
+   string master_ip = ((Param2*)p)->master_ip;
+   int master_port = ((Param2*)p)->master_port;
    delete (Param2*)p;
 
    bool bRead = mode & 1;
@@ -328,7 +330,7 @@ void* Slave::fileHandler(void* p)
    delete [] tmp;
 
    //report to master the task is completed
-   self->report(transid, sname, change);
+   self->report(master_ip, master_port, transid, sname, change);
 
    self->m_DataChn.send(src_ip, src_port, transid, (char*)&cmd, 4);
 
@@ -344,6 +346,8 @@ void* Slave::copy(void* p)
    time_t ts = ((Param3*)p)->timestamp;
    string src = ((Param3*)p)->src;
    string dst = ((Param3*)p)->dst;
+   string master_ip = ((Param3*)p)->master_ip;
+   int master_port = ((Param3*)p)->master_port;
    delete (Param3*)p;
 
    SNode tmp;
@@ -358,7 +362,7 @@ void* Slave::copy(void* p)
 
       // if the file has been modified during the replication, remove this replica
       int type = (src == dst) ? 3 : 1;
-      if (self->report(transid, dst, type) < 0)
+      if (self->report(master_ip, master_port, transid, dst, type) < 0)
          system(("rm " + rhome + rdst).c_str());
 
       //utime: update timestamp according to the original copy
@@ -380,7 +384,10 @@ void* Slave::copy(void* p)
    msg.setData(4, (char*)&localport, 4);
    msg.setData(8, src.c_str(), src.length() + 1);
 
-   if (self->m_GMP.rpc(self->m_strMasterIP.c_str(), self->m_iMasterPort, &msg, &msg) < 0)
+   Address addr;
+   self->m_Routing.lookup(src, addr);
+
+   if (self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
       return NULL;
    if (msg.getType() < 0)
       return NULL;
@@ -450,7 +457,7 @@ void* Slave::copy(void* p)
 
    // if the file has been modified during the replication, remove this replica
    int type = (src == dst) ? 3 : 1;
-   if (self->report(transid, dst, type) < 0)
+   if (self->report(master_ip, master_port, transid, dst, type) < 0)
       system(("rm " + rhome + rfile).c_str());
 
    return NULL;

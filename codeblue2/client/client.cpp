@@ -152,11 +152,11 @@ int Client::login(const string& username, const string& password, const char* ce
    }
 
    Address addr;
-   int id = 0;
-   secconn.recv((char*)&id, 4);
+   int key = 0;
+   secconn.recv((char*)&key, 4);
    addr.m_strIP = g_strServerIP;
    addr.m_iPort = g_iServerPort;
-   g_Routing.insert(id, addr);
+   g_Routing.insert(key, addr);
 cout << "ID " << addr.m_strIP << " " << addr.m_iPort << endl;
    int num;
    secconn.recv((char*)&num, 4);
@@ -164,13 +164,13 @@ cout << "ID " << addr.m_strIP << " " << addr.m_iPort << endl;
    {
       char ip[64];
       int size = 0;
-      secconn.recv((char*)&id, 4);
+      secconn.recv((char*)&key, 4);
       secconn.recv((char*)&size, 4);
       secconn.recv(ip, size);
       addr.m_strIP = ip;
       secconn.recv((char*)&addr.m_iPort, 4);
-cout << "ID " << addr.m_strIP << " " << addr.m_iPort << endl;
-      g_Routing.insert(id, addr);
+cout << "IDxx " << addr.m_strIP << " " << addr.m_iPort << endl;
+      g_Routing.insert(key, addr);
    }
 
    secconn.close();
@@ -421,5 +421,54 @@ cout << "haha " << serv.m_strIP << " " << serv.m_iPort << endl;
 
    sys.deserialize(msg.getData(), msg.m_iDataLength);
 
+   for (vector<Address>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
+   {
+      if (i->m_strIP.length() == 0)
+      {
+         i->m_strIP = serv.m_strIP;
+         break;
+      }
+   }
+
    return 1;
+}
+
+int Client::updateMasters()
+{
+   SectorMsg msg;
+   msg.setKey(g_iKey);
+
+   for (map<uint32_t, Address>::iterator i = g_Routing.m_mAddressList.begin(); i != g_Routing.m_mAddressList.end(); ++ i)
+   {
+      msg.setType(5);
+
+      if (g_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) > 0)
+      {
+         Address addr;
+         addr.m_strIP = i->second.m_strIP;
+         addr.m_iPort = i->second.m_iPort;
+         uint32_t key = i->first;
+         
+         g_Routing.init();
+         g_Routing.insert(key, addr);
+
+         int n = *(int32_t*)msg.getData();
+         int p = 4;
+         for (int m = 0; m < n; ++ m)
+         {
+            key = *(int32_t*)(msg.getData() + p);
+            p += 4;
+            addr.m_strIP = msg.getData() + p;
+            p + addr.m_strIP.length() + 1;
+            addr.m_iPort = *(int32_t*)(msg.getData() + p);
+            p += 4;
+
+            g_Routing.insert(key, addr);
+         }
+
+         return n + 1;
+      }
+   }
+
+   return -1;
 }

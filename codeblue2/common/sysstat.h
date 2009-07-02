@@ -49,7 +49,7 @@ public:
    std::vector<Cluster> m_vCluster;
 
 public:
-   int serialize(char* buf, int& size, std::map<int, SlaveNode>& sl, Cluster& c);
+   int serialize(char* buf, int& size, std::map<uint32_t, Address>& ml, std::map<int, SlaveNode>& sl, Cluster& c);
    int deserialize(char* buf, const int& size);
 
    void print();

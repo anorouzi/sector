@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/16/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -188,6 +188,8 @@ void* Slave::SPEHandler(void* p)
    const char* param = ((Param4*)p)->param;
    const int psize = ((Param4*)p)->psize;
    const int type = ((Param4*)p)->type;
+   const string master_ip = ((Param4*)p)->master_ip;
+   const int master_port = ((Param4*)p)->master_port;
    delete (Param4*)p;
 
    SectorMsg msg;
@@ -420,7 +422,7 @@ void* Slave::SPEHandler(void* p)
 
          // report new files
          for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
-            self->report(transid, *i, true);
+            self->report(master_ip, master_port, transid, *i, true);
       }
       else
       {
@@ -473,7 +475,7 @@ void* Slave::SPEHandler(void* p)
    vector<Address> bad;
    self->checkBadDest(sndspd, bad);
 
-   self->reportSphere(transid, &bad);
+   self->reportSphere(master_ip, master_port, transid, &bad);
 
    return NULL;
 }
@@ -598,6 +600,8 @@ void* Slave::SPEShufflerEx(void* p)
    pthread_mutex_t* bqlock = ((Param5*)p)->bqlock;
    pthread_cond_t* bqcond = ((Param5*)p)->bqcond;
    int64_t* pendingSize = ((Param5*)p)->pending;
+   string master_ip = ((Param5*)p)->master_ip;
+   int master_port = ((Param5*)p)->master_port;
    delete (Param5*)p;
 
    self->createDir(path);
@@ -718,13 +722,13 @@ void* Slave::SPEShufflerEx(void* p)
    for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
    {
       sprintf(tmp, "%s.%d", (path + "/" + localfile).c_str(), *i);
-      self->report(transid, tmp, 1);
+      self->report(master_ip, master_port, transid, tmp, 1);
       sprintf(tmp, "%s.%d.idx", (path + "/" + localfile).c_str(), *i);
-      self->report(transid, tmp, 1);
+      self->report(master_ip, master_port, transid, tmp, 1);
    }
    delete [] tmp;
 
-   self->reportSphere(transid);
+   self->reportSphere(master_ip, master_port, transid);
 
    cout << "bucket completed 100 " << client_ip << " " << client_port << endl;
    SectorMsg msg;
@@ -768,7 +772,10 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       msg.setData(4, (char*)&port, 4);
       msg.setData(8, idxfile.c_str(), idxfile.length() + 1);
 
-      if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+      Address addr;
+      m_Routing.lookup(idxfile, addr);
+
+      if (m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
          return -1;
       if (msg.getType() < 0)
          return -1;
@@ -836,7 +843,10 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       msg.setData(4, (char*)&port, 4);
       msg.setData(8, datafile.c_str(), datafile.length() + 1);
 
-      if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+      Address addr;
+      m_Routing.lookup(datafile, addr);
+
+      if (m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
          return -1;
       if (msg.getType() < 0)
          return -1;

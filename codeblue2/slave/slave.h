@@ -153,9 +153,11 @@ private:
       std::string filename;	// filename
       int mode;			// file access mode
 
+      std::string master_ip;
+      int master_port;
       int transid;		// transaction ID
-      int key;                  // client key
 
+      int key;                  // client key
       std::string src_ip;	// downlink IP
       int src_port;		// downlink port
       std::string dst_ip;	// uplink IP
@@ -168,6 +170,8 @@ private:
    struct Param3
    {
       Slave* serv_instance;
+      std::string master_ip;
+      int master_port;
       int transid;
       std::string src;
       std::string dst;
@@ -181,9 +185,12 @@ private:
       std::string client_ip;	// client IP
       int client_ctrl_port;	// client GMP port
       int client_data_port;	// client data port
+      int key;                  // client key
 
-      int key;			// client key
+      std::string master_ip;
+      int master_port;
       int transid;		// transaction id
+
       int speid;		// speid
 
       std::string function;	// SPE or Map operator
@@ -205,7 +212,11 @@ private:
    struct Param5
    {
       Slave* serv_instance;     // self
+
+      std::string master_ip;
+      int master_port;
       int transid;		// transaction id
+
       std::string client_ip;    // client IP
       int client_ctrl_port;     // client GMP port
       int client_data_port;	// client data port
@@ -258,8 +269,8 @@ private:
    int move(const std::string& src, const std::string& dst, const std::string& newname);
 
 private:
-   int report(const int32_t& transid, const std::string& path, const int& change = 0);
-   int reportSphere(const int32_t& transid, const std::vector<Address>* bad = NULL);
+   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int& change = 0);
+   int reportSphere(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<Address>* bad = NULL);
 
    void logError(int type, const std::string& ip, const int& port, const std::string& name);
 

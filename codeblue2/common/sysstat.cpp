@@ -33,9 +33,9 @@ written by
 
 using namespace std;
 
-const int SysStat::g_iSize = 40;
+const int SysStat::g_iSize = 40 + 4 + 4 + 4;
 
-int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c)
+int SysStat::serialize(char* buf, int& size, map<uint32_t, Address>& ml, map<int, SlaveNode>& sl, Cluster& c)
 {
    if (size < int(g_iSize + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 72))
       return -1;
@@ -47,8 +47,8 @@ int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c
    *(int64_t*)(buf + 32) = m_llTotalSlaves;
 
    char* p = buf + 40;
-   *(int64_t*)p = c.m_mSubCluster.size();
-   p += 8;
+   *(int32_t*)p = c.m_mSubCluster.size();
+   p += 4;
    for (map<int, Cluster>::iterator i = c.m_mSubCluster.begin(); i != c.m_mSubCluster.end(); ++ i)
    {
       *(int64_t*)p = i->second.m_iClusterID;
@@ -61,7 +61,18 @@ int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c
       p += 48;
    }
 
-   p = buf + 40 + 8 + c.m_mSubCluster.size() * 48;
+   *(int32_t*)p = ml.size();
+   p += 4;
+   for (map<uint32_t, Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
+   {
+      strcpy(p, i->second.m_strIP.c_str());
+      p += 16;
+      *(int32_t*)p = i->second.m_iPort;
+      p += 4;
+   }
+
+   *(int32_t*)p = sl.size();
+   p += 4;
    for (map<int, SlaveNode>::iterator i = sl.begin(); i != sl.end(); ++ i)
    {
       strcpy(p, i->second.m_strIP.c_str());
@@ -76,7 +87,7 @@ int SysStat::serialize(char* buf, int& size, map<int, SlaveNode>& sl, Cluster& c
       p += 72;
    }
 
-   size = 40 + 8 + c.m_mSubCluster.size() * 48 + sl.size() * 72;
+   size = g_iSize + c.m_mSubCluster.size() * 48 + ml.size() * 20 + sl.size() * 72;
 
    return 0;
 }
@@ -93,9 +104,9 @@ int SysStat::deserialize(char* buf, const int& size)
    m_llTotalSlaves = *(int64_t*)(buf + 32);
 
    char* p = buf + 40;
-   int c = *(int64_t*)p;
+   int c = *(int32_t*)p;
    m_vCluster.resize(c);
-   p += 8;
+   p += 4;
    for (vector<Cluster>::iterator i = m_vCluster.begin(); i != m_vCluster.end(); ++ i)
    {
       i->m_iClusterID = *(int64_t*)p;
@@ -108,9 +119,20 @@ int SysStat::deserialize(char* buf, const int& size)
       p += 48;
    }
 
-   int n = (size - 40 - 8 - c * 48) / 72;
+   int m = *(int32_t*)p;
+   p += 4;
+   m_vMasterList.resize(m);
+   for (vector<Address>::iterator i = m_vMasterList.begin(); i != m_vMasterList.end(); ++ i)
+   {
+      i->m_strIP = p;
+      p += 16;
+      i->m_iPort = *(int32_t*)p;
+      p += 4;      
+   }
+
+   int n = *(int32_t*)p;
+   p += 4;
    m_vSlaveList.resize(n);
-   p = buf + 40 + 8 + c * 48;
    for (vector<SlaveNode>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
    {
       i->m_strIP = p;
@@ -139,6 +161,14 @@ void SysStat::print()
    cout << "Total File Size " << m_llTotalFileSize / MB << " MB" << endl;
    cout << "Total Number of Files " << m_llTotalFileNum << endl;
    cout << "Total Number of Slave Nodes " << m_llTotalSlaves << endl;
+
+   cout << "------------------------------------------------------------\n";
+   cout << "MASTER ID \t IP \t PORT\n";
+   int m = 1;
+   for (vector<Address>::iterator i = m_vMasterList.begin(); i != m_vMasterList.end(); ++ i)
+   {
+      cout << m++ << ": \t" << i->m_strIP << "\t" << i->m_iPort << endl;
+   }
 
    cout << "------------------------------------------------------------\n";
 

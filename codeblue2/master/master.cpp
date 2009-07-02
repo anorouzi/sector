@@ -118,7 +118,7 @@ int Master::init()
    // add "slave" as a special user
    m_mActiveUser.clear();
    ActiveUser au;
-   au.m_strName = "slave";
+   au.m_strName = "system";
    au.m_iKey = 0;
    au.m_vstrReadList.insert(au.m_vstrReadList.begin(), "/");
    //au.m_vstrWriteList.insert(au.m_vstrWriteList.begin(), "/");
@@ -289,7 +289,7 @@ int Master::join(const char* ip, const int& port)
    s.recv((char*)&size, 4);
    mbuf = new char[size];
    s.recv(mbuf, size);;
-   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
+   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
    ofs.write(mbuf, size);
    ofs.close();
    delete [] mbuf;
@@ -490,9 +490,12 @@ int Master::run()
 
          SectorMsg msg;
          msg.setKey(0);
-         msg.setType(1001);
+         msg.setType(1005); //master node probe msg
          if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0)
+         {
+            m_SectorLog.insert(("Master lost " + i->second.m_strIP + ".").c_str());
             tbrm.push_back(i->first);
+         }
       }
 
       for (vector<uint32_t>::iterator i = tbrm.begin(); i != tbrm.end(); ++ i)
@@ -616,7 +619,7 @@ void* Master::serviceEx(void* p)
             Index::deserialize(ifs, branch, &addr);
             ifs.close();
 
-            ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::out);
+            ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::out | ios::trunc);
             CGuard::enterCS(self->m_Metadata.m_MetaLock);
             Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left, self->m_SysConfig.m_iReplicaNum);
             CGuard::leaveCS(self->m_Metadata.m_MetaLock);
@@ -854,10 +857,13 @@ void* Master::serviceEx(void* p)
             }
 
             // send user list
-            num = self->m_mActiveUser.size();
+            num = self->m_mActiveUser.size() - 1;
             s->send((char*)&num, 4);
             for (map<int, ActiveUser>::iterator i = self->m_mActiveUser.begin(); i != self->m_mActiveUser.end(); ++ i)
             {
+               if (0 == i->first)
+                  continue;
+
                char* ubuf = NULL;
                int size = 0;
                i->second.serialize(ubuf, size);
@@ -867,19 +873,19 @@ void* Master::serviceEx(void* p)
             }
 
             // send metadata
-            ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
+            ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
             self->m_Metadata.serialize(ofs, self->m_Metadata.m_mDirectory, 1);
             ofs.close();
-            struct stat s;
-            stat((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), &s);
-            int32_t size = s.st_size;
+            struct stat st;
+            stat((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), &st);
+            int32_t size = st.st_size;
 
             ifstream meta((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
             char* buf = new char[size];
             meta.read(buf, size);
             meta.close();
-            secconn.send((char*)&size, 4);
-            secconn.send(buf, size);
+            s->send((char*)&size, 4);
+            s->send(buf, size);
             delete [] buf;
 
             // send new master info to all existing masters
@@ -1073,6 +1079,12 @@ void* Master::process(void* s)
 
          case 3: // sysinfo
          {
+            if (!self->m_Routing.match(key, self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
+
             self->m_SysStat.m_llAvailDiskSpace = self->m_SlaveManager.getTotalDiskSpace();
             self->m_SysStat.m_llTotalSlaves = self->m_SlaveManager.getTotalSlaves();
             CGuard::enterCS(self->m_Metadata.m_MetaLock);
@@ -1080,9 +1092,9 @@ void* Master::process(void* s)
             self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
             CGuard::leaveCS(self->m_Metadata.m_MetaLock);
 
-            int size = SysStat::g_iSize + 8 + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48 + self->m_SlaveManager.m_mSlaveList.size() * 72;
+            int size = SysStat::g_iSize + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48 + self->m_Routing.m_mAddressList.size() * 20 + self->m_SlaveManager.m_mSlaveList.size() * 72;
             char* buf = new char[size];
-            self->m_SysStat.serialize(buf, size, self->m_SlaveManager.m_mSlaveList, self->m_SlaveManager.m_Cluster);
+            self->m_SysStat.serialize(buf, size, self->m_Routing.m_mAddressList, self->m_SlaveManager.m_mSlaveList, self->m_SlaveManager.m_Cluster);
 
             msg->setData(0, buf, size);
             delete [] buf;
@@ -1133,10 +1145,37 @@ void* Master::process(void* s)
             break;
          }
 
+         case 5: //update master lists
+         {
+            int num = self->m_Routing.m_mAddressList.size();
+            msg->setData(0, (char*)&num, 4);
+            int p = 4;
+            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            {
+               if (i->first == self->m_iRouterKey)
+                  continue;
+
+               msg->setData(p, (char*)&i->first, 4);
+               int size = i->second.m_strIP.length() + 1;
+               msg->setData(p + 4, i->second.m_strIP.c_str(), size);
+               msg->setData(p + size + 4, (char*)&i->second.m_iPort, 4);
+               p += size + 8;
+            }
+
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
          // 100+ storage system
 
          case 101: // ls
          {
+            if (!self->m_Routing.match(msg->getData(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
+
             int rwx = SF_MODE::READ;
             string dir = msg->getData();
             if (!user->match(dir, rwx))
@@ -1169,6 +1208,12 @@ void* Master::process(void* s)
 
          case 102: // stat
          {
+            if (!self->m_Routing.match(msg->getData(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
+
             int rwx = SF_MODE::READ;
             if (!user->match(msg->getData(), rwx))
             {
@@ -1207,6 +1252,12 @@ void* Master::process(void* s)
 
          case 103: // mkdir
          {
+            if (!self->m_Routing.match(msg->getData(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
+
             int rwx = SF_MODE::WRITE;
             if (!user->match(msg->getData(), rwx))
             {
@@ -1267,6 +1318,12 @@ void* Master::process(void* s)
             string dst = msg->getData() + 4 + src.length() + 1 + 4;
             string uplevel = dst.substr(0, dst.rfind('/') + 1);
             string sublevel = dst + src.substr(src.rfind('/'), src.length());
+
+            if (!self->m_Routing.match(src.c_str(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
 
             SNode tmp;
             if ((uplevel.length() > 0) && (self->m_Metadata.lookup(uplevel.c_str(), tmp) < 0))
@@ -1361,6 +1418,12 @@ void* Master::process(void* s)
          {
             //TODO: cannot remove a dir if it is not empty
 
+            if (!self->m_Routing.match(msg->getData(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
+
             int rwx = SF_MODE::WRITE;
             if (!user->match(msg->getData(), rwx))
             {
@@ -1410,6 +1473,12 @@ void* Master::process(void* s)
             string dst = msg->getData() + 4 + src.length() + 1 + 4;
             string uplevel = dst.substr(0, dst.find('/'));
             string sublevel = dst + src.substr(src.rfind('/'), src.length());
+
+            if (!self->m_Routing.match(src.c_str(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
 
             SNode tmp;
             if ((uplevel.length() > 0) && (self->m_Metadata.lookup(uplevel.c_str(), tmp) < 0))
@@ -1478,6 +1547,12 @@ void* Master::process(void* s)
 
          case 107: // utime
          {
+            if (!self->m_Routing.match(msg->getData(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
+
             int rwx = SF_MODE::WRITE;
             if (!user->match(msg->getData(), rwx))
             {
@@ -1527,6 +1602,12 @@ void* Master::process(void* s)
             int32_t mode = *(int32_t*)(msg->getData());
             int32_t dataport = *(int32_t*)(msg->getData() + 4);
             string path = msg->getData() + 8;
+
+            if (!self->m_Routing.match(path.c_str(), self->m_iRouterKey))
+            {
+               self->reject(ip, port, id, SectorError::E_MASTER);
+               break;
+            }
 
             // check user's permission on that file
             int rwx = mode;
@@ -1835,13 +1916,13 @@ void* Master::process(void* s)
             Index::deserialize(ifs, branch, &addr);
             ifs.close();
             CGuard::enterCS(self->m_Metadata.m_MetaLock);
-            ofstream left((self->m_strHomeDir + ".metadata/" + addr.m_strIP + ".left").c_str(), ios::out);
+            ofstream left((self->m_strHomeDir + ".metadata/" + addr.m_strIP + ".left").c_str(), ios::out | ios::trunc);
             Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left, self->m_SysConfig.m_iReplicaNum);
             left.close();
             CGuard::leaveCS(self->m_Metadata.m_MetaLock);
 
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
-
             break;
          }
 
@@ -1850,22 +1931,22 @@ void* Master::process(void* s)
             ActiveUser au;
             au.deserialize(msg->getData(), msg->m_iDataLength);
             self->m_mActiveUser[au.m_iKey] = au;
-
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
-
             break;
          }
 
          case 1004: // remove user
          {
             self->m_mActiveUser.erase(*(int32_t*)msg->getData());
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
-
             break;
          }
 
          case 1005: // master probe
          {
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
             break;
          }

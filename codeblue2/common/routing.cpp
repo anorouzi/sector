@@ -39,6 +39,13 @@ Routing::~Routing()
 {
 }
 
+void Routing::init()
+{
+   m_vFingerTable.clear();
+   m_mAddressList.clear();
+   m_mKeyList.clear();
+}
+
 int Routing::insert(const uint32_t& key, const Address& node)
 {
    if (m_mAddressList.find(key) != m_mAddressList.end())
@@ -132,4 +139,21 @@ int Routing::getRouterID(const Address& node)
       return -1;
 
    return getRouterID(a->second);
+}
+
+bool Routing::match(const uint32_t& cid, const uint32_t& key)
+{
+   if (m_vFingerTable.empty())
+      return false;
+
+   return key == m_vFingerTable[cid % m_vFingerTable.size()];
+}
+
+bool Routing::match(const char* path, const uint32_t& key)
+{
+   if (m_vFingerTable.empty())
+      return false;
+
+   uint32_t pid = DHash::hash(path, m_iKeySpace);
+   return key == m_vFingerTable[pid % m_vFingerTable.size()];
 }

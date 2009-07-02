@@ -241,10 +241,7 @@ void Slave::run()
       addr.m_strIP = ip;
       addr.m_iPort = port;
       if (m_Routing.getRouterID(addr) < 0)
-{
-cout << "duh!\n";
          continue;
-}
 
       switch (msg->getType())
       {
@@ -298,7 +295,6 @@ cout << "duh!\n";
 
             m_LocalFile.move(src.c_str(), dst.c_str(), newname.c_str());
             move(src, dst, newname);
-cout << "move " << src << " " << dst << " " << newname << endl;
             break;
          }
 
@@ -346,6 +342,9 @@ cout << "move " << src << " " << dst << " " << newname << endl;
             memcpy(p->crypto_iv, msg->getData() + 164, 8);
             p->filename = msg->getData() + 172;
 
+            p->master_ip = ip;
+            p->master_port = port;
+
             char* tmp = new char[64 + p->filename.length()];
             sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->src_ip.c_str(), p->src_port);
             m_SectorLog.insert(tmp);
@@ -369,6 +368,9 @@ cout << "move " << src << " " << dst << " " << newname << endl;
             p->timestamp = *(int64_t*)(msg->getData() + 4);
             p->src = msg->getData() + 12;
             p->dst = msg->getData() + 12 + p->src.length() + 1;
+
+            p->master_ip = ip;
+            p->master_port = port;
 
             char* tmp = new char[64 + p->src.length() + p->dst.length()];
             sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
@@ -406,6 +408,9 @@ cout << "move " << src << " " << dst << " " << newname << endl;
                p->param = NULL;
             p->type = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 8);
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
+
+            p->master_ip = ip;
+            p->master_port = port;
 
             cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << endl;
             char* tmp = new char[64 + p->function.length()];
@@ -451,6 +456,9 @@ cout << "move " << src << " " << dst << " " << newname << endl;
             p->transid = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 8);
             p->client_data_port = *(int32_t*)(msg->getData() + msg->m_iDataLength - SectorMsg::m_iHdrSize - 4);
 
+            p->master_ip = ip;
+            p->master_port = port;
+
             char* tmp = new char[64 + p->filename.length()];
             sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
             m_SectorLog.insert(tmp);
@@ -474,7 +482,6 @@ cout << "move " << src << " " << dst << " " << newname << endl;
             addr.m_strIP = msg->getData() + 4;
             addr.m_iPort = *(int32_t*)(msg->getData() + 68);
             m_Routing.insert(key, addr);
-cout << "NEW MASTER " << key << " " << addr.m_strIP << " " << addr.m_iPort << endl;
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             m_GMP.sendto(ip, port, id, msg);
 
@@ -489,7 +496,7 @@ cout << "NEW MASTER " << key << " " << addr.m_strIP << " " << addr.m_iPort << en
    delete msg;
 }
 
-int Slave::report(const int32_t& transid, const string& filename, const int& change)
+int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int& change)
 {
    struct stat s;
    if (-1 == stat((m_strHomeDir + filename).c_str(), &s))
@@ -520,9 +527,9 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    msg.setData(8, (char*)&change, 4);
    msg.setData(12, buf, strlen(buf) + 1);
 
-   cout << "report " << m_strMasterIP << " " << m_iMasterPort << " " << buf << endl;
+   cout << "report " << master_ip << " " << master_port << " " << buf << endl;
 
-   if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+   if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
@@ -531,7 +538,7 @@ int Slave::report(const int32_t& transid, const string& filename, const int& cha
    return 1;
 }
 
-int Slave::reportSphere(const int& transid, const vector<Address>* bad)
+int Slave::reportSphere(const string& master_ip, const int& master_port, const int& transid, const vector<Address>* bad)
 {
    SectorMsg msg;
    msg.setType(4);
@@ -547,9 +554,9 @@ int Slave::reportSphere(const int& transid, const vector<Address>* bad)
       msg.setData(12 + 68 * i + 64, (char*)&((*bad)[i].m_iPort), 4);
    }
 
-   cout << "reportSphere " << m_strMasterIP << " " << m_iMasterPort << " " << transid << endl;
+   cout << "reportSphere " << master_ip << " " << master_port << " " << transid << endl;
 
-   if (m_GMP.rpc(m_strMasterIP.c_str(), m_iMasterPort, &msg, &msg) < 0)
+   if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
 
    if (msg.getType() < 0)
