@@ -495,6 +495,16 @@ int Master::run()
          {
             m_SectorLog.insert(("Master lost " + i->second.m_strIP + ".").c_str());
             tbrm.push_back(i->first);
+
+            // send the master drop info to all slaves
+            for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
+            {
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1006);
+               msg.setData(0, (char*)&i->first, 4);
+               m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
+            }
          }
       }
 

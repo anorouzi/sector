@@ -488,6 +488,13 @@ void Slave::run()
             break;
          }
 
+         case 1006: // master lost
+         {
+            m_Routing.remove(*(int32_t*)msg->getData());
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            m_GMP.sendto(ip, port, id, msg);
+         }
+
          default:
             break; 
       }

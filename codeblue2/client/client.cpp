@@ -157,7 +157,7 @@ int Client::login(const string& username, const string& password, const char* ce
    addr.m_strIP = g_strServerIP;
    addr.m_iPort = g_iServerPort;
    g_Routing.insert(key, addr);
-cout << "ID " << addr.m_strIP << " " << addr.m_iPort << endl;
+
    int num;
    secconn.recv((char*)&num, 4);
    for (int i = 0; i < num; ++ i)
@@ -169,7 +169,6 @@ cout << "ID " << addr.m_strIP << " " << addr.m_iPort << endl;
       secconn.recv(ip, size);
       addr.m_strIP = ip;
       secconn.recv((char*)&addr.m_iPort, 4);
-cout << "IDxx " << addr.m_strIP << " " << addr.m_iPort << endl;
       g_Routing.insert(key, addr);
    }
 
@@ -215,7 +214,6 @@ int Client::list(const string& path, vector<SNode>& attr)
 
    Address serv;
    g_Routing.lookup(path, serv);
-cout << "haha " << serv.m_strIP << " " << serv.m_iPort << endl;
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -412,7 +410,6 @@ int Client::sysinfo(SysStat& sys)
 
    Address serv;
    g_Routing.lookup(g_iKey, serv);
-cout << "haha " << serv.m_strIP << " " << serv.m_iPort << endl;
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
