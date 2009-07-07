@@ -106,7 +106,6 @@ int Routing::lookup(const uint32_t& key, Address& node)
 int Routing::lookup(const string& path, Address& node)
 {
    uint32_t key = DHash::hash(path.c_str(), m_iKeySpace);
-
    return lookup(key, node);
 }
 
@@ -155,5 +154,6 @@ bool Routing::match(const char* path, const uint32_t& key)
       return false;
 
    uint32_t pid = DHash::hash(path, m_iKeySpace);
+
    return key == m_vFingerTable[pid % m_vFingerTable.size()];
 }

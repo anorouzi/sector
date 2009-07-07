@@ -889,7 +889,6 @@ void* Master::serviceEx(void* p)
             struct stat st;
             stat((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), &st);
             int32_t size = st.st_size;
-
             ifstream meta((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
             char* buf = new char[size];
             meta.read(buf, size);
@@ -1916,7 +1915,7 @@ void* Master::process(void* s)
             self->m_SlaveManager.updateClusterStat();
 
             ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
-            ofs.write(msg->getData() + 72, msg->m_iDataLength - 72);
+            ofs.write(msg->getData() + 72, msg->m_iDataLength - 72 - SectorMsg::m_iHdrSize);
             ofs.close();
             map<string, SNode> branch;
             ifstream ifs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);

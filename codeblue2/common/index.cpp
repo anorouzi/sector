@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/21/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2009
 *****************************************************************************/
 
 
@@ -126,7 +126,7 @@ int Index::lookup(const char* path, SNode& attr)
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
-      return -3;
+      return SectorError::E_INVALID;
 
    if (dir.empty())
    {
@@ -170,7 +170,7 @@ int Index::lookup(const char* path, set<Address, AddrComp>& addr)
 
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
-      return -3;
+      return SectorError::E_INVALID;
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
@@ -214,6 +214,9 @@ int Index::create(const char* path, bool isdir)
    if (parsePath(path, dir) <= 0)
       return -3;
 
+   if (dir.empty())
+      return -1;
+
    bool found = true;
 
    map<string, SNode>* currdir = &m_mDirectory;
@@ -254,8 +257,15 @@ int Index::move(const char* oldpath, const char* newpath, const char* newname)
    if (parsePath(oldpath, olddir) <= 0)
       return -3;
 
+   if (olddir.empty())
+      return -1;
+
    vector<string> newdir;
-   parsePath(newpath, newdir);
+   if (parsePath(newpath, newdir) <= 0)
+      return -3;
+
+   if (newdir.empty())
+      return -1;
 
    map<string, SNode>* od = &m_mDirectory;
    map<string, SNode>::iterator os;
@@ -310,7 +320,10 @@ int Index::remove(const char* path, bool recursive)
 
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
-      return -3;
+      return SectorError::E_INVALID;
+
+   if (dir.empty())
+      return -1;
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
@@ -351,6 +364,9 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type)
 
    vector<string> dir;
    parsePath(sn.m_strName.c_str(), dir);
+
+   if (dir.empty())
+      return -1;
 
    string filename = *(dir.rbegin());
    sn.m_strName = filename;

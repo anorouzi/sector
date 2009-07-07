@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/24/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2009
 *****************************************************************************/
 
 
@@ -213,7 +213,7 @@ int Client::list(const string& path, vector<SNode>& attr)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   g_Routing.lookup(path, serv);
+   g_Routing.lookup(revised_path, serv);
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -246,7 +246,7 @@ int Client::stat(const string& path, SNode& attr)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   g_Routing.lookup(path, serv);
+   g_Routing.lookup(revised_path, serv);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -283,7 +283,7 @@ int Client::mkdir(const string& path)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   g_Routing.lookup(path, serv);
+   g_Routing.lookup(revised_path, serv);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -311,7 +311,7 @@ int Client::move(const string& oldpath, const string& newpath)
    msg.setData(4 + src.length() + 1 + 4, dst.c_str(), dst.length() + 1);
 
    Address serv;
-   g_Routing.lookup(oldpath, serv);
+   g_Routing.lookup(src, serv);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -332,8 +332,8 @@ int Client::remove(const string& path)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   g_Routing.lookup(path, serv);
-
+   g_Routing.lookup(revised_path, serv);
+cout << "check path " << serv.m_strIP << " " << serv.m_iPort << endl;
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -360,7 +360,7 @@ int Client::copy(const string& src, const string& dst)
    msg.setData(4 + rsrc.length() + 1 + 4, rdst.c_str(), rdst.length() + 1);
 
    Address serv;
-   g_Routing.lookup(src, serv);
+   g_Routing.lookup(rsrc, serv);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -382,7 +382,7 @@ int Client::utime(const string& path, const int64_t& ts)
    msg.setData(revised_path.length() + 1, (char*)&ts, 8);
 
    Address serv;
-   g_Routing.lookup(path, serv);
+   g_Routing.lookup(revised_path, serv);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
