@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/05/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2009
 *****************************************************************************/
 
 #include "security.h"
@@ -53,6 +53,9 @@ ACL::~ACL()
 int ACL::init(const char* aclfile)
 {
    ifstream af(aclfile);
+
+   if (af.fail() || af.bad())
+      return -1;
 
    char line[128];
    while (!af.eof())
