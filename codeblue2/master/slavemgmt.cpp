@@ -35,8 +35,7 @@ written by
 
 using namespace std;
 
-SlaveManager::SlaveManager():
-m_iNodeID(0)
+SlaveManager::SlaveManager()
 {
    pthread_mutex_init(&m_SlaveLock, NULL);
 }
@@ -108,7 +107,6 @@ int SlaveManager::insert(SlaveNode& sn)
 {
    CGuard sg(m_SlaveLock);
 
-   sn.m_iNodeID = m_iNodeID ++;
    sn.m_iStatus = 1;
 
    m_mSlaveList[sn.m_iNodeID] = sn;

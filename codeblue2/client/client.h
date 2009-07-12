@@ -94,8 +94,7 @@ protected:
 private:
    static int g_iCount;
 
-private:
-private: // master routing
+protected: // master routing
    static Routing g_Routing;
 };
 

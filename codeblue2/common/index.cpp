@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/05/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2009
 *****************************************************************************/
 
 
@@ -594,21 +594,31 @@ int SNode::deserialize(const char* buf)
    char buffer[4096];
    char* tmp = buffer;
 
+   bool stop = true;
+
    // file name
    strcpy(tmp, buf);
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {
       if (tmp[i] == ',')
       {
+         stop = false;
          tmp[i] = '\0';
          break;
       }
    }
-   int namelen = atoi(tmp);
+   unsigned int namelen = atoi(tmp);
+
+   if (stop)
+      return -1;
 
    tmp = tmp + strlen(tmp) + 1;
+   if (strlen(tmp) < namelen)
+      return -1;
    tmp[namelen] = '\0';
    m_strName = tmp;
+
+   stop = true;
 
    // restore dir 
    tmp = tmp + strlen(tmp) + 1;
@@ -616,11 +626,16 @@ int SNode::deserialize(const char* buf)
    {
       if (tmp[i] == ',')
       {
+         stop = false;
          tmp[i] = '\0';
          break;
       }
    }
    m_bIsDir = atoi(tmp);
+
+   if (stop)
+      return -1;
+   stop = true;
 
    // restore timestamp
    tmp = tmp + strlen(tmp) + 1;
@@ -628,43 +643,66 @@ int SNode::deserialize(const char* buf)
    {
       if (tmp[i] == ',')
       {
+         stop = false;
          tmp[i] = '\0';
          break;
       }
    }
    m_llTimeStamp = atoll(tmp);
 
+   if (stop)
+      return -1;
+   stop = true;
+
    // restore size
    tmp = tmp + strlen(tmp) + 1;
+   for (unsigned int i = 0; i < strlen(tmp); ++ i)
+   {
+      if (tmp[i] == ',')
+      {
+         stop = false;
+         tmp[i] = '\0';
+         break;
+      }
+   }
    m_llSize = atoll(tmp);
 
    // restore locations
-   tmp = tmp + strlen(tmp) + 1;
-   while (strlen(tmp) != 0)
+   while (!stop)
    {
+      tmp = tmp + strlen(tmp) + 1;
+
+      stop = true;
+
       Address addr;
       for (unsigned int i = 0; i < strlen(tmp); ++ i)
       {
          if (tmp[i] == ',')
          {
+            stop = false;
             tmp[i] = '\0';
             break;
          }
       }
       addr.m_strIP = tmp;
 
+      if (stop)
+         return -1;
+      stop = true;
+
       tmp = tmp + strlen(tmp) + 1;
       for (unsigned int i = 0; i < strlen(tmp); ++ i)
       {
          if (tmp[i] == ',')
          {
+            stop = false;
             tmp[i] = '\0';
             break;
          }
       }
       addr.m_iPort = atoi(tmp);
 
-      tmp = tmp + strlen(tmp) + 1;
+      m_sLocation.insert(addr);
    }
 
    m_iReadLock = m_iWriteLock = 0;

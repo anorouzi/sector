@@ -67,8 +67,6 @@ public:
    Cluster m_Cluster;
 
 private:
-   int m_iNodeID;
-
    pthread_mutex_t m_SlaveLock;
 };
 

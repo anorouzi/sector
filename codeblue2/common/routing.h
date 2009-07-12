@@ -59,6 +59,8 @@ public:
    bool match(const uint32_t& cid, const uint32_t& key);
    bool match(const char* path, const uint32_t& key);
 
+   int getPrimaryMaster(Address& node);
+
 public:
    std::vector<uint32_t> m_vFingerTable;
    std::map<uint32_t, Address> m_mAddressList;

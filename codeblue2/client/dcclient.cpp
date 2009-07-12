@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/13/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -76,7 +76,9 @@ int Client::dataInfo(const vector<string>& files, vector<string>& info)
    size = -1;
    msg.setData(offset, (char*)&size, 4);
 
-   if (g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0)
+   Address serv;
+   g_Routing.getPrimaryMaster(serv);
+   if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
    if (msg.getType() < 0)
@@ -363,7 +365,9 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    msg.setKey(g_iKey);
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
-   if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+   Address serv;
+   g_Routing.getPrimaryMaster(serv);
+   if ((g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
       cerr << "unable to locate any SPE.\n";
       return -1;
@@ -868,7 +872,9 @@ int SphereProcess::connectSPE(SPE& s)
    offset += 4 + 8 + m_iParamSize;
    msg.setData(offset, (char*)&m_iProcType, 4);
 
-   if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+   Address serv;
+   g_Routing.getPrimaryMaster(serv);
+   if ((g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
    {
       cerr << "failed to connect SPE " << s.m_strIP << " " << s.m_iPort << endl;
       return -1;
@@ -1030,7 +1036,9 @@ int SphereProcess::prepareOutput(const char* spenodes)
          }
 
          cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
-         if ((g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg) < 0) || (msg.getType() < 0))
+         Address serv;
+         g_Routing.getPrimaryMaster(serv);
+         if ((g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
             continue;
 
          BUCKET b;

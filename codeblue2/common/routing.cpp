@@ -157,3 +157,12 @@ bool Routing::match(const char* path, const uint32_t& key)
 
    return key == m_vFingerTable[pid % m_vFingerTable.size()];
 }
+
+int Routing::getPrimaryMaster(Address& node)
+{
+   if (m_mAddressList.empty())
+      return -1;
+
+   node = m_mAddressList.begin()->second;
+   return 0;
+}

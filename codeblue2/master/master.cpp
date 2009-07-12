@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -151,7 +151,7 @@ int Master::init()
    {
       secconn.close();
       SSLTransport::destroy();
-      m_SectorLog.insert("Failed to found security server.");
+      m_SectorLog.insert("Failed to find security server.");
       return -1;
    }
 
@@ -249,18 +249,15 @@ int Master::join(const char* ip, const int& port)
        return -1;
    for (int i = 0; i < num; ++ i)
    {
+      SlaveNode sn;
+      s.recv((char*)&sn.m_iNodeID, 4);
       char ip[64];
-      int port = 0;
-      int dataport = 0;
       int size = 0;
       s.recv((char*)&size, 4);
       s.recv(ip, size);
-      s.recv((char*)&port, 4);
-      s.recv((char*)&dataport, 4);
-      SlaveNode sn;
       sn.m_strIP = ip;
-      sn.m_iPort = port;
-      sn.m_iDataPort = dataport;
+      s.recv((char*)&sn.m_iPort, 4);
+      s.recv((char*)&sn.m_iDataPort, 4);
       sn.m_llLastUpdateTime = CTimer::getTime();
       sn.m_iRetryNum = 0;
       sn.m_llLastVoteTime = CTimer::getTime();
@@ -309,6 +306,79 @@ int Master::run()
    {
       sleep(60);
 
+
+      // check other masters
+      vector<uint32_t> tbrm;
+
+      for (map<uint32_t, Address>::iterator i = m_Routing.m_mAddressList.begin(); i != m_Routing.m_mAddressList.end(); ++ i)
+      {
+         if (i->first == m_iRouterKey)
+            continue;
+
+         SectorMsg msg;
+         msg.setKey(0);
+         msg.setType(1005); //master node probe msg
+         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0)
+         {
+            m_SectorLog.insert(("Master lost " + i->second.m_strIP + ".").c_str());
+            tbrm.push_back(i->first);
+
+            // send the master drop info to all slaves
+            for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
+            {
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1006);
+               msg.setData(0, (char*)&i->first, 4);
+               m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
+            }
+         }
+      }
+
+      for (vector<uint32_t>::iterator i = tbrm.begin(); i != tbrm.end(); ++ i)
+         m_Routing.remove(*i);
+
+      // check each slave node
+      for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
+      {
+         SectorMsg msg;
+         msg.setType(1);
+
+         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) > 0)
+         {
+            i->second.m_llLastUpdateTime = CTimer::getTime();
+            i->second.deserialize(msg.getData(), msg.m_iDataLength);
+
+            i->second.m_iRetryNum = 0;
+
+            if (i->second.m_llAvailDiskSpace < 10000000000LL)
+            {
+               if (i->second.m_iStatus == 1)
+               {
+                  char text[64];
+                  sprintf(text, "Slave %s has less than 10GB available disk space left.", i->second.m_strIP.c_str());
+                  m_SectorLog.insert(text);
+
+                  i->second.m_iStatus = 2;
+               }
+            }
+            else
+            {
+               if (i->second.m_iStatus == 2)
+                  i->second.m_iStatus = 1;
+            }
+         }
+         else
+           i->second.m_iRetryNum ++;
+      }
+
+      if (m_Routing.getRouterID(m_iRouterKey) != 0)
+         continue;
+
+
+      // The following checks are only performed by the primary master
+
+
       // check each users, remove inactive ones
       vector<int> tbru;
 
@@ -355,34 +425,33 @@ int Master::run()
 
       for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
       {
-         SectorMsg msg;
-         msg.setType(1);
-
-         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) > 0)
+         if (i->second.m_llLastVoteTime - CTimer::getTime() > 24LL * 60 * 3600 * 1000000)
          {
-            i->second.m_llLastUpdateTime = CTimer::getTime();
-            i->second.deserialize(msg.getData(), msg.m_iDataLength);
-
-            i->second.m_iRetryNum = 0;
-
-            if (i->second.m_llAvailDiskSpace < 10000000000LL)
-            {
-               if (i->second.m_iStatus == 1)
-               {
-                  char text[64];
-                  sprintf(text, "Slave %s has less than 10GB available disk space left.", i->second.m_strIP.c_str());
-                  m_SectorLog.insert(text);
-
-                  i->second.m_iStatus = 2;
-               }
-            }
-            else
-            {
-               if (i->second.m_iStatus == 2)
-                  i->second.m_iStatus = 1;
-            }
+            i->second.m_sBadVote.clear();
+            i->second.m_llLastVoteTime = CTimer::getTime();
          }
-         else if (++ i->second.m_iRetryNum > 10)
+
+         if (i->second.m_sBadVote.size() * 2 > m_SlaveManager.m_mSlaveList.size())
+         {
+            vector<int> trans;
+            m_TransManager.retrieve(i->first, trans);
+            if (trans.size() > 0)
+               continue;
+
+            m_SectorLog.insert(("Bad slave detected " + i->second.m_strIP + ".").c_str());
+
+            // remove the data on that slave
+            Address addr;
+            addr.m_strIP = i->second.m_strIP;
+            addr.m_iPort = i->second.m_iPort;
+            CGuard::enterCS(m_Metadata.m_MetaLock);
+            m_Metadata.substract(m_Metadata.m_mDirectory, addr);
+            CGuard::leaveCS(m_Metadata.m_MetaLock);
+
+            // to be removed
+            tbrs.insert(tbrs.end(), i->first);
+         }
+         else if (i->second.m_iRetryNum > 10)
          {
             m_SectorLog.insert(("Slave lost " + i->second.m_strIP + ".").c_str());
 
@@ -413,37 +482,26 @@ int Master::run()
             if (sa != m_mSlaveAddrRec.end())
                tbsaddr.insert(tbsaddr.end(), sa->second);
          }
-
-         if (i->second.m_sBadVote.size() * 2 > m_SlaveManager.m_mSlaveList.size())
-         {
-            vector<int> trans;
-            m_TransManager.retrieve(i->first, trans);
-            if (trans.size() > 0)
-               continue;
-
-            m_SectorLog.insert(("Bad slave detected " + i->second.m_strIP + ".").c_str());
-
-            // remove the data on that slave
-            Address addr;
-            addr.m_strIP = i->second.m_strIP;
-            addr.m_iPort = i->second.m_iPort;
-            CGuard::enterCS(m_Metadata.m_MetaLock);
-            m_Metadata.substract(m_Metadata.m_mDirectory, addr);
-            CGuard::leaveCS(m_Metadata.m_MetaLock);
-
-            // to be removed
-            tbrs.insert(tbrs.end(), i->first);
-         }
-         else if (i->second.m_llLastVoteTime - CTimer::getTime() > 24LL * 60 * 3600 * 1000000)
-         {
-            i->second.m_sBadVote.clear();
-            i->second.m_llLastVoteTime = CTimer::getTime();
-         }
       }
 
       // remove from slave list
       for (vector<int>::iterator i = tbrs.begin(); i != tbrs.end(); ++ i)
+      {
          m_SlaveManager.remove(*i);
+
+            // send lost slave info to all existing masters
+            for (map<uint32_t, Address>::iterator m = m_Routing.m_mAddressList.begin(); m != m_Routing.m_mAddressList.end(); ++ m)
+            {
+               if (m->first == m_iRouterKey)
+                  continue;
+
+               SectorMsg msg;
+               msg.setKey(0);
+               msg.setType(1007);
+               msg.setData(0, (char*)&(*i), 4);
+               m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &msg, &msg);
+            }
+      }
 
       // update cluster statistics
       m_SlaveManager.updateClusterStat();
@@ -479,37 +537,6 @@ int Master::run()
             pthread_cond_signal(&m_ReplicaCond);
          pthread_mutex_unlock(&m_ReplicaLock);
       }
-
-      // check other masters
-      vector<uint32_t> tbrm;
-
-      for (map<uint32_t, Address>::iterator i = m_Routing.m_mAddressList.begin(); i != m_Routing.m_mAddressList.end(); ++ i)
-      {
-         if (i->first == m_iRouterKey)
-            continue;
-
-         SectorMsg msg;
-         msg.setKey(0);
-         msg.setType(1005); //master node probe msg
-         if (m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0)
-         {
-            m_SectorLog.insert(("Master lost " + i->second.m_strIP + ".").c_str());
-            tbrm.push_back(i->first);
-
-            // send the master drop info to all slaves
-            for (map<int, SlaveNode>::iterator i = m_SlaveManager.m_mSlaveList.begin(); i != m_SlaveManager.m_mSlaveList.end(); ++ i)
-            {
-               SectorMsg msg;
-               msg.setKey(0);
-               msg.setType(1006);
-               msg.setData(0, (char*)&i->first, 4);
-               m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
-            }
-         }
-      }
-
-      for (vector<uint32_t>::iterator i = tbrm.begin(); i != tbrm.end(); ++ i)
-         m_Routing.remove(*i);
    }
 
    return 1;
@@ -600,9 +627,10 @@ void* Master::serviceEx(void* p)
 
          s->send((char*)&res, 4);
 
-         if (res == 1)
+         if (res > 0)
          {
             SlaveNode sn;
+            sn.m_iNodeID = res;
             sn.m_strIP = ip;
             s->recv((char*)&sn.m_iPort, 4);
             s->recv((char*)&sn.m_iDataPort, 4);
@@ -859,6 +887,7 @@ void* Master::serviceEx(void* p)
             s->send((char*)&num, 4);
             for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
             {
+               s->send((char*)&i->first, 4);
                int size = i->second.m_strIP.length() + 1;
                s->send((char*)&size, 4);
                s->send(i->second.m_strIP.c_str(), size);
@@ -1960,6 +1989,28 @@ void* Master::process(void* s)
             break;
          }
 
+         case 1007: // slave lost
+         {
+            int32_t sid = *(int32_t*)msg->getData();
+
+            map<int, SlaveNode>::iterator s = self->m_SlaveManager.m_mSlaveList.find(sid);
+            if (s != self->m_SlaveManager.m_mSlaveList.end())
+            {
+               Address addr;
+               addr.m_strIP = s->second.m_strIP;
+               addr.m_iPort = s->second.m_iPort;
+               CGuard::enterCS(self->m_Metadata.m_MetaLock);
+               self->m_Metadata.substract(self->m_Metadata.m_mDirectory, addr);
+               CGuard::leaveCS(self->m_Metadata.m_MetaLock);
+            }
+
+            self->m_SlaveManager.remove(sid);
+
+            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
          case 1011: // mkdir
          {
             self->m_Metadata.create(msg->getData(), true);
@@ -2007,7 +2058,6 @@ void* Master::process(void* s)
             addr.m_strIP = msg->getData() + 4;
             addr.m_iPort = *(int32_t*)(msg->getData() + 68);
             self->m_Metadata.update(msg->getData() + 72, addr, change);
-
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
             break;

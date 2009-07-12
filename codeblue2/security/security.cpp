@@ -371,10 +371,10 @@ void* SServer::process(void* p)
          if (s->recv(ip, 64) <= 0)
             goto EXIT;
 
-         int32_t res = 1;
+         int32_t key = self->generateKey();
          if (!self->m_SlaveACL.match(ip))
-            res = SectorError::E_ACL;
-         if (s->send((char*)&res, 4) <= 0)
+            key = SectorError::E_ACL;
+         if (s->send((char*)&key, 4) <= 0)
             goto EXIT;
 
          break;
