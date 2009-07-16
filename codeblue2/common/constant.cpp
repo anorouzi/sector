@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 04/28/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2009
 *****************************************************************************/
 
 #include "constant.h"
@@ -42,6 +42,7 @@ int SectorError::init()
    s_mErrorMsg[-1003] = "file/dir does not exist.";
    s_mErrorMsg[-1004] = "file/dir is busy.";
    s_mErrorMsg[-1005] = "a failure happens on the local file system.";
+   s_mErrorMsg[-1006] = "directory is not empty.";
    s_mErrorMsg[-2000] = "security check (certificate/account/password/acl) failed.";
    s_mErrorMsg[-2001] = "no certificate found or wrong certificate.";
    s_mErrorMsg[-2002] = "the account does not exist.";

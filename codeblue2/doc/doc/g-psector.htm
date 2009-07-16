@@ -18,7 +18,6 @@
 <p>Sector provides a set of APIs for applications to access the file system. </p>
 <p><strong>Prerequisite</strong></p>
 <p>To use Sector API, the application should include &lt;fsclient.h&gt;. In addition, certain header files in other directories (./common, ./gmp, and ./udt) may be required to be accessible. It is recommended that beginners write the first program in the same directory of the Sector client examples.</p>
-<p>Meanwhile, the client requires the certificate of the master node (master_node.cert) to be in the same directory. </p>
 <p><strong>Connect the Master</strong></p>
 <p>The client needs to know the address of the master node (IP and PORT). The Sector client can then be initialized by the <a href="r-c-client-init.htm">init</a> call. After that, the user can login with the user name and password. This process is encrypted using SSL. The qualifier &quot;Sector&quot; is an alias to the Sector class &quot;Client&quot;. All the connection and login API are global functions and there is no need for any local variables. </p>
 <div class="code"> Sector::init(IP, PORT);<br />

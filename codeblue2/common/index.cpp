@@ -141,7 +141,7 @@ int Index::lookup(const char* path, SNode& attr)
          if (attr.m_llTimeStamp < i->second.m_llTimeStamp)
             attr.m_llTimeStamp = i->second.m_llTimeStamp;
       }
-      return 1;
+      return m_mDirectory.size();
    }
 
    map<string, SNode>* currdir = &m_mDirectory;
@@ -161,7 +161,7 @@ int Index::lookup(const char* path, SNode& attr)
    attr.m_llTimeStamp = s->second.m_llTimeStamp;
    attr.m_sLocation = s->second.m_sLocation;
 
-   return 1;
+   return s->second.m_mDirectory.size();
 }
 
 int Index::lookup(const char* path, set<Address, AddrComp>& addr)

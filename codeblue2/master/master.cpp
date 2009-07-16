@@ -23,7 +23,7 @@ with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/11/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -1470,16 +1470,38 @@ void* Master::process(void* s)
                break;
             }
 
-            set<Address, AddrComp> addr;
-            string filename = msg->getData();
-            self->m_Metadata.lookup(filename.c_str(), addr);
+            SNode attr;
+            int n = self->m_Metadata.lookup(msg->getData(), attr);
 
-            for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
+            if (n < 0)
             {
-               int msgid = 0;
-               self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
+               self->reject(ip, port, id, SectorError::E_NOEXIST);
+               break;
+            }
+            else if (n > 0)
+            {
+               // directory not empty
+               self->reject(ip, port, id, SectorError::E_NOEMPTY);
+               break;
+            }
 
-               //TODO: update used disk space of the slave node
+            string filename = msg->getData();
+
+            if (!attr.m_bIsDir)
+            {
+               for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+               {
+                  int msgid = 0;
+                  self->m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
+               }
+            }
+            else
+            {
+               for (map<int, SlaveNode>::iterator i = self->m_SlaveManager.m_mSlaveList.begin(); i != self->m_SlaveManager.m_mSlaveList.end(); ++ i)
+               {
+                  int msgid = 0;
+                  self->m_GMP.sendto(i->second.m_strIP.c_str(), i->second.m_iPort, msgid, msg);
+               }
             }
 
             self->m_Metadata.remove(filename.c_str(), true);
@@ -2220,13 +2242,42 @@ void Master::loadSlaveAddr(const string& file)
       char line[256];
       line[0] = '\0';
       ifs.getline(line, 256);
-      if (strlen(line) == 0)
+      if (*line == '\0')
          continue;
 
+      int i = 0;
+      int n = strlen(line);
+      for (; i < n; ++ i)
+      {
+         if ((line[i] != ' ') && (line[i] != '\t'))
+            break;
+      }
+
+      if ((i == n) && (line[i] == '#'))
+         continue;
+
+      char newline[256];
+      bool blank = false;
+      char* p = newline;
+      for (; i < n; ++ i)
+      {
+         if ((line[i] == ' ') || (line[i] == '\t'))
+         {
+            if (!blank)
+               *p = ' ';
+            blank = true;
+         }
+         else
+         {
+            *p = line[i];
+            blank = false;
+         }
+      }
+
       SlaveAddr sa;
-      sa.m_strAddr = line;
+      sa.m_strAddr = newline;
       sa.m_strAddr = sa.m_strAddr.substr(0, sa.m_strAddr.find(' '));
-      sa.m_strBase = line;
+      sa.m_strBase = newline;
       sa.m_strBase = sa.m_strBase.substr(sa.m_strBase.find(' ') + 1, sa.m_strBase.length());
       string ip = sa.m_strAddr.substr(sa.m_strAddr.find('@') + 1, sa.m_strAddr.length());
 
