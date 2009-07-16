@@ -4,6 +4,49 @@
 
 using namespace std;
 
+
+void rmr(const string& path)
+{
+   SNode attr;
+   int r = Sector::stat(path.c_str(), attr);
+   if (r < 0)
+   {
+      cout << "ERROR: " << r << SectorError::getErrorMsg(r) << endl;
+      return;
+   }
+
+   if (attr.m_bIsDir)
+   {
+      vector<SNode> subdir;
+      Sector::list(path, subdir);
+
+      for (vector<SNode>::iterator i = subdir.begin(); i != subdir.end(); ++ i)
+      {
+         if (i->m_bIsDir)
+            rmr(path + "/" + i->m_strName);
+         else
+         {
+            r = Sector::remove(path + "/" + i->m_strName);
+            if (r < 0)
+               cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+         }
+      }
+   }
+
+   r = Sector::remove(path);
+   if (r < 0)
+      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+}
+
+bool isRecursive(const string& path)
+{
+   cout << "Directory " << path << " is not empty. Force to remove? Y/N: ";
+   char input;
+   cin >> input;
+
+   return (input == 'Y') || (input == 'y');
+}
+
 int main(int argc, char** argv)
 {
    if (argc != 2)
@@ -25,8 +68,14 @@ int main(int argc, char** argv)
 
    if (!wc)
    {
-      int r = Sector::remove(argv[1]);
-      if (r < 0)
+      int r = Sector::remove(path);
+
+      if (r == SectorError::E_NOEMPTY)
+      {
+         if (isRecursive(path))
+            rmr(path);
+      }
+      else if (r < 0)
          cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
    }
    else
@@ -46,11 +95,29 @@ int main(int argc, char** argv)
       if (r < 0)
          cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
+      bool recursive = false;
+
       vector<string> filtered;
       for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
          if (WildCard::match(orig, i->m_strName))
-            Sector::remove(path + "/" + i->m_strName);
+         {
+            if (recursive)
+               rmr(path + "/" + i->m_strName);
+            else
+            {
+               r = Sector::remove(path + "/" + i->m_strName);
+
+               if (r == SectorError::E_NOEMPTY)
+               {
+                  recursive = isRecursive(path + "/" + i->m_strName);
+                  if (recursive)
+                      rmr(path + "/" + i->m_strName);
+               }
+               else if (r < 0)
+                  cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+            }
+         }
       }
    }
 

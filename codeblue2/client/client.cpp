@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/07/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2009
 *****************************************************************************/
 
 
@@ -333,7 +333,6 @@ int Client::remove(const string& path)
 
    Address serv;
    g_Routing.lookup(revised_path, serv);
-cout << "check path " << serv.m_strIP << " " << serv.m_iPort << endl;
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -395,10 +394,34 @@ int Client::utime(const string& path, const int64_t& ts)
 
 string Client::revisePath(const string& path)
 {
-   if (path.c_str()[0] != '/')
-      return "/" + path;
+   char* newpath = new char[path.length() + 2];
+   char* np = newpath;
+   *np++ = '/';
+   bool slash = true;
 
-   return path;
+   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
+   {
+      if (*p == '/')
+      {
+         if (!slash)
+            *np++ = '/';
+         slash = true;
+      }
+      else
+      {
+         *np++ = *p;
+         slash = false;
+      }
+   }
+   *np = '\0';
+
+   if ((strlen(newpath) > 1) && slash)
+      newpath[strlen(newpath) - 1] = '\0';
+
+   string tmp = newpath;
+   delete [] newpath;
+
+   return tmp;
 }
 
 int Client::sysinfo(SysStat& sys)
