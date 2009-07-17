@@ -146,5 +146,8 @@ int PRobot::compile()
 {
    string CCFLAGS = "-I../ -I../../udt -I../../gmp -I../../common -I../../security";
    system(("g++ " + CCFLAGS + " -shared -fPIC -O3 -o " + m_strSrc + ".so -lstdc++ " + m_strSrc + ".cpp").c_str());
+
+   system(("mv " + m_strSrc + ".* /tmp").c_str());
+
    return 0;
 }

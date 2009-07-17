@@ -93,7 +93,7 @@ int main(int argc, char** argv)
 
    SphereProcess myproc;
 
-   if (myproc.loadOperator((string(cmd) + ".so").c_str()) < 0)
+   if (myproc.loadOperator((string("/tmp/") + cmd + ".so").c_str()) < 0)
       return -1;
 
    timeval t;
