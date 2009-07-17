@@ -27,40 +27,34 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/22/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2009
 *****************************************************************************/
 
 
-#ifndef __SECTOR_UTIL_H__
-#define __SECTOR_UTIL_H__
+#ifndef __SPHERE_PROGRAM_ROBOT_H__
+#define __SPHERE_PROGRAM_ROBOT_H__
 
-#include <conf.h>
 #include <string>
-#include <map>
 
-class WildCard
+class PRobot
 {
 public:
-   static bool isWildCard(const std::string& path);
-   static bool match(const std::string& card, const std::string& path);
-};
-
-class Session
-{
-public:   
-   int loadInfo(const std::string& conf);
+   PRobot();
 
 public:
-   ClientConf m_ClientConf;
-};
-
-class CmdLineParser
-{
-public:
-   int parse(int argc, char** argv);
+   void setCmd(const std::string& name);
+   void setParam(const std::string& name);
+   void setCmdFlag(const bool& local);
 
 public:
-   std::map<std::string, std::string> m_mParams;
+   int generate();
+   int compile();
+
+private:
+   std::string m_strSrc;
+   std::string m_strCmd;
+   std::string m_strParam;
+   bool m_bLocal;
 };
 
 #endif

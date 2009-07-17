@@ -140,3 +140,29 @@ int Session::loadInfo(const string& conf)
 
    return 1;
 }
+
+int CmdLineParser::parse(int argc, char** argv)
+{
+   m_mParams.clear();
+
+   bool dash = false;
+   string key;
+   for (int i = 1; i < argc; ++ i)
+   {
+      if (argv[i][0] == '-')
+      {
+         dash = true;
+         key = argv[i] + 1;
+      }
+      else
+      {
+         if (!dash)
+            return -1;
+
+         m_mParams[key] = argv[i];
+         cout << "HOOO " << key << " " << argv[i] << endl;
+      }
+   }
+
+   return m_mParams.size();
+}
