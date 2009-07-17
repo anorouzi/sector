@@ -41,7 +41,8 @@ PRobot::PRobot():
 m_strSrc(),
 m_strCmd(),
 m_strParam(),
-m_bLocal(false)
+m_bLocal(false),
+m_strOutput()
 {
 }
 
@@ -53,7 +54,13 @@ void PRobot::setCmd(const string& name)
 
 void PRobot::setParam(const string& param)
 {
-   m_strParam = param;
+   m_strParam = "";
+   for (char* p = (char*)param.c_str(); *p != '\0'; ++ p)
+   {
+      if (*p == '"')
+         m_strParam.push_back('\\');
+      m_strParam.push_back(*p);
+   }
 }
 
 void PRobot::setCmdFlag(const bool& local)
@@ -61,12 +68,15 @@ void PRobot::setCmdFlag(const bool& local)
    m_bLocal = local;
 }
 
+void PRobot::setOutput(const string& output)
+{
+   m_strOutput = output;
+}
+
 int PRobot::generate()
 {
    fstream cpp;
    cpp.open((m_strSrc + ".cpp").c_str(), ios::in | ios::out | ios::trunc);
-
-cout << "open " << m_strSrc << endl;
 
    cpp << "#include <iostream>" << endl;
    cpp << "#include <fstream>" << endl;
@@ -85,9 +95,6 @@ cout << "open " << m_strSrc << endl;
    cpp << "   string sfile = string(input->m_pcUnit) + \".result\";" << endl;
    cpp << endl;
 
-   //if (m_bLocal)
-   //   m_strCmd = "file->m_strLibDir + \"/\" + " + m_strCmd;
-
    // Python: .py
    // Perl: .pl
 
@@ -97,16 +104,32 @@ cout << "open " << m_strSrc << endl;
       cpp << "file->m_strLibDir + \"/\" + ";
    cpp << "\"";
    cpp << m_strCmd;
-   cpp << "\"";
-   cpp << " + \" \" + ifile + \" \" + ";
-   cpp << "\"";
+   cpp << "\" + ";
+   cpp << "\" ";
    cpp << m_strParam;
-   cpp << "\"";
-   cpp << " + \" > \" + ofile).c_str());" << endl;
+   cpp << "\" + ";
+   cpp << " \" \" + ifile + \" \" + ";
+   cpp << " \" > \" + ofile).c_str());" << endl;
 
    cpp << endl;
-   cpp << "   output->m_iRows = 0;" << endl;
-   cpp << "   file->m_sstrFiles.insert(sfile);" << endl;
+   if (m_strOutput.length() == 0)
+   {
+      cpp << "   ifstream dat(ofile.c_str());" << endl;
+      cpp << "   dat.seekg(0, ios::end);" << endl;
+      cpp << "   int size = dat.tellg();" << endl;
+      cpp << "   dat.seekg(0);" << endl;
+      cpp << endl;
+      cpp << "   output->m_iRows = 1;" << endl;
+      cpp << "   output->m_pllIndex[0] = 0;" << endl;
+      cpp << "   output->m_pllIndex[1] = size;" << endl;
+      cpp << "   dat.read(output->m_pcResult, size);" << endl;
+      cpp << "   dat.close();" << endl;
+   }
+   else
+   {
+      cpp << "   output->m_iRows = 0;" << endl;
+      cpp << "   file->m_sstrFiles.insert(sfile);" << endl;
+   }
    cpp << endl;
 
    cpp << "   return 0;" << endl;

@@ -125,6 +125,12 @@ int main(int argc, char** argv)
             break;
       }
 
+      if (res->m_iDataLen > 0)
+      {
+         cout << "RESULT " << res->m_strOrigFile << endl;
+         cout << res->m_pcData << endl;
+      }
+
       gettimeofday(&t2, 0);
       if (t2.tv_sec - t1.tv_sec > 60)
       {

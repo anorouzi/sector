@@ -43,8 +43,9 @@ public:
 
 public:
    void setCmd(const std::string& name);
-   void setParam(const std::string& name);
+   void setParam(const std::string& param);
    void setCmdFlag(const bool& local);
+   void setOutput(const std::string& output);
 
 public:
    int generate();
@@ -55,6 +56,7 @@ private:
    std::string m_strCmd;
    std::string m_strParam;
    bool m_bLocal;
+   std::string m_strOutput;
 };
 
 #endif
