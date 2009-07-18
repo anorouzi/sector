@@ -92,7 +92,6 @@ int PRobot::generate()
    cpp << "{" << endl;
    cpp << "   string ifile = file->m_strHomeDir + input->m_pcUnit;" << endl;
    cpp << "   string ofile = ifile + \".result\";" << endl;
-   cpp << "   string sfile = string(input->m_pcUnit) + \".result\";" << endl;
    cpp << endl;
 
    // Python: .py
@@ -121,13 +120,29 @@ int PRobot::generate()
       cpp << endl;
       cpp << "   output->m_iRows = 1;" << endl;
       cpp << "   output->m_pllIndex[0] = 0;" << endl;
-      cpp << "   output->m_pllIndex[1] = size;" << endl;
+      cpp << "   output->m_pllIndex[1] = size + 1;" << endl;
       cpp << "   dat.read(output->m_pcResult, size);" << endl;
+      cpp << "   output->m_pcResult[size] = '\\0';" << endl;
       cpp << "   dat.close();" << endl;
+      cpp << "   unlink(ofile.c_str());" << endl;
    }
    else
    {
       cpp << "   output->m_iRows = 0;" << endl;
+      cpp << endl;
+      cpp << "   string sfile;" << endl;
+      cpp << "   for (int i = 1, n = strlen(input->m_pcUnit); i < n; ++ i)" << endl;
+      cpp << "   {" << endl;
+      cpp << "      if (input->m_pcUnit[i] == '/')" << endl;
+      cpp << "         sfile.push_back('.');" << endl;
+      cpp << "      else" << endl;
+      cpp << "         sfile.push_back(input->m_pcUnit[i]);" << endl;
+      cpp << "   }" << endl;
+      cpp << "   sfile = string(" << "\"" << m_strOutput << "\")" << " + \"/\" + sfile;" << endl;
+      cpp << endl;
+      cpp << "   system((\"mkdir -p \" + file->m_strHomeDir + " << "\"" << m_strOutput << "\"" << ").c_str());" << endl;
+      cpp << "   system((\"mv \" + ofile + \" \" + file->m_strHomeDir + sfile).c_str());" << endl;
+      cpp << endl;
       cpp << "   file->m_sstrFiles.insert(sfile);" << endl;
    }
    cpp << endl;

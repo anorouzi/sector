@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<title>Sector/Sphere Manual</title>
+<link rel="stylesheet" href="sectordoc.css" type="text/css" />
+</head>
+
+<body>
+<div class="ref_head">Reference: Tools </div>
+
+<h4 class="func_name"><strong>stream</strong></h4>
+<p>The<strong> stream  </strong>tool allows to run system commands or user programs directly on Sector files without writing a Sphere program. </p>
+
+<div class="code">stream<strong><font color="#FFFFFF"> -i input [-o output] -c command [-b buckets] [-p parameters] [-f files] </font></strong></div>
+
+<h5>Parameters</h5>
+<dl>
+  <dt><em>-i input </em></dt>
+  <dd>the input file or directory.</dd>
+  <dt><em>-o output</em></dt>
+  <dd>the output directory to store the results. This is optional. If not set, result will be print on screen. </dd>
+  <dt><em>-c command </em></dt>
+  <dd>the name of the system command or user program.</dd>
+  <dt><em>-b buckets </em></dt>
+  <dd>the number of buckets (for Reduce style computation) . This is optional. If set, Sector assumes each line in the output is a record and the first number is the bucket ID.</dd>
+  <dt><em>-p parameter </em></dt>
+  <dd>command parameters. This is optional. If &quot;&quot; is required in the parameter, they must be preceded with a '\' character.</dd>
+  <dt><em>-f files </em></dt>
+  <dd>files to be uploaded. If the &quot;command&quot; is a user program. Its path should be listed here so that the program will be uploaded to Sector. </dd>
+</dl>
+<h5>Description</h5>
+<p>The <strong>stream</strong> tool provides a functionality similar to Hadoop Streaming.</p>
+<p>Available since Sector version 1.24.  </p>
+<p><strong>See Also</strong></p>
+<p><strong><a href="t-r-ls.htm"></a></strong></p>
+</body>
+</html>

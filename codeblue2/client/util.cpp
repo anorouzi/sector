@@ -160,7 +160,6 @@ int CmdLineParser::parse(int argc, char** argv)
             return -1;
 
          m_mParams[key] = argv[i];
-         cout << "HOOO " << key << " " << argv[i] << endl;
       }
    }
 

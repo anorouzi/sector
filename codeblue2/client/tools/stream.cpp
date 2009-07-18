@@ -64,9 +64,9 @@ int main(int argc, char** argv)
    pr.setCmd(cmd);
    pr.setParam(parameter);
    pr.setCmdFlag(upload.length() != 0);
+   pr.setOutput(outpath);
    pr.generate();
    pr.compile();
-
 
 
    Session s;
@@ -87,6 +87,12 @@ int main(int argc, char** argv)
       return -1;
    }
 
+   if (Sector::mkdir(outpath) == SectorError::E_PERMISSION)
+   {
+      cout << "unable to create output path " << outpath << endl;
+      return -1;
+   }
+
    SphereStream output;
    output.setOutputPath(outpath, "stream_result");
    output.init(bucket);
@@ -95,6 +101,12 @@ int main(int argc, char** argv)
 
    if (myproc.loadOperator((string("/tmp/") + cmd + ".so").c_str()) < 0)
       return -1;
+
+   if (upload.length() > 0)
+   {
+      if (myproc.loadOperator(upload.c_str()) < 0)
+         return -1;
+   }
 
    timeval t;
    gettimeofday(&t, 0);
@@ -125,7 +137,7 @@ int main(int argc, char** argv)
             break;
       }
 
-      if (res->m_iDataLen > 0)
+      if ((outpath.length() == 0) && (res->m_iDataLen > 0))
       {
          cout << "RESULT " << res->m_strOrigFile << endl;
          cout << res->m_pcData << endl;
