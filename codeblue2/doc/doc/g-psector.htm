@@ -23,14 +23,20 @@
 <div class="code"> Sector::init(IP, PORT);<br />
 Sector::login(&quot;test&quot;, &quot;xxx&quot;);</div>
 <p><strong>File System Operation</strong></p>
-<p>After a successful connection and login, the user may use certain APIs to operate the file system. Such APIs include ls, stat, rm, mkdir, and sysstat. For example, the following code piece shows how to read the information about a particular file. </p>
-<div class="code"> int stat(const string&amp; path, SNode&amp; attr);</div>
+<p>After a successful connection and login, the user may use certain APIs to access and manage the file system. Such APIs include ls, stat, rm, mkdir, and sysstat. For example, the following code piece shows how to read the information about a particular file. </p>
+
+<div class="code">
+string path = "test"; <br />
+SNode attr; <br />
+Sector::stat(path, attr);
+</div>
+
 <p><strong>File IO </strong></p>
 <p>In order to access a particular file, a file handler (SectorFile) must be declared. The application can then open the file and read/write it. This process is very similar to accessing a file in a traditional file system. </p>
 <div class="code">
     SectorFile sf;<br>
     sf.open(path, mode);<br>
-    sf.read(buffer, offset, size);<br>
+    sf.read(buffer, size);<br>
     sf.close();
 </div>
 

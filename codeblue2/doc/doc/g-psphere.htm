@@ -21,7 +21,7 @@
 <div class="code"> Sector::init(IP, PORT);<br />
 Sector::login(&quot;test&quot;, &quot;xxx&quot;);</div>
 <p><strong>Prepare Input and Output </strong></p>
-<p>Every Sphere process requires an input parameter and an output parameter, both of which are of the type of <a href="r-c-spherestream.htm">SphereStream</a>. A SphereStream is a data structure that contains a list of data files and the information about this data (size, number of records, etc.). The input stream can initialized with a list of files or directories and Sphere will retrieve the detailed data information from Sector.</p>
+<p>Every Sphere process requires an input parameter and an output parameter, both of which are of the type <a href="r-c-spherestream.htm">SphereStream</a>. A SphereStream is a data structure that contains a list of data files and the information about this data (size, number of records, etc.). The input stream can initialized with a list of files or directories and Sphere will retrieve the detailed data information from Sector.</p>
 <div class="code">
   vector&lt;string&gt; files;<br />
   files.insert(files.end(), &quot;/html&quot;);<br />
@@ -34,7 +34,7 @@ temp.init(256);</div>
 <p><strong>Load User Defined Functions  </strong></p>
 <p>Each Sphere process requires one user defined function (UDF). The UDF should be prepared following <a href="g-udf.htm">this</a> instruction. After the UDF is successfully compiled, it needs to be uploaded by fucntion <a href="r-c-sphereprocess-loadoperator.htm">SphereProcess.loadOperator</a>. </p>
 <p>Because Sphere uses C/C++ libraries, the UDF needs to be compiled under a compatible environment with the Sector slave servers. That is, the .so library files has be to recognized by the slave servers. </p>
-<p>Finally, any other files other than the .so files can also be uploaded. For example, if the UDF requires another external file, this file can be uploaded as well. The location of these uploaded files will be stored in the <a href="r-c-sfile.htm">SFile</a> parameter of the UDF. </p>
+<p>Finally, any additional files other than the .so files can also be uploaded. For example, if the UDF requires another external file, this file can be uploaded as well. The location of these uploaded files will be stored in the <a href="r-c-sfile.htm">SFile</a> parameter of the UDF. </p>
 
 <p><strong>Start a Sphere Process</strong></p>
 <p>Once the input/putput is prepared and the UDF is uploaded, the Sphere process (<a href="r-c-sphereprocess.htm">SphereProcess</a>) can be started with a single call <a href="r-c-sphereprocess-run.htm">SphereProcess.run</a>. </p>
