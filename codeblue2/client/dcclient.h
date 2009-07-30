@@ -42,9 +42,6 @@ written by
 #define __SPHERE_CLIENT_H__
 
 #include "client.h"
-#include <index.h>
-#include <pthread.h>
-#include <string>
 
 class SphereStream
 {

@@ -38,6 +38,7 @@ written by
    Yunhong Gu [gu@lac.uic.edu], last updated 02/23/2007
 *****************************************************************************/
 
+#include <string.h>
 #include "dhash.h"
 
 DHash::DHash():

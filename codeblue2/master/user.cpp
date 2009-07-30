@@ -39,6 +39,7 @@ written by
 *****************************************************************************/
 
 #include "user.h"
+#include <string.h>
 
 using namespace std;
 

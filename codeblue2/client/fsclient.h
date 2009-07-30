@@ -41,9 +41,6 @@ written by
 #ifndef __SECTOR_FS_CLIENT_H__
 #define __SECTOR_FS_CLIENT_H__
 
-#include <gmp.h>
-#include <index.h>
-#include <constant.h>
 #include <client.h>
 
 class SectorFile: public Client

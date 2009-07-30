@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 07/19/2009
 *****************************************************************************/
 
 
@@ -108,6 +108,9 @@ int Client::init(const string& server, const int& port)
 
 int Client::login(const string& username, const string& password, const char* cert)
 {
+   if (g_iKey > 0)
+      return g_iKey;
+
    SSLTransport::init();
 
    char* master_cert = (char*)cert;
@@ -192,14 +195,18 @@ int Client::logout()
    msg.setKey(g_iKey);
    msg.setType(2);
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
-
-   return g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg);
+   int r = g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg);
+   g_iKey = 0;
+   return r;
 }
 
 int Client::close()
 {
    if (g_iCount -- == 0)
    {
+      if (g_iKey > 0)
+         logout();
+
       g_strServerHost = "";
       g_strServerIP = "";
       g_iServerPort = 0;

@@ -41,6 +41,7 @@ written by
 
 #include <fstream>
 #include <iostream>
+#include <stdlib.h>
 #include <probot.h>
 
 using namespace std;

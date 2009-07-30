@@ -1717,6 +1717,10 @@ void* Master::process(void* s)
                   //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
                   break;
                }
+
+               // create the new file in the metadata, no loc info yet
+               self->m_Metadata.create(path.c_str(), false);
+               self->m_Metadata.lock(path.c_str(), rwx);
             }
             else
             {
