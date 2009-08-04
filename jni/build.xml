@@ -1,0 +1,269 @@
+<?xml version="1.0"?>
+
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+ 
+  http://www.apache.org/licenses/LICENSE-2.0
+ 
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
+  <project name="sectorjni" default="compile" basedir=".">
+  <property file="build.properties"/>
+  <property file="version.properties"/>
+
+  <tstamp/>
+
+  <property name="src.dir" value="src"/>
+  <property name="build.dir" value="build"/>
+  <property name="build.dir.classes" value="${build.dir}/java/"/>
+  <property name="build.dir.cpp" value="${build.dir}/cpp"/>
+  
+  <property name="dist.dir" value="dist"/>
+  <property name="lib.dir" value="lib"/>
+  <property name="version" value="${version}"/>
+  <property name="project" value="sectorjni"/>
+  <property name="now" value="${DSTAMP}"/>
+  
+  <target name="compile"
+         depends="prepare, compile-java, compile-cpp, jar">
+  </target>
+
+  <!-- Set up build environment. -->
+  <target name="prepare">
+    <mkdir dir="${build.dir}"/>
+    <mkdir dir="${build.dir.classes}"/>
+    <mkdir dir="${dist.dir}"/>
+  </target>
+
+  <!-- Compile Java source. -->
+  <target name="compile-java" depends="prepare">
+    <javac destdir="${build.dir.classes}"
+          srcdir="${src.dir}"
+          includes="java/**"
+          deprecation="on"
+          debug="on">
+    </javac>
+  </target>
+
+  <target name="dist" depends="prepare">
+    <tar tarfile="${build.dir}/${project}-${version}-${now}.tar">
+      <tarfileset dir="..">
+        <include name="sectorjni/build.properties"/>
+        <include name="sectorjni/build.xml"/>
+        <include name="sectorjni/README"/>
+        <include name="sectorjni/version.properties"/>
+        <include name="sectorjin/TODOS"/>
+        <include name="sectorjni/**/*.java"/>
+        <include name="sectorjni/**/*.cpp"/>
+        <include name="sectorjni/**/Makefile"/>
+        <include name="sectorjni/lib/**"/>
+        <include name="sectorjni/test/**/*.java"/>
+      </tarfileset>
+      <tarfileset dir=".." mode="755">
+        <include name="sectorjni/**/*.sh"/>
+      </tarfileset>
+    </tar>
+    <gzip zipfile="${dist.dir}/${project}-${version}-${now}.tar.gz" src="${build.dir}/${project}-${version}-${now}.tar"/>
+    <delete file="${build.dir}/${project}-${version}-${now}.tar"/>
+  </target>
+
+  <!-- Jar the Java files and move to dist. -->
+  <target name="jar" depends="compile-java">
+    <jar destfile="${dist.dir}/${ant.project.name}-v${version}.jar">
+      <fileset dir="${build.dir.classes}"
+             excludes="com/opendatagroup/sector/sectorjni/client/**"/>
+    </jar>
+  </target>
+
+  <!-- Execute javah to create the C++ header file. --> 
+  <target name="gen-header">
+    <javah destdir="${src.dir}/cpp"
+          classpath="${build.dir}/java"
+          class="com.opendatagroup.sector.sectorjni.SectorJniClient"
+          verbose="yes">
+    </javah>
+  </target>
+
+  <!-- Compile the C++ code. -->
+  <target name="compile-cpp" depends="gen-header">
+    <exec executable="make" dir="${src.dir}/cpp"
+         failonerror="yes">
+      <arg value="SECTOR_HOME=${sector.home}"/>
+      <arg value="JDK_HOME=${jdk.home}"/>
+    </exec>
+
+    <!-- Move the C++ binaries to build. -->
+    <move todir="${build.dir.cpp}" overwrite="true">
+            <fileset dir="${src.dir}/cpp">
+                <exclude name="**/Makefile"/>
+                <exclude name="**/*.cpp"/>
+                <exclude name="**/*.sh"/>
+                <exclude name="**/*.h"/>
+            </fileset>
+    </move>
+  </target>
+
+  <!-- Compile junit tests. -->
+  <target name="compile-tests" depends="compile">
+    <javac classpath="${lib.dir}/junit-4.5.jar:${build.dir.classes}"
+          srcdir="test/src/"
+          includes="java/**"
+          debug="on">
+   </javac>
+  </target>
+
+  <target name="run-tests"
+          depends="run-jniclient-tests,
+          run-channel-tests"/>
+
+  <target name="run-jniclient-tests" depends="compile-tests">
+    <java fork="yes"
+         classname="org.junit.runner.JUnitCore"
+         failonerror="true">
+      <arg value="SectorJniClientTest"/>
+      <sysproperty key="sector.host"
+                 value="${sector.host}"/>
+      <sysproperty key="sector.port"
+                 value="${sector.port}"/>
+      <sysproperty key="sector.user"
+                 value="${sector.user}"/>
+      <sysproperty key="sector.passwd"
+                 value="${sector.passwd}"/>
+      <sysproperty key="sector.cert.path"
+                 value="${sector.cert.path}"/>
+      <classpath>
+        <pathelement location="lib/junit-4.5.jar"/>
+        <pathelement location="build/java"/>
+        <pathelement location="test/src/java"/>
+      </classpath>
+    </java>
+  </target>
+
+  <target name="run-channel-tests" depends="compile-tests">
+    <java fork="yes"
+         classname="org.junit.runner.JUnitCore"
+         failonerror="true">
+      <arg value="SectorChannelTest"/>
+      <sysproperty key="sector.host"
+                 value="${sector.host}"/>
+      <sysproperty key="sector.port"
+                 value="${sector.port}"/>
+      <sysproperty key="sector.user"
+                 value="${sector.user}"/>
+      <sysproperty key="sector.passwd"
+                 value="${sector.passwd}"/>
+      <sysproperty key="sector.cert.path"
+                 value="${sector.cert.path}"/>
+      <classpath>
+        <pathelement location="lib/junit-4.5.jar"/>
+        <pathelement location="build/java"/>
+        <pathelement location="test/src/java"/>
+      </classpath>
+    </java>
+  </target>
+
+  <target name="clean">
+    <delete dir="${build.dir}"/>
+    <delete dir="${dist.dir}"/>
+    <delete dir="${reports.dir}"/>
+    <exec executable="make" dir="src/cpp"
+         failonerror="yes">
+      <arg value="clean"/>
+    </exec>
+  </target>
+
+
+    <!-- Reports and Code Analysis -->
+    <target name="reports" depends="findbugs,checkstyle,doc"
+            description="runs the code analysis targets in this file"/>
+
+    <!--
+     | findbugs
+    -->
+    <target name="findbugs" depends="clean,compile" description="Static bug checker.">
+
+        <available file="${findbugs.home}/lib/${findbugs.jar}"
+                   property="findbugs.available"/>
+        <fail unless="findbugs.available"
+              message="Error: ${findbugs.jar} not found."/>
+
+        <taskdef resource="edu/umd/cs/findbugs/anttask/tasks.properties"
+                 classpath="${findbugs.home}/lib/${findbugs.jar}" />
+
+        <mkdir dir="${reports.dir}"/>
+        <!--
+         | findbugs needs an archive to parse, so jar up the compiled classes
+        -->
+        <jar destfile="${reports.dir}/${ant.project.name}-java.jar">
+            <fileset dir="build"/>
+        </jar>
+
+        <findbugs home="${findbugs.home}"
+                  reportLevel="low"
+                  output="html"
+                  stylesheet="default.xsl"
+                  outputFile="${reports.dir}/findbugs_${ant.project.name}_report.html"
+                  auxClasspath="lib/junit-4.5.jar">
+            <sourcePath path="src/java" />
+            <class location="${reports.dir}/${ant.project.name}-java.jar" />
+        </findbugs>
+    </target>
+
+    <!--
+     | Checkstyle
+    -->
+    <target name="checkstyle" description="Checks the style of the sources and reports issues.">
+        <available file="${checkstyle.home}/${checkstyle.jar}"
+                   property="checkstyle.available"/>
+        <fail unless="checkstyle.available"
+              message="Error: ${checkstyle.jar} not found."/>
+
+        <taskdef resource="checkstyletask.properties"
+                 classpath="${checkstyle.home}/${checkstyle.jar}" />
+
+        <mkdir dir="${reports.dir}"/>
+        <checkstyle config="${checkstyle.home}/${checkstyle.rules}"
+                    failOnViolation="false">
+
+            <fileset dir="src/java" includes="**/*.java" />
+            <formatter type="xml"
+                       tofile="${reports.dir}/checkstyle_${ant.project.name}_report.xml"/>
+        </checkstyle>
+    </target>
+
+    <!--
+     | Javadocs
+    -->
+    <target name="doc" description="Generate Javadocs">
+        <mkdir dir="${reports.dir}"/>
+        <javadoc destdir="${reports.dir}/api"
+                 author="true"
+                 version="true"
+                 use="true"
+                 windowtitle="Sector File System JNI">
+
+            <packageset dir="src/java"
+                        defaultexcludes="yes">
+                <include name="com/opendatagroup/sector/**"/>
+                <exclude name="cpp/**"/>
+            </packageset>
+
+            <doctitle><![CDATA[<h1>Sector File System Interface via JNI</h1>]]></doctitle>
+            <bottom><![CDATA[<i>Copyright &#169; 2008 Open Data Group. All Rights Reserved.</i>]]></bottom>
+            <tag name="todo" scope="all" description="To do:"/>
+            <group title="DFS Packages" packages="com.opendata.dfsservice.*"/>
+            <link offline="true" href="http://java.sun.com/javase/6/docs/api/"
+                  packagelistLoc="/tmp"/>
+            <link href="http://developer.java.sun.com/developer/products/xml/docs/api/"/>
+        </javadoc>
+    </target>
+
+</project>
+
