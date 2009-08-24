@@ -1,0 +1,206 @@
+PySphere - A generic Sphere implementation for running Python MapReduce
+functions inside the Sphere MapReduce framework.
+
+Jonathan Seidman (jonathan.seidman@opendatagroup.com)
+Collin Bennett (collin.bennett@opendatagroup.com)
+
+Copyright (C) 2008-2009  Open Data ("Open Data" refers to
+one or more of the following companies: Open Data Partners LLC,
+Open Data Research LLC, or Open Data Capital LLC.)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+PySphere README
+===============
+
+PySphere provides the facility to run MapReduce functions written in Python
+within the Sphere MapReduce framework. Normally a Sphere application is
+implemented using pure C++. With PySphere the work of reading and writing data
+to and from the Sector file system is handled by generic C++ code written with
+the Sphere framework, but the processing of the data is performed by custom
+functions written in Python. PySphere is composed of two primary components:
+
+ * The PySphere framework - this is a standard implementation of the Sphere
+   MapReduce framework which has been modified to call Python functions to
+   execute the map() and reduce() functions. The Sphere framework code reads
+   the data from the Sector file system, passes it to the Python functions for
+   processing, and then writes the resulting data back to Sector. This is a
+   generic component intended to be used as-is for many MapReduce applications
+   without requiring any custom coding by the user.
+ * The Python script containing the custom map() and reduce() functions - this
+   is the Python script containing the custom map() and reduce() functions
+   supplied by the user of the PySphere framework.
+
+Note that PySphere is currently considered a proof-of-concept and is provided
+as an illustrative example of excecuting Python MapReduce functions from
+Sphere. PySphere is not yet intended for production use.
+
+Hierarchy
+=========
+
+The PySphere archive contains:
+
+pysphere/
+
+  Makefile
+  Makefile.common
+    Build scripts for PySphere
+
+  PySphereMR.cpp
+    Main driver for PySphere - performs initialization and loads and executes
+    the Sphere MapReduce functions which wrap the Python MapReduce functions.
+
+  funcs/
+    PySphereMRFuncs.cpp - Implementation of Sphere MapReduce functions which
+    reads/writes Sector data and executes the Python MapReduce functions.
+
+  scripts/
+    Example Python MapReduce scripts.
+
+  bin/
+    Example script for setting up the environment and executing the Sector
+    slave.
+
+Dependencies
+============
+
+PySphere requires the following software:
+
+ * Python - PySector has been tested with Python 2.5
+ * Sector - PySector requires a version of Sector that supports MapReduce
+            (versions 1.14 and above). PySector has been tested with
+            Sector 1.23.
+
+Compiling
+=========
+
+1. In the pyphere directory, update the SECTOR_HOME parameter in
+   Makefile.common to point to the Sector installation directory.
+2. In pysphere/funcs/Makefile it's necessary to update the linker options to
+   compile against the Python libraries. These options vary by system, so it's
+   necessary to determine the correct options for your system. This can be done
+   through the following steps:
+
+     2.1. Start the Python interpreter:
+
+          $ python
+
+     2.2. Execute the following commands inside the interpreter:
+
+          >>> import distutils.sysconfig
+          >>> distutils.sysconfig.get_config_var('LINKFORSHARED')
+          '-Xlinker -export-dynamic -Wl,-O1 -Wl,-Bsymbolic-functions'
+          >>> 
+
+     2.3. Replace the LDFLAGS value in pysphere/funcs/Makefile with the linker
+          options returned in the previous step.
+
+2. Run make to build the software:
+
+    $ make
+
+Using PySphere
+==============
+
+1. Implement a Python script containing map and reduce functions. The following
+   are the expected interfaces for these functions.
+
+   * The following is the definition of the map function:
+
+       def map(line, separator='\t')
+
+       The line argument is a single data record from the input data.
+       The separator argument is not currently passed into the function and a
+       default value must be provided. Support for passing in a value for
+       separator is planned for a subsequent release.
+
+       The return from the map function should be a single row of mapped data.
+
+   * The following is the definition of the reduce function:
+
+       def reduce(data)
+
+       The data argument is one or more rows of data, where each block of data
+       is expected to be all of the records associated with a particular key.
+
+       The return from the reduce function is an array of records.
+
+   See scripts/malstoneA.py for an example Python script.
+
+2. Initialize the environment and run Sector.
+
+   In order to execute a Python script from PySphere, the Sector slave
+   processes need to know the location of the Python script. This is done by
+   setting the PYTHONPATH in the environment. Assuming that the Python
+   MapReduce script is located in /opt/pysphere/scripts:
+
+     $ export PYTHONPATH=/opt/pysphere/scripts
+
+   See bin/start_slave.sh for an example script to set up the environment and
+   start the Sector slave.
+
+3. Execute the MapReduce process.
+
+   * Ensure that Sector is started and the environment is initialized
+     as explained in the previous step.
+   * cd into the PySphere directory. Assuming that PySphere is installed to
+     /opt/pysphere:
+
+     $ cd /opt/pysphere
+
+   * Start the processing:
+
+     $  PySphereMR <-c config-file> <-s python-script> \
+        <-d file | -f input-filename> [-p partition-field]
+
+       * config-file is the path to the Sector client configuration file.
+       * python-script is the name of the Python script (without the ".py"
+         extension) containing the MapReduce functions.
+       * file is the name of a single data file to be processed.
+       * input-filename is the name of a file containing a list of data files
+         to be processed, one file per line.
+       * partition-field is the position of the field to use for bucketing the
+         output data from the map stage. The partition function in PySphere
+         will perform a simple calculation to determine the bucket to send
+         records to:
+
+           partition-field modulus (16 * number of slaves)
+
+         Note that the partition field is assumed to be a numeric value. Note
+         also that this is the position of the field in the output data from
+         the map function.
+
+         The partition-field value will also be used by the PySphere compare
+         funtion to sort the output data from the map stage.
+
+       Assuming that Sector is installed to /opt/sector, and the data file in
+       Sector to be processed is /testdata/malstone.dat, the following example
+       shows how to execute the MalStone A example:
+
+         % ./PySphereMR -c /opt/sector/conf/client.conf -s malstoneA \
+           -d /testdata/malstone.dat -p 1
+
+     When processing is finished, the output data will be saved to the
+     pysphere_mr_output directory inside the Sector data directory.
+
+Limitations
+===========
+
+  * PySphere only supports text data as the input for processing. Binary data
+    is not supported.
+  * Custom Python partition() and compare() functions are not supported.
+    Because of performance issues these functions are implemented in C++,
+    requiring changes to the C++ code if the default implementations are
+    unsuitable.
+  * Python scripts must conform to the expected interface. This will work for
+    many MapReduce applications, but not all cases.

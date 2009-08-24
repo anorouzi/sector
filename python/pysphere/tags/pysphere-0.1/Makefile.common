@@ -1,0 +1,6 @@
+C++ = g++
+
+DEBUG = 1
+STATIC = 1
+
+SECTOR_HOME=/opt/sector
