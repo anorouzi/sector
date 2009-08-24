@@ -53,8 +53,23 @@
   </target>
 
   <target name="dist" depends="prepare">
+    <copy todir="${build.dir}/sectorjni">
+      <fileset dir=".">
+        <include name="build.properties"/>
+        <include name="build.xml"/>
+        <include name="README"/>
+        <include name="version.properties"/>
+        <include name="TODOS"/>
+        <include name="**/*.java"/>
+        <include name="**/*.cpp"/>
+        <include name="**/Makefile"/>
+        <include name="lib/**"/>
+        <include name="test/**/*.java"/>
+        <include name="src/java/*.sh"/>
+      </fileset>
+    </copy>
     <tar tarfile="${build.dir}/${project}-${version}-${now}.tar">
-      <tarfileset dir="..">
+      <tarfileset dir="build">
         <include name="sectorjni/build.properties"/>
         <include name="sectorjni/build.xml"/>
         <include name="sectorjni/README"/>
@@ -66,12 +81,13 @@
         <include name="sectorjni/lib/**"/>
         <include name="sectorjni/test/**/*.java"/>
       </tarfileset>
-      <tarfileset dir=".." mode="755">
+      <tarfileset dir="build" mode="755">
         <include name="sectorjni/**/*.sh"/>
       </tarfileset>
     </tar>
     <gzip zipfile="${dist.dir}/${project}-${version}-${now}.tar.gz" src="${build.dir}/${project}-${version}-${now}.tar"/>
     <delete file="${build.dir}/${project}-${version}-${now}.tar"/>
+    <delete dir="${build.dir}/sectorjni"/>
   </target>
 
   <!-- Jar the Java files and move to dist. -->
