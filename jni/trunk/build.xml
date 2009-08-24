@@ -52,6 +52,7 @@
     </javac>
   </target>
 
+   <!-- Create a .tar.gz distribution file. --> 
   <target name="dist" depends="prepare">
     <copy todir="${build.dir}/sectorjni">
       <fileset dir=".">
