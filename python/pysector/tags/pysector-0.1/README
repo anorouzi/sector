@@ -1,0 +1,161 @@
+PySector - a Python interface to Sector.
+
+Jonathan Seidman (jonathan.seidman@opendatagroup.com)
+Collin Bennett (collin.bennett@opendatagroup.com)
+
+Copyright (C) 2008-2009  Open Data ("Open Data" refers to
+one or more of the following companies: Open Data Partners LLC,
+Open Data Research LLC, or Open Data Capital LLC.)
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. 
+
+PySector README
+===============
+
+PySector is a Python module which provides a bridge between Python and the
+Sector C++ API, allowing Python scripts to execute commands against the Sector
+file system. PySector supports the following Sector commands:
+
+  * mkdir     Create a new directory in the Sector file system.
+  * remove    Remove a file/directory from the Sector file system.
+  * move      Move a file in the Sector file system.
+  * open      Open a file in Sector for reading/writing.
+  * close     Close a Sector file.
+  * read      Read data from a file in Sector.
+  * write     Write data to a file in Sector.
+  * upload    Copy a file from the local file system into Sector.
+  * download  Copy a file from Sector to the local file system.
+
+The following functions are currently unsupported, but planned for a future
+release:
+
+  * stat      Return details on a path in Sector such as size, timestamp, etc.
+  * list      Return a directory listing - i.e. 'ls'
+  * cp        Copy a path in Sector.
+
+Note that PySector is currently considered a proof-of-concept and is provided
+as an illustrative example of accessing Sector from Python. PySector is not
+yet intended for production use.
+
+Dependencies
+============
+
+PySector requires the following software to build and run:
+
+  * Python - PySector has been tested with Python 2.5
+  * Sector - PySector has been tested with Sector versions up to 1.23
+
+PySector has been tested on Ubuntu and Debian Linux.
+
+Compiling
+=========
+
+PySector uses the standard Python distutils facility for building. To build
+PySector follow these steps:
+
+  1. Change into the directory containing PySector. Assuming the PySector
+     archive has been expanded into /opt/pysector:
+
+       $ cd /opt/pysector
+
+  2. Open setup.py and update the include_dirs and library_dirs parameters to
+     point to the Sector installation directory.
+  3. Build PySector:
+
+       $ python setup.py build
+
+  4. Install PySector:
+
+       $ python setup.py install
+
+     Note that this command requires root access. If you do not have root access
+     on your system then you can use the --prefix option to install to a
+     directory in which you have permissions. For example:
+
+       $ python setup.py install --prefix $HOME/pysector
+
+     If installing to an alternate location, make sure to set your PYTHONPATH to
+     include this path.
+
+Using PySector
+==============
+
+There's only a couple of simple pre-requisites for using PySector:
+
+  * Set LD_LIBRARY_PATH to point to the Sector libraries. Assuming that Sector
+    is installed in /opt/sector:
+
+      $ export LD_LIBRARY_PATH=/opt/sector/lib
+
+  * Import the PySector module. Include the following statement at the top of
+    your Python scripts:
+
+       import sector
+
+The following are examples of using PySector from inside the Python interactive
+shell. These examples assume that Sector is installed and running, and that
+LD_LIBRARY_PATH has been set to include the Sector libraries. Also note that
+the certificate path used as an argument to login() is based on Sector 1.23. If
+using earlier versions of Sector adjust your path accordingly. 
+
+1. Create a new directory in Sector named 'mydir':
+
+>>> import sector
+>>> status = sector.init( 'localhost', 6000 )
+>>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
+>>> status = sector.mkdir( '/mydir' )
+>>> status = sector.logout()
+>>> status = sector.closeclient()
+
+2. Remove a path from the Sector file system:
+
+>>> import sector
+>>> status = sector.init( 'localhost', 6000 )
+>>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
+>>> status = sector.remove( '/mydir' )
+>>> status = sector.logout()
+>>> status = sector.closeclient()
+
+3. Upload a file from the local file system to the Sector file system:
+
+>>> import sector
+>>> status = sector.init( 'localhost', 6000 )
+>>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
+>>> status = sector.upload( '/opt/pysector/SectorModule.cpp', '/SectorModule.cpp' )
+open file /SectorModule.cpp 127.0.0.1 32859
+>>> status = sector.logout()
+>>> status = sector.closeclient()
+
+4. Download a file from Sector to the local file system:
+
+>>> import sector
+>>> status = sector.init( 'localhost', 6000 )
+>>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
+>>> status = sector.download( '/SectorModule.cpp', '/tmp/SectorModule.cpp' )
+open file /SectorModule.cpp 127.0.0.1 32859
+>>> status = sector.logout()
+>>> status = sector.closeclient()
+
+5. Read from a file in the Sector file system:
+
+>>> import sector
+>>> status = sector.init( 'localhost', 6000 )
+>>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
+>>> f = sector.open( '/SectorModule.cpp', 1 )
+>>> data = sector.read( f, 4096 )
+>>> while data != None:
+...     data = sector.read( f, 4096 )
+... 
+>>> status = sector.close( f )
+>>> status = sector.logout()
+>>> status = sector.closeclient()
