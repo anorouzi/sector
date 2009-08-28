@@ -35,13 +35,10 @@ file system. PySector supports the following Sector commands:
   * write     Write data to a file in Sector.
   * upload    Copy a file from the local file system into Sector.
   * download  Copy a file from Sector to the local file system.
-
-The following functions are currently unsupported, but planned for a future
-release:
-
-  * stat      Return details on a path in Sector such as size, timestamp, etc.
-  * list      Return a directory listing - i.e. 'ls'
-  * cp        Copy a path in Sector.
+  * copy      Create a copy of a file inside the Sector file system.
+  * stat      Return information on a path in Sector.
+  * list      Return information on the contents of a Sector directory - the
+              Sector equivalent of "ls"
 
 Note that PySector is currently considered a proof-of-concept and is provided
 as an illustrative example of accessing Sector from Python. PySector is not
@@ -54,14 +51,15 @@ PySector requires the following software to build and run:
 
   * Python - PySector has been tested with Python 2.5
   * Sector - PySector has been tested with Sector versions up to 1.23
+  * SWIG   - PySector uses the SWIG library to generate wrapper code around
+             the Sector client, and has been tested with version 1.3 of SWIG.
 
 PySector has been tested on Ubuntu and Debian Linux.
 
 Compiling
 =========
 
-PySector uses the standard Python distutils facility for building. To build
-PySector follow these steps:
+To build PySector follow these steps:
 
   1. Change into the directory containing PySector. Assuming the PySector
      archive has been expanded into /opt/pysector:
@@ -70,27 +68,29 @@ PySector follow these steps:
 
   2. Open setup.py and update the include_dirs and library_dirs parameters to
      point to the Sector installation directory.
+
   3. Build PySector:
 
-       $ python setup.py build
+       $ swig -c++ -python sector.i
+       $ python setup.py build_ext
 
   4. Install PySector:
 
        $ python setup.py install
 
-     Note that this command requires root access. If you do not have root access
-     on your system then you can use the --prefix option to install to a
+     Note that this command requires root access. If you do not have root
+     access on your system then you can use the --prefix option to install to a
      directory in which you have permissions. For example:
 
        $ python setup.py install --prefix $HOME/pysector
 
-     If installing to an alternate location, make sure to set your PYTHONPATH to
-     include this path.
+     If installing to an alternate location, make sure to set your PYTHONPATH
+     to include this path.
 
 Using PySector
 ==============
 
-There's only a couple of simple pre-requisites for using PySector:
+There are only a couple of simple pre-requisites for using PySector:
 
   * Set LD_LIBRARY_PATH to point to the Sector libraries. Assuming that Sector
     is installed in /opt/sector:
@@ -122,7 +122,7 @@ using earlier versions of Sector adjust your path accordingly.
 >>> import sector
 >>> status = sector.init( 'localhost', 6000 )
 >>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
->>> status = sector.remove( '/mydir' )
+>>> status = sector.rm( '/mydir' )
 >>> status = sector.logout()
 >>> status = sector.closeclient()
 
@@ -153,9 +153,18 @@ open file /SectorModule.cpp 127.0.0.1 32859
 >>> status = sector.login( 'test', 'xxx', '/opt/sector/conf/master_node.cert' )
 >>> f = sector.open( '/SectorModule.cpp', 1 )
 >>> data = sector.read( f, 4096 )
->>> while data != None:
+>>> while len( data ) != 0:
 ...     data = sector.read( f, 4096 )
 ... 
 >>> status = sector.close( f )
 >>> status = sector.logout()
 >>> status = sector.closeclient()
+
+Examples
+========
+
+The following example scripts can be found in the examples/ subdirectory:
+
+* read.py - Read a file from the Sector file system and write it to the local
+            file system.
+* sectorgrep.py - Search for a pattern inside a Sector file.

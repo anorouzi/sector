@@ -17,23 +17,26 @@ limitations under the License.
 '''
 from distutils.core import setup, Extension
 
-module1 = Extension( 'sector',
-                     define_macros = [( 'MAJOR_VERSION', '0' ),
-                                      ( 'MINOR_VERSION', '1' )],
-                     include_dirs = ['/opt/sector/client',
-                                     '/opt/sector/gmp',
-                                     '/opt/sector/common',
-                                     '/opt/sector/udt',
-                                     '/opt/sector/security'],
-                     libraries = ['client',
-                                  'security',
-                                  'rpc',
-                                  'common',
-                                  'udt',
-                                  'ssl',
-                                  'stdc++',
-                                  'pthread'],
-                     library_dirs = ['/opt/sector/lib'],
-                     sources = ['SectorModule.cpp'] )
+sector_module = Extension( '_sector',
+                           define_macros = [( 'MAJOR_VERSION', '0' ),
+                                            ( 'MINOR_VERSION', '2' )],
+                           include_dirs = ['/opt/sector/client',
+                                           '/opt/sector/gmp',
+                                           '/opt/sector/common',
+                                           '/opt/sector/udt',
+                                           '/opt/sector/security'],
+                           libraries = ['client',
+                                        'security',
+                                        'rpc',
+                                        'common',
+                                        'udt',
+                                        'ssl',
+                                        'stdc++',
+                                        'pthread'],
+                           library_dirs = ['/opt/sector/lib'],
+                           sources = ['sector.cpp', 'sector_wrap.cxx'] )
 
-setup( name="pysector", version="0.1", ext_modules = [module1] )
+setup( name="pysector", version="0.2", ext_modules = [sector_module],
+       url='http://code.google.com/p/cloud-interop/',
+       author='Jonathan Seidman',
+       author_email='jonathan.seidman@opendatagroup.com' )
