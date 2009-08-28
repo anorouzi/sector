@@ -1,0 +1,12 @@
+include README
+include sector.cpp
+include sector.h
+include sector.i
+include Makefile
+include setup.py
+include examples/read.py
+include examples/sectorgrep.py
+prune build/
+prune *.so
+prune *.o
+prune sector.py
