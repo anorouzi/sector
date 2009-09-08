@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/15/2009
+   Yunhong Gu, last updated 08/01/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -1285,11 +1285,27 @@ void* Master::process(void* s)
                msg->setData(0, buf, strlen(buf) + 1);
 
                int c = 0;
-               for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+
+               if (!attr.m_bIsDir)
                {
-                  msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
-                  msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
-                  ++ c;
+                  for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+                  {
+                     msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
+                     msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
+                     ++ c;
+                  }
+               }
+               else
+               {
+                  set<Address, AddrComp> addr;
+                  self->m_Metadata.lookup(attr.m_strName.c_str(), addr);
+
+                  for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
+                  {
+                     msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
+                     msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
+                     ++ c;
+                  }
                }
 
                self->m_GMP.sendto(ip, port, id, msg);
@@ -2280,12 +2296,12 @@ void Master::loadSlaveAddr(const string& file)
          if ((line[i] == ' ') || (line[i] == '\t'))
          {
             if (!blank)
-               *p = ' ';
+               *p++ = ' ';
             blank = true;
          }
          else
          {
-            *p = line[i];
+            *p++ = line[i];
             blank = false;
          }
       }

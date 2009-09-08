@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
+   Yunhong Gu, last updated 06/30/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -1080,8 +1080,14 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
    lh = dlopen((m_strHomeDir + ".sphere/" + path + "/" + lib + ".so").c_str(), RTLD_LAZY);
    if (NULL == lh)
    {
-      cerr << dlerror() << endl;
-      return -1;
+      // if no user uploaded lib, check permanent lib
+      lh = dlopen((m_strHomeDir + ".sphere/perm/" + lib + ".so").c_str(), RTLD_LAZY);
+
+      if (NULL == lh)
+      {
+         cerr << dlerror() << endl;
+         return -1;
+      }
    }
 
    return 0;

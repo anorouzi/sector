@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/16/2009
+   Yunhong Gu, last updated 07/16/2009
 *****************************************************************************/
 
 
@@ -89,6 +89,8 @@ int PRobot::generate()
 
    cpp << "#include <iostream>" << endl;
    cpp << "#include <fstream>" << endl;
+   cpp << "#include <cstring>" << endl;
+   cpp << "#include <cstdlib>" << endl;
    cpp << "#include <sphere.h>" << endl;
    cpp << endl;
    cpp << "using namespace std;" << endl;

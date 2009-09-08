@@ -35,12 +35,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/25/2009
+   Yunhong Gu, last updated 05/25/2009
 *****************************************************************************/
 
 
-#ifndef __PEER_RECORD_H__
-#define __PEER_RECORD_H__
+#ifndef __GMP_PREC_H__
+#define __GMP_PREC_H__
 
 #ifndef WIN32
    #include <pthread.h>

@@ -27,13 +27,13 @@ int main(int argc, char** argv)
    {
       cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
    }
-   else if (attr.m_bIsDir)
-   {
-      cout << argv[1] << " is a directory.\n";
-   }
    else
    {
       cout << "FILE NAME: " << attr.m_strName << endl;
+      if (attr.m_bIsDir)
+         cout << "DIR: TRUE\n";
+      else
+         cout << "DIR: FALSE\n";
       cout << "SIZE: " << attr.m_llSize << " bytes" << endl;
       time_t ft = attr.m_llTimeStamp;
       cout << "LAST MODIFIED: " << ctime(&ft);

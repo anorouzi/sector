@@ -41,4 +41,4 @@ stream: stream.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o download upload ls rm mkdir stat sysinfo mv cp
+	rm -f *.o download upload ls rm mkdir stat sysinfo mv cp stream

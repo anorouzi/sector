@@ -35,12 +35,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 01/25/2007
+   Yunhong Gu, last updated 01/25/2007
 *****************************************************************************/
 
 
-#ifndef __CB_MESSAGE_H__
-#define __CB_MESSAGE_H__
+#ifndef __GMP_MESSAGE_H__
+#define __GMP_MESSAGE_H__
 
 #ifndef WIN32
    #include <sys/types.h>

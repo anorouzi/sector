@@ -10,7 +10,7 @@ endif
 
 OBJS = slave.o serv_file.o serv_spe.o
 
-all: libslave.so libslave.a start_slave
+all: libslave.so libslave.a start_slave sphere
 
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -23,6 +23,12 @@ libslave.a: $(OBJS)
 
 start_slave: start_slave.cpp
 	$(C++) start_slave.cpp -o start_slave $(CCFLAGS) $(LDFLAGS)
+
+sphere: _always_check_
+	cd sphere; make; cd ../
+
+_always_check_:
+	true
 
 clean:
 	rm -f *.o *.so *.a start_slave

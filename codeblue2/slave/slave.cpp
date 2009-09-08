@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 06/30/2009
+   Yunhong Gu, last updated 09/09/2009
 *****************************************************************************/
 
 
@@ -104,7 +104,10 @@ int Slave::init(const char* base)
       return -1;
    }
 
-   cout << "scaning " << m_strHomeDir << endl;
+   //copy permanent sphere libraries
+   system((string("cp ") + m_strBase + "/sphere/*.so "  + m_strHomeDir + "/.sphere/perm/").c_str());
+
+   cout << "scanning " << m_strHomeDir << endl;
    m_LocalFile.scan(m_strHomeDir.c_str(), m_LocalFile.m_mDirectory);
 
    ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
@@ -641,6 +644,15 @@ int Slave::createSysDir()
    }
    closedir(test);
    system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
+
+   test = opendir((m_strHomeDir + ".sphere/perm").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere/perm").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/perm/*").c_str());
 
    test = opendir((m_strHomeDir + ".tmp").c_str());
    if (NULL == test)

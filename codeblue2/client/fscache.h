@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 05/08/2009
+   Yunhong Gu, last updated 05/08/2009
 *****************************************************************************/
 
 #ifndef __SECTOR_FS_CACHE_H__

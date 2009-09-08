@@ -24,13 +24,45 @@ int main()
       char line[256];
       line[0] = '\0';
       ifs.getline(line, 256);
-      if (strlen(line) == 0)
+      if (*line == '\0')
          continue;
 
-      string addr = line;
+      int i = 0;
+      int n = strlen(line);
+      for (; i < n; ++ i)
+      {
+         if ((line[i] != ' ') && (line[i] != '\t'))
+            break;
+      }
+
+      if ((i == n) && (line[i] == '#'))
+         continue;
+
+      char newline[256];
+      bool blank = false;
+      char* p = newline;
+      for (; i < n; ++ i)
+      {
+         if ((line[i] == ' ') || (line[i] == '\t'))
+         {
+            if (!blank)
+               *p++ = ' ';
+            blank = true;
+         }
+         else
+         {
+            *p++ = line[i];
+            blank = false;
+         }
+      }
+
+      string base = newline;
+      base = base.substr(base.find(' ') + 1, base.length());
+
+      string addr = newline;
       addr = addr.substr(0, addr.find(' '));
 
-      cout << "stoping slave node at " << addr << endl;
+      cout << "stopping slave node at " << addr << endl;
 
       system((string("ssh ") + addr + " killall -9 start_slave &").c_str());
    }

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/09/2008
+   Yunhong Gu, last updated 07/09/2008
 *****************************************************************************/
 
 #ifndef __SECURITY_H__

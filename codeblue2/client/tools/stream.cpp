@@ -26,12 +26,13 @@ int main(int argc, char** argv)
       return 0;
    }
    
-   string inpath;
-   string outpath;
-   string cmd;
-   string parameter;
-   int bucket;
-   string upload;
+   string inpath = "";
+   string outpath = "";
+   string tmpdir = "";
+   string cmd = "";
+   string parameter = "";
+   int bucket = 0;
+   string upload = "";
 
    for (map<string, string>::const_iterator i = clp.m_mParams.begin(); i != clp.m_mParams.end(); ++ i)
    {
@@ -49,6 +50,8 @@ int main(int argc, char** argv)
          upload = i->second;
       else
       {
+cout << "?? " << i->first << endl;
+
          help();
          return 0;
       }
@@ -59,15 +62,34 @@ int main(int argc, char** argv)
       help();
       return 0;
    }
+cout << "hoho " << bucket << " " << outpath << endl;
+   if (bucket > 0)
+   {
+      if (outpath.length() == 0)
+      {
+         help();
+         return 0;
+      }
+
+      tmpdir = outpath + "/temp";
+   }
 
    PRobot pr;
    pr.setCmd(cmd);
    pr.setParam(parameter);
    pr.setCmdFlag(upload.length() != 0);
-   pr.setOutput(outpath);
+   if (bucket <= 0)
+      pr.setOutput(outpath);
+   else
+      pr.setOutput(tmpdir);
    pr.generate();
    pr.compile();
 
+   //if pr.fail()
+   //{
+   //   cerr << "unable to create UDFs." << endl;
+   //   return -1;
+   //}
 
    Session s;
    s.loadInfo("../../conf/client.conf");
@@ -94,8 +116,7 @@ int main(int argc, char** argv)
    }
 
    SphereStream output;
-   output.setOutputPath(outpath, "stream_result");
-   output.init(bucket);
+   output.init(0);
 
    SphereProcess myproc;
 
@@ -150,6 +171,57 @@ int main(int argc, char** argv)
          t1 = t2;
       }
    }
+
+
+   // If no buckets defined, stop
+   // otherwise parse all temporary files in tmpdir and generate buckets
+
+   if (bucket > 0)
+   {
+      SphereStream input2;
+      vector<string> tmpdata;
+      tmpdata.push_back(tmpdir);
+      input2.init(tmpdata);
+
+      SphereStream output2;
+      output2.setOutputPath(outpath, "stream_result");
+      output2.init(bucket);
+
+      if (myproc.run(input2, output2, "streamhash", 0) < 0)
+      {
+         cout << "failed to find any computing resources." << endl;
+         return -1;
+      }
+
+      gettimeofday(&t1, 0);
+      t2 = t1;
+      while (true)
+      {
+         SphereResult* res;
+
+         if (myproc.read(res) < 0)
+         {
+            if (myproc.checkProgress() < 0)
+            {
+               cerr << "all SPEs failed\n";
+               break;
+            }
+
+            if (myproc.checkProgress() == 100)
+               break;
+         }
+
+         gettimeofday(&t2, 0);
+         if (t2.tv_sec - t1.tv_sec > 60)
+         {
+            cout << "PROGRESS: " << myproc.checkProgress() << "%" << endl;
+            t1 = t2;
+         }
+      }
+
+      Sector::remove(tmpdir);
+   }
+
 
    gettimeofday(&t, 0);
    cout << "mission accomplished " << t.tv_sec << endl;

@@ -45,12 +45,12 @@ int main()
          if ((line[i] == ' ') || (line[i] == '\t'))
          {
             if (!blank)
-               *p = ' ';
+               *p++ = ' ';
             blank = true;
          }
          else
          {
-            *p = line[i];
+            *p++ = line[i];
             blank = false;
          }
       }
