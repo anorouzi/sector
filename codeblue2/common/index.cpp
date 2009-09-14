@@ -426,15 +426,10 @@ int Index::update(const char* fileinfo, const Address& loc, const int& type)
    }
    else
    {
-      if (type == 1)
-      {
-         // file exist
-         return -1;
-      }
-
-      if (type == 2)
+      if ((type == 1) || (type == 2))
       {
          // modification to an existing copy
+         // this maybe a new file and the master already registered the file when it is created, so it is treated as an existing file too
 	 if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
          {
             s->second.m_llSize = sn.m_llSize;

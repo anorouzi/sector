@@ -22,7 +22,7 @@ int main(int argc, char** argv)
       return -1;
 
    // remove result of last run
-   Sector::remove("/test/mr_sorted");
+   Sector::rmr("/test/mr_sorted");
 
    SysStat sys;
    Sector::sysinfo(sys);

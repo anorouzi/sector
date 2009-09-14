@@ -69,6 +69,7 @@ public:
    static int mkdir(const std::string& path);
    static int move(const std::string& oldpath, const std::string& newpath);
    static int remove(const std::string& path);
+   static int rmr(const std::string& path);
    static int copy(const std::string& src, const std::string& dst);
    static int utime(const std::string& path, const int64_t& ts);
 

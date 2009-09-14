@@ -18,8 +18,17 @@ int main()
       return -1;
    }
 
+   int count = 0;
+
    while (!ifs.eof())
    {
+      if (++ count == 64)
+      {
+         // wait a while to avoid too many incoming slaves crashing the master
+         sleep(1);
+         count = 0;
+      }
+
       char line[256];
       line[0] = '\0';
       ifs.getline(line, 256);
@@ -40,7 +49,7 @@ int main()
       char newline[256];
       bool blank = false;
       char* p = newline;
-      for (; i < n; ++ i)
+      for (; i <= n; ++ i)
       {
          if ((line[i] == ' ') || (line[i] == '\t'))
          {

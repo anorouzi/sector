@@ -32,18 +32,18 @@ s.init(files);</div>
 temp.setOutputPath(&quot;/wordcount&quot;, &quot;word_bucket&quot;);<br />
 temp.init(256);</div>
 <p><strong>Load User Defined Functions  </strong></p>
-<p>Each Sphere process requires one user defined function (UDF). The UDF should be prepared following <a href="g-udf.htm">this</a> instruction. After the UDF is successfully compiled, it needs to be uploaded by fucntion <a href="r-c-sphereprocess-loadoperator.htm">SphereProcess.loadOperator</a>. </p>
+<p>Each Sphere process requires one user defined function (UDF). The UDF should be prepared following <a href="g-udf.htm">this</a> instruction. After the UDF is successfully compiled, it needs to be uploaded by function <a href="r-c-sphereprocess-loadoperator.htm">SphereProcess.loadOperator</a>. </p>
 <p>Because Sphere uses C/C++ libraries, the UDF needs to be compiled under a compatible environment with the Sector slave servers. That is, the .so library files has be to recognized by the slave servers. </p>
 <p>Finally, any additional files other than the .so files can also be uploaded. For example, if the UDF requires another external file, this file can be uploaded as well. The location of these uploaded files will be stored in the <a href="r-c-sfile.htm">SFile</a> parameter of the UDF. </p>
 
 <p><strong>Start a Sphere Process</strong></p>
-<p>Once the input/putput is prepared and the UDF is uploaded, the Sphere process (<a href="r-c-sphereprocess.htm">SphereProcess</a>) can be started with a single call <a href="r-c-sphereprocess-run.htm">SphereProcess.run</a>. </p>
+<p>Once the input/output is prepared and the UDF is uploaded, the Sphere process (<a href="r-c-sphereprocess.htm">SphereProcess</a>) can be started with a single call <a href="r-c-sphereprocess-run.htm">SphereProcess.run</a>. </p>
 
 <div class="code">
   int run(const SphereStream&amp; input, SphereStream&amp;   output, const string&amp; op, const int&amp; rows, const char* param = NULL,   const int&amp; size = 0);
 </div>
 
-<p>In the above function, the parameters &quot;input&quot; and &quot;output&quot; are the input and output streams prepared above. The parameter &quot;op&quot; is the name of the UDF. The parameter &quot;rows&quot; specifies the number of records to be passed to UDT each time. Finally, &quot;param&quot; and &quot;size&quot; are used to give a parameter to the UDF, if necessary. </p>
+<p>In the above function, the parameters &quot;input&quot; and &quot;output&quot; are the input and output streams prepared above. The parameter &quot;op&quot; is the name of the UDF. The parameter &quot;rows&quot; specifies the number of records to be passed to UDF each time. Finally, &quot;param&quot; and &quot;size&quot; are used to give a parameter to the UDF, if necessary. </p>
 <p><strong>Read Results and Check Progress</strong></p>
 <div class="code">
   while (true)<br />

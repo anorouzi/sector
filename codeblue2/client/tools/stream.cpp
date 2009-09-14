@@ -50,8 +50,6 @@ int main(int argc, char** argv)
          upload = i->second;
       else
       {
-cout << "?? " << i->first << endl;
-
          help();
          return 0;
       }
@@ -62,7 +60,7 @@ cout << "?? " << i->first << endl;
       help();
       return 0;
    }
-cout << "hoho " << bucket << " " << outpath << endl;
+
    if (bucket > 0)
    {
       if (outpath.length() == 0)
@@ -219,7 +217,7 @@ cout << "hoho " << bucket << " " << outpath << endl;
          }
       }
 
-      Sector::remove(tmpdir);
+      Sector::rmr(tmpdir);
    }
 
 

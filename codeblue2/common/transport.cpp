@@ -105,7 +105,7 @@ int Transport::open(int& port, bool rendezvous, bool reuseaddr)
 
 int Transport::listen()
 {
-   return UDT::listen(m_Socket, 10);
+   return UDT::listen(m_Socket, 1024);
 }
 
 int Transport::accept(Transport& t, sockaddr* addr, int* addrlen)

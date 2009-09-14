@@ -21,7 +21,7 @@ int main(int argc, char** argv)
    if (Sector::login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
       return -1;
 
-   Sector::remove("test");
+   Sector::rmr("test");
    Sector::mkdir("test");
 
    SysStat sys;
@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 
    myproc.close();
 
-   Sector::remove("tmp");
+   Sector::rmr("tmp");
 
    Sector::logout();
    Sector::close();

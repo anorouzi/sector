@@ -532,7 +532,6 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
    ifstream ifs((m_strHomeDir + filename).c_str(), ios::in);
    ifs.seekg(0, ios::end);
    sn.m_llSize = ifs.tellg();
-
    char buf[1024];
    sn.serialize(buf);
 

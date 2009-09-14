@@ -45,6 +45,8 @@ int streamhash(const SInput* input, SOutput* output, SFile* file)
       return 0;
    }
 
+   ifs.seekg(output->m_llOffset);
+
    char* buffer = new char[65536];
    while(!ifs.eof())
    {
@@ -58,7 +60,15 @@ int streamhash(const SInput* input, SOutput* output, SFile* file)
       *(output->m_pcResult + output->m_pllIndex[output->m_iRows] + strlen(buffer)) = '\n';
       output->m_iRows ++;
       output->m_pllIndex[output->m_iRows] = output->m_pllIndex[output->m_iRows - 1] + strlen(buffer) + 1;
+
+      if ((output->m_pllIndex[output->m_iRows] + 65536 >= output->m_iBufSize) || (output->m_iRows + 1 >= output->m_iIndSize))
+      {
+         output->m_llOffset = ifs.tellg();
+         break;
+      }
    }
+
+   ifs.close();
    delete [] buffer;
 
    output->m_iResSize = output->m_pllIndex[output->m_iRows];

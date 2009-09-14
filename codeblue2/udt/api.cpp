@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/12/2009
+   Yunhong Gu, last updated 09/09/2009
 *****************************************************************************/
 
 #ifdef WIN32
@@ -743,9 +743,8 @@ int CUDTUnited::close(const UDTSOCKET u)
 {
    CUDTSocket* s = locate(u);
 
-   // silently drop a request to close an invalid ID, rather than return error   
    if (NULL == s)
-      return 0;
+      throw CUDTException(5, 4, 0);
 
    s->m_pUDT->close();
 
@@ -957,7 +956,7 @@ int CUDTUnited::selectEx(const vector<UDTSOCKET>& fds, vector<UDTSOCKET>* readfd
 
    uint64_t to;
    if (msTimeOut >= 0)
-      to = msTimeOut;
+      to = msTimeOut * 1000;
    else
       to = 0xFFFFFFFFFFFFFFFFULL;
 
@@ -976,7 +975,7 @@ int CUDTUnited::selectEx(const vector<UDTSOCKET>& fds, vector<UDTSOCKET>* readfd
       {
          CUDTSocket* s = locate(*i);
 
-         if ((NULL == s) || s->m_pUDT->m_bBroken || !s->m_pUDT->m_bConnected || (s->m_Status == CUDTSocket::CLOSED))
+         if ((NULL == s) || s->m_pUDT->m_bBroken || (s->m_Status == CUDTSocket::CLOSED))
          {
             if (NULL != exceptfds)
             {

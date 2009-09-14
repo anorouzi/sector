@@ -363,7 +363,7 @@ void* Slave::copy(void* p)
    delete (Param3*)p;
 
    SNode tmp;
-   if (self->m_LocalFile.lookup(src.c_str(), tmp) > 0)
+   if (self->m_LocalFile.lookup(src.c_str(), tmp) >= 0)
    {
       //if file is local, copy directly
       self->createDir(dst.substr(0, dst.rfind('/')));

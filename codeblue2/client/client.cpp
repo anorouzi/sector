@@ -113,13 +113,15 @@ int Client::login(const string& username, const string& password, const char* ce
 
    SSLTransport::init();
 
-   char* master_cert = (char*)cert;
-   if (cert == NULL)
+   string master_cert;
+   if (cert != NULL)
+      master_cert = cert;
+   else
       master_cert = "master_node.cert";
 
    int result;
    SSLTransport secconn;
-   if ((result = secconn.initClientCTX(master_cert)) < 0)
+   if ((result = secconn.initClientCTX(master_cert.c_str())) < 0)
       return result;
    if ((result = secconn.open(NULL, 0)) < 0)
       return result;
@@ -357,6 +359,30 @@ int Client::remove(const string& path)
    return 1;
 }
 
+int Client::rmr(const std::string& path)
+{
+   SNode attr;
+   int r = stat(path.c_str(), attr);
+   if (r < 0)
+      return r;
+
+   if (attr.m_bIsDir)
+   {
+      vector<SNode> subdir;
+      list(path, subdir);
+
+      for (vector<SNode>::iterator i = subdir.begin(); i != subdir.end(); ++ i)
+      {
+         if (i->m_bIsDir)
+            rmr(path + "/" + i->m_strName);
+         else
+            remove(path + "/" + i->m_strName);
+      }
+   }
+
+   return remove(path);
+}
+
 int Client::copy(const string& src, const string& dst)
 {
    string rsrc = revisePath(src);
@@ -494,7 +520,7 @@ int Client::updateMasters()
             key = *(int32_t*)(msg.getData() + p);
             p += 4;
             addr.m_strIP = msg.getData() + p;
-            p + addr.m_strIP.length() + 1;
+            p += addr.m_strIP.length() + 1;
             addr.m_iPort = *(int32_t*)(msg.getData() + p);
             p += 4;
 

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/30/2009
+   Yunhong Gu, last updated 09/30/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -446,8 +446,8 @@ void* Slave::SPEHandler(void* p)
             msg.setData(12, output.m_strError.c_str(), output.m_strError.length() + 1);
          else if (deliverystatus < 0)
          {
-            char* tmp = "System Error: data transfer to buckets failed.";
-            msg.setData(12, tmp, strlen(tmp) + 1);
+            string tmp = "System Error: data transfer to buckets failed.";
+            msg.setData(12, tmp.c_str(), tmp.length() + 1);
          }
 
          int id = 0;
@@ -764,7 +764,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    string idxfile = datafile + ".idx";
 
    //read index
-   if (m_LocalFile.lookup(idxfile.c_str(), sn) > 0)
+   if (m_LocalFile.lookup(idxfile.c_str(), sn) >= 0)
    {
       fstream idx;
       idx.open((m_strHomeDir + idxfile).c_str(), ios::in | ios::binary);
@@ -827,6 +827,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
       m_DataChn.recv4(srcip, srcport, session, response);
 
+      m_DataChn.remove(srcip, srcport);
+
       // update total received data
       m_SlaveStat.updateIO(srcip, (totalrows + 1) * 8, 0);
    }
@@ -835,7 +837,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    block = new char[size];
 
    // read data file
-   if (m_LocalFile.lookup(datafile.c_str(), sn) > 0)
+   if (m_LocalFile.lookup(datafile.c_str(), sn) >= 0)
    {
       fstream ifs;
       ifs.open((m_strHomeDir + datafile).c_str(), ios::in | ios::binary);
@@ -897,6 +899,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       cmd = 5;
       m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
       m_DataChn.recv4(srcip, srcport, session, response);
+
+      m_DataChn.remove(srcip, srcport);
 
       // update total received data
       m_SlaveStat.updateIO(srcip, index[totalrows] - index[0], 0);

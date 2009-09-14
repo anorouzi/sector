@@ -2291,7 +2291,7 @@ void Master::loadSlaveAddr(const string& file)
       char newline[256];
       bool blank = false;
       char* p = newline;
-      for (; i < n; ++ i)
+      for (; i <= n; ++ i)
       {
          if ((line[i] == ' ') || (line[i] == '\t'))
          {

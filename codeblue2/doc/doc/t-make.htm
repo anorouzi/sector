@@ -14,7 +14,7 @@
 <p>The Sector/Sphere library is distributed with source code, example applications, and documentation. Currently the complete Sector software suite, including both server and client, only works on Linux. We will port the client to Windows in the near future. </p>
   <p><strong>The software is written in C++. GCC/G++ version 3.4 or above is required. Openssl development library is required (e.g., libssl-dev for Debian or openssl-devel for Fedora). </strong></p>
   <p align="center"><img src="images/sector-arch.jpg" alt="sector arch" width="360" height="214" /></p>
-  <p>There are four parts in the software suite: the security server, the master server, the slaves, and the clients. These four parts can be installed on the same node or over multiple nodes. However, usually each node should only host no more than one slave instance. </p>
+  <p>There are four parts in the software suite: the security server, the master server, the slaves, and the clients. These four parts can be installed on the same node or over multiple nodes. However, usually each node should only host no more than one slave instance. <strong>Each slave instance requires at least 10GB free disk space. </strong>Debian Linux and XFS file system are recommended, although this is not a must. </p>
 
   <h4>Compile and Install </h4>
   <p>You may either download the tarball release or   check out the most recent code from SourceForge SVN. The source code will be   located under a directory called &quot;codeblue2&quot;. When you are ready, follow the several steps below to install Sector.</p>

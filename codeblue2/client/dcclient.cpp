@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/07/2009
+   Yunhong Gu, last updated 09/12/2009
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -963,6 +963,10 @@ int SphereProcess::segmentData()
       }
       else
          unitsize = m_pInput->m_llRecNum / m_iSPENum;
+
+      // at least 1 record per segement
+      if (unitsize < 1)
+         unitsize = 1;
 
       int seq = 0;
       for (int i = 0; i < m_pInput->m_iFileNum; ++ i)

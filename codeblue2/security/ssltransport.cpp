@@ -144,7 +144,7 @@ int SSLTransport::open(const char* ip, const int& port)
 
 int SSLTransport::listen()
 {
-   return ::listen(m_iSocket, 10);
+   return ::listen(m_iSocket, 1024);
 }
 
 SSLTransport* SSLTransport::accept(char* ip, int& port)

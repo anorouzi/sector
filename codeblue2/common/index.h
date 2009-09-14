@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/14/2009
+   Yunhong Gu, last updated 09/10/2009
 *****************************************************************************/
 
 
@@ -80,6 +80,15 @@ public:
 public:
    int list(const char* path, std::vector<std::string>& filelist);
    int list_r(const char* path, std::vector<std::string>& filelist);
+
+      // Functionality:
+      //    look up a specific file or directory in the metadata.
+      // Parameters:
+      //    [1] path: file or dir name
+      //    [2] attr: SNode structure to store the information.
+      // Returned value:
+      //    If exist, 0 for a file, number of files or sub-dirs for a directory, or -1 on error.
+
    int lookup(const char* path, SNode& attr);
    int lookup(const char* path, std::set<Address, AddrComp>& addr);
 
