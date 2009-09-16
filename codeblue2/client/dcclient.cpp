@@ -476,7 +476,7 @@ void* SphereProcess::run(void* param)
       if (s == self->m_mSPE.end())
          continue;
 
-      if (s->second.m_iStatus <= 0)
+      if (s->second.m_iStatus <= 1)
          continue;
 
       int progress = *(int32_t*)(msg.getData() + 4);
@@ -618,7 +618,7 @@ int SphereProcess::checkSPE()
             {
                if (d->second->m_pLoc->size() < MinLoc)
                {
-                  // for same distrance, process DS with less copies first
+                  // for same distance, process DS with less copies first
                   dss = d;
                   MinLoc = d->second->m_pLoc->size();
                }
@@ -807,7 +807,10 @@ int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wai
       // find completed DS, -1: error, 2: successful
       // TODO: deal with order...
       if ((i->second->m_iStatus == -1) || (i->second->m_iStatus == 2))
+      {
          d = i;
+         break;
+      }
    }
 
    bool found = (d != m_mpDS.end());

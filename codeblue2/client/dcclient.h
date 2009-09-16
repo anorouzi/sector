@@ -185,6 +185,7 @@ private:
    int m_iTotalDS;		// total number of data segments
    int m_iTotalSPE;		// total number of SPEs
    int m_iAvailRes;
+   bool m_bBucketHealth;	// if all bucket nodes are alive; unable to recover from bucket failure
 
    pthread_mutex_t m_ResLock;
    pthread_cond_t m_ResCond;

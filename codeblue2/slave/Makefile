@@ -32,6 +32,7 @@ _always_check_:
 
 clean:
 	rm -f *.o *.so *.a start_slave
+	rm -f ./sphere/*.so
 
 install:
 	mv libslave.so libslave.a ../lib
