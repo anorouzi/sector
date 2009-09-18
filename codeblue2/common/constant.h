@@ -69,6 +69,7 @@ public:
    static const int E_TIMEDOUT = -5000;		// timeout
    static const int E_INVALID = -6000;		// invalid parameter
    static const int E_SUPPORT = -6001;		// operation not supported
+   static const int E_BUCKET = -7001;		// bucket failure
 
 public: // internal error
    static const int E_MASTER = -101;		// incorrect master node to handle the request

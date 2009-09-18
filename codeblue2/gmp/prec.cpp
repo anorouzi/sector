@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/25/2009
+   Yunhong Gu, last updated 09/17/2009
 *****************************************************************************/
 
 #ifndef WIN32
@@ -46,6 +46,7 @@ written by
 #endif
 
 #include <common.h>
+#include <dhash.h>
 #include <prec.h>
 
 using namespace std;
@@ -57,6 +58,11 @@ CPeerManagement::CPeerManagement()
    #else
       m_PeerRecLock = CreateMutex(NULL, false, NULL);
    #endif
+
+   int n = 1 << m_uiHashSpace;
+   m_pllHashRec = new int64_t [n];
+   for (int i = 0; i < n; ++ i)
+      m_pllHashRec[i] = -1000001;
 }
 
 CPeerManagement::~CPeerManagement()
@@ -66,11 +72,25 @@ CPeerManagement::~CPeerManagement()
    #else
       CloseHandle(m_PeerRecLock);
    #endif
+
+   delete [] m_pllHashRec;
 }
 
 void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
 {
    CGuard recguard(m_PeerRecLock);
+
+   if (rtt > 0)
+   {
+      map<string, int>::iterator t = m_mRTT.find(ip);
+      if (t != m_mRTT.end())
+         t->second = (t->second * 7 + rtt) >> 3;
+      else
+         m_mRTT[ip] = rtt;
+   }
+
+   int key = hash(ip, port, session, id);
+   m_pllHashRec[key] = CTimer::getTime();
 
    CPeerRecord* pr = new CPeerRecord;
    pr->m_strIP = ip;
@@ -78,23 +98,17 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
    pr->m_iSession = session;
 
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(pr);
+   map<string, int>::iterator t = m_mRTT.find(ip);
 
    if (i != m_sPeerRec.end())
    {
-      if (id > 0)
+      if (id > (*i)->m_iID)
          (*i)->m_iID = id;
-
-      if (rtt > 0)
-      {
-         if (-1 == (*i)->m_iRTT )
-            (*i)->m_iRTT = rtt;
-         else
-            (*i)->m_iRTT = ((*i)->m_iRTT * 7 + rtt) >> 3;
-      }
-
-      (*i)->m_llTimeStamp = CTimer::getTime();
-
       (*i)->m_iFlowWindow = fw;
+
+      m_sPeerRecByTS.erase(*i);
+      (*i)->m_llTimeStamp = CTimer::getTime();
+      m_sPeerRecByTS.insert(*i);
 
       delete pr;
    }
@@ -105,18 +119,11 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
       else
          pr->m_iID = -1;
 
-      if (rtt > 0)
-         pr->m_iRTT = rtt;
-      else
-         pr->m_iRTT = -1;
-
       pr->m_llTimeStamp = CTimer::getTime();
-
       pr->m_iFlowWindow = fw;
 
       m_sPeerRec.insert(pr);
       m_sPeerRecByTS.insert(pr);
-      m_sPeerRecByIP.insert(pr);
 
       if (m_sPeerRecByTS.size() > m_uiRecLimit)
       {
@@ -125,19 +132,20 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
 
          CPeerRecord* t = *j;
          m_sPeerRec.erase(t);
+         m_sPeerRecByTS.erase(j);
 
-         pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
-         p = m_sPeerRecByIP.equal_range(t);
-         for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator k = p.first; k != p.second; k ++)
+         bool delip = true;
+         for (set<CPeerRecord*, CFPeerRec>::iterator k = m_sPeerRec.begin(); k != m_sPeerRec.end(); ++ k)
          {
-            if ((*k)->m_iPort == t->m_iPort)
+            if ((*k)->m_strIP == t->m_strIP)
             {
-               m_sPeerRecByIP.erase(k);
+               delip = false;
                break;
             }
          }
 
-         m_sPeerRecByTS.erase(t);
+         if (delip)
+            m_mRTT.erase(t->m_strIP);
 
          delete t;
       }
@@ -146,26 +154,13 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
 
 int CPeerManagement::getRTT(const string& ip)
 {
-   pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
-
-   CPeerRecord pr;
-   pr.m_strIP = ip;
-   int rtt = -1;
-
    CGuard recguard(m_PeerRecLock);
 
-   p = m_sPeerRecByIP.equal_range(&pr);
+   map<string, int>::iterator t = m_mRTT.find(ip);
+   if (t != m_mRTT.end())
+      return t->second;
 
-   for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
-   {
-      if ((*i)->m_iRTT > 0)
-      {
-         rtt = (*i)->m_iRTT;
-         break;
-      }
-   }
-
-   return rtt;
+   return -1;
 }
 
 int CPeerManagement::getLastID(const string& ip, const int& port, const int& session)
@@ -174,28 +169,20 @@ int CPeerManagement::getLastID(const string& ip, const int& port, const int& ses
    pr.m_strIP = ip;
    pr.m_iPort = port;
    pr.m_iSession = session;
-   int id = -1;
 
    CGuard recguard(m_PeerRecLock);
 
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
    if (i != m_sPeerRec.end())
-      id = (*i)->m_iID;
+      return (*i)->m_iID;
 
-   return id;
+   return -1;
 }
 
 void CPeerManagement::clearRTT(const string& ip)
 {
-   CPeerRecord pr;
-   pr.m_strIP = ip;
-
    CGuard recguard(m_PeerRecLock);
-
-   pair<multiset<CPeerRecord*, CFPeerRecByIP>::iterator, multiset<CPeerRecord*, CFPeerRecByIP>::iterator> p;
-   p = m_sPeerRecByIP.equal_range(&pr);
-   for (multiset<CPeerRecord*, CFPeerRecByIP>::iterator i = p.first; i != p.second; i ++)
-      (*i)->m_iRTT = -1;
+   m_mRTT.erase(ip);
 }
 
 int CPeerManagement::flowControl(const std::string& ip, const int& port, const int& session)
@@ -210,7 +197,6 @@ int CPeerManagement::flowControl(const std::string& ip, const int& port, const i
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
    if (i == m_sPeerRec.end())
       return 0;
-
 
    int thresh = (*i)->m_iFlowWindow - (CTimer::getTime() - (*i)->m_llTimeStamp) / 1000;
 
@@ -227,4 +213,23 @@ int CPeerManagement::flowControl(const std::string& ip, const int& port, const i
    }
 
    return 0;
+}
+
+int32_t CPeerManagement::hash(const string& ip, const int& port, const int& session, const int32_t& id)
+{
+   char tmp[1024];
+   sprintf(tmp, "%s%d%d%d", ip.c_str(), port, session, id);
+
+   return DHash::hash(tmp, m_uiHashSpace);
+}
+
+bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)
+{
+   int key = hash(ip, port, session, id);
+   int64_t diff = CTimer::getTime() - m_pllHashRec[key];
+
+   if ((diff > 1000000) || (diff < 0))
+      return false;
+
+   return true;
 }

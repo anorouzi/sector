@@ -68,6 +68,7 @@ int SectorError::init()
    s_mErrorMsg[-5000] = "a timeout event happened.";
    s_mErrorMsg[-6000] = "at least one parameter is invalid.";
    s_mErrorMsg[-6001] = "the operation is not supported.";
+   s_mErrorMsg[-7001] = "at least one bucket process has failed.";
 
    return s_mErrorMsg.size();
 }

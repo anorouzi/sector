@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/25/2009
+   Yunhong Gu, last updated 09/17/2009
 *****************************************************************************/
 
 
@@ -50,6 +50,7 @@ written by
 #endif
 
 #include <set>
+#include <map>
 #include <string>
 
 struct CPeerRecord
@@ -108,15 +109,21 @@ public:
    void clearRTT(const std::string& ip);
    int flowControl(const std::string& ip, const int& port, const int& session);
 
+   int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
+   bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
+
 private:
    std::set<CPeerRecord*, CFPeerRec> m_sPeerRec;
    std::set<CPeerRecord*, CFPeerRecByTS> m_sPeerRecByTS;
-   std::multiset<CPeerRecord*, CFPeerRecByIP> m_sPeerRecByIP;
+   std::map<std::string, int> m_mRTT;
+
+   static const unsigned int m_uiHashSpace = 20;
+   int64_t* m_pllHashRec;
 
    pthread_mutex_t m_PeerRecLock;
 
 private:
-   static const unsigned int m_uiRecLimit = 500;   
+   static const unsigned int m_uiRecLimit = 65536;
 };
 
 #endif

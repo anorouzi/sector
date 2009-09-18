@@ -268,6 +268,7 @@ m_bDataMove(true)
    m_iTotalDS = 0;
    m_iTotalSPE = 0;
    m_iAvailRes = 0;
+   m_bBucketHealth = true;
 
    pthread_mutex_init(&m_DSLock, NULL);
    pthread_mutex_init(&m_ResLock, NULL);
@@ -410,6 +411,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
    m_iTotalDS = m_mpDS.size();
    m_iTotalSPE = m_mSPE.size();
    m_iAvailRes = 0;
+   m_bBucketHealth = true;
 
    cout << m_mSPE.size() << " spes found! " << m_mpDS.size() << " data seg total." << endl;
 
@@ -656,6 +658,7 @@ int SphereProcess::checkSPE()
             if (!m_mBucket.empty())
             {
                cerr << "cannot recover the hashing bucket due to the lost SPE. Process failed." << endl;
+               m_bBucketHealth = false;
                return 0;
             }
 
@@ -750,6 +753,9 @@ int SphereProcess::checkProgress()
 {
    if ((0 == m_iTotalSPE) && (m_iProgress < m_iTotalDS))
       return SectorError::E_RESOURCE;
+
+   if (!m_bBucketHealth)
+      return SectorError::E_BUCKET;
 
    if (m_iTotalDS <= 0)
       return 100;

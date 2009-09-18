@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/30/2009
+   Yunhong Gu, last updated 09/16/2009
 *****************************************************************************/
 
 
@@ -346,7 +346,8 @@ void* Slave::fileHandler(void* p)
 
    self->m_DataChn.send(src_ip, src_port, transid, (char*)&cmd, 4);
 
-   self->m_DataChn.remove(src_ip, src_port);
+   if (key > 0)
+      self->m_DataChn.remove(src_ip, src_port);
 
    return NULL;
 }
@@ -453,8 +454,6 @@ void* Slave::copy(void* p)
    cmd = 5;
    self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
    self->m_DataChn.recv4(ip, port, session, cmd);
-
-   self->m_DataChn.remove(ip, port);
 
    //utime: update timestamp according to the original copy
    utimbuf ut;

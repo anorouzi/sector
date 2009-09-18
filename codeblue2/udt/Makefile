@@ -1,17 +1,23 @@
-SUBDIRS = udt common security gmp master slave client
-TARGETS = clean all install
+include ../Makefile.common
 
-subdirs:
-	for dir in $(SUBDIRS); do \
-		cd $$dir; \
-		$(MAKE); \
-		$(MAKE) install; \
-		cd ..; \
-	done
+CCFLAGS += -D LINUX -D IA32
+LDFLAGS += 
+
+OBJS = md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o core.o cache.o api.o ccc.o
+
+all: libudt.so libudt.a
+
+%.o: %.cpp %.h
+	$(C++) -fPIC $(CCFLAGS) $< -c
+
+libudt.so: $(OBJS)
+	$(C++) -shared -o $@ $^
+
+libudt.a: $(OBJS)
+	ar -rcs $@ $^
 
 clean:
-	for dir in $(SUBDIRS); do \
-		cd $$dir; \
-		$(MAKE) clean; \
-		cd ..; \
-	done
+	rm -f *.o *.so *.a
+
+install:
+	mv libudt.so libudt.a ../lib

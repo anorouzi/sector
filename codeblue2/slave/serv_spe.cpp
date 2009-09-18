@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/30/2009
+   Yunhong Gu, last updated 09/16/2009
 *****************************************************************************/
 
 #include <slave.h>
@@ -827,8 +827,6 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
       m_DataChn.recv4(srcip, srcport, session, response);
 
-      m_DataChn.remove(srcip, srcport);
-
       // update total received data
       m_SlaveStat.updateIO(srcip, (totalrows + 1) * 8, 0);
    }
@@ -899,8 +897,6 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       cmd = 5;
       m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
       m_DataChn.recv4(srcip, srcport, session, response);
-
-      m_DataChn.remove(srcip, srcport);
 
       // update total received data
       m_SlaveStat.updateIO(srcip, index[totalrows] - index[0], 0);

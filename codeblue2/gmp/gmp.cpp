@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/24/2009
+   Yunhong Gu, last updated 09/17/2009
 *****************************************************************************/
 
 
@@ -758,8 +758,8 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             continue;
       #endif
 
-      int32_t lastid = self->m_PeerHistory.getLastID(ip, ntohs(addr.sin_port), session);
-      if ((lastid >= 0) && (((id <= lastid) && (lastid - id < (1 << 29))) || ((id > lastid) && (id - lastid > (1 << 29)))))
+      // repeated message, send ACK and disgard
+      if (self->m_PeerHistory.hit(ip, ntohs(addr.sin_port), session, id))
       {
          ack[2] = id;
          ack[3] = 0;
