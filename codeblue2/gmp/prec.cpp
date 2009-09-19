@@ -60,9 +60,7 @@ CPeerManagement::CPeerManagement()
    #endif
 
    int n = 1 << m_uiHashSpace;
-   m_pllHashRec = new int64_t [n];
-   for (int i = 0; i < n; ++ i)
-      m_pllHashRec[i] = -1000001;
+   m_pHashRec = new CPeerRecord [n];
 }
 
 CPeerManagement::~CPeerManagement()
@@ -73,7 +71,7 @@ CPeerManagement::~CPeerManagement()
       CloseHandle(m_PeerRecLock);
    #endif
 
-   delete [] m_pllHashRec;
+   delete [] m_pHashRec;
 }
 
 void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
@@ -89,13 +87,14 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          m_mRTT[ip] = rtt;
    }
 
-   int key = hash(ip, port, session, id);
-   m_pllHashRec[key] = CTimer::getTime();
-
    CPeerRecord* pr = new CPeerRecord;
    pr->m_strIP = ip;
    pr->m_iPort = port;
    pr->m_iSession = session;
+   pr->m_iID = id;
+
+   int key = hash(ip, port, session, id);
+   m_pHashRec[key] = *pr;
 
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(pr);
    map<string, int>::iterator t = m_mRTT.find(ip);
@@ -226,10 +225,7 @@ int32_t CPeerManagement::hash(const string& ip, const int& port, const int& sess
 bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    int key = hash(ip, port, session, id);
-   int64_t diff = CTimer::getTime() - m_pllHashRec[key];
+   CPeerRecord* pr = m_pHashRec + key;
 
-   if ((diff > 1000000) || (diff < 0))
-      return false;
-
-   return true;
+   return (ip == pr->m_strIP) && (port == pr->m_iPort) && (session == pr->m_iSession) && (id == pr->m_iID);
 }

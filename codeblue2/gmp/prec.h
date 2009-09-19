@@ -118,7 +118,7 @@ private:
    std::map<std::string, int> m_mRTT;
 
    static const unsigned int m_uiHashSpace = 20;
-   int64_t* m_pllHashRec;
+   CPeerRecord* m_pHashRec;
 
    pthread_mutex_t m_PeerRecLock;
 
