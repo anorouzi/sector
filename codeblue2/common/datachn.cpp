@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/24/2009
+   Yunhong Gu, last updated 09/17/2009
 *****************************************************************************/
 
 #include <sys/socket.h>
@@ -360,19 +360,20 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
             return -1;
          }
       }
-      pthread_mutex_unlock(&c->m_RcvLock);
-
 
       if (session == rd.m_iSession)
       {
          size = rd.m_iSize;
          data = rd.m_pcData;
+         pthread_mutex_unlock(&c->m_RcvLock);
          return size;
       }
 
       pthread_mutex_lock(&c->m_QueueLock);
       c->m_vDataQueue.push_back(rd);
       pthread_mutex_unlock(&c->m_QueueLock);
+
+      pthread_mutex_unlock(&c->m_RcvLock);
    }
 
    size = 0;
