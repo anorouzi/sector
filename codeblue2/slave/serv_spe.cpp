@@ -360,7 +360,8 @@ void* Slave::SPEHandler(void* p)
             break;
          }
 
-         if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
+         int ds_thresh = 32000000 * ((rand() % 7) + 1);
+         if ((result.m_llTotalDataSize >= ds_thresh) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
          if (deliverystatus < 0)
@@ -398,7 +399,8 @@ void* Slave::SPEHandler(void* p)
                break;
             }
 
-            if ((result.m_llTotalDataSize > 128000000) && (buckets != 0))
+            int ds_thresh = 32000000 * ((rand() % 7) + 1);
+            if ((result.m_llTotalDataSize >= ds_thresh) && (buckets != 0))
                deliverystatus = self->deliverResult(buckets, speid, result, dest);
 
             if (deliverystatus < 0)
@@ -406,6 +408,16 @@ void* Slave::SPEHandler(void* p)
                progress = -1;
                break;
             }
+
+            /*
+            if (output.m_llOffset > 0)
+            {
+               progress = output.m_llOffset * 100LL / FILE_SIZE;
+               sendto(progress)
+               int id = 0;
+               self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
+            }
+            */
          }
       }
 

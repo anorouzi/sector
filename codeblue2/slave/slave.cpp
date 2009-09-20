@@ -114,6 +114,8 @@ int Slave::init(const char* base)
    m_LocalFile.serialize(ofs, m_LocalFile.m_mDirectory, 1);
    ofs.close();
 
+   srand(CTimer::getTime());
+
    m_SectorLog.insert("Sector slave started.");
 
    return 1;
