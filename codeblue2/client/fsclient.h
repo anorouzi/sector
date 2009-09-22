@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 12/28/2008
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/19/2009
 *****************************************************************************/
 
 #ifndef __SECTOR_FS_CLIENT_H__
@@ -50,7 +50,7 @@ public:
    virtual ~SectorFile();
 
 public:
-   int open(const std::string& filename, int mode = SF_MODE::READ);
+   int open(const std::string& filename, int mode = SF_MODE::READ, const std::string& hint = "");
    int64_t read(char* buf, const int64_t& size);
    int64_t write(const char* buf, const int64_t& size);
    int download(const char* localpath, const bool& cont = false);

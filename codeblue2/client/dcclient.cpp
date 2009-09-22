@@ -264,6 +264,7 @@ m_bDataMove(true)
    m_mSPE.clear();
 
    m_iProgress = 0;
+   m_dRunningProgress = 0;
    m_iAvgRunTime = -1;
    m_iTotalDS = 0;
    m_iTotalSPE = 0;
@@ -571,6 +572,8 @@ int SphereProcess::checkSPE()
    bool spe_busy = false;
    bool ds_found = false;
 
+   m_dRunningProgress = 0.0;
+
    for (map<int, SPE>::iterator s = m_mSPE.begin(); s != m_mSPE.end(); ++ s)
    {
       // this SPE is abandond
@@ -650,7 +653,11 @@ int SphereProcess::checkSPE()
       else 
       {
          if (g_DataChn.isConnected(s->second.m_strIP, s->second.m_iDataPort))
+         {
             spe_busy = true;
+
+            m_dRunningProgress += s->second.m_iProgress / 100.0;
+         }
          else
          {
             cerr << "SPE lost " << s->second.m_strIP << endl;
@@ -760,7 +767,7 @@ int SphereProcess::checkProgress()
    if (m_iTotalDS <= 0)
       return 100;
 
-   return m_iProgress * 100 / m_iTotalDS;
+   return (m_iProgress + m_dRunningProgress) * 100 / m_iTotalDS;
 }
 
 int SphereProcess::checkMapProgress()

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/23/2009
+   Yunhong Gu, last updated 09/19/2009
 *****************************************************************************/
 
 #include <unistd.h>
@@ -63,6 +63,12 @@ m_iSocket(0)
 
 SSLTransport::~SSLTransport()
 {
+   if (NULL != m_pCTX)
+      SSL_CTX_free(m_pCTX);
+   if (NULL != m_pSSL)
+      SSL_free(m_pSSL);
+   //if (NULL != m_pBIO)
+   //   BIO_free(m_pBIO);
 }
 
 void SSLTransport::init()

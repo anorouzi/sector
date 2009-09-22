@@ -386,6 +386,11 @@ void* Slave::SPEHandler(void* p)
       // process files
       if (0 == unitrows)
       {
+         ifstream ifs((self->m_strHomeDir + datafile).c_str(), ios::in);
+         ifs.seekg(0, ios::end);
+         int64_t filesize = ifs.tellg();
+         ifs.close();
+
          input.m_pcUnit = block;
          input.m_iRows = -1;
          input.m_pllIndex = NULL;
@@ -409,15 +414,14 @@ void* Slave::SPEHandler(void* p)
                break;
             }
 
-            /*
             if (output.m_llOffset > 0)
             {
-               progress = output.m_llOffset * 100LL / FILE_SIZE;
-               sendto(progress)
+               progress = output.m_llOffset * 100LL / filesize;
+               msg.setData(4, (char*)&progress, 4);
+               msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
                int id = 0;
                self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
             }
-            */
          }
       }
 

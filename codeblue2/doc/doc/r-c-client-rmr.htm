@@ -17,8 +17,8 @@
 <body>
 <div class="ref_head">Reference: Classes: Client </div>
 
-<h4 class="func_name"><strong>remove</strong></h4>
-<p>The<strong> remove  </strong>function deletes a file or a directory from the system. </p>
+<h4 class="func_name"><strong>rmr</strong></h4>
+<p>The<strong> rmr  </strong>function deletes a file or a directory recursvely from the system. </p>
 
 <div class="code">
   int remove<br />
@@ -47,10 +47,10 @@
   </tr>
 </table>
 <h5>Description</h5>
-<p>Currently Sector does not provide any mechanism to recover deleted files. </p>
-<h5>See Also</h5>
-<p><a href="r-c-client-rmr.htm"><strong>rmr</strong></a></p>
-<p>&nbsp;</p>
+<p>The function <strong>rmr</strong> will delete all files and sub-directories in the directory specified by <em>path</em>. If a file is busy, it will not be deleted, but all other files will be deleted. </p>
+<p>Currently Sector does not provide any mechanism to recover deleted files.</p>
 
+<h5>See Also</h5>
+<p><a href="r-c-client-remove.htm"><strong>remove</strong></a></p>
 </body>
 </html>

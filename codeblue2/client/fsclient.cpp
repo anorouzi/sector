@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/06/2009
+   Yunhong Gu, last updated 09/19/2009
 *****************************************************************************/
 
 
@@ -68,7 +68,7 @@ SectorFile::~SectorFile()
    pthread_mutex_destroy(&m_FileLock);
 }
 
-int SectorFile::open(const string& filename, int mode)
+int SectorFile::open(const string& filename, int mode, const string& hint)
 {
    m_strFileName = revisePath(filename);
 
@@ -80,7 +80,8 @@ int SectorFile::open(const string& filename, int mode)
    msg.setData(0, (char*)&m, 4);
    int32_t port = g_DataChn.getPort();
    msg.setData(4, (char*)&port, 4);
-   msg.setData(8, m_strFileName.c_str(), m_strFileName.length() + 1);
+   msg.setData(8, hint.c_str(), hint.length() + 1);
+   msg.setData(72, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    Address serv;
    g_Routing.lookup(m_strFileName, serv);

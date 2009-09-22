@@ -181,6 +181,7 @@ private:
    std::map<int, BUCKET> m_mBucket;
 
    int m_iProgress;		// progress, 0..100
+   double m_dRunningProgress;
    int m_iAvgRunTime;		// average running time, in seconds
    int m_iTotalDS;		// total number of data segments
    int m_iTotalSPE;		// total number of SPEs

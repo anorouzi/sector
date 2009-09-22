@@ -466,6 +466,7 @@ void* SServer::process(void* p)
 
 EXIT:
    s->close();
+   delete s;
    delete (Param*)p;
    return NULL;
 }

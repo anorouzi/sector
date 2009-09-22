@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/01/2009
+   Yunhong Gu, last updated 09/19/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -1689,7 +1689,8 @@ void* Master::process(void* s)
          {
             int32_t mode = *(int32_t*)(msg->getData());
             int32_t dataport = *(int32_t*)(msg->getData() + 4);
-            string path = msg->getData() + 8;
+            string hintip = msg->getData() + 8;
+            string path = msg->getData() + 72;
 
             if (!self->m_Routing.match(path.c_str(), self->m_iRouterKey))
             {
@@ -1709,9 +1710,12 @@ void* Master::process(void* s)
             SNode attr;
             int r = self->m_Metadata.lookup(path.c_str(), attr);
 
-            Address client;
-            client.m_strIP = ip;
-            client.m_iPort = port;
+            Address hint;
+            if (hintip.length() == 0)
+               hint.m_strIP = ip;
+            else
+               hint.m_strIP = hintip;
+            hint.m_iPort = port;
             vector<SlaveNode> addr;
 
             if (r < 0)
@@ -1727,7 +1731,7 @@ void* Master::process(void* s)
                // otherwise, create a new file for write
                // choose a slave node for the new file
                set<int> empty;
-               if (self->m_SlaveManager.chooseIONode(empty, client, mode, addr, self->m_SysConfig.m_iReplicaNum) <= 0)
+               if (self->m_SlaveManager.chooseIONode(empty, hint, mode, addr, self->m_SysConfig.m_iReplicaNum) <= 0)
                {
                   self->reject(ip, port, id, SectorError::E_NODISK);
                   //self->m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");
@@ -1740,7 +1744,7 @@ void* Master::process(void* s)
             }
             else
             {
-               self->m_SlaveManager.chooseIONode(attr.m_sLocation, client, mode, addr, self->m_SysConfig.m_iReplicaNum);
+               self->m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, self->m_SysConfig.m_iReplicaNum);
 
                r = self->m_Metadata.lock(path.c_str(), rwx);
                if (r < 0)
