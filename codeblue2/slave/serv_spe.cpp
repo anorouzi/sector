@@ -798,7 +798,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       msg.setData(0, (char*)&mode, 4);
       int32_t port = m_DataChn.getPort();
       msg.setData(4, (char*)&port, 4);
-      msg.setData(8, idxfile.c_str(), idxfile.length() + 1);
+      msg.setData(8, "\0", 1);
+      msg.setData(72, idxfile.c_str(), idxfile.length() + 1);
 
       Address addr;
       m_Routing.lookup(idxfile, addr);
@@ -869,7 +870,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       msg.setData(0, (char*)&mode, 4);
       int32_t port = m_DataChn.getPort();
       msg.setData(4, (char*)&port, 4);
-      msg.setData(8, datafile.c_str(), datafile.length() + 1);
+      msg.setData(8, "\0", 1);
+      msg.setData(72, datafile.c_str(), datafile.length() + 1);
 
       Address addr;
       m_Routing.lookup(datafile, addr);

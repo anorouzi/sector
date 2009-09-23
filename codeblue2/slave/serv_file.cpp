@@ -395,7 +395,8 @@ void* Slave::copy(void* p)
    msg.setData(0, (char*)&mode, 4);
    int32_t localport = self->m_DataChn.getPort();
    msg.setData(4, (char*)&localport, 4);
-   msg.setData(8, src.c_str(), src.length() + 1);
+   msg.setData(8, "\0", 1);
+   msg.setData(72, src.c_str(), src.length() + 1);
 
    Address addr;
    self->m_Routing.lookup(src, addr);

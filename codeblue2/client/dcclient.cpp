@@ -525,6 +525,8 @@ void* SphereProcess::run(void* param)
          self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->second.m_StartTime.tv_sec)) / 8;
    }
 
+   self->m_dRunningProgress = 0;
+
    // disconnect all SPEs and close all Shufflers
    for (map<int, SPE>::iterator i = self->m_mSPE.begin(); i != self->m_mSPE.end(); ++ i)
       g_DataChn.remove(i->second.m_strIP, i->second.m_iDataPort);
