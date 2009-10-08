@@ -18,11 +18,9 @@ int upload(const char* file, const char* dst)
    timeval t1, t2;
    gettimeofday(&t1, 0);
 
-   ifstream ifs(file, ios::in | ios::binary);
-   ifs.seekg(0, ios::end);
-   long long int size = ifs.tellg();
-   ifs.seekg(0);
-   cout << "uploading " << file << " of " << size << " bytes" << endl;
+   struct stat64 s;
+   stat64(file, &s);
+   cout << "uploading " << file << " of " << s.st_size << " bytes" << endl;
 
    SectorFile f;
 
@@ -41,7 +39,7 @@ int upload(const char* file, const char* dst)
    if (finish)
    {
       gettimeofday(&t2, 0);
-      float throughput = size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
+      float throughput = s.st_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
 
       cout << "Uploading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
    }
@@ -55,8 +53,8 @@ int getFileList(const string& path, vector<string>& fl)
 {
    fl.push_back(path);
 
-   struct stat s;
-   stat(path.c_str(), &s);
+   struct stat64 s;
+   stat64(path.c_str(), &s);
 
    if (S_ISDIR(s.st_mode))
    {
@@ -77,7 +75,7 @@ int getFileList(const string& path, vector<string>& fl)
 
          string subdir = path + "/" + namelist[i]->d_name;
 
-         if (stat(subdir.c_str(), &s) < 0)
+         if (stat64(subdir.c_str(), &s) < 0)
             continue;
 
          if (S_ISDIR(s.st_mode))
@@ -111,8 +109,8 @@ int main(int argc, char** argv)
    bool wc = WildCard::isWildCard(argv[1]);
    if (!wc)
    {
-      struct stat st;
-      if (stat(argv[1], &st) < 0)
+      struct stat64 st;
+      if (stat64(argv[1], &st) < 0)
       {
          cout << "ERROR: source file does not exist.\n";
          return -1;
@@ -185,8 +183,8 @@ int main(int argc, char** argv)
       else
          dst = newdir + "/" + dst;
 
-      struct stat s;
-      if (stat(i->c_str(), &s) < 0)
+      struct stat64 s;
+      if (stat64(i->c_str(), &s) < 0)
          continue;
 
       if (S_ISDIR(s.st_mode))

@@ -175,8 +175,8 @@ int main(int argc, char** argv)
    }
 
 
-   struct stat st;
-   int r = stat(argv[2], &st);
+   struct stat64 st;
+   int r = stat64(argv[2], &st);
    if ((r < 0) || !S_ISDIR(st.st_mode))
    {
       cout << "ERROR: destination directory does not exist.\n";
@@ -212,7 +212,7 @@ int main(int argc, char** argv)
       string localdir = dst.substr(0, dst.rfind('/'));
 
       // if localdir does not exist, create it
-      if (stat(localdir.c_str(), &st) < 0)
+      if (stat64(localdir.c_str(), &st) < 0)
       {
          for (unsigned int p = 0; p < localdir.length(); ++ p)
          {

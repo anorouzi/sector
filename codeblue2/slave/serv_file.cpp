@@ -91,8 +91,8 @@ void* Slave::fileHandler(void* p)
    {
       self->createDir(sname.substr(0, sname.rfind('/')));
 
-      struct stat t;
-      if (stat(filename.c_str(), &t) == -1)
+      struct stat64 t;
+      if (stat64(filename.c_str(), &t) == -1)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();

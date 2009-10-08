@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/20/2009
+   Yunhong Gu, last updated 10/07/2009
 *****************************************************************************/
 
 
@@ -843,8 +843,8 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
       if (bad)
          continue;
 
-      struct stat s;
-      if (stat((currdir + namelist[i]->d_name).c_str(), &s) < 0)
+      struct stat64 s;
+      if (stat64((currdir + namelist[i]->d_name).c_str(), &s) < 0)
          continue;
 
       SNode sn;
@@ -863,11 +863,6 @@ int Index::scan(const string& currdir, map<std::string, SNode>& metadata)
       else
       {
          mi->second.m_bIsDir = false;
-
-         ifstream ifs((currdir + namelist[i]->d_name).c_str(), ios::in);
-         ifs.seekg(0, ios::end);
-         mi->second.m_llSize = ifs.tellg();
-         ifs.close();
       }
 
       free(namelist[i]);

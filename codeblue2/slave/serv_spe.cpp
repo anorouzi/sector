@@ -386,10 +386,9 @@ void* Slave::SPEHandler(void* p)
       // process files
       if (0 == unitrows)
       {
-         ifstream ifs((self->m_strHomeDir + datafile).c_str(), ios::in);
-         ifs.seekg(0, ios::end);
-         int64_t filesize = ifs.tellg();
-         ifs.close();
+         struct stat64 s;
+         stat64((self->m_strHomeDir + datafile).c_str(), &s);
+         int64_t filesize = s.st_size;
 
          input.m_pcUnit = block;
          input.m_iRows = -1;

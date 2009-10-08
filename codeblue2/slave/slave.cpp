@@ -523,17 +523,15 @@ void Slave::run()
 
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int& change)
 {
-   struct stat s;
-   if (-1 == stat((m_strHomeDir + filename).c_str(), &s))
+   struct stat64 s;
+   if (-1 == stat64((m_strHomeDir + filename).c_str(), &s))
       return -1;
 
    SNode sn;
    sn.m_strName = filename;
    sn.m_bIsDir = 0;
    sn.m_llTimeStamp = s.st_mtime;
-   ifstream ifs((m_strHomeDir + filename).c_str(), ios::in);
-   ifs.seekg(0, ios::end);
-   sn.m_llSize = ifs.tellg();
+   sn.m_llSize = s.st_size;
    char buf[1024];
    sn.serialize(buf);
 
