@@ -712,6 +712,11 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
 
    if (!S_ISDIR(s.st_mode))
    {
+      // ignore index file
+      int t = path.length();
+      if ((t > 4) && (path.substr(t - 4, t) == ".idx"))
+         return result.size();
+
       string idx = m_strMetaPath + "/" + path + ".idx";
       int rows = -1;
       SNode is;
