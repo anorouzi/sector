@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/19/2009
+   Yunhong Gu, last updated 10/26/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -92,6 +92,7 @@ int Master::init()
 
    // check local directories, create them is not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
+   system((string("rm -rf ") + m_strHomeDir).c_str());
    DIR* test = opendir(m_strHomeDir.c_str());
    if (NULL == test)
    {
@@ -99,30 +100,31 @@ int Master::init()
          return -1;
 
       vector<string> dir;
-      Index::parsePath(m_strHomeDir.c_str(), dir);
+      Index2::parsePath(m_strHomeDir.c_str(), dir);
 
       string currpath = "/";
       for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
       {
          currpath += *i;
          if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
+         {
+            m_SectorLog.insert("unable to create home directory.");
             return -1;
+         }
          currpath += "/";
       }
    }
    closedir(test);
-   test = opendir((m_strHomeDir + ".metadata").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
-      {
-         cerr << "unable to create home directory.\n";
-         m_SectorLog.insert("unable to create home directory.");
-         return -1;
-      }
-   }
-   closedir(test);
 
+   if ((mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0)
+      || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
+   {
+      cerr << "unable to create home directory.\n";
+      m_SectorLog.insert("unable to create home directory.");
+      return -1;
+   }
+
+   m_Metadata.init(m_strHomeDir + ".metadata");
 
    // load slave list and addresses
    loadSlaveAddr("../conf/slaves.list");
@@ -258,7 +260,7 @@ int Master::join(const char* ip, const int& port)
 
    // recv slave list
    if (s.recv((char*)&num, 4) < 0)
-       return -1;
+      return -1;
    for (int i = 0; i < num; ++ i)
    {
       SlaveNode sn;
@@ -298,13 +300,12 @@ int Master::join(const char* ip, const int& port)
    s.recv((char*)&size, 4);
    mbuf = new char[size];
    s.recv(mbuf, size);;
-   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
+   ofstream ofs((m_strHomeDir + ".tmp/master_meta.dat").c_str(), ios::out | ios::trunc);
    ofs.write(mbuf, size);
    ofs.close();
    delete [] mbuf;
-   ifstream ifs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
-   m_Metadata.deserialize(ifs, m_Metadata.m_mDirectory);
-   ifs.close();
+   m_Metadata.deserialize("/", m_strHomeDir + ".tmp/master_meta.dat");
+   unlink(".tmp/master_meta.dat");
 
    s.close();
    SSLTransport::destroy();
@@ -317,7 +318,6 @@ int Master::run()
    while (m_Status == RUNNING)
    {
       sleep(60);
-
 
       // check other masters
       vector<uint32_t> tbrm;
@@ -443,7 +443,8 @@ int Master::run()
             i->second.m_llLastVoteTime = CTimer::getTime();
          }
 
-         if (i->second.m_sBadVote.size() * 2 > m_SlaveManager.m_mSlaveList.size())
+         if ((i->second.m_sBadVote.size() * 2 > m_SlaveManager.m_mSlaveList.size())
+            && (m_SysConfig.m_iReplicaNum > 1))
          {
             vector<int> trans;
             m_TransManager.retrieve(i->first, trans);
@@ -456,9 +457,7 @@ int Master::run()
             Address addr;
             addr.m_strIP = i->second.m_strIP;
             addr.m_iPort = i->second.m_iPort;
-            CGuard::enterCS(m_Metadata.m_MetaLock);
-            m_Metadata.substract(m_Metadata.m_mDirectory, addr);
-            CGuard::leaveCS(m_Metadata.m_MetaLock);
+            m_Metadata.substract("/", addr);
 
             // to be removed
             tbrs.insert(tbrs.end(), i->first);
@@ -474,9 +473,7 @@ int Master::run()
             Address addr;
             addr.m_strIP = i->second.m_strIP;
             addr.m_iPort = i->second.m_iPort;
-            CGuard::enterCS(m_Metadata.m_MetaLock);
-            m_Metadata.substract(m_Metadata.m_mDirectory, addr);
-            CGuard::leaveCS(m_Metadata.m_MetaLock);
+            m_Metadata.substract("/", addr);
 
             //remove all associated transactions and release IO locks...
             vector<int> trans;
@@ -485,7 +482,7 @@ int Master::run()
             {
                Transaction tt;
                m_TransManager.retrieve(*t, tt);
-               m_Metadata.unlock(tt.m_strFile.c_str(), tt.m_iMode);
+               m_Metadata.unlock(tt.m_strFile.c_str(), 0, tt.m_iMode);
                m_TransManager.updateSlave(*t, i->first);
             }
 
@@ -541,9 +538,7 @@ int Master::run()
          pthread_mutex_lock(&m_ReplicaLock);
          if (m_vstrToBeReplicated.empty())
          {
-            CGuard::enterCS(m_Metadata.m_MetaLock);
-            checkReplica(m_Metadata.m_mDirectory, "/", m_vstrToBeReplicated);
-            CGuard::leaveCS(m_Metadata.m_MetaLock);
+            m_Metadata.getUnderReplicated("/", m_vstrToBeReplicated, m_SysConfig.m_iReplicaNum);
          }
          if (!m_vstrToBeReplicated.empty())
             pthread_cond_signal(&m_ReplicaCond);
@@ -661,21 +656,20 @@ void* Master::serviceEx(void* p)
             mbuf = new char[msize];
             s->recv(mbuf, msize);
 
-            ofstream meta((self->m_strHomeDir + ".metadata/" + ip).c_str(), ios::out | ios::trunc);
+            ofstream meta((self->m_strHomeDir + ".tmp/" + ip + ".dat").c_str(), ios::out | ios::trunc);
             meta.write(mbuf, msize);
             meta.close();
-            map<string, SNode> branch;
-            ifstream ifs((self->m_strHomeDir + ".metadata/" + ip).c_str(), ios::in);
-            Index::deserialize(ifs, branch, &addr);
-            ifs.close();
 
-            ofstream left((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::out | ios::trunc);
-            CGuard::enterCS(self->m_Metadata.m_MetaLock);
-            Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left, self->m_SysConfig.m_iReplicaNum);
-            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
-            left.close();
+            // accept existing data on the new slave and merge it with the master metadata
+            Index2 branch;
+            branch.init(self->m_strHomeDir + ".tmp/" + ip);
+            branch.deserialize("/", self->m_strHomeDir + ".tmp/" + ip + ".dat");
+            branch.setAddr("/", addr);
+            self->m_Metadata.merge("/", self->m_strHomeDir + ".tmp/" + ip, self->m_SysConfig.m_iReplicaNum);
+            branch.serialize("/", self->m_strHomeDir + ".tmp/" + ip + ".left");
+            unlink((self->m_strHomeDir + ".tmp/" + ip + ".dat").c_str());
 
-            ifs.open((self->m_strHomeDir + ".metadata/" + ip + ".left").c_str(), ios::in);
+            ifstream ifs((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str());
             ifs.seekg(0, ios::end);
             int lsize = ifs.tellg();
             s->send((char*)&lsize, 4);
@@ -690,7 +684,7 @@ void* Master::serviceEx(void* p)
             }
             ifs.close();
 
-            sn.m_llTotalFileSize = Index::getTotalDataSize(branch);
+            sn.m_llTotalFileSize = self->m_Metadata.getTotalDataSize("/");
             s->recv((char*)&(sn.m_llAvailDiskSpace), 8);
             sn.m_llCurrMemUsed = 0;
             sn.m_llCurrCPUUsed = 0;
@@ -924,19 +918,19 @@ void* Master::serviceEx(void* p)
             }
 
             // send metadata
-            ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
-            self->m_Metadata.serialize(ofs, self->m_Metadata.m_mDirectory, 1);
-            ofs.close();
+            self->m_Metadata.serialize("/", self->m_strHomeDir + ".tmp/master_meta.dat");
+
             struct stat st;
-            stat((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), &st);
+            stat((self->m_strHomeDir + ".tmp/master_meta.dat").c_str(), &st);
             int32_t size = st.st_size;
-            ifstream meta((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
+            ifstream meta((self->m_strHomeDir + ".tmp/master_meta.dat").c_str(), ios::in);
             char* buf = new char[size];
             meta.read(buf, size);
             meta.close();
             s->send((char*)&size, 4);
             s->send(buf, size);
             delete [] buf;
+            unlink((self->m_strHomeDir + ".tmp/master_meta.dat").c_str());
 
             // send new master info to all existing masters
             for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
@@ -1085,7 +1079,7 @@ void* Master::process(void* s)
             // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
             if (t.m_iType == 0)
             {
-               self->m_Metadata.unlock(t.m_strFile.c_str(), t.m_iMode);
+               self->m_Metadata.unlock(t.m_strFile.c_str(), key, t.m_iMode);
                self->m_TransManager.updateSlave(transid, slaveid);
             }
 
@@ -1137,10 +1131,8 @@ void* Master::process(void* s)
 
             self->m_SysStat.m_llAvailDiskSpace = self->m_SlaveManager.getTotalDiskSpace();
             self->m_SysStat.m_llTotalSlaves = self->m_SlaveManager.getTotalSlaves();
-            CGuard::enterCS(self->m_Metadata.m_MetaLock);
-            self->m_SysStat.m_llTotalFileSize = Index::getTotalDataSize(self->m_Metadata.m_mDirectory);
-            self->m_SysStat.m_llTotalFileNum = Index::getTotalFileNum(self->m_Metadata.m_mDirectory);
-            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
+            self->m_SysStat.m_llTotalFileSize = self->m_Metadata.getTotalDataSize("/");
+            self->m_SysStat.m_llTotalFileNum = self->m_Metadata.getTotalFileNum("/");
 
             int size = SysStat::g_iSize + self->m_SlaveManager.m_Cluster.m_mSubCluster.size() * 48 + self->m_Routing.m_mAddressList.size() * 20 + self->m_SlaveManager.m_mSlaveList.size() * 72;
             char* buf = new char[size];
@@ -1434,7 +1426,6 @@ void* Master::process(void* s)
             }
 
             string newname = dst.substr(dst.rfind('/') + 1, dst.length());
-
             if (rt < 0)
                self->m_Metadata.move(src.c_str(), uplevel.c_str(), newname.c_str());
             else
@@ -1598,7 +1589,6 @@ void* Master::process(void* s)
             int rt = self->m_Metadata.lookup(dst.c_str(), at);
             vector<string> filelist;
             self->m_Metadata.list_r(src.c_str(), filelist);
-
             if (rs < 0)
             {
                self->reject(ip, port, id, SectorError::E_NOEXIST);
@@ -1740,13 +1730,13 @@ void* Master::process(void* s)
 
                // create the new file in the metadata, no loc info yet
                self->m_Metadata.create(path.c_str(), false);
-               self->m_Metadata.lock(path.c_str(), rwx);
+               self->m_Metadata.lock(path.c_str(), key, rwx);
             }
             else
             {
                self->m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, self->m_SysConfig.m_iReplicaNum);
 
-               r = self->m_Metadata.lock(path.c_str(), rwx);
+               r = self->m_Metadata.lock(path.c_str(), key, rwx);
                if (r < 0)
                {
                   self->reject(ip, port, id, SectorError::E_BUSY);
@@ -1840,9 +1830,7 @@ void* Master::process(void* s)
             bool notfound = false;
             while (size != -1)
             {
-               CGuard::enterCS(self->m_Metadata.m_MetaLock);
                int r = self->m_Metadata.collectDataInfo(req + offset + 4, result);
-               CGuard::leaveCS(self->m_Metadata.m_MetaLock);
 
                if (r < 0)
                {
@@ -2001,21 +1989,19 @@ void* Master::process(void* s)
             self->m_SlaveManager.insert(sn);
             self->m_SlaveManager.updateClusterStat();
 
-            ofstream ofs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out | ios::trunc);
+            ofstream ofs((self->m_strHomeDir + ".tmp/slave_meta.dat").c_str(), ios::out | ios::trunc);
             ofs.write(msg->getData() + 72, msg->m_iDataLength - 72 - SectorMsg::m_iHdrSize);
             ofs.close();
-            map<string, SNode> branch;
-            ifstream ifs((self->m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
+
+            Index2 branch;
+            branch.init(self->m_strHomeDir + ".tmp/" + sn.m_strIP);
+            branch.deserialize("/", self->m_strHomeDir + ".tmp/slave_meta.dat");
             Address addr;
             addr.m_strIP = sn.m_strIP;
             addr.m_iPort = sn.m_iPort;
-            Index::deserialize(ifs, branch, &addr);
-            ifs.close();
-            CGuard::enterCS(self->m_Metadata.m_MetaLock);
-            ofstream left((self->m_strHomeDir + ".metadata/" + addr.m_strIP + ".left").c_str(), ios::out | ios::trunc);
-            Index::merge(self->m_Metadata.m_mDirectory, branch, "/", left, self->m_SysConfig.m_iReplicaNum);
-            left.close();
-            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
+            branch.setAddr("/", addr);
+
+            self->m_Metadata.merge("/", self->m_strHomeDir + ".tmp/" + sn.m_strIP, self->m_SysConfig.m_iReplicaNum);
 
             msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
             self->m_GMP.sendto(ip, port, id, msg);
@@ -2057,9 +2043,7 @@ void* Master::process(void* s)
                Address addr;
                addr.m_strIP = s->second.m_strIP;
                addr.m_iPort = s->second.m_iPort;
-               CGuard::enterCS(self->m_Metadata.m_MetaLock);
-               self->m_Metadata.substract(self->m_Metadata.m_mDirectory, addr);
-               CGuard::leaveCS(self->m_Metadata.m_MetaLock);
+               self->m_Metadata.substract("/", addr);
             }
 
             self->m_SlaveManager.remove(sid);
@@ -2181,26 +2165,6 @@ void* Master::replica(void* s)
    }
 
    return NULL;
-}
-
-void Master::checkReplica(map<string, SNode>& currdir, const string& currpath, vector<string>& replica)
-{
-   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
-   {
-      if (!i->second.m_bIsDir)
-      {
-         if (int(i->second.m_sLocation.size()) < m_SysConfig.m_iReplicaNum)
-         {
-            string file = currpath + "/" + i->second.m_strName;
-            replica.insert(replica.end(), file + "\t" + file);
-         }
-      }
-      else
-      {
-         string path = currpath + "/" + i->second.m_strName;
-         checkReplica(i->second.m_mDirectory, path, replica);
-      }
-   }
 }
 
 int Master::createReplica(const string& src, const string& dst)

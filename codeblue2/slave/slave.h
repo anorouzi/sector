@@ -45,7 +45,7 @@ written by
 #include <gmp.h>
 #include <datachn.h>
 #include <conf.h>
-#include <index.h>
+#include <index2.h>
 #include <log.h>
 #include <sphere.h>
 #include <routing.h>
@@ -306,7 +306,7 @@ private:
 
    std::string m_strBase;               // the local directory that stores Sector configuration files
    SlaveConf m_SysConfig;		// system configuration
-   Index m_LocalFile;			// local file index
+   Index2 m_LocalFile;			// local file index
    SlaveStat m_SlaveStat;		// slave statistics
    SectorLog m_SectorLog;		// slave log
 

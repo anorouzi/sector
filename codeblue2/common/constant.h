@@ -55,6 +55,7 @@ public:
    static const int E_BUSY = -1004;		// file busy
    static const int E_LOCALFILE = -1005;	// local file failure
    static const int E_NOEMPTY = -1006;          // directory is not empty (for rmdir)
+   static const int E_NOTDIR = -1007;		// directory does not exist or not a directory
    static const int E_SECURITY = -2000;		// security check failed
    static const int E_NOCERT = -2001;		// no certificate found
    static const int E_ACCOUNT = -2002;		// account does not exist

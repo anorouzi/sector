@@ -47,7 +47,7 @@ written by
 #include <log.h>
 #include <sysstat.h>
 #include <conf.h>
-#include <index.h>
+#include <index2.h>
 #include <vector>
 #include <ssltransport.h>
 #include <topology.h>
@@ -117,7 +117,7 @@ private:
    int m_iMaxActiveUser;				// maximum number of active users allowed
    std::map<int, ActiveUser> m_mActiveUser;		// list of active users
 
-   Index m_Metadata;					// in-memory metadata
+   Index2 m_Metadata;					// metadata
    SlaveManager m_SlaveManager;				// slave management
    TransManager m_TransManager;				// transaction management
 

@@ -35,12 +35,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/12/2009
+   Yunhong Gu, last updated 09/10/2009
 *****************************************************************************/
 
 
-#ifndef __SECTOR_INDEX_H__
-#define __SECTOR_INDEX_H__
+#ifndef __SECTOR_INDEX2_H__
+#define __SECTOR_INDEX2_H__
 
 #include <string>
 #include <vector>
@@ -50,14 +50,17 @@ written by
 #include <topology.h>
 #include <snode.h>
 
-class Index
+
+class Index2
 {
 friend class Master;
 friend class Slave;
 
 public:
-   Index();
-   ~Index();
+   Index2();
+   ~Index2();
+
+   void init(const std::string& path);
 
 public:
    int list(const char* path, std::vector<std::string>& filelist);
@@ -92,17 +95,16 @@ public:
    int utime(const char* path, const int64_t& ts);
 
 public:
-   int lock(const char* path, int mode);
-   int unlock(const char* path, int mode);
+   int lock(const char* path, const int user, int mode);
+   int unlock(const char* path, const int user, int mode);
 
 public:
-   static int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
-   static int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address* addr = NULL);
-   static int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
+   int serialize(const std::string& path, const std::string& dstfile);
+   int deserialize(const std::string& path, const std::string& srcfile);
+   int setAddr(const std::string& path, const Address& addr);
+   int scan(const std::string& data, const std::string& meta);
 
 public:
-   // NOTE: This set of function requires external mutex protection
-
       // Functionality:
       //    merge a slave's index with the system file index.
       // Parameters:
@@ -114,23 +116,28 @@ public:
       // Returned value:
       //    1 on success, or -1 on error.
 
-   static int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch, std::string path, std::ofstream& left, const unsigned int& replica);
-   static int substract(std::map<std::string, SNode>& currdir, const Address& addr);
+   int merge(const std::string& prefix, const std::string& path, const unsigned int& replica);
+   int substract(const std::string& path, const Address& addr);
 
-   static int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);
-   static int64_t getTotalFileNum(std::map<std::string, SNode>& currdir);
+   int64_t getTotalDataSize(const std::string& path);
+   int64_t getTotalFileNum(const std::string& path);
 
-   int collectDataInfo(const char* file, std::vector<std::string>& result);
+   int collectDataInfo(const std::string& path, std::vector<std::string>& result);
+
+   int getUnderReplicated(const std::string& path, std::vector<std::string>& replica, const int& thresh);
 
 public:
    static int parsePath(const char* path, std::vector<std::string>& result);
 
 private:
-   static int list_r(std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist);
+   std::string m_strMetaPath;
 
-private:
-   std::map<std::string, SNode> m_mDirectory;
-   pthread_mutex_t m_MetaLock;
+   struct LockSet
+   {
+      std::set<int> m_sReadLock;
+      std::set<int> m_sWriteLock;
+   };
+   std::map<std::string, LockSet> m_mLock;
 };
 
 #endif

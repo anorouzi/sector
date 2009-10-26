@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/09/2009
+   Yunhong Gu, last updated 10/17/2009
 *****************************************************************************/
 
 
@@ -108,11 +108,8 @@ int Slave::init(const char* base)
    system((string("cp ") + m_strBase + "/sphere/*.so "  + m_strHomeDir + "/.sphere/perm/").c_str());
 
    cout << "scanning " << m_strHomeDir << endl;
-   m_LocalFile.scan(m_strHomeDir.c_str(), m_LocalFile.m_mDirectory);
-
-   ofstream ofs((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::out);
-   m_LocalFile.serialize(ofs, m_LocalFile.m_mDirectory, 1);
-   ofs.close();
+   m_LocalFile.init(m_SysConfig.m_strHomeDir + ".metadata");
+   m_LocalFile.scan(m_strHomeDir.c_str(), "/");
 
    srand(CTimer::getTime());
 
@@ -161,17 +158,19 @@ int Slave::connect()
    secconn.send((char*)&m_iLocalPort, 4);
    secconn.send((char*)&port, 4);
 
+   m_LocalFile.serialize("/", m_strHomeDir + ".tmp/metadata.dat");
    struct stat s;
-   stat((m_strHomeDir + ".metadata/metadata.txt").c_str(), &s);
+   stat((m_strHomeDir + ".tmp/metadata.dat").c_str(), &s);
    int32_t size = s.st_size;
 
-   ifstream meta((m_strHomeDir + ".metadata/metadata.txt").c_str(), ios::in);
+   ifstream meta((m_strHomeDir + ".tmp/metadata.dat").c_str(), ios::in);
    char* buf = new char[size];
    meta.read(buf, size);
    meta.close();
    secconn.send((char*)&size, 4);
    secconn.send(buf, size);
    delete [] buf;
+//   unlink((m_strHomeDir + ".tmp/metadata.dat").c_str());
 
    // move out-of-date files to the ".attic" directory
    secconn.recv((char*)&size, 4);
@@ -179,10 +178,11 @@ int Slave::connect()
    {
       buf = new char[size];
       secconn.recv(buf, size);
-      ofstream left((m_strHomeDir + ".metadata/metadata.left.txt").c_str(), ios::out);
+      ofstream left((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), ios::out);
       left.write(buf, size);
       left.close();
-      ifstream ifs((m_strHomeDir + ".metadata/metadata.left.txt").c_str(), ios::in);
+/*
+      ifstream ifs((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), ios::in);
       while (!ifs.eof())
       {
          char tmp[65536];
@@ -191,7 +191,8 @@ int Slave::connect()
             move(tmp, ".attic/", "");
       }
       ifs.close();
-
+      unlink((m_strHomeDir + ".tmp/metadata.left.dat").c_str());
+*/
       m_SectorLog.insert("WARNING: certain files have been moved to ./attic due to conflicts.");
    }
 
@@ -268,7 +269,7 @@ void Slave::run()
             struct statfs64 slavefs;
             statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
             m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
-            m_SlaveStat.m_llDataSize = Index::getTotalDataSize(m_LocalFile.m_mDirectory);
+            m_SlaveStat.m_llDataSize = m_LocalFile.getTotalDataSize("/");
 
             m_SlaveStat.refresh();
 
@@ -590,7 +591,7 @@ int Slave::reportSphere(const string& master_ip, const int& master_port, const i
 int Slave::createDir(const string& path)
 {
    vector<string> dir;
-   Index::parsePath(path.c_str(), dir);
+   Index2::parsePath(path.c_str(), dir);
 
    string currpath = m_strHomeDir;
    for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
@@ -614,7 +615,7 @@ int Slave::createSysDir()
          return -1;
 
       vector<string> dir;
-      Index::parsePath(m_strHomeDir.c_str(), dir);
+      Index2::parsePath(m_strHomeDir.c_str(), dir);
 
       string currpath = "/";
       for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
@@ -634,6 +635,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".metadata/*").c_str());
 
    test = opendir((m_strHomeDir + ".sphere").c_str());
    if (NULL == test)
@@ -651,7 +653,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/perm/*").c_str());
+   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/perm/*").c_str());
 
    test = opendir((m_strHomeDir + ".tmp").c_str());
    if (NULL == test)
