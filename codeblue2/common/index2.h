@@ -138,6 +138,8 @@ private:
       std::set<int> m_sWriteLock;
    };
    std::map<std::string, LockSet> m_mLock;
+
+   pthread_mutex_t m_MetaLock;
 };
 
 #endif

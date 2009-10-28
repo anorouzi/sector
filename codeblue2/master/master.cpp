@@ -295,15 +295,9 @@ int Master::join(const char* ip, const int& port)
    }
 
    // recv metadata
-   char* mbuf = NULL;
    int size = 0;
    s.recv((char*)&size, 4);
-   mbuf = new char[size];
-   s.recv(mbuf, size);;
-   ofstream ofs((m_strHomeDir + ".tmp/master_meta.dat").c_str(), ios::out | ios::trunc);
-   ofs.write(mbuf, size);
-   ofs.close();
-   delete [] mbuf;
+   s.recvfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
    m_Metadata.deserialize("/", m_strHomeDir + ".tmp/master_meta.dat");
    unlink(".tmp/master_meta.dat");
 
@@ -645,95 +639,73 @@ void* Master::serviceEx(void* p)
             sn.m_iRetryNum = 0;
             sn.m_llLastVoteTime = CTimer::getTime();
 
-            Address addr;
-            addr.m_strIP = ip;
-            addr.m_iPort = sn.m_iPort;
+            s->recv((char*)&(sn.m_llAvailDiskSpace), 8);
+
+            int id;
+            s->recv((char*)&id, 4);
+            if (id > 0)
+               sn.m_iNodeID = id;
 
             int32_t msize = 0;
             s->recv((char*)&msize, 4);
+            s->recvfile((self->m_strHomeDir + ".tmp/" + ip + ".dat").c_str(), 0, msize);
 
-            char* mbuf = NULL;
-            mbuf = new char[msize];
-            s->recv(mbuf, msize);
-
-            ofstream meta((self->m_strHomeDir + ".tmp/" + ip + ".dat").c_str(), ios::out | ios::trunc);
-            meta.write(mbuf, msize);
-            meta.close();
+            Address addr;
+            addr.m_strIP = ip;
+            addr.m_iPort = sn.m_iPort;
 
             // accept existing data on the new slave and merge it with the master metadata
             Index2 branch;
             branch.init(self->m_strHomeDir + ".tmp/" + ip);
             branch.deserialize("/", self->m_strHomeDir + ".tmp/" + ip + ".dat");
             branch.setAddr("/", addr);
+            CGuard::enterCS(self->m_Metadata.m_MetaLock);
             self->m_Metadata.merge("/", self->m_strHomeDir + ".tmp/" + ip, self->m_SysConfig.m_iReplicaNum);
-            branch.serialize("/", self->m_strHomeDir + ".tmp/" + ip + ".left");
+            CGuard::leaveCS(self->m_Metadata.m_MetaLock);
             unlink((self->m_strHomeDir + ".tmp/" + ip + ".dat").c_str());
 
-            ifstream ifs((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str());
-            ifs.seekg(0, ios::end);
-            int lsize = ifs.tellg();
-            s->send((char*)&lsize, 4);
-            if (lsize > 0)
-            {
-               char* lbuf = NULL;
-               lbuf = new char[lsize];
-               ifs.seekg(0);
-               ifs.read(lbuf, lsize);
-               s->send(lbuf, lsize);
-               delete [] lbuf;
-            }
-            ifs.close();
-
             sn.m_llTotalFileSize = self->m_Metadata.getTotalDataSize("/");
-            s->recv((char*)&(sn.m_llAvailDiskSpace), 8);
+
             sn.m_llCurrMemUsed = 0;
             sn.m_llCurrCPUUsed = 0;
             sn.m_llTotalInputData = 0;
             sn.m_llTotalOutputData = 0;
 
-            // the slave manager will assign a unique ID to the new node
             self->m_SlaveManager.insert(sn);
             self->m_SlaveManager.updateClusterStat();
 
-            s->send((char*)&sn.m_iNodeID, 4);
-
-            // send the list of masters to the new slave
-            s->send((char*)&self->m_iRouterKey, 4);
-            int num = self->m_Routing.m_mAddressList.size() - 1;
-            s->send((char*)&num, 4);
-            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            if (id < 0)
             {
-               if (i->first == self->m_iRouterKey)
-                  continue;
+               //this is the first master that the slave connect to; send these information to the slave
 
-               s->send((char*)&i->first, 4);
-               int size = i->second.m_strIP.length() + 1;
+               branch.serialize("/", self->m_strHomeDir + ".tmp/" + ip + ".left");
+               struct stat st;
+               stat((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str(), &st);
+               int32_t size = st.st_size;
                s->send((char*)&size, 4);
-               s->send(i->second.m_strIP.c_str(), size);
-               s->send((char*)&i->second.m_iPort, 4);
+               if (size > 0)
+                  s->sendfile((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
+
+               // send the list of masters to the new slave
+               s->send((char*)&self->m_iRouterKey, 4);
+               int num = self->m_Routing.m_mAddressList.size() - 1;
+               s->send((char*)&num, 4);
+               for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+               {
+                  if (i->first == self->m_iRouterKey)
+                     continue;
+
+                  s->send((char*)&i->first, 4);
+                  int size = i->second.m_strIP.length() + 1;
+                  s->send((char*)&size, 4);
+                  s->send(i->second.m_strIP.c_str(), size);
+                  s->send((char*)&i->second.m_iPort, 4);
+               }
             }
 
             char text[64];
             sprintf(text, "Slave node %s:%d joined.", ip.c_str(), sn.m_iPort);
             self->m_SectorLog.insert(text);
-
-            // send new slave info to all existing masters
-            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
-            {
-               if (i->first == self->m_iRouterKey)
-                  continue;
-
-               SectorMsg msg;
-               msg.setKey(0);
-               msg.setType(1002);
-               msg.setData(0, sn.m_strIP.c_str(), sn.m_strIP.length() + 1);
-               msg.setData(64, (char*)&sn.m_iPort, 4);
-               msg.setData(68, (char*)&sn.m_iDataPort, 4);
-               msg.setData(72, mbuf, msize);
-               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
-            }
-
-            delete [] mbuf;
          }
          else
          {
@@ -923,13 +895,8 @@ void* Master::serviceEx(void* p)
             struct stat st;
             stat((self->m_strHomeDir + ".tmp/master_meta.dat").c_str(), &st);
             int32_t size = st.st_size;
-            ifstream meta((self->m_strHomeDir + ".tmp/master_meta.dat").c_str(), ios::in);
-            char* buf = new char[size];
-            meta.read(buf, size);
-            meta.close();
             s->send((char*)&size, 4);
-            s->send(buf, size);
-            delete [] buf;
+            s->sendfile((self->m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
             unlink((self->m_strHomeDir + ".tmp/master_meta.dat").c_str());
 
             // send new master info to all existing masters
@@ -1977,34 +1944,6 @@ void* Master::process(void* s)
 
          case 1002: // new slave
          {
-            SlaveNode sn;
-            sn.m_strIP = msg->getData();
-            sn.m_iPort = *(int32_t*)(msg->getData() + 64);
-            sn.m_iDataPort = *(int32_t*)(msg->getData() + 68);
-            sn.m_llCurrMemUsed = 0;
-            sn.m_llCurrCPUUsed = 0;
-            sn.m_llTotalInputData = 0;
-            sn.m_llTotalOutputData = 0;
-
-            self->m_SlaveManager.insert(sn);
-            self->m_SlaveManager.updateClusterStat();
-
-            ofstream ofs((self->m_strHomeDir + ".tmp/slave_meta.dat").c_str(), ios::out | ios::trunc);
-            ofs.write(msg->getData() + 72, msg->m_iDataLength - 72 - SectorMsg::m_iHdrSize);
-            ofs.close();
-
-            Index2 branch;
-            branch.init(self->m_strHomeDir + ".tmp/" + sn.m_strIP);
-            branch.deserialize("/", self->m_strHomeDir + ".tmp/slave_meta.dat");
-            Address addr;
-            addr.m_strIP = sn.m_strIP;
-            addr.m_iPort = sn.m_iPort;
-            branch.setAddr("/", addr);
-
-            self->m_Metadata.merge("/", self->m_strHomeDir + ".tmp/" + sn.m_strIP, self->m_SysConfig.m_iReplicaNum);
-
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 

@@ -279,6 +279,7 @@ private:
    int createSysDir();
    std::string reviseSysCmdPath(const std::string& path);
    int move(const std::string& src, const std::string& dst, const std::string& newname);
+   int move2Attic(const std::string& path, const std::string& meta);
 
 private:
    int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int& change = 0);
@@ -293,6 +294,7 @@ private:
 
    CGMP m_GMP;				// GMP messenger
    DataChn m_DataChn;			// data exchange channel
+   int m_iDataPort;			// data channel port
 
    std::string m_strLocalHost;		// local host IP address
    int m_iLocalPort;			// local port number

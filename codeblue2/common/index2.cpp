@@ -56,10 +56,12 @@ using namespace std;
 Index2::Index2():
 m_strMetaPath("/tmp")
 {
+   pthread_mutex_init(&m_MetaLock, NULL);
 }
 
 Index2::~Index2()
 {
+   pthread_mutex_destroy(&m_MetaLock);
 }
 
 void Index2::init(const string& path)
@@ -409,7 +411,6 @@ int Index2::serialize(const string& path, const string& dstfile)
 {
    string cmd = string("cd ") + m_strMetaPath + "; tar -zcf " + dstfile + " ." + path;
    system(cmd.c_str());
-
    return 0;
 }
 
@@ -420,7 +421,6 @@ int Index2::deserialize(const string& path, const string& srcfile)
 
    cmd = string("cd ") + m_strMetaPath + "/" + path + "; tar -zxf " + srcfile;
    system(cmd.c_str());
-
    return 0;
 }
 

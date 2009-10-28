@@ -52,9 +52,12 @@ written by
 
 using namespace std;
 
-Slave::Slave()
+Slave::Slave():
+m_iSlaveID(-1),
+m_iDataPort(0),
+m_iLocalPort(0),
+m_strBase("./")
 {
-   m_strBase = "./";
 }
 
 Slave::~Slave()
@@ -125,109 +128,128 @@ int Slave::connect()
 
    string cert = m_strBase + "/../conf/master_node.cert";
 
-   SSLTransport secconn;
-   secconn.initClientCTX(cert.c_str());
-   secconn.open(NULL, 0);
-   if (secconn.connect(m_strMasterHost.c_str(), m_iMasterPort) < 0)
-   {
-      cerr << "unable to set up secure channel to the master.\n";
-      return -1;
-   }
-
-   secconn.getLocalIP(m_strLocalHost);
-
-   // init data exchange channel
-   int32_t port = 0;
-   if (m_DataChn.init(m_strLocalHost, port) < 0)
-   {
-      cerr << "unable to create data channel.\n";
-      secconn.close();
-      return -1;
-   }
-
-   int cmd = 1;
-   secconn.send((char*)&cmd, 4);
-   int res = -1;
-   secconn.recv((char*)&res, 4);
-   if (res < 0)
-   {
-      cerr << "security check failed. code: " << res << endl;
-      return -1;
-   }
-
-   secconn.send((char*)&m_iLocalPort, 4);
-   secconn.send((char*)&port, 4);
-
-   m_LocalFile.serialize("/", m_strHomeDir + ".tmp/metadata.dat");
-   struct stat s;
-   stat((m_strHomeDir + ".tmp/metadata.dat").c_str(), &s);
-   int32_t size = s.st_size;
-
-   ifstream meta((m_strHomeDir + ".tmp/metadata.dat").c_str(), ios::in);
-   char* buf = new char[size];
-   meta.read(buf, size);
-   meta.close();
-   secconn.send((char*)&size, 4);
-   secconn.send(buf, size);
-   delete [] buf;
-//   unlink((m_strHomeDir + ".tmp/metadata.dat").c_str());
-
-   // move out-of-date files to the ".attic" directory
-   secconn.recv((char*)&size, 4);
-   if (size > 0)
-   {
-      buf = new char[size];
-      secconn.recv(buf, size);
-      ofstream left((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), ios::out);
-      left.write(buf, size);
-      left.close();
-/*
-      ifstream ifs((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), ios::in);
-      while (!ifs.eof())
-      {
-         char tmp[65536];
-         ifs.getline(tmp, 65536);
-         if (strlen(tmp) > 0)
-            move(tmp, ".attic/", "");
-      }
-      ifs.close();
-      unlink((m_strHomeDir + ".tmp/metadata.left.dat").c_str());
-*/
-      m_SectorLog.insert("WARNING: certain files have been moved to ./attic due to conflicts.");
-   }
-
    // calculate total available disk size
    struct statfs64 slavefs;
    statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
    int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
-   secconn.send((char*)&(availdisk), 8);
 
-   secconn.recv((char*)&m_iSlaveID, 4);
+   m_iSlaveID = -1;
 
-   Address addr;
-   int id = 0;
-   secconn.recv((char*)&id, 4);
-   addr.m_strIP = m_strMasterIP;
-   addr.m_iPort = m_iMasterPort;
-   m_Routing.insert(id, addr);
+   m_LocalFile.serialize("/", m_strHomeDir + ".tmp/metadata.dat");
 
-   int num;
-   secconn.recv((char*)&num, 4);
-   for (int i = 0; i < num; ++ i)
+   set<Address, AddrComp> masters;
+   Address m;
+   m.m_strIP = m_strMasterHost;
+   m.m_iPort = m_iMasterPort;
+   masters.insert(m);
+   bool first = true;
+
+   while (!masters.empty())
    {
-      char ip[64];
-      int size = 0;
-      secconn.recv((char*)&id, 4);
-      secconn.recv((char*)&size, 4);
-      secconn.recv(ip, size);
-      addr.m_strIP = ip;
-      secconn.recv((char*)&addr.m_iPort, 4);
+      string mip = masters.begin()->m_strIP;
+      int mport = masters.begin()->m_iPort;
+      masters.erase(masters.begin());
 
+      SSLTransport secconn;
+      secconn.initClientCTX(cert.c_str());
+      secconn.open(NULL, 0);
+      if (secconn.connect(mip.c_str(), mport) < 0)
+      {
+         cerr << "unable to set up secure channel to the master.\n";
+         return -1;
+      }
+
+      if (first)
+      {
+         secconn.getLocalIP(m_strLocalHost);
+
+         // init data exchange channel
+         m_iDataPort = 0;
+         if (m_DataChn.init(m_strLocalHost, m_iDataPort) < 0)
+         {
+            cerr << "unable to create data channel.\n";
+            secconn.close();
+            return -1;
+         }
+      }
+
+      int cmd = 1;
+      secconn.send((char*)&cmd, 4);
+      int res = -1;
+      secconn.recv((char*)&res, 4);
+      if (res < 0)
+      {
+         cerr << "security check failed. code: " << res << endl;
+         return -1;
+      }
+
+      secconn.send((char*)&m_iLocalPort, 4);
+      secconn.send((char*)&m_iDataPort, 4);
+      secconn.send((char*)&(availdisk), 8);
+      secconn.send((char*)&(m_iSlaveID), 4);
+
+      if (first)
+         m_iSlaveID = res;
+
+      struct stat s;
+      stat((m_strHomeDir + ".tmp/metadata.dat").c_str(), &s);
+      int32_t size = s.st_size;
+      secconn.send((char*)&size, 4);
+      secconn.sendfile((m_strHomeDir + ".tmp/metadata.dat").c_str(), 0, size);
+
+      if (!first)
+      {
+         secconn.close();
+         continue;
+      }
+
+      // move out-of-date files to the ".attic" directory
+      secconn.recv((char*)&size, 4);
+      if (size > 0)
+      {
+         secconn.recvfile((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), 0, size);
+
+         Index2 attic;
+         attic.init(m_strHomeDir + ".tmp/metadata.left");
+         attic.deserialize("/", m_strHomeDir + ".tmp/metadata.left.dat");
+         unlink((m_strHomeDir + ".tmp/metadata.left.dat").c_str());
+
+         move2Attic(m_strHomeDir + ".tmp/metadata.left", "/");
+
+         m_SectorLog.insert("WARNING: certain files have been moved to ./attic due to conflicts.");
+      }
+
+      int id = 0;
+      secconn.recv((char*)&id, 4);
+      Address addr;
+      addr.m_strIP = mip;
+      addr.m_iPort = mport;
       m_Routing.insert(id, addr);
+
+      int num;
+      secconn.recv((char*)&num, 4);
+      for (int i = 0; i < num; ++ i)
+      {
+         char ip[64];
+         int size = 0;
+         secconn.recv((char*)&id, 4);
+         secconn.recv((char*)&size, 4);
+         secconn.recv(ip, size);
+         addr.m_strIP = ip;
+         secconn.recv((char*)&addr.m_iPort, 4);
+
+         m_Routing.insert(id, addr);
+
+         masters.insert(addr);
+      }
+
+      first = false;
+      secconn.close();
    }
 
-   secconn.close();
    SSLTransport::destroy();
+
+   unlink((m_strHomeDir + ".tmp/metadata.dat").c_str());
 
    // initialize slave statistics
    m_SlaveStat.init();
@@ -863,4 +885,35 @@ void Slave::logError(int type, const string& ip, const int& port, const string& 
 
    m_SectorLog.insert(tmp);
    delete [] tmp;
+}
+
+int Slave::move2Attic(const string& path, const string& meta)
+{
+   dirent **namelist;
+   int n = scandir((path + "/" + meta).c_str(), &namelist, 0, alphasort);
+
+   if (n < 0)
+      return -1;
+
+   for (int i = 0; i < n; ++ i)
+   {
+      // skip system directory
+      if (namelist[i]->d_name[0] == '.')
+      {
+         free(namelist[i]);
+         continue;
+      }
+
+      struct stat s;
+      stat((path + "/" + meta).c_str(), &s);
+      if (!S_ISDIR(s.st_mode))
+         move(meta + "/" + namelist[i]->d_name, ".attic", "");
+      else
+         move2Attic(path, meta + "/" + namelist[i]->d_name);
+
+      free(namelist[i]);
+   }
+   free(namelist);
+
+   return 0;
 }

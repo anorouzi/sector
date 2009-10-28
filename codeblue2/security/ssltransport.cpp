@@ -46,6 +46,7 @@ written by
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <constant.h>
+#include <fstream>
 #include "ssltransport.h"
 
 #include <iostream>
@@ -251,6 +252,53 @@ int SSLTransport::recv(char* data, const int& size)
       tr -= r;
    }
    return size;
+}
+
+int64_t SSLTransport::sendfile(const char* file, const int64_t& offset, const int64_t& size)
+{
+   ifstream ifs(file, ios::in | ios::binary);
+
+   if (ifs.bad() || ifs.fail())
+      return -1;
+
+   int block = 1000000;
+   char* buf = new char[block];
+   int64_t sent = 0;
+   while (sent < size)
+   {
+      int unit = (size - sent) > block ? block : size - sent;
+      ifs.read(buf, unit);
+      send(buf, unit);
+      sent += unit;
+   }
+
+   delete [] buf;
+   ifs.close();
+
+   return sent;
+}
+
+int64_t SSLTransport::recvfile(const char* file, const int64_t& offset, const int64_t& size)
+{
+   fstream ofs(file, ios::out | ios::binary);
+
+   if (ofs.bad() || ofs.fail())
+      return -1;
+
+   int block = 1000000;
+   char* buf = new char[block];
+   int64_t recd = 0;
+   while (recd < size)
+   {
+      int unit = (size - recd) > block ? block : size - recd;
+      recv(buf, unit);
+      ofs.write(buf, unit);
+      recd += unit;
+   }
+
+   delete [] buf;
+   ofs.close();
+   return recd;
 }
 
 int SSLTransport::getLocalIP(string& ip)

@@ -69,6 +69,9 @@ public:
    int send(const char* data, const int& size);
    int recv(char* data, const int& size);
 
+   int64_t sendfile(const char* file, const int64_t& offset, const int64_t& size);
+   int64_t recvfile(const char* file, const int64_t& offset, const int64_t& size);
+
    int getLocalIP(std::string& ip);
 
 private:

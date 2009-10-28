@@ -101,7 +101,6 @@ private:
    std::vector<std::string> m_vstrToBeReplicated;	// list of files to be replicated/copied
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
-   void checkReplica(std::map<std::string, SNode>& currdir, const std::string& currpath, std::vector<std::string>& replica);
    int createReplica(const std::string& src, const std::string& dst);
 
 private:
