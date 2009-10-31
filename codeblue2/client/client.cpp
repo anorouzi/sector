@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/19/2009
+   Yunhong Gu, last updated 10/29/2009
 *****************************************************************************/
 
 
@@ -60,6 +60,15 @@ unsigned char Client::g_pcCryptoKey[16];
 unsigned char Client::g_pcCryptoIV[8];
 StatCache Client::g_StatCache;
 Routing Client::g_Routing;
+string Client::g_strUsername = "";
+string Client::g_strPassword = "";
+string Client::g_strCert = "";
+set<Address, AddrComp> Client::g_sMasters;
+bool Client::g_bActive = false;
+pthread_t Client::g_KeepAlive;
+pthread_cond_t Client::g_KACond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t Client::g_KALock = PTHREAD_MUTEX_INITIALIZER;
+
 
 Client::Client()
 {
@@ -103,6 +112,9 @@ int Client::init(const string& server, const int& port)
       return -1;
    }
 
+   g_bActive = true;
+   pthread_create(&g_KeepAlive, NULL, keepAlive, NULL);
+
    return 1;
 }
 
@@ -142,6 +154,7 @@ int Client::login(const string& username, const string& password, const char* ce
    strncpy(buf, password.c_str(), 128);
    secconn.send(buf, 128);
 
+   secconn.send((char*)&g_iKey, 4);
    secconn.recv((char*)&g_iKey, 4);
    if (g_iKey < 0)
       return SectorError::E_SECURITY;
@@ -170,6 +183,7 @@ int Client::login(const string& username, const string& password, const char* ce
    addr.m_strIP = g_strServerIP;
    addr.m_iPort = g_iServerPort;
    g_Routing.insert(key, addr);
+   g_sMasters.insert(addr);
 
    int num;
    secconn.recv((char*)&num, 4);
@@ -185,21 +199,96 @@ int Client::login(const string& username, const string& password, const char* ce
       g_Routing.insert(key, addr);
    }
 
+   int32_t tmp;
+   secconn.recv((char*)&tmp, 4);
+
    secconn.close();
    SSLTransport::destroy();
+
+   g_strUsername = username;
+   g_strPassword = password;
+   g_strCert = master_cert;
 
    return g_iKey;
 }
 
+int Client::login(const string& serv_ip, const int& serv_port)
+{
+   Address addr;
+   addr.m_strIP = serv_ip;
+   addr.m_iPort = serv_port;
+   if (g_sMasters.find(addr) != g_sMasters.end())
+      return 0;
+
+   if (g_iKey < 0)
+      return -1;
+
+   SSLTransport::init();
+
+   int result;
+   SSLTransport secconn;
+   if ((result = secconn.initClientCTX(g_strCert.c_str())) < 0)
+      return result;
+   if ((result = secconn.open(NULL, 0)) < 0)
+      return result;
+
+   if ((result = secconn.connect(serv_ip.c_str(), serv_port)) < 0)
+   {
+      cerr << "cannot set up secure connection to the master.\n";
+      return result;
+   }
+
+   int cmd = 2;
+   secconn.send((char*)&cmd, 4);
+
+   // send username and password
+   char buf[128];
+   strncpy(buf, g_strUsername.c_str(), 64);
+   secconn.send(buf, 64);
+   strncpy(buf, g_strPassword.c_str(), 128);
+   secconn.send(buf, 128);
+
+   secconn.send((char*)&g_iKey, 4);
+   int32_t key = -1;
+   secconn.recv((char*)&key, 4);
+   if (key < 0)
+      return SectorError::E_SECURITY;
+
+   int32_t port = g_GMP.getPort();
+   secconn.send((char*)&port, 4);
+   port = g_DataChn.getPort();
+   secconn.send((char*)&port, 4);
+
+   // send encryption key/iv
+   secconn.send((char*)g_pcCryptoKey, 16);
+   secconn.send((char*)g_pcCryptoIV, 8);
+
+   int32_t tmp;
+   secconn.recv((char*)&tmp, 4);
+
+   secconn.close();
+   SSLTransport::destroy();
+
+   g_sMasters.insert(addr);
+
+   return 0;
+}
+
 int Client::logout()
 {
-   SectorMsg msg;
-   msg.setKey(g_iKey);
-   msg.setType(2);
-   msg.m_iDataLength = SectorMsg::m_iHdrSize;
-   int r = g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg);
+   for (set<Address, AddrComp>::iterator i = g_sMasters.begin(); i != g_sMasters.end(); ++ i)
+   {
+      SectorMsg msg;
+      msg.setKey(g_iKey);
+      msg.setType(2);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize;
+      g_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
+   }
+
+   g_sMasters.clear();
+
    g_iKey = 0;
-   return r;
+   return 0;
 }
 
 int Client::close()
@@ -208,6 +297,10 @@ int Client::close()
    {
       if (g_iKey > 0)
          logout();
+
+      g_bActive = false;
+      pthread_cond_signal(&g_KACond);
+      pthread_join(g_KeepAlive, NULL);
 
       g_strServerHost = "";
       g_strServerIP = "";
@@ -231,6 +324,8 @@ int Client::list(const string& path, vector<SNode>& attr)
 
    Address serv;
    g_Routing.lookup(revised_path, serv);
+   login(serv.m_strIP, serv.m_iPort);
+
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -264,6 +359,7 @@ int Client::stat(const string& path, SNode& attr)
 
    Address serv;
    g_Routing.lookup(revised_path, serv);
+   login(serv.m_strIP, serv.m_iPort);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -301,6 +397,7 @@ int Client::mkdir(const string& path)
 
    Address serv;
    g_Routing.lookup(revised_path, serv);
+   login(serv.m_strIP, serv.m_iPort);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -329,6 +426,7 @@ int Client::move(const string& oldpath, const string& newpath)
 
    Address serv;
    g_Routing.lookup(src, serv);
+   login(serv.m_strIP, serv.m_iPort);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -350,6 +448,8 @@ int Client::remove(const string& path)
 
    Address serv;
    g_Routing.lookup(revised_path, serv);
+   login(serv.m_strIP, serv.m_iPort);
+
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -401,6 +501,7 @@ int Client::copy(const string& src, const string& dst)
 
    Address serv;
    g_Routing.lookup(rsrc, serv);
+   login(serv.m_strIP, serv.m_iPort);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -423,6 +524,7 @@ int Client::utime(const string& path, const int64_t& ts)
 
    Address serv;
    g_Routing.lookup(revised_path, serv);
+   login(serv.m_strIP, serv.m_iPort);
 
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -474,6 +576,8 @@ int Client::sysinfo(SysStat& sys)
 
    Address serv;
    g_Routing.lookup(g_iKey, serv);
+   login(serv.m_strIP, serv.m_iPort);
+
    if (g_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -532,4 +636,33 @@ int Client::updateMasters()
    }
 
    return -1;
+}
+
+void* Client::keepAlive(void*)
+{
+   while (g_bActive)
+   {
+      timeval t;
+      gettimeofday(&t, NULL);
+      timespec ts;
+      ts.tv_sec  = t.tv_sec + 60 * 10;
+      ts.tv_nsec = t.tv_usec * 1000;
+
+      pthread_cond_timedwait(&g_KACond, &g_KALock, &ts);
+
+      if (!g_bActive)
+         break;
+
+      for (set<Address, AddrComp>::iterator i = g_sMasters.begin(); i != g_sMasters.end(); ++ i)
+      {
+         // send keep-alive msg to each logged in master
+         SectorMsg msg;
+         msg.setKey(g_iKey);
+         msg.setType(6);
+         msg.m_iDataLength = SectorMsg::m_iHdrSize;
+         g_GMP.rpc(g_strServerIP.c_str(), g_iServerPort, &msg, &msg);
+      }
+   }
+
+   return NULL;
 }

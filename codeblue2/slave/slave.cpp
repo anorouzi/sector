@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/17/2009
+   Yunhong Gu, last updated 10/29/2009
 *****************************************************************************/
 
 
@@ -139,7 +139,7 @@ int Slave::connect()
 
    set<Address, AddrComp> masters;
    Address m;
-   m.m_strIP = m_strMasterHost;
+   m.m_strIP = m_strMasterIP;
    m.m_iPort = m_iMasterPort;
    masters.insert(m);
    bool first = true;

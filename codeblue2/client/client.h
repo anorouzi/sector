@@ -61,6 +61,7 @@ public:
 public:
    static int init(const std::string& server, const int& port);
    static int login(const std::string& username, const std::string& password, const char* cert = NULL);
+   static int login(const std::string& serv_ip, const int& serv_port);
    static int logout();
    static int close();
 
@@ -105,6 +106,19 @@ private:
 
 protected: // master routing
    static Routing g_Routing;
+
+protected:
+   static std::string g_strUsername;
+   static std::string g_strPassword;
+   static std::string g_strCert;
+
+   static std::set<Address, AddrComp> g_sMasters;
+
+   static bool g_bActive;
+   static pthread_t g_KeepAlive;
+   static pthread_cond_t g_KACond;
+   static pthread_mutex_t g_KALock;
+   static void* keepAlive(void*);
 };
 
 typedef Client Sector;

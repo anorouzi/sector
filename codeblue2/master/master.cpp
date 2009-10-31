@@ -388,7 +388,6 @@ int Master::run()
       // check each users, remove inactive ones
       vector<int> tbru;
 
-      /*
       for (map<int, ActiveUser>::iterator i = m_mActiveUser.begin(); i != m_mActiveUser.end(); ++ i)
       {
          if (0 == i->first)
@@ -411,7 +410,6 @@ int Master::run()
                tbru.insert(tbru.end(), i->first);
          }
       }
-      */
 
       // remove from active user list
       for (vector<int>::iterator i = tbru.begin(); i != tbru.end(); ++ i)
@@ -734,6 +732,11 @@ void* Master::serviceEx(void* p)
          int32_t key = 0;
          secconn.recv((char*)&key, 4);
 
+         int32_t ukey;
+         s->recv((char*)&ukey, 4);
+         if ((key > 0) && (ukey > 0))
+            key = ukey;
+
          s->send((char*)&key, 4);
 
          if (key > 0)
@@ -784,38 +787,27 @@ void* Master::serviceEx(void* p)
             sprintf(text, "User %s login from %s", user, ip.c_str());
             self->m_SectorLog.insert(text);
 
-            // send new user info to all existing masters
-            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+            if (ukey <= 0)
             {
-               if (i->first == self->m_iRouterKey)
-                  continue;
+               // send the list of masters to the new users
+               s->send((char*)&self->m_iRouterKey, 4);
+               int num = self->m_Routing.m_mAddressList.size() - 1;
+               s->send((char*)&num, 4);
+               for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
+               {
+                  if (i->first == self->m_iRouterKey)
+                     continue;
 
-               SectorMsg msg;
-               msg.setKey(0);
-               msg.setType(1003);
-               char* ubuf;
-               int size = 0;
-               au.serialize(ubuf, size);
-               msg.setData(0, ubuf, size);
-               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
-               delete [] ubuf;
+                  s->send((char*)&i->first, 4);
+                  int size = i->second.m_strIP.length() + 1;
+                  s->send((char*)&size, 4);
+                  s->send(i->second.m_strIP.c_str(), size);
+                  s->send((char*)&i->second.m_iPort, 4);
+               }
             }
 
-            // send the list of masters to the new users
-            s->send((char*)&self->m_iRouterKey, 4);
-            int num = self->m_Routing.m_mAddressList.size() - 1;
-            s->send((char*)&num, 4);
-            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
-            {
-               if (i->first == self->m_iRouterKey)
-                  continue;
-
-               s->send((char*)&i->first, 4);
-               int size = i->second.m_strIP.length() + 1;
-               s->send((char*)&size, 4);
-               s->send(i->second.m_strIP.c_str(), size);
-               s->send((char*)&i->second.m_iPort, 4);
-            }
+            // for synchronization only, message content is meaningless
+            s->send((char*)&key, 4);
          }
          else
          {
@@ -955,7 +947,8 @@ void* Master::process(void* s)
 
    while (self->m_Status == RUNNING)
    {
-      self->m_GMP.recvfrom(ip, port, id, msg);
+      if (self->m_GMP.recvfrom(ip, port, id, msg) < 0)
+         continue;
 
       int32_t key = msg->getKey();
       map<int, ActiveUser>::iterator i = self->m_mActiveUser.find(key);
@@ -1068,19 +1061,6 @@ void* Master::process(void* s)
             char text[128];
             sprintf(text, "User %s logout from %s.", user->m_strName.c_str(), ip);
             self->m_SectorLog.insert(text);
-
-            // send new user info to all existing masters
-            for (map<uint32_t, Address>::iterator i = self->m_Routing.m_mAddressList.begin(); i != self->m_Routing.m_mAddressList.end(); ++ i)
-            {
-               if (i->first == self->m_iRouterKey)
-                  continue;
-
-               SectorMsg newmsg;
-               newmsg.setKey(0);
-               newmsg.setType(1004);
-               newmsg.setData(0, (char*)&key, 4);
-               self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &newmsg, &newmsg);
-            }
 
             self->m_mActiveUser.erase(key);
             self->m_GMP.sendto(ip, port, id, msg);
@@ -1939,29 +1919,6 @@ void* Master::process(void* s)
 
             self->m_GMP.sendto(ip, port, id, msg);
 
-            break;
-         }
-
-         case 1002: // new slave
-         {
-            break;
-         }
-
-         case 1003: // new user
-         {
-            ActiveUser au;
-            au.deserialize(msg->getData(), msg->m_iDataLength);
-            self->m_mActiveUser[au.m_iKey] = au;
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-            self->m_GMP.sendto(ip, port, id, msg);
-            break;
-         }
-
-         case 1004: // remove user
-         {
-            self->m_mActiveUser.erase(*(int32_t*)msg->getData());
-            msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
-            self->m_GMP.sendto(ip, port, id, msg);
             break;
          }
 
