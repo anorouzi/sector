@@ -89,7 +89,6 @@ int Index2::list(const char* path, std::vector<string>& filelist)
 
    dirent **namelist;
    int n = scandir(item.c_str(), &namelist, 0, alphasort);
-
    if (n < 0)
       return SectorError::E_NOEXIST;
 
@@ -138,7 +137,6 @@ int Index2::list_r(const char* path, std::vector<string>& filelist)
 
    dirent **namelist;
    int n = scandir(item.c_str(), &namelist, 0, alphasort);
-
    if (n < 0)
       return SectorError::E_NOEXIST;
 
@@ -193,6 +191,8 @@ int Index2::lookup(const char* path, set<Address, AddrComp>& addr)
 
    dirent **namelist;
    int n = scandir(item.c_str(), &namelist, 0, alphasort);
+   if (n < 0)
+      return SectorError::E_NOEXIST;
 
    for (int i = 0; i < n; ++ i)
    {
@@ -468,7 +468,6 @@ int Index2::scan(const string& data, const string& meta)
 {
    dirent **namelist;
    int n = scandir(data.c_str(), &namelist, 0, alphasort);
-
    if (n < 0)
       return SectorError::E_NOEXIST;
 
@@ -534,6 +533,8 @@ int Index2::merge(const string& prefix, const string& path, const unsigned int& 
 {
    dirent **namelist;
    int n = scandir(path.c_str(), &namelist, 0, alphasort);
+   if (n < 0)
+      return SectorError::E_NOEXIST;
 
    for (int i = 0; i < n; ++ i)
    {
@@ -619,6 +620,8 @@ int Index2::substract(const string& path, const Address& addr)
 
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);
+   if (n < 0)
+      return SectorError::E_NOEXIST;
 
    for (int i = 0; i < n; ++ i)
    {
@@ -653,6 +656,9 @@ int64_t Index2::getTotalDataSize(const string& path)
 
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);
+   if (n < 0)
+      return SectorError::E_NOEXIST;
+
    int64_t size = 0;
 
    for (int i = 0; i < n; ++ i)
@@ -684,6 +690,9 @@ int64_t Index2::getTotalFileNum(const string& path)
 
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);
+   if (n < 0)
+      return SectorError::E_NOEXIST;
+
    int64_t count = 0;
 
    for (int i = 0; i < n; ++ i)
@@ -738,6 +747,8 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
 
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);
+   if (n < 0)
+      return SectorError::E_NOEXIST;
 
    for (int i = 0; i < n; ++ i)
    {
