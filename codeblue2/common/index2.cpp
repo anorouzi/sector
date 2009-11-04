@@ -670,7 +670,7 @@ int64_t Index2::getTotalDataSize(const string& path)
          continue;
       }
 
-      size += getTotalFileNum(path + "/" + namelist[i]->d_name);
+      size += getTotalDataSize(path + "/" + namelist[i]->d_name);
 
       free(namelist[i]);
    }
@@ -768,7 +768,7 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
    return result.size();
 }
 
-int Index2::getUnderReplicated(const string& path, vector<string>& replica, const int& thresh)
+int Index2::getUnderReplicated(const string& path, vector<string>& replica, const unsigned int& thresh)
 {
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);

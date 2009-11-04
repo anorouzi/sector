@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/07/2009
+   Yunhong Gu, last updated 11/03/2009
 *****************************************************************************/
 
 #include "security.h"
@@ -139,7 +139,7 @@ int ACL::addIPRange(const char* ip)
          return -1;
 
       if (bit < 32)
-         entry.m_uiMask = ((unsigned int)1 << bit) - 1;
+         entry.m_uiMask = (bit == 0) ? 0 : htonl(~((1 << (32 - bit)) - 1));
    }
 
    m_vIPList.insert(m_vIPList.end(), entry);

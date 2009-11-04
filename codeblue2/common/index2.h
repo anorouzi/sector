@@ -124,7 +124,7 @@ public:
 
    int collectDataInfo(const std::string& path, std::vector<std::string>& result);
 
-   int getUnderReplicated(const std::string& path, std::vector<std::string>& replica, const int& thresh);
+   int getUnderReplicated(const std::string& path, std::vector<std::string>& replica, const unsigned int& thresh);
 
 public:
    static int parsePath(const char* path, std::vector<std::string>& result);

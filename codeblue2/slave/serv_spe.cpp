@@ -329,7 +329,6 @@ void* Slave::SPEHandler(void* p)
       output.m_iIndSize = (totalrows < 640000) ? 640000 : totalrows + 2;
       output.m_pllIndex = new int64_t[output.m_iIndSize];
       output.m_piBucketID = new int[output.m_iIndSize];
-      output.m_llOffset = 0;
       SFile file;
       file.m_strHomeDir = self->m_strHomeDir;
       char path[64];
@@ -352,6 +351,9 @@ void* Slave::SPEHandler(void* p)
          input.m_pcUnit = block + index[i] - index[0];
          input.m_iRows = unitrows;
          input.m_pllIndex = index + i;
+         output.m_iResSize = 0;
+         output.m_iRows = 0;
+         output.m_strError = "";
 
          processstatus = self->processData(input, output, file, result, buckets, process, map, partition);
          if (processstatus < 0)
@@ -393,6 +395,10 @@ void* Slave::SPEHandler(void* p)
          input.m_pcUnit = block;
          input.m_iRows = -1;
          input.m_pllIndex = NULL;
+         output.m_iResSize = 0;
+         output.m_iRows = 0;
+         output.m_strError = "";
+         output.m_llOffset = 0;
 
          for (int i = 0; (i == 0) || (output.m_llOffset > 0); ++ i)
          {
