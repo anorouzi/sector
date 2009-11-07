@@ -15,5 +15,7 @@ int main(int argc, char** argv)
 
    m.run();
 
+   sleep(1);
+
    return 1;
 }

@@ -293,13 +293,15 @@ int Client::logout()
 
 int Client::close()
 {
-   if (g_iCount -- == 0)
+   if (-- g_iCount == 0)
    {
       if (g_iKey > 0)
          logout();
 
+      pthread_mutex_lock(&g_KALock);
       g_bActive = false;
       pthread_cond_signal(&g_KACond);
+      pthread_mutex_unlock(&g_KALock);
       pthread_join(g_KeepAlive, NULL);
 
       g_strServerHost = "";
@@ -648,10 +650,14 @@ void* Client::keepAlive(void*)
       ts.tv_sec  = t.tv_sec + 60 * 10;
       ts.tv_nsec = t.tv_usec * 1000;
 
+      pthread_mutex_lock(&g_KALock);
       pthread_cond_timedwait(&g_KACond, &g_KALock, &ts);
+      pthread_mutex_unlock(&g_KALock);
 
       if (!g_bActive)
+      {
          break;
+      }
 
       for (set<Address, AddrComp>::iterator i = g_sMasters.begin(); i != g_sMasters.end(); ++ i)
       {

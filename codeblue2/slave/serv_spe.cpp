@@ -789,6 +789,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    {
       fstream idx;
       idx.open((m_strHomeDir + idxfile).c_str(), ios::in | ios::binary);
+      if (idx.bad() || idx.fail())
+         return -1;
       idx.seekg(offset * 8);
       idx.read((char*)index, (totalrows + 1) * 8);
       idx.close();
@@ -861,6 +863,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    {
       fstream ifs;
       ifs.open((m_strHomeDir + datafile).c_str(), ios::in | ios::binary);
+      if (ifs.bad() || ifs.fail())
+         return -1;
       ifs.seekg(index[0]);
       ifs.read(block, size);
       ifs.close();

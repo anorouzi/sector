@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/15/2009
+   Yunhong Gu, last updated 11/07/2009
 *****************************************************************************/
 
 #include <snode.h>
@@ -186,21 +186,34 @@ int SNode::deserialize(const char* buf)
 
 int SNode::serialize(const string& file)
 {
-    if (m_bIsDir)
-       return 0;
+   string tmp = file;
+   size_t p = tmp.rfind('/');
+   struct stat s;
+   if (stat(tmp.c_str(), &s) < 0)
+   {
+      string cmd = string("mkdir -p ") + tmp.substr(0, p);
+      system(cmd.c_str());
+   }
 
-    fstream ofs(file.c_str(), ios::out | ios::trunc);
-    ofs << m_llSize << endl;
-    ofs << m_llTimeStamp << endl;
+   if (m_bIsDir)
+   {
+      string cmd = string("mkdir ") + file;
+      system(cmd.c_str());
+      return 0;
+   }
 
-    for (set<Address>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
-    {
-       ofs << i->m_strIP << endl;
-       ofs << i->m_iPort << endl;
-    }
-    ofs.close();
+   fstream ofs(file.c_str(), ios::out | ios::trunc);
+   ofs << m_llSize << endl;
+   ofs << m_llTimeStamp << endl;
 
-    return 0;
+   for (set<Address>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   {
+      ofs << i->m_strIP << endl;
+      ofs << i->m_iPort << endl;
+   }
+   ofs.close();
+
+   return 0;
 }
 
 int SNode::deserialize(const string& file)

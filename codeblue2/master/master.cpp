@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/26/2009
+   Yunhong Gu, last updated 11/06/2009
 *****************************************************************************/
 
 #include <common.h>
@@ -567,6 +567,8 @@ void* Master::service(void* s)
       char ip[64];
       int port;
       SSLTransport* s = serv.accept(ip, port);
+      if (NULL == s)
+         continue;
 
       Param* p = new Param;
       p->ip = ip;
@@ -675,14 +677,21 @@ void* Master::serviceEx(void* p)
             if (id < 0)
             {
                //this is the first master that the slave connect to; send these information to the slave
-
-               branch.serialize("/", self->m_strHomeDir + ".tmp/" + ip + ".left");
-               struct stat st;
-               stat((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str(), &st);
-               int32_t size = st.st_size;
-               s->send((char*)&size, 4);
-               if (size > 0)
-                  s->sendfile((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
+               int32_t size = branch.getTotalFileNum("/");
+               if (size <= 0)
+                  s->send((char*)&size, 4);
+               else
+               {
+                  branch.serialize("/", self->m_strHomeDir + ".tmp/" + ip + ".left");
+                  struct stat st;
+                  stat((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str(), &st);
+                  size = st.st_size;
+                  s->send((char*)&size, 4);
+                  if (size > 0)
+                     s->sendfile((self->m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
+                  string cmd = string("rm -rf ") + self->m_strHomeDir + ".tmp/" + ip + ".left";
+                  system(cmd.c_str());
+               }
 
                // send the list of masters to the new slave
                s->send((char*)&self->m_iRouterKey, 4);
@@ -700,6 +709,9 @@ void* Master::serviceEx(void* p)
                   s->send((char*)&i->second.m_iPort, 4);
                }
             }
+
+            string cmd = string("rm -rf ") + self->m_strHomeDir + ".tmp/" + ip;
+            system(cmd.c_str());
 
             char text[64];
             sprintf(text, "Slave node %s:%d joined.", ip.c_str(), sn.m_iPort);
@@ -1155,6 +1167,12 @@ void* Master::process(void* s)
             break;
          }
 
+         case 6: // client keep-alive messages
+         {
+            self->m_GMP.sendto(ip, port, id, msg);
+            break;
+         }
+
          // 100+ storage system
 
          case 101: // ls
@@ -1444,11 +1462,15 @@ void* Master::process(void* s)
                self->reject(ip, port, id, SectorError::E_NOEXIST);
                break;
             }
-            else if (n > 0)
+            else if (attr.m_bIsDir)
             {
-               // directory not empty
-               self->reject(ip, port, id, SectorError::E_NOEMPTY);
-               break;
+               vector<string> fl;
+               if (self->m_Metadata.list(msg->getData(), fl) > 0)
+               {
+                  // directory not empty
+                  self->reject(ip, port, id, SectorError::E_NOEMPTY);
+                  break;
+               }
             }
 
             string filename = msg->getData();

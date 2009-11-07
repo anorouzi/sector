@@ -217,6 +217,9 @@ int Slave::connect()
          move2Attic(m_strHomeDir + ".tmp/metadata.left", "/");
 
          m_SectorLog.insert("WARNING: certain files have been moved to ./attic due to conflicts.");
+
+         string cmd = string("rm -rf ") + m_strHomeDir + ".tmp/metadata.left";
+         system(cmd.c_str());
       }
 
       int id = 0;

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/19/2009
+   Yunhong Gu, last updated 11/06/2009
 *****************************************************************************/
 
 #include <unistd.h>
@@ -103,6 +103,7 @@ int SSLTransport::initServerCTX(const char* cert, const char* key)
    {
       ERR_print_errors_fp(stderr);
       SSL_CTX_free(m_pCTX);
+      m_pCTX = NULL;
       return SectorError::E_INITCTX;
    }
 
@@ -117,6 +118,7 @@ int SSLTransport::initClientCTX(const char* cert)
    {
       cerr << "Error loading trust store: " << cert << endl;
       SSL_CTX_free(m_pCTX);
+      m_pCTX = NULL;
       return SectorError::E_INITCTX;
    }
 
