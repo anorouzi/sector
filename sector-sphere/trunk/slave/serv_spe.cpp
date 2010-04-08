@@ -1117,7 +1117,7 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
 {
    char path[64];
    sprintf(path, "%d", key);
-   lh = dlopen((m_strHomeDir + ".sphere/" + path + "/" + lib + ".so").c_str(), RTLD_LAZY);
+   lh = dlopen((m_strHomeDir + ".sphere/" + path + "/" + lib + ".so").c_str(), RTLD_LAZY | RTLD_DEEPBIND);
    if (NULL == lh)
    {
       // if no user uploaded lib, check permanent lib

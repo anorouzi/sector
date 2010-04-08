@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/23/2009
+   Yunhong Gu, last updated 04/07/2010
 *****************************************************************************/
 
 #include <string.h>
@@ -103,7 +103,7 @@ void StatCache::remove(const string& path)
 
 ReadCache::ReadCache():
 m_llCacheSize(0),
-m_llMaxCacheSize(0),
+m_llMaxCacheSize(10000000),
 m_llMaxCacheTime(10000000)
 {
 }
@@ -160,7 +160,7 @@ int ReadCache::read(const std::string& path, char* buf, const int64_t& offset, c
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
    {
       // this condition can be improved to provide finer granularity
-      if (i->m_llOffset + size >= offset + size)
+      if ((offset >= i->m_llOffset) && (i->m_llSize - (offset - i->m_llOffset) >= size))
       {
          memcpy(buf, i->m_pcBlock + offset - i->m_llOffset, size);
          i->m_llLastAccessTime = CTimer::getTime();
@@ -186,6 +186,7 @@ int ReadCache::shrink()
          {
             list<CacheBlock>::iterator k = j;
             ++ j;
+            delete k->m_pcBlock;
             i->second.erase(k);
          }
          else

@@ -712,6 +712,7 @@ int Slave::reportMO(const std::string& master_ip, const int& master_port, const 
 
          char buf[1024];
          sn.serialize(buf);
+         serlist.push_back(buf);
       }
 
       SectorMsg msg;
