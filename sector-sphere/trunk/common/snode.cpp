@@ -68,7 +68,7 @@ SNode::~SNode()
 int SNode::serialize(char* buf)
 {
    int namelen = m_strName.length();
-   sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, m_llTimeStamp, m_llSize);
+   sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize);
    char* p = buf + strlen(buf);
    for (set<Address>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {

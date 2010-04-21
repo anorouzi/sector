@@ -663,7 +663,7 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
       sn.deserialize2(m_strMetaPath + "/" + path);
 
       char buf[1024];
-      sprintf(buf, "%s %lld %d", path.c_str(), sn.m_llSize, rows);
+      sprintf(buf, "%s %lld %d", path.c_str(), (long long int)sn.m_llSize, rows);
 
       for (set<Address, AddrComp>::iterator i = sn.m_sLocation.begin(); i != sn.m_sLocation.end(); ++ i)
          sprintf(buf + strlen(buf), " %s %d", i->m_strIP.c_str(), i->m_iPort);

@@ -390,7 +390,7 @@ int64_t SectorFile::write(const char* buf, const int64_t& size, const int64_t& b
    return f->write(buf, size, buffer);
 }
 
-int SectorFile::download(const char* localpath, const bool& cont)
+int64_t SectorFile::download(const char* localpath, const bool& cont)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 
@@ -400,7 +400,7 @@ int SectorFile::download(const char* localpath, const bool& cont)
    return f->download(localpath, cont);
 }
 
-int SectorFile::upload(const char* localpath, const bool& cont)
+int64_t SectorFile::upload(const char* localpath, const bool& cont)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 
@@ -420,7 +420,7 @@ int SectorFile::close()
    return f->close();
 }
 
-int SectorFile::seekp(int64_t off, int pos)
+int64_t SectorFile::seekp(int64_t off, int pos)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 
@@ -430,7 +430,7 @@ int SectorFile::seekp(int64_t off, int pos)
    return f->seekp(off, pos);
 }
 
-int SectorFile::seekg(int64_t off, int pos)
+int64_t SectorFile::seekg(int64_t off, int pos)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 

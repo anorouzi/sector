@@ -46,6 +46,9 @@ written by
 class FileSrc: public SSource
 {
 public:
+   virtual ~FileSrc() {}
+
+public:
    virtual int loadACL(std::vector<IPRange>& acl, const void* src);
    virtual int loadUsers(std::map<std::string, User>& users, const void* src);
 

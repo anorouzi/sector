@@ -662,7 +662,7 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
          rows = i->second.m_llSize / 8 - 1;
 
       char buf[1024];
-      sprintf(buf, "%s %lld %d", file.c_str(), s->second.m_llSize, rows);
+      sprintf(buf, "%s %lld %d", file.c_str(), (long long int)s->second.m_llSize, rows);
 
       for (set<Address, AddrComp>::iterator j = s->second.m_sLocation.begin(); j != s->second.m_sLocation.end(); ++ j)
          sprintf(buf + strlen(buf), " %s %d", j->m_strIP.c_str(), j->m_iPort);
@@ -961,7 +961,7 @@ int Index::collectDataInfo(const string& path, map<string, SNode>& currdir, vect
             rows = j->second.m_llSize / 8 - 1;
 
          char buf[1024];
-         sprintf(buf, "%s %lld %d", (path + "/" + i->first).c_str(), i->second.m_llSize, rows);
+         sprintf(buf, "%s %lld %d", (path + "/" + i->first).c_str(), (long long int)i->second.m_llSize, rows);
 
          for (set<Address, AddrComp>::iterator k = i->second.m_sLocation.begin(); k != i->second.m_sLocation.end(); ++ k)
             sprintf(buf + strlen(buf), " %s %d", k->m_strIP.c_str(), k->m_iPort);

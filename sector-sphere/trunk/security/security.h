@@ -83,6 +83,9 @@ public:
 class SSource
 {
 public:
+   virtual ~SSource() {}
+
+public:
    virtual int loadACL(std::vector<IPRange>& acl, const void* src) = 0;
    virtual int loadUsers(std::map<std::string, User>& users, const void* src) = 0;
 

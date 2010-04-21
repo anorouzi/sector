@@ -190,12 +190,12 @@ public:
    int open(const std::string& filename, int mode = SF_MODE::READ, const std::string& hint = "");
    int64_t read(char* buf, const int64_t& size, const int64_t& prefetch = 0);
    int64_t write(const char* buf, const int64_t& size, const int64_t& buffer = 0);
-   int download(const char* localpath, const bool& cont = false);
-   int upload(const char* localpath, const bool& cont = false);
+   int64_t download(const char* localpath, const bool& cont = false);
+   int64_t upload(const char* localpath, const bool& cont = false);
    int close();
 
-   int seekp(int64_t off, int pos = SF_POS::BEG);
-   int seekg(int64_t off, int pos = SF_POS::BEG);
+   int64_t seekp(int64_t off, int pos = SF_POS::BEG);
+   int64_t seekg(int64_t off, int pos = SF_POS::BEG);
    int64_t tellp();
    int64_t tellg();
    bool eof();
