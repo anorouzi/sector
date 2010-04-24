@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/08/2009
+   Yunhong Gu, last updated 04/23/2010
 *****************************************************************************/
 
 #ifndef __SECTOR_FS_CACHE_H__
@@ -58,8 +58,8 @@ struct StatRec
 class StatCache
 {
 public:
-   StatCache() {}
-   virtual ~StatCache() {}
+   StatCache();
+   virtual ~StatCache();
 
 public:
    void insert(const std::string& path);
@@ -90,6 +90,9 @@ public:
    virtual ~ReadCache();
 
 public:
+   int setMaxCacheSize(const int64_t ms);
+   int setMaxCacheTime(const int64_t mt);
+
    int insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size);
    int remove(const std::string& path);
 

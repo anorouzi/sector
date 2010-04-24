@@ -296,6 +296,16 @@ int Sector::sysinfo(SysStat& sys)
    return c->sysinfo(sys);
 }
 
+int Sector::setMaxCacheSize(const int64_t& ms)
+{
+   Client* c = g_ClientMgmt.lookupClient(m_iID);
+
+   if (NULL == c)
+      return SectorError::E_INVALID;
+
+   return c->setMaxCacheSize(ms);
+}
+
 SectorFile* Sector::createSectorFile()
 {
    Client* c = g_ClientMgmt.lookupClient(m_iID);

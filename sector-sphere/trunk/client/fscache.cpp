@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/07/2010
+   Yunhong Gu, last updated 04/23/2010
 *****************************************************************************/
 
 #include <string.h>
@@ -44,8 +44,20 @@ written by
 
 using namespace std;
 
+StatCache::StatCache()
+{
+   pthread_mutex_init(&m_Lock, NULL);
+}
+
+StatCache::~StatCache()
+{
+   pthread_mutex_destroy(&m_Lock);
+}
+
 void StatCache::insert(const string& path)
 {
+   CGuard sg(m_Lock);
+
    map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
    if (s == m_mOpenedFiles.end())
@@ -63,6 +75,8 @@ void StatCache::insert(const string& path)
 
 void StatCache::update(const string& path, const int64_t& ts, const int64_t& size)
 {
+   CGuard sg(m_Lock);
+
    map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
    if (s == m_mOpenedFiles.end())
@@ -76,6 +90,8 @@ void StatCache::update(const string& path, const int64_t& ts, const int64_t& siz
 
 int StatCache::stat(const string& path, SNode& attr)
 {
+   CGuard sg(m_Lock);
+
    map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
    if (s == m_mOpenedFiles.end())
@@ -91,6 +107,8 @@ int StatCache::stat(const string& path, SNode& attr)
 
 void StatCache::remove(const string& path)
 {
+   CGuard sg(m_Lock);
+
    map<string, StatRec>::iterator s = m_mOpenedFiles.find(path);
 
    if (s == m_mOpenedFiles.end())
@@ -106,14 +124,30 @@ m_llCacheSize(0),
 m_llMaxCacheSize(10000000),
 m_llMaxCacheTime(10000000)
 {
+   pthread_mutex_init(&m_Lock, NULL);
 }
 
 ReadCache::~ReadCache()
 {
+   pthread_mutex_destroy(&m_Lock);
+}
+
+int ReadCache::setMaxCacheSize(const int64_t ms)
+{
+   m_llMaxCacheSize = ms;
+   return 0;
+}
+
+int ReadCache::setMaxCacheTime(const int64_t mt)
+{
+   m_llMaxCacheTime = mt;
+   return 0;
 }
 
 int ReadCache::insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size)
 {
+   CGuard sg(m_Lock);
+
    CacheBlock cb;
    cb.m_strFileName = path;
    cb.m_llOffset = offset;
@@ -137,6 +171,8 @@ int ReadCache::insert(char* block, const std::string& path, const int64_t& offse
 
 int ReadCache::remove(const std::string& path)
 {
+   CGuard sg(m_Lock);
+
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
 
    if (c != m_mCacheBlocks.end())
@@ -152,6 +188,8 @@ int ReadCache::remove(const std::string& path)
 
 int ReadCache::read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size)
 {
+   CGuard sg(m_Lock);
+
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
 
    if (c == m_mCacheBlocks.end())

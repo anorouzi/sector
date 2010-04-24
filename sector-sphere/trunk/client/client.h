@@ -87,6 +87,9 @@ public:
    int releaseFSClient(FSClient* sf);
    int releaseDCClient(DCClient* sp);
 
+public:
+   int setMaxCacheSize(const int64_t ms);
+
 protected:
    int updateMasters();
 

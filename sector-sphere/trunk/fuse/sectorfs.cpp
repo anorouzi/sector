@@ -1,3 +1,44 @@
+/*****************************************************************************
+Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above
+  copyright notice, this list of conditions and the
+  following disclaimer.
+
+* Redistributions in binary form must reproduce the
+  above copyright notice, this list of conditions
+  and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the University of Illinois
+  nor the names of its contributors may be used to
+  endorse or promote products derived from this
+  software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 04/23/2010
+*****************************************************************************/
+
+
 #include <sectorfs.h>
 #include <fstream>
 #include <iostream>
@@ -15,6 +56,8 @@ void* SectorFS::init(struct fuse_conn_info *conn)
       return NULL;
    if (g_SectorClient.login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
       return NULL;
+
+   g_SectorClient.setMaxCacheSize(g_SectorConfig.m_ClientConf.m_llMaxCacheSize);
 
    return NULL;
 }
@@ -218,7 +261,14 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    }
 
    SectorFile* f = g_SectorClient.createSectorFile();
-   int r = f->open(path, SF_MODE::READ | SF_MODE::WRITE);
+
+   int permission = SF_MODE::READ;
+   if (fi->flags & O_WRONLY)
+      permission = SF_MODE::WRITE;
+   else if (fi->flags & O_RDWR)
+      permission = SF_MODE::READ | SF_MODE::WRITE;
+
+   int r = f->open(path, permission);
    if (r < 0)
    {
       g_SectorClient.releaseSectorFile(f);
@@ -250,8 +300,8 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
    pthread_mutex_unlock(&m_OpenFileLock);
 
    h->seekg(offset);
-   // FUSE read buffer is too small; we use 1MB prefetch buffer to improve read performance
-   return h->read(buf, size, 1000000);
+   // FUSE read buffer is too small; we use prefetch buffer to improve read performance
+   return h->read(buf, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
 }
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* info)

@@ -154,6 +154,9 @@ public:
    int releaseSphereProcess(SphereProcess* sp);
 
 public:
+   int setMaxCacheSize(const int64_t& ms);
+
+public:
    int m_iID;
 };
 

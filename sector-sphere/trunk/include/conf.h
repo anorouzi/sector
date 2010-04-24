@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/30/2010
+   Yunhong Gu, last updated 04/23/2010
 *****************************************************************************/
 
 
@@ -80,13 +80,15 @@ public:
    int init(const std::string& path);
 
 public:
-   int m_iServerPort;		// server port
-   std::string m_strSecServIP;	// security server IP
-   int m_iSecServPort;		// security server port
-   int m_iMaxActiveUser;	// maximum active user
-   std::string m_strHomeDir;	// data directory
-   int m_iReplicaNum;		// number of replicas of each file
-   MetaForm m_MetaType;		// form of metadata
+   int m_iServerPort;			// server port
+   std::string m_strSecServIP;		// security server IP
+   int m_iSecServPort;			// security server port
+   int m_iMaxActiveUser;		// maximum active user
+   std::string m_strHomeDir;		// data directory
+   int m_iReplicaNum;			// number of replicas of each file
+   MetaForm m_MetaType;			// form of metadata
+   int64_t m_llSlaveMinDiskSpace;	// minimum available disk space allowed on each slave
+   int m_iLogLevel;			// level of logs, higher = more verbose, 0 = no log
 };
 
 class SlaveConf
@@ -114,11 +116,11 @@ public:
 public:
    std::string m_strUserName;
    std::string m_strPassword;
-
    std::string m_strMasterIP;
    int m_iMasterPort;
-
    std::string m_strCertificate;
+   int64_t m_llMaxCacheSize;
+   int m_iFuseReadAheadBlock;
 };
 
 class WildCard

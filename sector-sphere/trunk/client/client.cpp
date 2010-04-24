@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 04/23/2010
 *****************************************************************************/
 
 
@@ -558,6 +558,11 @@ int Client::sysinfo(SysStat& sys)
    }
 
    return 0;
+}
+
+int Client::setMaxCacheSize(const int64_t ms)
+{
+   return m_ReadCache.setMaxCacheSize(ms);
 }
 
 int Client::updateMasters()

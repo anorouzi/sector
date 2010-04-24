@@ -179,6 +179,8 @@ char* ConfParser::getToken(char* str, string& token)
 int MasterConf::init(const string& path)
 {
    m_iServerPort = 6000;
+   m_llSlaveMinDiskSpace = 10000000000LL;
+   m_iLogLevel = 1;
 
    ConfParser parser;
    Param param;
@@ -226,6 +228,10 @@ int MasterConf::init(const string& path)
          else if ("DISK" == param.m_vstrValue[0])
             m_MetaType = DISK;
       }
+      else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
+         m_llSlaveMinDiskSpace = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+      else if ("LOG_LEVEL" == param.m_strName)
+         m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       else
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
    }
@@ -308,6 +314,8 @@ int ClientConf::init(const string& path)
    m_strMasterIP = "";
    m_iMasterPort = 0;
    m_strCertificate = "";
+   m_llMaxCacheSize = 10000000;
+   m_iFuseReadAheadBlock = 1000000;
 
    ConfParser parser;
    Param param;
@@ -347,6 +355,14 @@ int ClientConf::init(const string& path)
       else if ("CERTIFICATE" == param.m_strName)
       {
          m_strCertificate = param.m_vstrValue[0];
+      }
+      else if ("MAX_CACHE_SIZE" == param.m_strName)
+      {
+         m_llMaxCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+      }
+      else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
+      {
+         m_iFuseReadAheadBlock = atoi(param.m_vstrValue[0].c_str()) * 1000000;
       }
       else
          cerr << "unrecongnized client.conf parameter: " << param.m_strName << endl;
