@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/06/2009
+   Yunhong Gu, last updated 04/25/2010
 *****************************************************************************/
 
 
@@ -52,6 +52,8 @@ public:
 
 public:
    int init(const char* topoconf);
+
+   int setSlaveMinDiskSpace(const int64_t& byteSize);
 
    int insert(SlaveNode& sn);
    int remove(int nodeid);
@@ -100,6 +102,8 @@ private:
    std::map<std::string, std::set<std::string> > m_mIPFSInfo;	// storage path on each slave node; used to avoid conflict
 
    int64_t m_llLastUpdateTime;					// last update time on the slave list
+
+   int64_t m_llSlaveMinDiskSpace;				// minimum available disk space per slave node
 
 private:
    pthread_mutex_t m_SlaveLock;

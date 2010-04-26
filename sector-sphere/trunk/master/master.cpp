@@ -93,6 +93,7 @@ int Master::init()
    }
 
    m_SlaveManager.init("../conf/topology.conf");
+   m_SlaveManager.setSlaveMinDiskSpace(m_SysConfig.m_llSlaveMinDiskSpace);
    m_SlaveManager.serializeTopo(m_pcTopoData, m_iTopoDataSize);
 
    // check local directories, create them is not exist
