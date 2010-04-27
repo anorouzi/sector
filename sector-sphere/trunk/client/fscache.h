@@ -74,13 +74,16 @@ private:
 
 struct CacheBlock
 {
-   std::string m_strFileName;
-   int64_t m_llOffset;
-   int64_t m_llSize;
-   int64_t m_llCreateTime;
-   int64_t m_llLastAccessTime;
-   int m_iAccessCount;
-   char* m_pcBlock;
+   std::string m_strFileName;		// file name, including absolute path
+   int64_t m_llOrigTimeStamp;		// original timestamp, used to validate if the cache is current
+   int64_t n_llOrigFileSize;		// original file size
+
+   int64_t m_llOffset;			// cache block offset
+   int64_t m_llSize;			// cache size
+   int64_t m_llCreateTime;		// cache creation time
+   int64_t m_llLastAccessTime;		// cache last access time
+   int m_iAccessCount;			// number of accesses
+   char* m_pcBlock;			// cache data
 };
 
 class ReadCache

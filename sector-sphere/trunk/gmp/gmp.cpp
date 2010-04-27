@@ -1018,6 +1018,7 @@ int CGMP::multi_rpc(const vector<Address>& dest, CUserMessage* req, vector<CUser
             // 60 seconds maximum waiting time
             if ((errcount > 10) || (CTimer::getTime() - start_time > 60000000))
             {
+               msg->m_iDataLength = 0;
                found = false;
                break;
             }

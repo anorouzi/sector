@@ -361,16 +361,12 @@ int Master::run()
       {
          SectorMsg* r = dynamic_cast<SectorMsg*>((*res)[i]);
 
-         if (NULL != r)
-         {
-            if (r->getType() > 0)
-               m_SlaveManager.updateSlaveInfo(m_vSlaveList[i], r->getData(), r->m_iDataLength);
-            delete r;
-         }
+         if ((r->getType() > 0) && (r->m_iDataLength > 0))
+            m_SlaveManager.updateSlaveInfo(m_vSlaveList[i], r->getData(), r->m_iDataLength);
          else
-         {
             m_SlaveManager.increaseRetryCount(m_vSlaveList[i]);
-         }
+
+         delete r;
       }
 
       // check each users, remove inactive ones
