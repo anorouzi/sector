@@ -1800,7 +1800,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       msg->setData(64, (char*)&dstport, 4);
       msg->setData(68, (char*)&transid, 4);
       msg->setData(72, (char*)&attr.m_llSize, 8);
-      msg->m_iDataLength = SectorMsg::m_iHdrSize + 80;
+      msg->setData(80, (char*)&attr.m_llSize, 8);
+      msg->m_iDataLength = SectorMsg::m_iHdrSize + 88;
 
       m_GMP.sendto(ip, port, id, msg);
 

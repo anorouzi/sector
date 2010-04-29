@@ -375,7 +375,7 @@ int Client::stat(const string& path, SNode& attr)
    }
 
    // check local cache: updated files may not be sent to the master yet
-   m_StatCache.stat(path, attr);
+   m_Cache.stat(path, attr);
 
    return 0;
 }
@@ -562,7 +562,7 @@ int Client::sysinfo(SysStat& sys)
 
 int Client::setMaxCacheSize(const int64_t ms)
 {
-   return m_ReadCache.setMaxCacheSize(ms);
+   return m_Cache.setMaxCacheSize(ms);
 }
 
 int Client::updateMasters()

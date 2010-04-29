@@ -79,8 +79,9 @@ private:
    unsigned char m_pcIV[8];
 
    std::string m_strFileName;	// Sector file name
+   int64_t m_llSize;            // file size
+   int64_t m_llTimeStamp;	// time stamp
 
-   int64_t m_llSize;		// file size
    int64_t m_llCurReadPos;	// current read position
    int64_t m_llCurWritePos;	// current write position
 
