@@ -380,24 +380,44 @@ int SectorFile::open(const string& filename, int mode, const string& hint)
    return f->open(filename, mode, hint);
 }
 
-int64_t SectorFile::read(char* buf, const int64_t& size, const int64_t& prefetch)
+int64_t SectorFile::read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
 
-   return f->read(buf, size, prefetch);
+   return f->read(buf, offset, size, prefetch);
 }
 
-int64_t SectorFile::write(const char* buf, const int64_t& size, const int64_t& buffer)
+int64_t SectorFile::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
 
-   return f->write(buf, size, buffer);
+   return f->write(buf, offset, size, buffer);
+}
+
+int64_t SectorFile::read(char* buf, const int64_t& size)
+{
+   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+
+   if (NULL == f)
+      return SectorError::E_INVALID;
+
+   return f->read(buf, size);
+}
+
+int64_t SectorFile::write(const char* buf, const int64_t& size)
+{
+   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+
+   if (NULL == f)
+      return SectorError::E_INVALID;
+
+   return f->write(buf, size);
 }
 
 int64_t SectorFile::download(const char* localpath, const bool& cont)

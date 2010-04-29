@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/23/2010
+   Yunhong Gu, last updated 04/29/2010
 *****************************************************************************/
 
 
@@ -299,9 +299,8 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
    SectorFile* h = t->second->m_pHandle;
    pthread_mutex_unlock(&m_OpenFileLock);
 
-   h->seekg(offset);
    // FUSE read buffer is too small; we use prefetch buffer to improve read performance
-   return h->read(buf, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
+   return h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
 }
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* info)
@@ -316,8 +315,7 @@ int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset
    SectorFile* h = t->second->m_pHandle;
    pthread_mutex_unlock(&m_OpenFileLock);
 
-   h->seekp(offset);
-   return h->write(buf, size);
+   return h->write(buf, offset, size);
 }
 
 int SectorFS::flush (const char *, struct fuse_file_info *)
