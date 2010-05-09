@@ -58,6 +58,7 @@ m_iCount(0),
 m_bActive(false),
 m_iID(0)
 {
+   pthread_mutex_init(&m_MasterSetLock, NULL);
    pthread_mutex_init(&m_KALock, NULL);
    pthread_cond_init(&m_KACond, NULL);
    pthread_mutex_init(&m_IDLock, NULL);
@@ -65,6 +66,7 @@ m_iID(0)
 
 Client::~Client()
 {
+   pthread_mutex_destroy(&m_MasterSetLock);
    pthread_mutex_destroy(&m_KALock);
    pthread_cond_destroy(&m_KACond);
    pthread_mutex_destroy(&m_IDLock);
@@ -175,7 +177,10 @@ int Client::login(const string& username, const string& password, const char* ce
    addr.m_strIP = m_strServerIP;
    addr.m_iPort = m_iServerPort;
    m_Routing.insert(key, addr);
+
+   pthread_mutex_lock(&m_MasterSetLock);
    m_sMasters.insert(addr);
+   pthread_mutex_unlock(&m_MasterSetLock);
 
    int num;
    secconn.recv((char*)&num, 4);
@@ -209,8 +214,14 @@ int Client::login(const string& serv_ip, const int& serv_port)
    Address addr;
    addr.m_strIP = serv_ip;
    addr.m_iPort = serv_port;
+
+   pthread_mutex_lock(&m_MasterSetLock);
    if (m_sMasters.find(addr) != m_sMasters.end())
+   {
+      pthread_mutex_unlock(&m_MasterSetLock);
       return 0;
+   }
+   pthread_mutex_unlock(&m_MasterSetLock);
 
    if (m_iKey < 0)
       return -1;
@@ -261,13 +272,16 @@ int Client::login(const string& serv_ip, const int& serv_port)
    secconn.close();
    SSLTransport::destroy();
 
+   pthread_mutex_lock(&m_MasterSetLock);
    m_sMasters.insert(addr);
+   pthread_mutex_unlock(&m_MasterSetLock);
 
    return 0;
 }
 
 int Client::logout()
 {
+   pthread_mutex_lock(&m_MasterSetLock);
    for (set<Address, AddrComp>::iterator i = m_sMasters.begin(); i != m_sMasters.end(); ++ i)
    {
       SectorMsg msg;
@@ -276,8 +290,8 @@ int Client::logout()
       msg.m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
    }
-
    m_sMasters.clear();
+   pthread_mutex_unlock(&m_MasterSetLock);
 
    m_iKey = 0;
    return 0;
@@ -317,8 +331,8 @@ int Client::list(const string& path, vector<SNode>& attr)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   m_Routing.lookup(revised_path, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(revised_path, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -352,8 +366,8 @@ int Client::stat(const string& path, SNode& attr)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   m_Routing.lookup(revised_path, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(revised_path, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -390,8 +404,8 @@ int Client::mkdir(const string& path)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   m_Routing.lookup(revised_path, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(revised_path, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -419,8 +433,8 @@ int Client::move(const string& oldpath, const string& newpath)
    msg.setData(4 + src.length() + 1 + 4, dst.c_str(), dst.length() + 1);
 
    Address serv;
-   m_Routing.lookup(src, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(src, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -441,8 +455,8 @@ int Client::remove(const string& path)
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
    Address serv;
-   m_Routing.lookup(revised_path, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(revised_path, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -494,8 +508,8 @@ int Client::copy(const string& src, const string& dst)
    msg.setData(4 + rsrc.length() + 1 + 4, rdst.c_str(), rdst.length() + 1);
 
    Address serv;
-   m_Routing.lookup(rsrc, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(rsrc, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -517,8 +531,8 @@ int Client::utime(const string& path, const int64_t& ts)
    msg.setData(revised_path.length() + 1, (char*)&ts, 8);
 
    Address serv;
-   m_Routing.lookup(revised_path, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(revised_path, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -537,8 +551,8 @@ int Client::sysinfo(SysStat& sys)
    msg.m_iDataLength = SectorMsg::m_iHdrSize;
 
    Address serv;
-   m_Routing.lookup(m_iKey, serv);
-   login(serv.m_strIP, serv.m_iPort);
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
@@ -624,11 +638,15 @@ void* Client::keepAlive(void* param)
       pthread_mutex_unlock(&self->m_KALock);
 
       if (!self->m_bActive)
-      {
          break;
-      }
 
+      vector<Address> ml;
+      pthread_mutex_lock(&self->m_MasterSetLock);
       for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
+         ml.push_back(*i);
+      pthread_mutex_unlock(&self->m_MasterSetLock);
+
+      for (vector<Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
       {
          // send keep-alive msg to each logged in master
          SectorMsg msg;
@@ -695,6 +713,40 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
       i->m_llTimeStamp = *(int64_t*)(p + 64);
 
       p += 72;
+   }
+
+   return 0;
+}
+
+int Client::lookup(const string& path, Address& serv_addr)
+{
+   if (m_Routing.lookup(path, serv_addr) < 0)
+      return -1;
+
+   if (login(serv_addr.m_strIP, serv_addr.m_iPort) < 0)
+   {
+      if (updateMasters() < 0)
+         return -1;
+
+       m_Routing.lookup(path, serv_addr);
+       return login(serv_addr.m_strIP, serv_addr.m_iPort);
+   }
+
+   return 0;
+}
+
+int Client::lookup(const int32_t& key, Address& serv_addr)
+{
+   if (m_Routing.lookup(key, serv_addr) < 0)
+      return -1;
+
+   if (login(serv_addr.m_strIP, serv_addr.m_iPort) < 0)
+   {
+      if (updateMasters() < 0)
+         return -1;
+
+       m_Routing.lookup(key, serv_addr);
+       return login(serv_addr.m_strIP, serv_addr.m_iPort);
    }
 
    return 0;

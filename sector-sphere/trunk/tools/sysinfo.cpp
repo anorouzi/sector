@@ -26,7 +26,7 @@ int main(int argc, char** argv)
    if (client.sysinfo(sys) >= 0)
       sys.print();
    else
-      cout << "network error: check UDP firewall and routing.\n";
+      cout << "Error happened, failed to retrieve any system information.\n";
 
    client.logout();
    client.close();

@@ -54,6 +54,7 @@ private:
 
 public:
    int open(const std::string& filename, int mode = SF_MODE::READ, const std::string& hint = "");
+   int reopen();
    int64_t read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch = 0);
    int64_t write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer = 0);
    int64_t read(char* buf, const int64_t& size);

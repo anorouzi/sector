@@ -197,7 +197,6 @@ private:
       int transid;		// transaction id
       std::string src;		// source file
       std::string dst;		// destination file
-      time_t timestamp;		// timestamp of the source file
    };
 
    struct Param4
@@ -295,6 +294,8 @@ private:
    int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<std::string>& filelist, const int& change = 0);
    int reportMO(const std::string& master_ip, const int& master_port, const int32_t& transid);
    int reportSphere(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<Address>* bad = NULL);
+
+   int getFileList(const std::string& path, std::vector<std::string>& filelist);
 
    void logError(int type, const std::string& ip, const int& port, const std::string& name);
 

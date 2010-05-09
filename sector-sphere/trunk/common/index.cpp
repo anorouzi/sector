@@ -802,13 +802,6 @@ int Index::scan(const string& currdir, map<string, SNode>& metadata)
          continue;
       }
 
-      // skip system directory
-      if (namelist[i]->d_name[0] == '.')
-      {
-         free(namelist[i]);
-         continue;
-      }
-
       // check file name
       bool bad = false;
       for (char *p = namelist[i]->d_name, *q = namelist[i]->d_name + strlen(namelist[i]->d_name); p != q; ++ p)
@@ -825,6 +818,13 @@ int Index::scan(const string& currdir, map<string, SNode>& metadata)
       struct stat64 s;
       if (stat64((currdir + namelist[i]->d_name).c_str(), &s) < 0)
          continue;
+
+      // skip system file and directory
+      if (S_ISDIR(s.st_mode) && (namelist[i]->d_name[0] == '.'))
+      {
+         free(namelist[i]);
+         continue;
+      }
 
       SNode sn;
       metadata[namelist[i]->d_name] = sn;
@@ -949,6 +949,10 @@ int Index::collectDataInfo(const string& path, map<string, SNode>& currdir, vect
    {
       if (!i->second.m_bIsDir)
       {
+         // skip system files
+         if (i->first.c_str()[0] == '.')
+           continue;
+
          // ignore index file
          int t = i->first.length();
          if ((t > 4) && (i->first.substr(t - 4, t) == ".idx"))
@@ -985,19 +989,43 @@ int Index::getUnderReplicated(const string& path, map<string, SNode>& currdir, v
       else
          abs_path += "/" + i->first;
 
-      if (!i->second.m_bIsDir)
+      if ((!i->second.m_bIsDir) || (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end()))
       {
+         // replicate a file according to the number of replicas
+         // or if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
+
          unsigned int d = thresh;
+         // allow certain directories or files to have different replica numbers
+         // TODO: should be more efficient
          for (map<string, int>::const_iterator s = special.begin(); s != special.end(); ++ s)
          {
-            if (abs_path.find(s->first) != string::npos)
+            if (s->first.c_str()[s->first.length() - 1] == '/')
             {
-               d = s->second;
-               break;
+               // check directory prefix
+               if (abs_path.substr(0, s->first.length() - 2) + "/" == s->first)
+               {
+                  d = s->second;
+                  break;
+               }
+            }
+            else
+            {
+               // special file, name must match
+               if (abs_path == s->first)
+               {
+                  d = s->second;
+                  break;
+               }
             }
          }
 
-         if (i->second.m_sLocation.size() < d)
+         unsigned int curr_rep_num = 0;
+         if (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end())
+            curr_rep_num = i->second.m_mDirectory[".nosplit"].m_sLocation.size();
+         else
+            curr_rep_num = i->second.m_sLocation.size();
+
+         if (curr_rep_num < d)
            replica.push_back(abs_path);
       }
       else
@@ -1019,3 +1047,4 @@ int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string
 
    return filelist.size();
 }
+

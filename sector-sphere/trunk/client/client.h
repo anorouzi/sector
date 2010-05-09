@@ -92,7 +92,8 @@ public:
 
 protected:
    int updateMasters();
-
+   int lookup(const std::string& path, Address& serv_addr);
+   int lookup(const int32_t& key, Address& serv_addr);
    int deserializeSysStat(SysStat& sys, char* buf, int size);
 
 protected:
@@ -101,6 +102,7 @@ protected:
    std::string m_strCert;               // master certificate
 
    std::set<Address, AddrComp> m_sMasters;      // masters
+   pthread_mutex_t m_MasterSetLock;
 
    Routing m_Routing;                   // master routing module
 

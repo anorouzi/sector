@@ -93,6 +93,10 @@ FSClient::~FSClient()
 
 int FSClient::open(const string& filename, int mode, const string& hint)
 {
+   // if this client is already associated with an openned file, cannot open another file
+   if (0 != m_strFileName.length())
+      return -1;
+
    m_strFileName = Metadata::revisePath(filename);
 
    SectorMsg msg;
@@ -107,7 +111,7 @@ int FSClient::open(const string& filename, int mode, const string& hint)
    msg.setData(72, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    Address serv;
-   m_pClient->m_Routing.lookup(m_strFileName, serv);
+   m_pClient->lookup(m_strFileName, serv);
    if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
       return SectorError::E_CONNECTION;
 
@@ -157,6 +161,51 @@ int FSClient::open(const string& filename, int mode, const string& hint)
    m_pClient->m_DataChn.setCryptoKey(m_strSlaveIP, m_iSlaveDataPort, m_pcKey, m_pcIV);
 
    m_pClient->m_Cache.update(m_strFileName, m_llTimeStamp, m_llSize, true);
+
+   return 0;
+}
+
+int FSClient::reopen()
+{
+   if (0 == m_strFileName.length())
+      return -1;
+
+   // currently re-open only works on read
+   if (m_bWrite)
+      return -1;
+
+   // close connection to the current slave
+   int32_t cmd = 5;
+   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
+   int response;
+   m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response);
+   m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
+
+
+   SectorMsg msg;
+   msg.setType(112); // open the file
+   msg.setKey(m_pClient->m_iKey);
+   msg.setData(0, (char*)&m_iSession, 4);
+   int32_t port = m_pClient->m_DataChn.getPort();
+   msg.setData(4, (char*)&port, 4);
+
+   Address serv;
+   m_pClient->lookup(m_strFileName, serv);
+   if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   m_strSlaveIP = msg.getData();
+   m_iSlaveDataPort = *(int*)(msg.getData() + 64);
+
+   if (m_pClient->m_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)
+      return SectorError::E_CONNECTION;
+
+   memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);
+   memcpy(m_pcIV, m_pClient->m_pcCryptoIV, 8);
+   m_pClient->m_DataChn.setCryptoKey(m_strSlaveIP, m_iSlaveDataPort, m_pcKey, m_pcIV);
 
    return 0;
 }
@@ -387,6 +436,8 @@ int FSClient::close()
    m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
 
    m_pClient->m_Cache.remove(m_strFileName);
+
+   m_strFileName = "";
 
    return 0;
 }

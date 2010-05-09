@@ -321,8 +321,8 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
    if (!loclist.empty())
    {
       // find nearest node, if equal distance, choose a random one
-      set<int>::iterator n = loclist.begin();
       unsigned int dist = 1000000000;
+      map<unsigned int, vector<int> > dist_vec;
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
       {
          unsigned int d = 1000000000;
@@ -331,27 +331,26 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          if (m_siBadSlaves.find(*i) == m_siBadSlaves.end())
             d = m_Topology.distance(client.m_strIP.c_str(), m_mSlaveList[*i].m_strIP.c_str());
 
+         dist_vec[d].push_back(*i);
+
          if (d < dist)
-         {
             dist = d;
-            n = i;
-         }
-         else if (d == dist)
-         {
-            if ((rand() % 2) == 0)
-               n = i;
-         }
       }
 
+      int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
+      vector<int>::iterator n = dist_vec[dist].begin();
+      for (int i = 0; i < r; ++ i)
+         n ++;
       sl.push_back(m_mSlaveList[*n]);
 
       // if this is a READ_ONLY operation, one node is enough
       if ((mode & SF_MODE::WRITE) == 0)
          return 1;
 
+      // the first node will be the closest to the client; the client writes to that node only
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); i ++)
       {
-         if (i == n)
+         if (*i == *n)
             continue;
 
          sl.push_back(m_mSlaveList[*i]);

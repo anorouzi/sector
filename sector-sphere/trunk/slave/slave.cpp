@@ -466,9 +466,8 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       Param3* p = new Param3;
       p->serv_instance = this;
       p->transid = *(int32_t*)msg->getData();
-      p->timestamp = *(int64_t*)(msg->getData() + 4);
-      p->src = msg->getData() + 12;
-      p->dst = msg->getData() + 12 + p->src.length() + 1;
+      p->src = msg->getData() + 8;
+      p->dst = msg->getData() + 8 + p->src.length() + 1;
 
       p->master_ip = ip;
       p->master_port = port;
@@ -629,9 +628,66 @@ int Slave::processMCmd(const string& ip, const int port, int id, SectorMsg* msg)
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int& change)
 {
    vector<string> filelist;
-   filelist.push_back(filename);
+   if (getFileList(filename, filelist) <= 0)
+      return 0;
 
    return report(master_ip, master_port, transid, filelist, change);
+}
+
+int Slave::getFileList(const std::string& path, std::vector<std::string>& filelist)
+{
+   dirent **namelist;
+   string abs_path = m_strHomeDir + path;
+   int n = scandir(abs_path.c_str(), &namelist, 0, alphasort);
+
+   if (n < 0)
+      return -1;
+
+   for (int i = 0; i < n; ++ i)
+   {
+      // skip "." and ".."
+      if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
+      {
+         free(namelist[i]);
+         continue;
+      }
+
+      // check file name
+      bool bad = false;
+      for (char *p = namelist[i]->d_name, *q = namelist[i]->d_name + strlen(namelist[i]->d_name); p != q; ++ p)
+      {
+         if ((*p == 10) || (*p == 13))
+         {
+            bad = true;
+            break;
+         }
+      }
+      if (bad)
+         continue;
+
+      struct stat64 s;
+      if (stat64((abs_path + "/" + namelist[i]->d_name).c_str(), &s) < 0)
+         continue;
+
+      // skip system file and directory
+      if (S_ISDIR(s.st_mode) && (namelist[i]->d_name[0] == '.'))
+      {
+         free(namelist[i]);
+         continue;
+      }
+
+      if (S_ISDIR(s.st_mode))
+         getFileList(path + "/" + namelist[i]->d_name, filelist);
+      else
+         filelist.push_back(path + "/" + namelist[i]->d_name);
+
+      free(namelist[i]);
+   }
+   free(namelist);
+
+   filelist.push_back(path);
+
+   return filelist.size();
 }
 
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int& change)
@@ -645,7 +701,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
       SNode sn;
       sn.m_strName = *i;
-      sn.m_bIsDir = 0;
+      sn.m_bIsDir = S_ISDIR(s.st_mode) ? 1 : 0;
       sn.m_llTimeStamp = s.st_mtime;
       sn.m_llSize = s.st_size;
 

@@ -359,7 +359,6 @@ void* Slave::copy(void* p)
 {
    Slave* self = ((Param3*)p)->serv_instance;
    int transid = ((Param3*)p)->transid;
-   time_t ts = ((Param3*)p)->timestamp;
    string src = ((Param3*)p)->src;
    string dst = ((Param3*)p)->dst;
    string master_ip = ((Param3*)p)->master_ip;
@@ -370,6 +369,8 @@ void* Slave::copy(void* p)
    if (self->m_pLocalFile->lookup(src.c_str(), tmp) >= 0)
    {
       //if file is local, copy directly
+      //note that in this case, src != dst, therefore this is a regular "cp" command, not a system replication
+
       self->createDir(dst.substr(0, dst.rfind('/')));
       string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
       string rsrc = self->reviseSysCmdPath(src);
@@ -381,90 +382,128 @@ void* Slave::copy(void* p)
       if (self->report(master_ip, master_port, transid, dst, type) < 0)
          system(("rm " + rhome + rdst).c_str());
 
-      //utime: update timestamp according to the original copy
-      utimbuf ut;
-      ut.actime = ts;
-      ut.modtime = ts;
-      utime((rhome + rdst).c_str(), &ut);
-
       return NULL;
    }
 
-   SectorMsg msg;
-   msg.setType(110); // open the file
-   msg.setKey(0);
+   queue<string> tr;
+   tr.push(src);
 
-   int32_t mode = 1;
-   msg.setData(0, (char*)&mode, 4);
-   int32_t localport = self->m_DataChn.getPort();
-   msg.setData(4, (char*)&localport, 4);
-   msg.setData(8, "\0", 1);
-   msg.setData(72, src.c_str(), src.length() + 1);
-
-   Address addr;
-   self->m_Routing.lookup(src, addr);
-
-   if (self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
-      return NULL;
-   if (msg.getType() < 0)
-      return NULL;
-
-   string ip = msg.getData();
-   int port = *(int*)(msg.getData() + 64);
-   int session = *(int*)(msg.getData() + 68);
-
-   int64_t size = *(int64_t*)(msg.getData() + 72);
-
-   //cout << "rendezvous connect " << ip << " " << port << endl;
-   if (self->m_DataChn.connect(ip, port) < 0)
-      return NULL;
-
-   // download command: 3
-   int32_t cmd = 3;
-   self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
-
-   int response = -1;
-   if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
-      return NULL;
-
-   int64_t offset = 0;
-   if (self->m_DataChn.send(ip, port, session, (char*)&offset, 8) < 0)
-      return NULL;
-
-   //copy to .tmp first, then move to real location
-   self->createDir(string(".tmp") + dst.substr(0, dst.rfind('/')));
-
-   fstream ofs;
-   ofs.open((self->m_strHomeDir + ".tmp" + dst).c_str(), ios::out | ios::binary | ios::trunc);
-
-   int64_t unit = 64000000; //send 64MB each time
-   int64_t torecv = size;
-   int64_t recd = 0;
-   while (torecv > 0)
+   while (!tr.empty())
    {
-      int64_t block = (torecv < unit) ? torecv : unit;
-      if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
-         unlink((self->m_strHomeDir + ".tmp" + dst).c_str());
+      string src_path = tr.front();
+      tr.pop();
 
-      recd += block;
-      torecv -= block;
+      // try list this path
+      SectorMsg msg;
+      msg.setType(101);
+      msg.setKey(0);
+      msg.setData(0, src_path.c_str(), src_path.length() + 1);
+
+      Address addr;
+      self->m_Routing.lookup(src_path, addr);
+
+      if (self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
+         return NULL;
+
+      if (msg.getType() >= 0)
+      {
+         // if this is a directory, put all files and sub-drectories into the queue of files to be copied
+
+         string filelist = msg.getData();
+         unsigned int s = 0;
+         while (s < filelist.length())
+         {
+            int t = filelist.find(';', s);
+            SNode sn;
+            sn.deserialize(filelist.substr(s, t - s).c_str());
+            tr.push(src_path + "/" + sn.m_strName);
+            s = t + 1;
+         }
+
+         continue;
+      }
+
+      // open the file and copy it to local
+      msg.setType(110);
+      msg.setKey(0);
+
+      int32_t mode = 1;
+      msg.setData(0, (char*)&mode, 4);
+      int32_t localport = self->m_DataChn.getPort();
+      msg.setData(4, (char*)&localport, 4);
+      msg.setData(8, "\0", 1);
+      msg.setData(72, src_path.c_str(), src_path.length() + 1);
+
+      if (self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
+         return NULL;
+      if (msg.getType() < 0)
+         return NULL;
+
+      string ip = msg.getData();
+      int port = *(int*)(msg.getData() + 64);
+      int session = *(int*)(msg.getData() + 68);
+      int64_t size = *(int64_t*)(msg.getData() + 72);
+      time_t ts = *(int64_t*)(msg.getData() + 80);
+
+      //cout << "rendezvous connect " << ip << " " << port << endl;
+      if (self->m_DataChn.connect(ip, port) < 0)
+         return NULL;
+
+      // download command: 3
+      int32_t cmd = 3;
+      self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+
+      int response = -1;
+      if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
+         return NULL;
+
+      int64_t offset = 0;
+      if (self->m_DataChn.send(ip, port, session, (char*)&offset, 8) < 0)
+         return NULL;
+
+      string dst_path = dst;
+      if (src != src_path)
+         dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
+
+      //copy to .tmp first, then move to real location
+      self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
+
+      fstream ofs;
+      ofs.open((self->m_strHomeDir + ".tmp" + dst_path).c_str(), ios::out | ios::binary | ios::trunc);
+
+      int64_t unit = 64000000; //send 64MB each time
+      int64_t torecv = size;
+      int64_t recd = 0;
+      while (torecv > 0)
+      {
+         int64_t block = (torecv < unit) ? torecv : unit;
+         if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
+            unlink((self->m_strHomeDir + ".tmp" + dst_path).c_str());
+
+         recd += block;
+         torecv -= block;
+      }
+
+      ofs.close();
+
+      // update total received data size
+      self->m_SlaveStat.updateIO(ip, size, 0);
+
+      cmd = 5;
+      self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+      self->m_DataChn.recv4(ip, port, session, cmd);
+
+      if (src == dst)
+      {
+         //utime: update timestamp according to the original copy, for replica only; files created by "cp" have new timestamp
+         utimbuf ut;
+         ut.actime = ts;
+         ut.modtime = ts;
+         utime((self->m_strHomeDir + ".tmp" + dst_path).c_str(), &ut);
+      }
    }
 
-   ofs.close();
-
-   // update total received data size
-   self->m_SlaveStat.updateIO(ip, size, 0);
-
-   cmd = 5;
-   self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
-   self->m_DataChn.recv4(ip, port, session, cmd);
-
-   //utime: update timestamp according to the original copy
-   utimbuf ut;
-   ut.actime = ts;
-   ut.modtime = ts;
-   utime((self->m_strHomeDir + ".tmp" + dst).c_str(), &ut);
-
+   // move from temporary dir to the real dir when the copy is completed
    self->createDir(dst.substr(0, dst.rfind('/')));
    string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
    string rfile = self->reviseSysCmdPath(dst);
