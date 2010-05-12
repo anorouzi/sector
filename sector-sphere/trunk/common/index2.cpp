@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/08/2010
+   Yunhong Gu, last updated 05/10/2010
 *****************************************************************************/
 
 
@@ -464,8 +464,8 @@ int Index2::scan(const string& data, const string& meta)
 
    for (int i = 0; i < n; ++ i)
    {
-      // skip system directory
-      if (namelist[i]->d_name[0] == '.')
+      // skip "." and ".."
+      if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
       {
          free(namelist[i]);
          continue;
@@ -489,6 +489,13 @@ int Index2::scan(const string& data, const string& meta)
 
       struct stat64 s;
       if (stat64((data + "/" + namelist[i]->d_name).c_str(), &s) < 0)
+      {
+         free(namelist[i]);
+         continue;
+      }
+
+      // skip system file and directory
+      if (S_ISDIR(s.st_mode) && (namelist[i]->d_name[0] == '.'))
       {
          free(namelist[i]);
          continue;
@@ -679,7 +686,7 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
 
    for (int i = 0; i < n; ++ i)
    {
-      // skip system directory
+      // skip system files and directories
       if (namelist[i]->d_name[0] == '.')
       {
          free(namelist[i]);
@@ -711,13 +718,13 @@ int Index2::getUnderReplicated(const string& path, vector<string>& replica, cons
          continue;
       }
 
-      struct stat s;
+      struct stat s, s_nosplit;
       if (stat((m_strMetaPath + "/" + path + "/" + namelist[i]->d_name).c_str(), &s) < 0)
          return -1;
 
       string abs_path = path + "/" + namelist[i]->d_name;
 
-      if (!S_ISDIR(s.st_mode))
+      if (!S_ISDIR(s.st_mode) || (stat((m_strMetaPath + "/" + abs_path + "/.nosplit").c_str(), &s_nosplit) >= 0))
       {
          SNode sn;
          sn.deserialize2(m_strMetaPath + "/" + abs_path);
@@ -725,12 +732,28 @@ int Index2::getUnderReplicated(const string& path, vector<string>& replica, cons
          unsigned int d = thresh;
          for (map<string, int>::const_iterator s = special.begin(); s != special.end(); ++ s)
          {
-            if (abs_path.find(s->first) != string::npos)
+            if (s->first.c_str()[s->first.length() - 1] == '/')
             {
-               d = s->second;
-               break;
+               // check directory prefix
+               if (abs_path.substr(0, s->first.length() - 1) + "/" == s->first)
+               {
+                  d = s->second;
+                  break;
+               }
+            }
+            else
+            {
+               // special file, name must match
+               if (abs_path == s->first)
+               {
+                  d = s->second;
+                  break;
+               }
             }
          }
+
+         if (stat((m_strMetaPath + "/" + abs_path + "/.nosplit").c_str(), &s_nosplit) >= 0)
+            sn.deserialize2(m_strMetaPath + "/" + abs_path + "/.nosplit");
 
          if (sn.m_sLocation.size() < d)
             replica.push_back(abs_path);
@@ -834,7 +857,7 @@ int Index2::merge(const string& prefix, const string& path, const unsigned int& 
             os.deserialize2(file);
             ns.deserialize2(path + "/" + namelist[i]->d_name);
 
-            if ((os.m_llSize == ns.m_llSize) && (os.m_llTimeStamp == ns.m_llTimeStamp) && (os.m_sLocation.size() < replica))
+            if ((os.m_llSize == ns.m_llSize) && (os.m_llTimeStamp == ns.m_llTimeStamp)) // && (os.m_sLocation.size() < replica))
             {
                // files with same name, size, timestamp
                // and the number of replicas is below the threshold

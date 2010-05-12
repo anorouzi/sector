@@ -262,7 +262,11 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
 
    int response = -1;
    if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
+   {
+      if (reopen() >= 0)
+         return 0;
       return SectorError::E_CONNECTION;
+   }
 
    char* tmp = NULL;
    int64_t recvsize = m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, tmp, realsize, m_bSecure);
@@ -270,6 +274,10 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    {
       memcpy(buf, tmp, recvsize);
       m_llCurReadPos += recvsize;
+   }
+   else if (recvsize < 0)
+   {
+      reopen();
    }
    delete [] tmp;
 
@@ -358,21 +366,44 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
 
    int64_t unit = 64000000; //send 64MB each time
    int64_t torecv = realsize;
-   int64_t recd = 0;
    while (torecv > 0)
    {
       int64_t block = (torecv < unit) ? torecv : unit;
-      if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, offset + recd, block, m_bSecure) < 0)
+      if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, m_llSize - torecv, block, m_bSecure) < 0)
          break;
 
-      recd += block;
       torecv -= block;
    }
 
-   if (recd < realsize)
-      return SectorError::E_CONNECTION;
+   if (torecv > 0)
+   {
+      // retry once with another copy
+      if (reopen() >= 0)
+      {
+         cmd = 3;
+         m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
+         offset = ofs.tellp();
+         m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&offset, 8);
+         response = -1;
+         if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
+            return SectorError::E_CONNECTION;
+
+         torecv = m_llSize - offset;
+         while (torecv > 0)
+         {
+            int64_t block = (torecv < unit) ? torecv : unit;
+            if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, m_llSize - torecv, block, m_bSecure) < 0)
+               break;
+
+            torecv -= block;
+         }
+      }
+   }
 
    ofs.close();
+
+   if (torecv > 0)
+      return SectorError::E_CONNECTION;
 
    return realsize;
 }

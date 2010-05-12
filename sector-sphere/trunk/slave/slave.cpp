@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/03/2010
+   Yunhong Gu, last updated 05/11/2010
 *****************************************************************************/
 
 
@@ -99,15 +99,15 @@ int Slave::init(const char* base)
    // initialize local directory
    m_strHomeDir = m_SysConfig.m_strHomeDir;
 
-   // initialize slave log
-   m_SectorLog.init((m_strHomeDir + ".sector.log").c_str());
-
    // check local directory
    if (createSysDir() < 0)
    {
       cerr << "unable to create system directory " << m_strHomeDir << endl;
       return -1;
    }
+
+   // initialize slave log
+   m_SectorLog.init((m_strHomeDir + ".log/sector.log").c_str());
 
    //copy permanent sphere libraries
    system((string("cp ") + m_strBase + "/sphere/*.so "  + m_strHomeDir + "/.sphere/perm/").c_str());
@@ -466,8 +466,8 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       Param3* p = new Param3;
       p->serv_instance = this;
       p->transid = *(int32_t*)msg->getData();
-      p->src = msg->getData() + 8;
-      p->dst = msg->getData() + 8 + p->src.length() + 1;
+      p->src = msg->getData() + 4;
+      p->dst = msg->getData() + 4 + p->src.length() + 1;
 
       p->master_ip = ip;
       p->master_port = port;
@@ -636,8 +636,18 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
 int Slave::getFileList(const std::string& path, std::vector<std::string>& filelist)
 {
-   dirent **namelist;
    string abs_path = m_strHomeDir + path;
+   struct stat64 s;
+   if (stat64(abs_path.c_str(), &s) < 0)
+      return -1;
+
+   if (!S_ISDIR(s.st_mode))
+   {
+      filelist.push_back(path);
+      return 1;
+   }
+
+   dirent **namelist;
    int n = scandir(abs_path.c_str(), &namelist, 0, alphasort);
 
    if (n < 0)
@@ -665,7 +675,6 @@ int Slave::getFileList(const std::string& path, std::vector<std::string>& fileli
       if (bad)
          continue;
 
-      struct stat64 s;
       if (stat64((abs_path + "/" + namelist[i]->d_name).c_str(), &s) < 0)
          continue;
 
@@ -891,6 +900,15 @@ int Slave::createSysDir()
    }
    closedir(test);
    system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".metadata/*").c_str());
+
+   test = opendir((m_strHomeDir + ".log").c_str());
+   if (NULL == test)
+   {
+      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
+         return -1;
+   }
+   closedir(test);
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
 
    test = opendir((m_strHomeDir + ".sphere").c_str());
    if (NULL == test)

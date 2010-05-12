@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/16/2010
+   Yunhong Gu, last updated 05/10/2010
 *****************************************************************************/
 
 
@@ -873,8 +873,8 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
          }
          else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) 
                   && (i->second.m_llSize == s->second.m_llSize) 
-                  && (i->second.m_llTimeStamp == s->second.m_llTimeStamp)
-                  && (s->second.m_sLocation.size() < replica))
+                  && (i->second.m_llTimeStamp == s->second.m_llTimeStamp))
+                  //&& (s->second.m_sLocation.size() < replica))
          {
             // files with same name, size, timestamp
             // and the number of replicas is below the threshold
@@ -1002,7 +1002,7 @@ int Index::getUnderReplicated(const string& path, map<string, SNode>& currdir, v
             if (s->first.c_str()[s->first.length() - 1] == '/')
             {
                // check directory prefix
-               if (abs_path.substr(0, s->first.length() - 2) + "/" == s->first)
+               if (abs_path.substr(0, s->first.length() - 1) + "/" == s->first)
                {
                   d = s->second;
                   break;

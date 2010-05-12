@@ -291,13 +291,14 @@ private: // Status
    volatile bool m_bClosing;                    // If the UDT entity is closing
    volatile bool m_bShutdown;                   // If the peer side has shutdown the connection
    volatile bool m_bBroken;                     // If the connection has been broken
+   volatile bool m_bInQueue;			// to flag the short period of time when the socket is connected but not in the receiving queue yet
    bool m_bOpened;                              // If the UDT entity has been opened
    int m_iBrokenCounter;			// a counter (number of GC checks) to let the GC tag this socket as disconnected
 
    int m_iEXPCount;                             // Expiration counter
    int m_iBandwidth;                            // Estimated bandwidth
    int m_iRTT;                                  // RTT
-   int m_iRTTVar;                               // RTT varianc
+   int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
 
 private: // Sending related data
@@ -400,8 +401,8 @@ private: // Timers
    volatile uint64_t m_ullSYNInt;		// SYN interval
    volatile uint64_t m_ullACKInt;		// ACK interval
    volatile uint64_t m_ullNAKInt;		// NAK interval
-   volatile uint64_t m_ullEXPInt;		// EXP interval
    volatile uint64_t m_ullMinEXPInt;		// Minimum EXP interval
+   volatile int64_t m_llLastRspTime;		// time stamp of last response from the peer
 
    int m_iPktCount;				// packet counter for ACK
    int m_iLightACKCount;			// light ACK counter

@@ -2310,8 +2310,8 @@ int Master::createReplica(const string& src, const string& dst)
    SectorMsg msg;
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
-   msg.setData(8, src.c_str(), src.length() + 1);
-   msg.setData(8 + src.length() + 1, dst.c_str(), dst.length() + 1);
+   msg.setData(4, src.c_str(), src.length() + 1);
+   msg.setData(4 + src.length() + 1, dst.c_str(), dst.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return -1;
@@ -2330,9 +2330,8 @@ int Master::createReplica(const string& src, const string& dst)
 
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
-   msg.setData(4, (char*)&attr.m_llTimeStamp, 8);
-   msg.setData(12, idx.c_str(), idx.length() + 1);
-   msg.setData(12 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
+   msg.setData(4, idx.c_str(), idx.length() + 1);
+   msg.setData(4 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
       return 0;
