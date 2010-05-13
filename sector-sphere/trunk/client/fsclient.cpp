@@ -136,7 +136,11 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    cerr << "open file " << filename << " " << m_strSlaveIP << " " << m_iSlaveDataPort << endl;
    if (m_pClient->m_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)
-      return SectorError::E_CONNECTION;
+   {
+      // retry once
+      if (reopen() < 0)
+         return SectorError::E_CONNECTION;
+   }
 
    string localip;
    int localport;
@@ -274,12 +278,13 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    {
       memcpy(buf, tmp, recvsize);
       m_llCurReadPos += recvsize;
+      delete [] tmp;
    }
    else if (recvsize < 0)
    {
-      reopen();
+      if (reopen() >= 0)
+         return 0;
    }
-   delete [] tmp;
 
    return recvsize;
 }

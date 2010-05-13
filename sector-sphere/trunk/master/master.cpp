@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/15/2010
+   Yunhong Gu, last updated 05/12/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -2306,6 +2306,8 @@ int Master::createReplica(const string& src, const string& dst)
    }
 
    int transid = m_TransManager.create(0, 0, 111, dst, 0);
+   if (src == dst)
+      m_sstrOnReplicate.insert(src);
 
    SectorMsg msg;
    msg.setType(111);
@@ -2314,12 +2316,13 @@ int Master::createReplica(const string& src, const string& dst)
    msg.setData(4 + src.length() + 1, dst.c_str(), dst.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
+   {
+      m_TransManager.updateSlave(transid, sn.m_iNodeID);
+      m_sstrOnReplicate.erase(src);
       return -1;
+   }
 
    m_TransManager.addSlave(transid, sn.m_iNodeID);
-
-   if (src == dst)
-      m_sstrOnReplicate.insert(src);
 
    // replicate index file to the same location
    string idx = src + ".idx";
@@ -2327,6 +2330,8 @@ int Master::createReplica(const string& src, const string& dst)
       return 0;
 
    transid = m_TransManager.create(0, 0, 111, dst + ".idx", 0);
+   if (src == dst)
+      m_sstrOnReplicate.insert(idx);
 
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
@@ -2334,12 +2339,13 @@ int Master::createReplica(const string& src, const string& dst)
    msg.setData(4 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
+   {
+      m_TransManager.updateSlave(transid, sn.m_iNodeID);
+      m_sstrOnReplicate.erase(idx);
       return 0;
+   }
 
    m_TransManager.addSlave(transid, sn.m_iNodeID);
-
-   if (src == dst)
-      m_sstrOnReplicate.insert(idx);
 
    return 0;
 }
