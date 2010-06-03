@@ -6,43 +6,43 @@ else
    LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-all: download upload ls rm mkdir stat sysinfo mv cp stream
+all: sector_download sector_upload sector_ls sector_rm sector_mkdir sector_stat sector_sysinfo sector_mv sector_cp sphere_stream
 
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
-download: download.cpp
+sector_download: download.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-upload: upload.cpp
+sector_upload: upload.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-ls: ls.cpp
+sector_ls: ls.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-rm: rm.cpp
+sector_rm: rm.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-mkdir: mkdir.cpp
+sector_mkdir: mkdir.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-stat: stat.cpp
+sector_stat: stat.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-sysinfo: sysinfo.cpp
+sector_sysinfo: sysinfo.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-mv: mv.cpp
+sector_mv: mv.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-cp: cp.cpp
+sector_cp: cp.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
-stream: stream.cpp probot.o
+sphere_stream: stream.cpp probot.o
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o download upload ls rm mkdir stat sysinfo mv cp stream
+	rm -f *.o sector_download sector_upload sector_ls sector_rm sector_mkdir sector_stat sector_sysinfo sector_mv sector_cp sphere_stream
 
 install:
 	

@@ -107,7 +107,7 @@ int Slave::init(const char* base)
    }
 
    // initialize slave log
-   m_SectorLog.init((m_strHomeDir + ".log/sector.log").c_str());
+   m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
    //copy permanent sphere libraries
    system((string("cp ") + m_strBase + "/sphere/*.so "  + m_strHomeDir + "/.sphere/perm/").c_str());

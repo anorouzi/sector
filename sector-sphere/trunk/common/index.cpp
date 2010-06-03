@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/10/2010
+   Yunhong Gu, last updated 06/01/2010
 *****************************************************************************/
 
 
@@ -238,7 +238,7 @@ int Index::create(const string& path, bool isdir)
          SNode n;
          n.m_strName = *d;
          n.m_bIsDir = true;
-         n.m_llTimeStamp = 0;
+         n.m_llTimeStamp = time(NULL);
          n.m_llSize = 0;
          (*currdir)[*d] = n;
          s = currdir->find(*d);

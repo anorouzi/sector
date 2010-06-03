@@ -75,8 +75,6 @@ Master::~Master()
 
 int Master::init()
 {
-   m_SectorLog.init("sector.log");
-
    // read configuration from master.conf
    if (m_SysConfig.init("../conf/master.conf") < 0)
    {
@@ -127,12 +125,15 @@ int Master::init()
    closedir(test);
 
    if ((mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0)
-      || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
+      || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0)
+      || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
    {
       cerr << "unable to create home directory.\n";
       m_SectorLog.insert("unable to create home directory.");
       return -1;
    }
+
+   m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
    if (m_SysConfig.m_MetaType == DISK)
       m_pMetadata = new Index2;

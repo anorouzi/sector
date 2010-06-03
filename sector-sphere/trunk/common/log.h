@@ -55,10 +55,20 @@ public:
    int init(const char* path);
    void close();
 
-   void insert(const char* text);
-   void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave);
+   void setLevel(const int level);
+
+   void insert(const char* text, const int level = 1);
+   void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level = 1);
 
 private:
+   void checkLogFile();
+
+private:
+   int m_iLevel;
+   int m_iDay;
+
+   std::string m_strLogPath;
+
    std::ofstream m_LogFile;
    pthread_mutex_t m_LogLock;
 };
