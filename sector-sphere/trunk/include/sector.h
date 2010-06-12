@@ -286,6 +286,7 @@ public:
    int checkProgress();
    int checkMapProgress();
    int checkReduceProgress();
+   int waitForCompletion();
 
    void setMinUnitSize(int size);
    void setMaxUnitSize(int size);

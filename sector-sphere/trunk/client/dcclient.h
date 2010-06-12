@@ -69,6 +69,7 @@ public:
    int checkProgress();
    int checkMapProgress();
    int checkReduceProgress();
+   int waitForCompletion();
 
    inline void setMinUnitSize(int size) {m_iMinUnitSize = size;}
    inline void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}

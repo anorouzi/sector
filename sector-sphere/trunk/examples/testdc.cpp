@@ -64,36 +64,7 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
-   t2 = t1;
-   while (true)
-   {
-      SphereResult* res = NULL;
-
-      if (myproc->read(res) <= 0)
-      {
-         if (myproc->checkProgress() < 0)
-         {
-            cerr << "all SPEs failed\n";
-            break;
-         }
-
-         if (myproc->checkProgress() == 100)
-            break;
-      }
-      else
-      {
-         delete res;
-      }
-
-      gettimeofday(&t2, 0);
-      if (t2.tv_sec - t1.tv_sec > 60)
-      {
-         cout << "PROGRESS: " << myproc->checkProgress() << "%" << endl;
-         t1 = t2;
-      }
-   }
+   myproc->waitForCompletion();
 
    gettimeofday(&t, 0);
    cout << "stage 1 accomplished " << t.tv_sec << endl;
@@ -107,35 +78,7 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   gettimeofday(&t1, 0);
-   t2 = t1;
-   while (true)
-   {
-      SphereResult* res = NULL;
-
-      if (myproc->read(res) <= 0)
-      {
-         if (myproc->checkProgress() < 0)
-         {
-            cerr << "all SPEs failed\n";
-            break;
-         }
-
-         if (myproc->checkProgress() == 100)
-            break;
-      }
-      else
-      {
-         delete res;
-      }
-
-      gettimeofday(&t2, 0);
-      if (t2.tv_sec - t1.tv_sec > 60)
-      {
-         cout << "PROGRESS: " << myproc->checkProgress() << "%" << endl;
-         t1 = t2;
-      }
-   }
+   myproc->waitForCompletion();
 
    gettimeofday(&t, 0);
    cout << "stage 2 accomplished " << t.tv_sec << endl;
