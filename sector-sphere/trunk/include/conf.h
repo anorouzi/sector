@@ -133,7 +133,7 @@ public:
 class Session
 {
 public:
-   int loadInfo(const std::string& conf);
+   int loadInfo(const char* conf = NULL);
 
 public:
    ClientConf m_ClientConf;

@@ -432,18 +432,23 @@ bool WildCard::match(const string& card, const string& path)
 }
 
 
-int Session::loadInfo(const string& conf)
+int Session::loadInfo(const char* conf)
 {
    string conf_file_path;
 
    char* system_env = getenv("SECTOR_HOME");
-   if (NULL != system_env)
-      conf_file_path = string(system_env) + "/conf/client.conf";
+
+   struct stat t;
+   if ((NULL == conf) || (stat(conf, &t) < 0))
+   {
+      if (NULL != system_env)
+         conf_file_path = string(system_env) + "/conf/client.conf";
+      else
+         conf_file_path = "../conf/client.conf";
+   }
    else
-   {   
-      struct stat t;
-      if (stat(conf.c_str(), &t) == 0)
-         conf_file_path = conf;
+   {
+      conf_file_path = conf;
    }
 
    m_ClientConf.init(conf_file_path);
@@ -481,14 +486,19 @@ int Session::loadInfo(const string& conf)
       cin >> m_ClientConf.m_strPassword;
    }
 
-   if (NULL != system_env)
-      m_ClientConf.m_strCertificate = string(system_env) + "/conf/master_node.cert";
-
-   struct stat t;
    if (stat(m_ClientConf.m_strCertificate.c_str(), &t) < 0)
    {
-      cout << "please specify the location of the master certificate: ";
-      cin >> m_ClientConf.m_strCertificate;
+      if (NULL != system_env)
+         m_ClientConf.m_strCertificate = string(system_env) + "/conf/master_node.cert";
+      else if (stat("../conf/master_node.cert", &t) == 0)
+      {
+         m_ClientConf.m_strCertificate = "../conf/master_node.cert";
+      }
+      else
+      {
+         m_ClientConf.m_strCertificate = "";
+         cout << "WARNING: couldn't locate the master certificate, will try to download one from the master node.\n";
+      }
    }
 
    return 1;

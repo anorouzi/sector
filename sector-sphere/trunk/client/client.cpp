@@ -40,6 +40,7 @@ written by
 
 
 #include <ssltransport.h>
+#include <tcptransport.h>
 #include <netdb.h>
 #include <crypto.h>
 #include "client.h"
@@ -117,13 +118,18 @@ int Client::login(const string& username, const string& password, const char* ce
    if (m_iKey > 0)
       return m_iKey;
 
-   SSLTransport::init();
-
    string master_cert;
    if (cert != NULL)
       master_cert = cert;
    else
-      master_cert = "master_node.cert";
+   {
+      if (retrieveMasterInfo() >= 0)
+         master_cert = "/tmp/master_node.cert";
+      else
+         return -1;
+   }
+
+   SSLTransport::init();
 
    int result;
    SSLTransport secconn;
@@ -750,4 +756,22 @@ int Client::lookup(const int32_t& key, Address& serv_addr)
    }
 
    return 0;
+}
+
+int Client::retrieveMasterInfo()
+{
+   TCPTransport t;
+   t.open(NULL, 0);
+   if (t.connect(m_strServerIP.c_str(), m_iServerPort) < 0)
+      return -1;
+
+   int32_t size = 0;
+   t.recv((char*)&size, 4);
+   size = t.recvfile("/tmp/master_node.cert", 0, size);
+   t.close();
+
+   if (size <= 0)
+      return -1;
+
+   return size;
 }

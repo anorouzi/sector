@@ -61,6 +61,10 @@ int getFileList(const string& path, vector<string>& fl)
 
    if (S_ISDIR(s.st_mode))
    {
+      // if there is a ".nosplit" file, must upload this file the first in the directory, subsequent files will be uploaded to the same node
+      if (stat64((path + "/.nosplit").c_str(), &s) > 0)
+         fl.push_back(path + "/.nosplit");
+
       dirent **namelist;
       int n = scandir(path.c_str(), &namelist, 0, alphasort);
 

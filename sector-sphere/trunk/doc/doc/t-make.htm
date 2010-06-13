@@ -15,7 +15,71 @@
   <p><strong>The software is written in C++. GCC/G++ version 3.4 or above is required. Openssl development library is required (e.g., libssl-dev for Debian or openssl-devel for Fedora). </strong></p>
   <p align="center"><img src="images/sector-arch.jpg" alt="sector arch" width="360" height="214" /></p>
   <p>There are four parts in the software suite: the security server, the master servers, the slaves, and the clients. These four parts can be installed on the same node or over multiple nodes. However, usually each node should only host no more than one slave instance. <strong>Each slave instance requires at least 10GB free disk space. </strong>Debian Linux and XFS file system are recommended, although this is not a must. </p>
+  <h4>Understanding the Code Structure</h4>
+  <p>It may be helpful to take a minute to browse the directories of the Sector source code. In the root directory it contains the Makefile and the software license. The sub-directories are explained in the table below: </p>
+  <table width="100%" border="0">
+    <tr>
+      <td width="17%"><strong>Directory</strong></td>
+      <td width="83%"><strong>Description</strong></td>
+    </tr>
+    <tr>
+      <td>client</td>
+      <td>contains code for the Sector/Sphere client runtime and the client API </td>
+    </tr>
+    <tr>
+      <td>common</td>
+      <td>contains utility routines for all Sector modules </td>
+    </tr>
+    <tr>
+      <td>conf</td>
+      <td>contains the Sector system configuration files and security keys/certificates </td>
+    </tr>
+    <tr>
+      <td>doc</td>
+      <td>contains a copy of the manual </td>
+    </tr>
+    <tr>
+      <td>examples</td>
+      <td>these are programming examples, mostly for Sphere programming </td>
+    </tr>
+    <tr>
+      <td>fuse</td>
+      <td>the FUSE driver the Sector file system </td>
+    </tr>
 
+    <tr>
+      <td>gmp</td>
+      <td>a messaging library used for control message exchanging in the Sector/Sphere system </td>
+    </tr>
+    <tr>
+      <td>include</td>
+      <td>three header files required for Sector/Sphere programming </td>
+    </tr>
+    <tr>
+      <td>lib</td>
+      <td>contains complied library files for the system </td>
+    </tr>
+    <tr>
+      <td>master</td>
+      <td>contains code for the Sector masters </td>
+    </tr>
+    <tr>
+      <td>security</td>
+      <td>contains code for the security server </td>
+    </tr>
+    <tr>
+      <td>slave</td>
+      <td>contains code for the Sector slaves </td>
+    </tr>
+    <tr>
+      <td>tools</td>
+      <td>Sector tools to access the system and the data; can be used as Sector file system API example as well </td>
+    </tr>
+    <tr>
+      <td>udt</td>
+      <td>the data transfer protocol used by Sector/Sphere </td>
+    </tr>
+  </table>
   <h4>Compile and Install </h4>
   <p>You may either download the tarball release or   check out the most recent code from SourceForge SVN. The source code will be   located under a directory called &quot;sector-sphere&quot;. When you are ready, follow the several steps below to install Sector.</p>
   <ol>
@@ -26,10 +90,12 @@
   </ol>
   <p>If you have any questions, please post them on SourceForge <a href="https://sourceforge.net/forum/?group_id=172838" target="_blank">https://sourceforge.net/forum/?group_id=172838</a>.</p>
 
+<h4>$SECTOR_HOME</h4>
+<p>Like many other *nix applications, Sector uses an environment variable $SECTOR_HOME to specify the location of the home directory of the system (executables, libraries, and mostly importantly, configuration files). You may ignore this and by default $SECTOR_HOME=&quot;../&quot;, in which case Sector assumes that you run all the commands in their own directories. </p>
 <h4>Start the Servers </h4>
-  <p>The security server is located under directory ./sector-sphere/security. You can start the security server in this directory by running<strong> ./sserver</strong>. By default the security server will listen on port 5000, you may use <strong>./sserver &lt;port&gt; </strong>to specify a different port. There is no verbose screen output from this command, except that it tells that the server is running at the specific port. </p>
-  <p>The Sector master server is in the directory of ./sector-sphere/master. you may start the master server by using command<strong> ./start_master</strong>. Again, the command must be used in the directory of   ./sector-sphere/master, because it needs to locate the configuration file in ../conf. There is no verbose screen output from the master server. A log is kept in ./master/sector.log. Multiple masters can be started if necessary. </p>
-  <p>Alternatively, you may use the <strong>./start_all</strong> and <strong>./stop_all </strong>commands to start/stop the master and all the   slaves. (They do NOT start/stop the security server.) In order to use this   feature, you need to update &quot;<strong>../conf/slaves.list</strong>&quot;. Sector will read this file and use &quot;ssh&quot; to start remote slaves.   The public SSH key of the master node must be put in the file   ~/.ssh/authorized_keys of all slave nodes before you can use these two commands. Slave nodes on this list can also be restarted   automatically by the master if a slave is not responsive for some time.</p>
+<p>The security server is located under directory ./sector-sphere/security. You can start the security server by running<strong> ./sserver</strong>. By default the security server will listen on port 5000, you may use <strong>./sserver &lt;port&gt; </strong>to specify a different port. There is no verbose screen output from this command, except that it tells that the server is running at the specific port. </p>
+  <p>The Sector master server is in the directory of ./sector-sphere/master. you may start the master server by using command<strong> ./start_master</strong>. There is no verbose screen output from the master server either. A log is kept in MASTER_DATA_DIR/.log; one log file is generated per day. Multiple masters can be started if necessary. </p>
+  <p>Alternatively, you may use the <strong>./start_all</strong> and <strong>./stop_all </strong>commands to start/stop the master and all the   slaves. (They do NOT start/stop the security server.) In order to use this   feature, you need to update $SECTOR_HOME<strong>/conf/slaves.list</strong>. Sector will read this file and use &quot;ssh&quot; to start remote slaves.   The public SSH key of the master node must be put in the file   ~/.ssh/authorized_keys of all slave nodes before you can use these two commands. A Slave node on this list can also be restarted   automatically by the master if the slave is not responsive for some time.</p>
   <p>If you do not start the slaves with the ./start_all command in the master directory, you can start each slave individually with <strong>./start_slave</strong> command under ./sector-sphere/slave directory. This may be helpful for debugging purposes, since you can see all the output from the slaves. In addition, you can start new slaves at any time when the system is running. </p>
 </body>
 </html>
