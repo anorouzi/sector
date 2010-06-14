@@ -439,7 +439,7 @@ int Session::loadInfo(const char* conf)
    char* system_env = getenv("SECTOR_HOME");
 
    struct stat t;
-   if ((NULL == conf) || (stat(conf, &t) < 0))
+   if ((NULL == conf) || (0 == strlen(conf)) || (stat(conf, &t) < 0))
    {
       if (NULL != system_env)
          conf_file_path = string(system_env) + "/conf/client.conf";
@@ -489,7 +489,10 @@ int Session::loadInfo(const char* conf)
    if (stat(m_ClientConf.m_strCertificate.c_str(), &t) < 0)
    {
       if (NULL != system_env)
-         m_ClientConf.m_strCertificate = string(system_env) + "/conf/master_node.cert";
+      {
+         if (stat((string(system_env) + "/conf/master_node.cert").c_str(), &t) == 0)
+            m_ClientConf.m_strCertificate = string(system_env) + "/conf/master_node.cert";
+      }
       else if (stat("../conf/master_node.cert", &t) == 0)
       {
          m_ClientConf.m_strCertificate = "../conf/master_node.cert";

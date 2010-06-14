@@ -119,7 +119,7 @@ int Client::login(const string& username, const string& password, const char* ce
       return m_iKey;
 
    string master_cert;
-   if (cert != NULL)
+   if ((cert != NULL) && (0 != strlen(cert)))
       master_cert = cert;
    else
    {
@@ -762,7 +762,7 @@ int Client::retrieveMasterInfo()
 {
    TCPTransport t;
    t.open(NULL, 0);
-   if (t.connect(m_strServerIP.c_str(), m_iServerPort) < 0)
+   if (t.connect(m_strServerIP.c_str(), m_iServerPort - 1) < 0)
       return -1;
 
    int32_t size = 0;
