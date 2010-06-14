@@ -78,7 +78,7 @@ int Master::init()
 {
    //The master will look for the configurations from $SECTOR_HOME/conf/
    //If $SECTOR_HOME is not set, it tries to check ../conf
-   string m_strSectorHome = "../";
+   m_strSectorHome = "../";
    char* system_env = getenv("SECTOR_HOME");
    if (NULL != system_env)
       m_strSectorHome = system_env;

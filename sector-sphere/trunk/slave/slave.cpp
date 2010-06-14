@@ -70,8 +70,16 @@ int Slave::init(const char* base)
 {
    if (NULL != base)
       m_strBase = base;
+   else
+   {
+      char* system_env = getenv("SECTOR_HOME");
+      if (NULL != system_env)
+         m_strBase = system_env;
+      else
+         m_strBase = "../";
+   }
 
-   string conf = m_strBase + "/../conf/slave.conf";
+   string conf = m_strBase + "/conf/slave.conf";
    if (m_SysConfig.init(conf) < 0)
    {
       cerr << "unable to initialize from configuration file; quit.\n";
@@ -130,7 +138,7 @@ int Slave::connect()
    // join the server
    SSLTransport::init();
 
-   string cert = m_strBase + "/../conf/master_node.cert";
+   string cert = m_strBase + "/conf/master_node.cert";
 
    // calculate total available disk size
    struct statfs64 slavefs;
