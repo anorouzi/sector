@@ -9,50 +9,17 @@
 
 using namespace std;
 
-int upload(const char* file, const char* dst, Sector& client)
-{
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
-
-   struct stat64 s;
-   stat64(file, &s);
-   cout << "uploading " << file << " of " << s.st_size << " bytes" << endl;
-
-   SectorFile* f = client.createSectorFile();
-
-   if (f->open(dst, SF_MODE::WRITE) < 0)
-   {
-      cout << "ERROR: unable to connect to server or file already exists." << endl;
-      return -1;
-   }
-
-   bool finish = true;
-   if (f->upload(file) < 0LL)
-      finish = false;
-
-   f->close();
-   client.releaseSectorFile(f);
-
-   if (finish)
-   {
-      gettimeofday(&t2, 0);
-      float throughput = s.st_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
-
-      cout << "Uploading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
-   }
-   else
-      cout << "Uploading failed! Please retry. " << endl << endl;
-
-   return 1;
-}
-
 int main(int argc, char** argv)
 {
-   if (2 != argc)
+   CmdLineParser clp;
+   if ((clp.parse(argc, argv) <= 0) || (clp.m_mParams.size() != 1))
    {
-      cout << "usage: sector_pipe dst_file" << endl;
+      cout << "usage #1: <your_application> | sector_pipe -d dst_file" << endl;
+      cout << "usage #2: sector_pipe -s src_file | <your_application>" << endl;
       return 0;
    }
+
+   string option = clp.m_mParams.begin()->first;
 
    Sector client;
 
@@ -67,27 +34,52 @@ int main(int argc, char** argv)
 
    timeval t1, t2;
    gettimeofday(&t1, 0);
+   int64_t total_size = 0;
 
    SectorFile* f = client.createSectorFile();
 
-   if (f->open(argv[1], SF_MODE::WRITE | SF_MODE::APPEND) < 0)
+   if (option == "d")
    {
-      cout << "ERROR: unable to open destination file." << endl;
-      return -1;
+      if (f->open(argv[2], SF_MODE::WRITE | SF_MODE::APPEND) < 0)
+      {
+         cout << "ERROR: unable to open destination file." << endl;
+         return -1;
+      }
+
+      int size = 1000000;
+      char* buf = new char[size];
+      int read_size = size;
+
+      while(true)
+      {
+         read_size = read(0, buf, size);
+         if (read_size <= 0)
+             break;
+         f->write(buf, read_size);
+         total_size += read_size;
+      }
    }
-
-   int size = 1000000;
-   char* buf = new char[size];
-   int read_size = size;
-   int64_t total_size = 0;
-
-   while(true)
+   else if (option == "s")
    {
-      read_size = read(0, buf, size);
-      if (read_size <= 0)
-         break;
-      f->write(buf, read_size);
-      total_size += read_size;
+      if (f->open(argv[2], SF_MODE::READ) < 0)
+      {
+         cout << "ERROR: unable to open destination file." << endl;
+         return -1;
+      }
+
+      int size = 1000000;
+      char* buf = new char[size + 1];
+      int read_size = size;
+
+      while(!f->eof())
+      {
+         read_size = f->read(buf, size);
+         if (read_size <= 0)
+             break;
+         total_size += read_size;
+         buf[read_size + 1] = 0;
+         printf("%s", buf);
+      }
    }
 
    f->close();
@@ -96,7 +88,7 @@ int main(int argc, char** argv)
    gettimeofday(&t2, 0);
    float throughput = total_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
 
-   cout << "Writing accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
+   cout << "Pipeline accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 
    client.logout();
    client.close();

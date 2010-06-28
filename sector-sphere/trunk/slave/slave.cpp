@@ -118,7 +118,7 @@ int Slave::init(const char* base)
    m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
    //copy permanent sphere libraries
-   system((string("cp ") + m_strBase + "/sphere/*.so "  + m_strHomeDir + "/.sphere/perm/").c_str());
+   system((string("cp ") + m_strBase + "/slave/sphere/*.so " + m_strHomeDir + "/.sphere/perm/").c_str());
 
    cout << "scanning " << m_strHomeDir << endl;
    if (m_SysConfig.m_MetaType == DISK)
