@@ -14,8 +14,8 @@ int main(int argc, char** argv)
    CmdLineParser clp;
    if ((clp.parse(argc, argv) <= 0) || (clp.m_mParams.size() != 1))
    {
-      cout << "usage #1: <your_application> | sector_pipe -d dst_file" << endl;
-      cout << "usage #2: sector_pipe -s src_file | <your_application>" << endl;
+      cerr << "usage #1: <your_application> | sector_pipe -d dst_file" << endl;
+      cerr << "usage #2: sector_pipe -s src_file | <your_application>" << endl;
       return 0;
    }
 
@@ -42,7 +42,7 @@ int main(int argc, char** argv)
    {
       if (f->open(argv[2], SF_MODE::WRITE | SF_MODE::APPEND) < 0)
       {
-         cout << "ERROR: unable to open destination file." << endl;
+         cerr << "ERROR: unable to open destination file." << endl;
          return -1;
       }
 
@@ -63,7 +63,7 @@ int main(int argc, char** argv)
    {
       if (f->open(argv[2], SF_MODE::READ) < 0)
       {
-         cout << "ERROR: unable to open destination file." << endl;
+         cerr << "ERROR: unable to open destination file." << endl;
          return -1;
       }
 
@@ -88,7 +88,7 @@ int main(int argc, char** argv)
    gettimeofday(&t2, 0);
    float throughput = total_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
 
-   cout << "Pipeline accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
+   cerr << "Pipeline accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 
    client.logout();
    client.close();
