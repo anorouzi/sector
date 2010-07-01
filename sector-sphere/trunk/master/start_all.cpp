@@ -77,7 +77,7 @@ int main()
       addr = addr.substr(0, addr.find(' '));
 
       //TODO: source .bash_profile to include more environments variables
-      system((string("ssh ") + addr + " \"" + base + "/start_slave " + base + " &> /dev/null &\" &").c_str());
+      system((string("ssh ") + addr + " \"" + base + "/slave/start_slave " + base + " &> /dev/null &\" &").c_str());
 
       cout << "start slave at " << addr << endl;
    }

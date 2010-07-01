@@ -226,15 +226,21 @@ int Cache::shrink()
    // find the block with the earliest lass access time
    // currently we assume all blocks have equal size, so removing one block is enough for a new block
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
+   latest_time = CTimer::getTime();
+   list<CacheBlock>::iterator d = c->second.begin();
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
    {
-      if (i->m_llLastAccessTime == latest_time)
+      if (i->m_llLastAccessTime < latest_time)
       {
-         delete i->m_pcBlock;
-         c->second.erase(i);
-         break;
+         latest_time = i->m_llLastAccessTime;
+         d = i;
       }
    }
+
+   delete [] d->m_pcBlock;
+   d->m_pcBlock = NULL;
+   m_llCacheSize -= d->m_llSize;
+   c->second.erase(d);
 
    return 0;
 }

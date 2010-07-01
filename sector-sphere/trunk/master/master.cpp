@@ -459,7 +459,7 @@ int Master::run()
 
             // kill and restart the slave
             system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
-            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
          }
       }
 
