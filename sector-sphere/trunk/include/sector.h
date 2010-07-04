@@ -46,7 +46,18 @@ written by
 #include <string>
 #include <map>
 #include <set>
-#include <stdint.h>
+#include <udt.h>
+#ifndef WIN32
+   #include <stdint.h>
+
+   #define SECTOR_API
+#else
+   #ifdef SECTOR_EXPORTS
+      #define SECTOR_API __declspec(dllexport)
+   #else
+      #define SECTOR_API __declspec(dllimport)
+   #endif
+#endif
 
 struct Address
 {
@@ -64,7 +75,7 @@ struct AddrComp
    }
 };
 
-class SNode
+class SECTOR_API SNode
 {
 public:
    SNode();
@@ -86,7 +97,7 @@ public:
    int deserialize2(const std::string& file);
 };
 
-class SysStat
+class SECTOR_API SysStat
 {
 public:
    int64_t m_llStartTime;
@@ -128,7 +139,7 @@ public:
 class SectorFile;
 class SphereProcess;
 
-class Sector
+class SECTOR_API Sector
 {
 public:
    int init(const std::string& server, const int& port);
@@ -161,7 +172,7 @@ public:
 };
 
 // file open mode
-struct SF_MODE
+struct SECTOR_API SF_MODE
 {
    static const int READ = 1;                   // read only
    static const int WRITE = 2;                  // write only
@@ -173,14 +184,14 @@ struct SF_MODE
 };
 
 //file IO position base
-struct SF_POS
+struct SECTOR_API SF_POS
 {
    static const int BEG = 1;
    static const int CUR = 2;
    static const int END = 3;
 };
 
-class SectorFile
+class SECTOR_API SectorFile
 {
 friend class Sector;
 
@@ -209,7 +220,7 @@ public:
    int m_iID;
 };
 
-class SphereStream
+class SECTOR_API SphereStream
 {
 public:
    SphereStream();
@@ -244,7 +255,7 @@ public:
    int m_iStatus;                       // 0: uninitialized, 1: initialized, -1: bad
 };
 
-class SphereResult
+class SECTOR_API SphereResult
 {
 public:
    SphereResult();
@@ -265,7 +276,7 @@ public:
    int64_t m_llOrigEndRec;      // last record of the original input file
 };
 
-class SphereProcess
+class SECTOR_API SphereProcess
 {
 friend class Sector;
 
@@ -298,7 +309,7 @@ public:
 };
 
 // ERROR codes
-class SectorError
+class SECTOR_API SectorError
 {
 public:
    static const int E_UNKNOWN = -1;             // unknown error

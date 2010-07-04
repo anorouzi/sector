@@ -38,16 +38,17 @@ written by
    Yunhong Gu, last updated 04/22/2009
 *****************************************************************************/
 
-
+#ifndef WIN32
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+   #include <unistd.h>
+#endif
 #include "conf.h"
 #include <iostream>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <cstring>
 #include <cstdlib>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 using namespace std;
 
@@ -232,7 +233,11 @@ int MasterConf::init(const string& path)
             m_MetaType = DISK;
       }
       else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
+#ifndef WIN32
          m_llSlaveMinDiskSpace = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llSlaveMinDiskSpace = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
       else if ("LOG_LEVEL" == param.m_strName)
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       else
@@ -287,7 +292,11 @@ int SlaveConf::init(const string& path)
             m_strHomeDir += "/";
       }
       else if ("MAX_DATA_SIZE" == param.m_strName)
+#ifndef WIN32
          m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str()) * 1024 * 1024;
+#else
+         m_llMaxDataSize = _atoi64(param.m_vstrValue[0].c_str()) * 1024 * 1024;
+#endif
       else if ("MAX_SERVICE_INSTANCE" == param.m_strName)
          m_iMaxServiceNum = atoi(param.m_vstrValue[0].c_str());
       else if ("LOCAL_ADDRESS" == param.m_strName)
@@ -361,7 +370,11 @@ int ClientConf::init(const string& path)
       }
       else if ("MAX_CACHE_SIZE" == param.m_strName)
       {
+#ifndef WIN32
          m_llMaxCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llMaxCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
       }
       else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
       {

@@ -39,6 +39,7 @@ written by
 *****************************************************************************/
 
 #include <sector.h>
+#include <common.h>
 #include "clientmgmt.h"
 
 using namespace std;
@@ -46,27 +47,39 @@ using namespace std;
 ClientMgmt::ClientMgmt():
 m_iID(0)
 {
+#ifndef WIN32
    pthread_mutex_init(&m_CLock, NULL);
    pthread_mutex_init(&m_FSLock, NULL);
    pthread_mutex_init(&m_DCLock, NULL);
+#else
+   m_CLock = CreateMutex(NULL, false, NULL);
+   m_FSLock = CreateMutex(NULL, false, NULL);
+   m_DCLock = CreateMutex(NULL, false, NULL);
+#endif
 }
 
 ClientMgmt::~ClientMgmt()
 {
+#ifndef WIN32
    pthread_mutex_destroy(&m_CLock);
    pthread_mutex_destroy(&m_FSLock);
    pthread_mutex_destroy(&m_DCLock);
+#else
+   CloseHandle(m_CLock);
+   CloseHandle(m_FSLock);
+   CloseHandle(m_DCLock);
+#endif
 }
 
 Client* ClientMgmt::lookupClient(const int& id)
 {
    Client* c = NULL;
 
-   pthread_mutex_lock(&m_CLock);
+   CGuard::enterCS(m_CLock);
    map<int, Client*>::iterator i = m_mClients.find(id);
    if (i != m_mClients.end())
       c = i->second;
-   pthread_mutex_unlock(&m_CLock);
+   CGuard::leaveCS(m_CLock);
 
    return c;
 }
@@ -75,11 +88,11 @@ FSClient* ClientMgmt::lookupFS(const int& id)
 {
    FSClient* f = NULL;
 
-   pthread_mutex_lock(&m_FSLock);
+   CGuard::enterCS(m_FSLock);
    map<int, FSClient*>::iterator i = m_mSectorFiles.find(id);
    if (i != m_mSectorFiles.end())
       f = i->second;
-   pthread_mutex_unlock(&m_FSLock);
+   CGuard::leaveCS(m_FSLock);
 
    return f;
 }
@@ -88,74 +101,74 @@ DCClient* ClientMgmt::lookupDC(const int& id)
 {
    DCClient* d = NULL;
 
-   pthread_mutex_lock(&m_DCLock);
+   CGuard::enterCS(m_DCLock);
    map<int, DCClient*>::iterator i = m_mSphereProcesses.find(id);
    if (i != m_mSphereProcesses.end())
       d = i->second;
-   pthread_mutex_unlock(&m_DCLock);
+   CGuard::leaveCS(m_DCLock);
 
    return d;
 }
 
 int ClientMgmt::insertClient(Client* c)
 {
-   pthread_mutex_lock(&m_CLock);
+   CGuard::enterCS(m_CLock);
    int id = g_ClientMgmt.m_iID ++;
    g_ClientMgmt.m_mClients[id] = c;
-   pthread_mutex_unlock(&m_CLock);
+   CGuard::leaveCS(m_CLock);
 
    return id;
 }
 
 int ClientMgmt::insertFS(FSClient* f)
 {
-   pthread_mutex_lock(&m_CLock);
+   CGuard::enterCS(m_CLock);
    int id = g_ClientMgmt.m_iID ++;
-   pthread_mutex_unlock(&m_CLock);
+   CGuard::leaveCS(m_CLock);
 
-   pthread_mutex_lock(&m_FSLock);
+   CGuard::enterCS(m_FSLock);
    g_ClientMgmt.m_mSectorFiles[id] = f;
-   pthread_mutex_unlock(&m_FSLock);
+   CGuard::leaveCS(m_FSLock);
 
    return id;
 }
 
 int ClientMgmt::insertDC(DCClient* d)
 {
-   pthread_mutex_lock(&m_CLock);
+   CGuard::enterCS(m_CLock);
    int id = g_ClientMgmt.m_iID ++;
-   pthread_mutex_unlock(&m_CLock);
+   CGuard::leaveCS(m_CLock);
 
-   pthread_mutex_lock(&m_DCLock);
+   CGuard::enterCS(m_DCLock);
    g_ClientMgmt.m_mSphereProcesses[id] = d;
-   pthread_mutex_unlock(&m_DCLock);
+   CGuard::leaveCS(m_DCLock);
 
    return id;
 }
 
 int ClientMgmt::removeClient(const int& id)
 {
-   pthread_mutex_lock(&m_CLock);
+   CGuard::enterCS(m_CLock);
    g_ClientMgmt.m_mClients.erase(id);
-   pthread_mutex_unlock(&m_CLock);
+   CGuard::leaveCS(m_CLock);
 
    return 0;
 }
 
 int ClientMgmt::removeFS(const int& id)
 {
-   pthread_mutex_lock(&m_FSLock);
+   CGuard::enterCS(m_FSLock);
    g_ClientMgmt.m_mSectorFiles.erase(id);
-   pthread_mutex_unlock(&m_FSLock);
+   CGuard::leaveCS(m_FSLock);
 
    return 0;
 }
 
 int ClientMgmt::removeDC(const int& id)
 {
-   pthread_mutex_lock(&m_DCLock);
+   CGuard::enterCS(m_DCLock);
    g_ClientMgmt.m_mSphereProcesses.erase(id);
-   pthread_mutex_unlock(&m_DCLock);
+   CGuard::leaveCS(m_DCLock);
 
    return 0;
 }

@@ -38,13 +38,18 @@ written by
    Yunhong Gu, last updated 11/06/2009
 *****************************************************************************/
 
-#include <unistd.h>
+#ifndef WIN32
+   #include <netinet/in.h>
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+   #include <netdb.h>
+   #include <unistd.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+#endif
 #include <string.h>
-#include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #include <fstream>
 #include <sector.h>
 #include "ssltransport.h"
@@ -137,7 +142,7 @@ int SSLTransport::open(const char* ip, const int& port)
    addr.sin_port = htons(port);
 
    int reuse = 1;
-   ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+   ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
    if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
    {
@@ -235,7 +240,12 @@ int SSLTransport::close()
    SSL_shutdown(m_pSSL);
 
    m_bConnected = false;
+
+#ifndef WIN32
    return ::close(m_iSocket);
+#else
+   return closesocket(m_iSocket);
+#endif
 }
 
 int SSLTransport::send(const char* data, const int& size)

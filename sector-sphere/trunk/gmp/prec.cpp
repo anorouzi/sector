@@ -179,13 +179,21 @@ int CPeerManagement::flowControl(const string& ip, const int& port, const int& s
 
    if (thresh > 100)
    {
-      usleep(100000);
+      #ifndef WIN32
+         usleep(100000);
+      #else
+         Sleep(1);
+      #endif
       return 100000;
    }
 
    if (thresh > 10)
    {
-      usleep(10000);
+      #ifndef WIN32
+         usleep(100000);
+      #else
+         Sleep(1);
+      #endif
       return 10000;
    }
 

@@ -40,7 +40,12 @@ written by
 
 #include "dcclient.h"
 #include <errno.h>
+#include <common.h>
 #include <iostream>
+#ifdef WIN32
+   #include <sys/types.h>
+   #include <sys/stat.h>
+#endif
 
 using namespace std;
 
@@ -48,19 +53,19 @@ DCClient* Client::createDCClient()
 {
    DCClient* sp = new DCClient;
    sp->m_pClient = this;
-   pthread_mutex_lock(&m_IDLock);
+   CGuard::enterCS(m_IDLock);
    sp->m_iID = m_iID ++;
    m_mDCList[sp->m_iID] = sp;
-   pthread_mutex_unlock(&m_IDLock);
+   CGuard::leaveCS(m_IDLock);
 
    return sp;
 }
 
 int Client::releaseDCClient(DCClient* sp)
 {
-   pthread_mutex_lock(&m_IDLock);
+   CGuard::enterCS(m_IDLock);
    m_mDCList.erase(sp->m_iID);
-   pthread_mutex_unlock(&m_IDLock);
+   CGuard::leaveCS(m_IDLock);
    delete sp;
 
    return 0;
@@ -179,10 +184,17 @@ m_bDataMove(true)
    m_iAvailRes = 0;
    m_bBucketHealth = true;
 
+#ifndef WIN32
    pthread_mutex_init(&m_DSLock, NULL);
    pthread_mutex_init(&m_ResLock, NULL);
    pthread_cond_init(&m_ResCond, NULL);
    pthread_mutex_init(&m_RunLock, NULL);
+#else
+   m_DSLock = CreateMutex(NULL, false, NULL);
+   m_ResLock = CreateMutex(NULL, false, NULL);
+   m_ResCond = CreateEvent(NULL, false, false, NULL);
+   m_RunLock = CreateMutex(NULL, false, NULL);
+#endif
 }
 
 DCClient::~DCClient()
@@ -190,16 +202,28 @@ DCClient::~DCClient()
    delete [] m_pcParam;
    delete [] m_pOutputLoc;
 
+#ifndef WIN32
    pthread_mutex_destroy(&m_DSLock);
    pthread_mutex_destroy(&m_ResLock);
    pthread_cond_destroy(&m_ResCond);
    pthread_mutex_destroy(&m_RunLock);
+#else
+   CloseHandle(m_DSLock);
+   CloseHandle(m_ResLock);
+   CloseHandle(m_ResCond);
+   CloseHandle(m_RunLock);
+#endif
 }
 
 int DCClient::loadOperator(const char* library)
 {
+#ifndef WIN32
    struct stat st;
    if (::stat(library, &st) < 0)
+#else
+   struct _stat st;
+   if (_stat(library, &st) < 0)
+#endif
    {
       cerr << "loadOperator: no library found.\n";
       return SectorError::E_LOCALFILE;
@@ -267,8 +291,8 @@ int DCClient::loadOperator(SPE& s)
 
 int DCClient::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size, const int& type)
 {
-   pthread_mutex_lock(&m_RunLock);
-   pthread_mutex_unlock(&m_RunLock);
+   CGuard::enterCS(m_RunLock);
+   CGuard::leaveCS(m_RunLock);
 
    m_iProcType = type;
    m_strOperator = op;
@@ -340,9 +364,14 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    cout << m_mSPE.size() << " spes found! " << m_mpDS.size() << " data seg total." << endl;
 
    // starting...
-   pthread_t reduce;
-   pthread_create(&reduce, NULL, run, this);
-   pthread_detach(reduce);
+#ifndef WIN32
+   pthread_t scheduler;
+   pthread_create(&scheduler, NULL, run, this);
+   pthread_detach(scheduler);
+#else
+   DWORD ThreadID;
+   CreateThread(NULL, 0, run, this, NULL, &ThreadID);
+#endif
 
    return 0;
 }
@@ -354,8 +383,8 @@ int DCClient::run_mr(const SphereStream& input, SphereStream& output, const stri
 
 int DCClient::close()
 {
-   pthread_mutex_lock(&m_RunLock);
-   pthread_mutex_unlock(&m_RunLock);
+   CGuard::enterCS(m_RunLock);
+   CGuard::leaveCS(m_RunLock);
 
    // restore initial value for next run
    m_strOperator = "";
@@ -378,11 +407,15 @@ int DCClient::close()
    return 0;
 }
 
+#ifndef WIN32
 void* DCClient::run(void* param)
+#else
+DWORD WINAPI DCClient::run(LPVOID param)
+#endif
 {
    DCClient* self = (DCClient*)param;
 
-   pthread_mutex_lock(&self->m_RunLock);
+   CGuard::enterCS(self->m_RunLock);
 
    while (self->m_iProgress < self->m_iTotalDS)
    {
@@ -406,7 +439,7 @@ void* DCClient::run(void* param)
          continue;
 
       int progress = *(int32_t*)(msg.getData() + 4);
-      gettimeofday(&s->second.m_LastUpdateTime, 0);
+	  s->second.m_LastUpdateTime = CTimer::getTime();
       if (progress < 0)
       {
          cerr << "SPE PROCESSING ERROR " << ip << " " << port << endl;
@@ -425,10 +458,16 @@ void* DCClient::run(void* param)
          }
 
          ++ self->m_iProgress;
+
+#ifndef WIN32
          pthread_mutex_lock(&self->m_ResLock);
          ++ self->m_iAvailRes;
          pthread_cond_signal(&self->m_ResCond);
          pthread_mutex_unlock(&self->m_ResLock);
+#else
+         ++ self->m_iAvailRes;
+         SetEvent(self->m_ResCond);
+#endif
 
          continue;
       }
@@ -440,12 +479,11 @@ void* DCClient::run(void* param)
       self->readResult(&(s->second));
 
       // one SPE completes!
-      timeval t;
-      gettimeofday(&t, 0);
+	  int64_t t = CTimer::getTime();
       if (self->m_iAvgRunTime <= 0)
-         self->m_iAvgRunTime = t.tv_sec - s->second.m_StartTime.tv_sec;
+         self->m_iAvgRunTime = (t - s->second.m_StartTime) / 1000000;
       else
-         self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t.tv_sec - s->second.m_StartTime.tv_sec)) / 8;
+         self->m_iAvgRunTime = (self->m_iAvgRunTime * 7 + (t - s->second.m_StartTime) / 1000000) / 8;
    }
 
    self->m_dRunningProgress = 0;
@@ -480,23 +518,28 @@ void* DCClient::run(void* param)
       b->second.m_iProgress = 100;
       self->m_pClient->m_DataChn.remove(b->second.m_strIP, b->second.m_iDataPort);
 
+#ifndef WIN32
       pthread_cond_signal(&self->m_ResCond);
+#else
+	  SetEvent(self->m_ResCond);
+#endif
    }
 
    // set totalSPE = 0, so that read() will return error immediately
    if (self->m_iProgress < 100)
       self->m_iTotalSPE = 0;
 
-   pthread_mutex_unlock(&self->m_RunLock);
+   CGuard::leaveCS(self->m_RunLock);
 
+#ifndef WIN32
    return NULL;
+#else
+   return 0;
+#endif
 }
 
 int DCClient::checkSPE()
 {
-   timeval t;
-   gettimeofday(&t, 0);
-
    bool spe_busy = false;
    bool ds_found = false;
 
@@ -516,7 +559,7 @@ int DCClient::checkSPE()
          sn.m_iPort = s->second.m_iPort;
 
          // find a new DS and start it
-         pthread_mutex_lock(&m_DSLock);
+		 CGuard::enterCS(m_DSLock);
 
          // start from random node
          map<int, DS*>::iterator dss = m_mpDS.end();
@@ -576,7 +619,7 @@ int DCClient::checkSPE()
             ds_found = true;
          }
 
-         pthread_mutex_unlock(&m_DSLock);
+		 CGuard::leaveCS(m_DSLock);
       }
       else 
       {
@@ -602,7 +645,7 @@ int DCClient::checkSPE()
             m_pClient->m_DataChn.remove(s->second.m_strIP, s->second.m_iDataPort);
             m_iTotalSPE --;
 
-            pthread_mutex_lock(&m_DSLock);
+			CGuard::enterCS(m_DSLock);
 
             if (++ s->second.m_pDS->m_iRetryNum > 3)
             {
@@ -610,17 +653,23 @@ int DCClient::checkSPE()
                s->second.m_pDS->m_iStatus = -1;
 
                ++ m_iProgress;
+
+#ifndef WIN32
                pthread_mutex_lock(&m_ResLock);
                ++ m_iAvailRes;
                pthread_cond_signal(&m_ResCond);
                pthread_mutex_unlock(&m_ResLock);
+#else
+               ++ m_iAvailRes;
+               SetEvent(m_ResCond);
+#endif
             }
             else
                s->second.m_pDS->m_iStatus = 0;
 
             s->second.m_pDS->m_iSPEID = -1;
 
-            pthread_mutex_unlock(&m_DSLock);
+			CGuard::leaveCS(m_DSLock);
          }
       }
    }
@@ -674,8 +723,8 @@ int DCClient::startSPE(SPE& s, DS* d)
       d->m_iStatus = 1;
       s.m_iStatus = 2;
       s.m_iProgress = 0;
-      gettimeofday(&s.m_StartTime, 0);
-      gettimeofday(&s.m_LastUpdateTime, 0);
+	  s.m_StartTime = CTimer::getTime();
+	  s.m_LastUpdateTime = CTimer::getTime();
       res = 1;
    }
 
@@ -727,9 +776,8 @@ int DCClient::checkReduceProgress()
 
 int DCClient::waitForCompletion()
 {
-   timeval t1, t2;
-   gettimeofday(&t1, 0);
-   t2 = t1;
+   int64_t t1 = CTimer::getTime();
+   int64_t t2 = t1;
 
    while (true)
    {
@@ -754,8 +802,8 @@ int DCClient::waitForCompletion()
          res = NULL;
       }
 
-      gettimeofday(&t2, 0);
-      if (t2.tv_sec - t1.tv_sec > 60)
+	  t2 = CTimer::getTime();
+      if (t2 - t1 > 60000000)
       {
          cout << "PROGRESS: " << progress << "%" << endl;
          t1 = t2;
@@ -777,6 +825,7 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       if (m_iProgress == m_iTotalDS)
          return 0;
 
+#ifndef WIN32
       struct timeval now;
       struct timespec timeout;
 
@@ -784,15 +833,19 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       timeout.tv_sec = now.tv_sec + 10;
       timeout.tv_nsec = now.tv_usec * 1000;
 
-      pthread_mutex_lock(&m_ResLock);
+	  CGuard::enterCS(m_ResLock);
       int retcode = pthread_cond_timedwait(&m_ResCond, &m_ResLock, &timeout);
-      pthread_mutex_unlock(&m_ResLock);
+	  CGuard::leaveCS(m_ResLock);
 
       if (retcode == ETIMEDOUT)
          return SectorError::E_TIMEDOUT;
+#else
+      if (WaitForSingleObject(m_ResCond, 10000) == WAIT_TIMEOUT)
+         return SectorError::E_TIMEDOUT;
+#endif
    }
 
-   pthread_mutex_lock(&m_DSLock);
+   CGuard::enterCS(m_DSLock);
 
    map<int, DS*>::iterator d = m_mpDS.end();
    for (map<int, DS*>::iterator i = m_mpDS.begin(); i != m_mpDS.end(); ++ i)
@@ -818,13 +871,13 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       m_mpDS.erase(d);
    }
 
-   pthread_mutex_unlock(&m_DSLock);
+   CGuard::leaveCS(m_DSLock);
 
    if (found)
    {
-     pthread_mutex_lock(&m_ResLock);
+	 CGuard::enterCS(m_ResLock);
       -- m_iAvailRes;
-     pthread_mutex_unlock(&m_ResLock);
+     CGuard::leaveCS(m_ResLock);
 
      return 1;
    }
@@ -872,7 +925,6 @@ int DCClient::dataInfo(const vector<string>& files, vector<string>& info)
 
    return info.size();
 }
-
 
 int DCClient::prepareInput()
 {
@@ -925,7 +977,11 @@ int DCClient::prepareInput()
 
       *f = p;
       p = p + strlen(p) + 1;
+#ifndef WIN32
       *s = atoll(p);
+#else
+      *s == _atoi64(p);
+#endif
       m_pInput->m_llSize += *s;
       p = p + strlen(p) + 1;
       *r = atoi(p);
@@ -1196,7 +1252,7 @@ int DCClient::prepareOutput(const char* spenodes)
          b.m_iShufflerPort = *(int32_t*)msg.getData();
          b.m_iSession = *(int32_t*)(msg.getData() + 4);
          b.m_iProgress = 0;
-         gettimeofday(&b.m_LastUpdateTime, 0);
+		 b.m_LastUpdateTime = CTimer::getTime();
          m_mBucket[b.m_iID] = b;
 
          // set up data connection, not for data transfter, but for keep-alive
@@ -1334,10 +1390,16 @@ int DCClient::readResult(SPE* s)
    s->m_pDS->m_iStatus = 2;
    s->m_iStatus = 1;
    ++ m_iProgress;
+
+#ifndef WIN32
    pthread_mutex_lock(&m_ResLock);
    ++ m_iAvailRes;
    pthread_cond_signal(&m_ResCond);
    pthread_mutex_unlock(&m_ResLock);
+#else
+   ++ m_iAvailRes;
+   SetEvent(m_ResCond);
+#endif
 
    return 0;
 }

@@ -45,9 +45,12 @@ written by
 #include <vector>
 #include <map>
 #include <string>
-#include <pthread.h>
 #include "dhash.h"
-#include "topology.h"
+#include <udt.h>
+#include <sector.h>
+#ifndef WIN32
+   #include <pthread.h>
+#endif
 
 class Routing
 {

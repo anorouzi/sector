@@ -38,11 +38,16 @@ written by
    Yunhong Gu, last updated 04/23/2010
 *****************************************************************************/
 
-
+#ifndef WIN32
+   #include <netdb.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+#endif
 #include <ssltransport.h>
 #include <tcptransport.h>
-#include <netdb.h>
 #include <crypto.h>
+#include <common.h>
 #include "client.h"
 #include <iostream>
 
@@ -59,18 +64,32 @@ m_iCount(0),
 m_bActive(false),
 m_iID(0)
 {
+#ifndef WIN32
    pthread_mutex_init(&m_MasterSetLock, NULL);
    pthread_mutex_init(&m_KALock, NULL);
    pthread_cond_init(&m_KACond, NULL);
    pthread_mutex_init(&m_IDLock, NULL);
+#else
+   m_MasterSetLock = CreateMutex(NULL, false, NULL);
+   m_KALock = CreateMutex(NULL, false, NULL);
+   m_KACond = CreateEvent(NULL, false, false, NULL);
+   m_IDLock = CreateMutex(NULL, false, NULL);
+#endif
 }
 
 Client::~Client()
 {
+#ifndef WIN32
    pthread_mutex_destroy(&m_MasterSetLock);
    pthread_mutex_destroy(&m_KALock);
    pthread_cond_destroy(&m_KACond);
    pthread_mutex_destroy(&m_IDLock);
+#else
+   CloseHandle(m_MasterSetLock);
+   CloseHandle(m_KALock);
+   CloseHandle(m_KACond);
+   CloseHandle(m_IDLock);
+#endif
 }
 
 int Client::init(const string& server, const int& port)
@@ -80,15 +99,20 @@ int Client::init(const string& server, const int& port)
 
    m_ErrorInfo.init();
 
-   struct hostent* serverip = gethostbyname(server.c_str());
-   if (NULL == serverip)
+   struct addrinfo* result;
+   if (getaddrinfo(server.c_str(), NULL, NULL, &result) != 0)
    {
       cerr << "incorrect host name.\n";
       return -1;
    }
+
    m_strServerHost = server;
-   char buf[64];
-   m_strServerIP = inet_ntop(AF_INET, serverip->h_addr_list[0], buf, 64);
+
+   char hostip[NI_MAXHOST];
+   getnameinfo((sockaddr *)&result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, 0);
+   m_strServerIP = hostip;
+   freeaddrinfo(result);
+
    m_iServerPort = port;
 
    Crypto::generateKey(m_pcCryptoKey, m_pcCryptoIV);
@@ -108,7 +132,11 @@ int Client::init(const string& server, const int& port)
    }
 
    m_bActive = true;
+#ifndef WIN32
    pthread_create(&m_KeepAlive, NULL, keepAlive, this);
+#else
+   m_KeepAlive = CreateThread(NULL, 0, keepAlive, this, 0, NULL);
+#endif
 
    return 0;
 }
@@ -184,9 +212,9 @@ int Client::login(const string& username, const string& password, const char* ce
    addr.m_iPort = m_iServerPort;
    m_Routing.insert(key, addr);
 
-   pthread_mutex_lock(&m_MasterSetLock);
+   CGuard::enterCS(m_MasterSetLock);
    m_sMasters.insert(addr);
-   pthread_mutex_unlock(&m_MasterSetLock);
+   CGuard::leaveCS(m_MasterSetLock);
 
    int num;
    secconn.recv((char*)&num, 4);
@@ -221,13 +249,13 @@ int Client::login(const string& serv_ip, const int& serv_port)
    addr.m_strIP = serv_ip;
    addr.m_iPort = serv_port;
 
-   pthread_mutex_lock(&m_MasterSetLock);
+   CGuard::enterCS(m_MasterSetLock);
    if (m_sMasters.find(addr) != m_sMasters.end())
    {
-      pthread_mutex_unlock(&m_MasterSetLock);
+	  CGuard::leaveCS(m_MasterSetLock);
       return 0;
    }
-   pthread_mutex_unlock(&m_MasterSetLock);
+   CGuard::leaveCS(m_MasterSetLock);
 
    if (m_iKey < 0)
       return -1;
@@ -278,16 +306,16 @@ int Client::login(const string& serv_ip, const int& serv_port)
    secconn.close();
    SSLTransport::destroy();
 
-   pthread_mutex_lock(&m_MasterSetLock);
+   CGuard::enterCS(m_MasterSetLock);
    m_sMasters.insert(addr);
-   pthread_mutex_unlock(&m_MasterSetLock);
+   CGuard::leaveCS(m_MasterSetLock);
 
    return 0;
 }
 
 int Client::logout()
 {
-   pthread_mutex_lock(&m_MasterSetLock);
+   CGuard::enterCS(m_MasterSetLock);
    for (set<Address, AddrComp>::iterator i = m_sMasters.begin(); i != m_sMasters.end(); ++ i)
    {
       SectorMsg msg;
@@ -297,7 +325,7 @@ int Client::logout()
       m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
    }
    m_sMasters.clear();
-   pthread_mutex_unlock(&m_MasterSetLock);
+   CGuard::leaveCS(m_MasterSetLock);
 
    m_iKey = 0;
    return 0;
@@ -310,11 +338,17 @@ int Client::close()
       if (m_iKey > 0)
          logout();
 
+#ifndef WIN32
       pthread_mutex_lock(&m_KALock);
       m_bActive = false;
       pthread_cond_signal(&m_KACond);
       pthread_mutex_unlock(&m_KALock);
       pthread_join(m_KeepAlive, NULL);
+#else
+     m_bActive = false;
+     SetEvent(m_KACond);
+     WaitForSingleObject(m_KeepAlive, INFINITE);
+#endif
 
       m_strServerHost = "";
       m_strServerIP = "";
@@ -627,12 +661,17 @@ int Client::updateMasters()
    return -1;
 }
 
+#ifndef WIN32
 void* Client::keepAlive(void* param)
+#else
+DWORD WINAPI Client::keepAlive(LPVOID param)
+#endif
 {
    Client* self = (Client*)param;
 
    while (self->m_bActive)
    {
+#ifndef WIN32
       timeval t;
       gettimeofday(&t, NULL);
       timespec ts;
@@ -642,15 +681,18 @@ void* Client::keepAlive(void* param)
       pthread_mutex_lock(&self->m_KALock);
       pthread_cond_timedwait(&self->m_KACond, &self->m_KALock, &ts);
       pthread_mutex_unlock(&self->m_KALock);
+#else
+      WaitForSingleObject(self->m_KACond, 600000);
+#endif
 
       if (!self->m_bActive)
          break;
 
       vector<Address> ml;
-      pthread_mutex_lock(&self->m_MasterSetLock);
+	  CGuard::enterCS(self->m_MasterSetLock);
       for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
          ml.push_back(*i);
-      pthread_mutex_unlock(&self->m_MasterSetLock);
+	  CGuard::leaveCS(self->m_MasterSetLock);
 
       for (vector<Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
       {
@@ -663,7 +705,11 @@ void* Client::keepAlive(void* param)
       }
    }
 
+#ifndef WIN32
    return NULL;
+#else
+   return 0;
+#endif
 }
 
 int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
@@ -767,11 +813,11 @@ int Client::retrieveMasterInfo()
 
    int32_t size = 0;
    t.recv((char*)&size, 4);
-   size = t.recvfile("/tmp/master_node.cert", 0, size);
+   int64_t recvsize = t.recvfile("/tmp/master_node.cert", 0, size);
    t.close();
 
-   if (size <= 0)
+   if (recvsize <= 0)
       return -1;
 
-   return size;
+   return recvsize;
 }

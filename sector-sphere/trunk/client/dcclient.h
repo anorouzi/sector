@@ -114,8 +114,8 @@ private:
       DS* m_pDS;				// current processing DS
       int m_iStatus;				// -1: abandond; 0: uninitialized; 1: ready; 2; running
       int m_iProgress;				// 0 - 100 (%)
-      timeval m_StartTime;			// SPE start time
-      timeval m_LastUpdateTime;			// SPE last update time
+      int64_t m_StartTime;			// SPE start time
+      int64_t m_LastUpdateTime;			// SPE last update time
       int m_iSession;				// SPE session ID for data channel
    };
    std::map<int, SPE> m_mSPE;
@@ -129,7 +129,7 @@ private:
       int m_iShufflerPort;			// Shuffer GMP port
       int m_iSession;				// Shuffler session ID
       int m_iProgress;				// bucket progress, 0 or 100 
-      timeval m_LastUpdateTime;			// last update time
+      int64_t m_LastUpdateTime;			// last update time
    };
    std::map<int, BUCKET> m_mBucket;		// list of all buckets
 
@@ -166,7 +166,11 @@ private:
    int segmentData();
    int prepareOutput(const char* spenodes);
 
+#ifndef WIN32
    static void* run(void*);
+#else
+   static DWORD WINAPI run(LPVOID);
+#endif
    pthread_mutex_t m_RunLock;
 
    int start();

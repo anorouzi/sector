@@ -46,12 +46,20 @@ using namespace std;
 
 Metadata::Metadata()
 {
+#ifndef WIN32
    pthread_mutex_init(&m_MetaLock, NULL);
+#else
+   m_MetaLock = CreateMutex(NULL, false, NULL);
+#endif
 }
 
 Metadata::~Metadata()
 {
+#ifndef WIN32
    pthread_mutex_destroy(&m_MetaLock);
+#else
+   CloseHandle(m_MetaLock);
+#endif
 }
 
 int Metadata::lock(const string& path, int user, int mode)

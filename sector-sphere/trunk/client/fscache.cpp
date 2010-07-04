@@ -49,12 +49,20 @@ m_llCacheSize(0),
 m_llMaxCacheSize(10000000),
 m_llMaxCacheTime(10000000)
 {
+#ifndef WIN32
    pthread_mutex_init(&m_Lock, NULL);
+#else
+   m_Lock = CreateMutex(NULL, false, NULL);
+#endif
 }
 
 Cache::~Cache()
 {
+#ifndef WIN32
    pthread_mutex_destroy(&m_Lock);
+#else
+   CloseHandle(m_Lock);
+#endif
 }
 
 int Cache::setMaxCacheSize(const int64_t ms)

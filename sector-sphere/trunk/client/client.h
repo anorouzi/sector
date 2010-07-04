@@ -43,13 +43,13 @@ written by
 #define __SECTOR_CLIENT_H__
 
 #include <gmp.h>
-#include <index.h>
-#include <topology.h>
-#include <pthread.h>
 #include <datachn.h>
 #include <routing.h>
 #include <sector.h>
 #include "fscache.h"
+#ifndef WIN32
+   #include <pthread.h>
+#endif
 
 class FSClient;
 class DCClient;
@@ -134,7 +134,11 @@ protected: // the following are used for keeping alive with the masters
    pthread_t m_KeepAlive;
    pthread_cond_t m_KACond;
    pthread_mutex_t m_KALock;
+#ifndef WIN32
    static void* keepAlive(void*);
+#else
+   static DWORD WINAPI keepAlive(LPVOID);
+#endif
 
 protected:
    pthread_mutex_t m_IDLock;

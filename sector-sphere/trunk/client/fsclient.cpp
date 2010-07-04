@@ -49,19 +49,19 @@ FSClient* Client::createFSClient()
 {
    FSClient* sf = new FSClient;
    sf->m_pClient = this;
-   pthread_mutex_lock(&m_IDLock);
+   CGuard::enterCS(m_IDLock);
    sf->m_iID = m_iID ++;
    m_mFSList[sf->m_iID] = sf;
-   pthread_mutex_unlock(&m_IDLock);
+   CGuard::leaveCS(m_IDLock);
 
    return sf;
 }
 
 int Client::releaseFSClient(FSClient* sf)
 {
-   pthread_mutex_lock(&m_IDLock);
+   CGuard::enterCS(m_IDLock);
    m_mFSList.erase(sf->m_iID);
-   pthread_mutex_unlock(&m_IDLock);
+   CGuard::leaveCS(m_IDLock);
    delete sf;
 
    return 0;
@@ -82,13 +82,21 @@ m_bSecure(false),
 m_bLocal(false),
 m_pcLocalPath(NULL)
 {
+#ifndef WIN32
    pthread_mutex_init(&m_FileLock, NULL);
+#else
+   m_FileLock = CreateMutex(NULL, false, NULL);
+#endif
 }
 
 FSClient::~FSClient()
 {
    delete [] m_pcLocalPath;
+#ifndef WIN32
    pthread_mutex_destroy(&m_FileLock);
+#else
+   CloseHandle(m_FileLock);
+#endif
 }
 
 int FSClient::open(const string& filename, int mode, const string& hint)
@@ -551,7 +559,7 @@ bool FSClient::eof()
 
 int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
 {
-   int realsize = size;
+   int realsize = (int)size;
    if (offset >= m_llSize)
       return -1;
    if (offset + size > m_llSize)

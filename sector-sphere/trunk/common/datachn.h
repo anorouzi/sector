@@ -43,9 +43,9 @@ written by
 #define __CB_DATACHN_H__
 
 #include <transport.h>
-#include <topology.h>
 #include <map>
 #include <string>
+#include <sector.h>
 
 class DataChn
 {

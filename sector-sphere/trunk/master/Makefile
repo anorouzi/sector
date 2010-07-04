@@ -1,6 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS += -I../udt -I../gmp -I../security -I../common
+CCFLAGS += -I../gmp -I../security -I../common
 
 ifeq ($(STATIC), 1)
    LDFLAGS += libmaster.a ../lib/librpc.a ../lib/libsecurity.a ../lib/libcommon.a ../lib/libudt.a

@@ -38,13 +38,12 @@ written by
    Yunhong Gu, last updated 01/08/2010
 *****************************************************************************/
 
+
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
-#include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <iostream>
 #include <sector.h>
 
@@ -70,7 +69,7 @@ int SNode::serialize(char* buf)
    int namelen = m_strName.length();
    sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize);
    char* p = buf + strlen(buf);
-   for (set<Address>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   for (set<Address, AddrComp>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {
       sprintf(p, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
       p = p + strlen(p);
@@ -137,7 +136,11 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
+#ifndef WIN32
    m_llTimeStamp = atoll(tmp);
+#else
+   m_llTimeStamp = _atoi64(tmp);
+#endif
 
    if (stop)
       return -1;
@@ -154,7 +157,11 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
+#ifndef WIN32
    m_llSize = atoll(tmp);
+#else
+   m_llSize = _atoi64(tmp);
+#endif
 
    // restore locations
    while (!stop)
@@ -219,7 +226,7 @@ int SNode::serialize2(const string& file)
    ofs << m_llSize << endl;
    ofs << m_llTimeStamp << endl;
 
-   for (set<Address>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   for (set<Address, AddrComp>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {
       ofs << i->m_strIP << endl;
       ofs << i->m_iPort << endl;
@@ -241,7 +248,11 @@ int SNode::deserialize2(const string& file)
    else
       m_strName = file.substr(p + 1);
 
+#ifndef WIN32
    if (S_ISDIR(s.st_mode))
+#else
+   if ((s.st_mode & S_IFMT) == S_IFDIR)
+#endif
    {
       m_bIsDir = true;
       m_llSize = s.st_size;

@@ -45,7 +45,9 @@ written by
 #include <string>
 #include <map>
 #include <list>
-#include <pthread.h>
+#ifndef WIN32
+   #include <pthread.h>
+#endif
 
 struct InfoBlock
 {

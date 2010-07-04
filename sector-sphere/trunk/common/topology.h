@@ -46,9 +46,11 @@ written by
 #include <set>
 #include <map>
 #include <vector>
-#include <stdint.h>
-
 #include <sector.h>
+
+#ifndef WIN32
+   #include <stdint.h>
+#endif
 
 class SlaveNode
 {

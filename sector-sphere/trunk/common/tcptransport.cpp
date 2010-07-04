@@ -38,13 +38,18 @@ written by
    Yunhong Gu, last updated 06/12/2010
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <netinet/in.h>
+   #include <netdb.h>
+   #include <arpa/inet.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+#endif
 #include <sector.h>
 #include <tcptransport.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
 #include <cstring>
 #include <iostream>
 #include <fstream>
@@ -78,7 +83,7 @@ int TCPTransport::open(const char* ip, const int& port)
    addr.sin_port = htons(port);
 
    int reuse = 1;
-   ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+   ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
    if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
    {
@@ -147,7 +152,12 @@ int TCPTransport::close()
       return 0;
 
    m_bConnected = false;
+
+#ifndef WIN32
    return ::close(m_iSocket);
+#else
+   return closesocket(m_iSocket);
+#endif
 }
 
 int TCPTransport::send(const char* data, const int& size)

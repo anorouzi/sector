@@ -43,11 +43,12 @@ written by
 #define __SECTOR_CLIENT_MGMT_H__
 
 #include <map>
-#include <pthread.h>
-
 #include "client.h"
 #include "fsclient.h"
 #include "dcclient.h"
+#ifndef WIN32
+   #include <pthread.h>
+#endif
 
 class ClientMgmt
 {

@@ -44,6 +44,7 @@ written by
 #include "openssl/bio.h"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
+#include <udt.h>
 #include <string>
 
 class SSLTransport
@@ -77,7 +78,11 @@ public:
 private:
    SSL_CTX* m_pCTX;
    SSL* m_pSSL;
+#ifndef WIN32
    int m_iSocket;
+#else
+   SOCKET m_iSocket;
+#endif
 
    bool m_bConnected;
 
