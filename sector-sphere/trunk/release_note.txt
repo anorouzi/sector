@@ -1,0 +1,7 @@
+version 2.4
+
+support $SECTOR_HOME so that Sector tools can be run anywhere
+master certificate now is an option at the client side
+fix the client read cache memory leak bug
+renamed all Sector tools with a "sector_" prefix to avoid confliction with system commands
+documentation is updated
