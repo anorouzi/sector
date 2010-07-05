@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/23/2010
+   Yunhong Gu, last updated 07/05/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -97,6 +97,17 @@ int Client::init(const string& server, const int& port)
    if (m_iCount ++ > 0)
       return 0;
 
+#ifdef WIN32
+    WSADATA wsaData = {0};
+    int iResult = 0;
+    iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (iResult != 0) 
+    {
+        printf("WSAStartup failed: %d\n", iResult);
+        return 1;
+    }
+#endif
+
    m_ErrorInfo.init();
 
    struct addrinfo* result;
@@ -109,7 +120,7 @@ int Client::init(const string& server, const int& port)
    m_strServerHost = server;
 
    char hostip[NI_MAXHOST];
-   getnameinfo((sockaddr *)&result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, 0);
+   getnameinfo((sockaddr *)result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, NI_NUMERICHOST);
    m_strServerIP = hostip;
    freeaddrinfo(result);
 
@@ -149,13 +160,8 @@ int Client::login(const string& username, const string& password, const char* ce
    string master_cert;
    if ((cert != NULL) && (0 != strlen(cert)))
       master_cert = cert;
-   else
-   {
-      if (retrieveMasterInfo() >= 0)
-         master_cert = "/tmp/master_node.cert";
-      else
-         return -1;
-   }
+   else if (retrieveMasterInfo(master_cert) < 0)
+      return -1;
 
    SSLTransport::init();
 
@@ -252,7 +258,7 @@ int Client::login(const string& serv_ip, const int& serv_port)
    CGuard::enterCS(m_MasterSetLock);
    if (m_sMasters.find(addr) != m_sMasters.end())
    {
-	  CGuard::leaveCS(m_MasterSetLock);
+      CGuard::leaveCS(m_MasterSetLock);
       return 0;
    }
    CGuard::leaveCS(m_MasterSetLock);
@@ -345,9 +351,9 @@ int Client::close()
       pthread_mutex_unlock(&m_KALock);
       pthread_join(m_KeepAlive, NULL);
 #else
-     m_bActive = false;
-     SetEvent(m_KACond);
-     WaitForSingleObject(m_KeepAlive, INFINITE);
+      m_bActive = false;
+      SetEvent(m_KACond);
+      WaitForSingleObject(m_KeepAlive, INFINITE);
 #endif
 
       m_strServerHost = "";
@@ -355,6 +361,10 @@ int Client::close()
       m_iServerPort = 0;
       m_GMP.close();
       Transport::release();
+
+#ifdef WIN32
+      WSACleanup();
+#endif
    }
 
    return 0;
@@ -804,16 +814,23 @@ int Client::lookup(const int32_t& key, Address& serv_addr)
    return 0;
 }
 
-int Client::retrieveMasterInfo()
+int Client::retrieveMasterInfo(string& certfile)
 {
    TCPTransport t;
    t.open(NULL, 0);
    if (t.connect(m_strServerIP.c_str(), m_iServerPort - 1) < 0)
       return -1;
 
+   certfile = "";
+#ifndef WIN32
+   certfile = "/tmp/master_node.cert";
+#else
+   certfile = "master_node.cert";
+#endif
+
    int32_t size = 0;
    t.recv((char*)&size, 4);
-   int64_t recvsize = t.recvfile("/tmp/master_node.cert", 0, size);
+   int64_t recvsize = t.recvfile(certfile.c_str(), 0, size);
    t.close();
 
    if (recvsize <= 0)
