@@ -95,6 +95,8 @@ private:
    bool m_bLocal;		// if this file exist on the same node, i.e., local file
    char* m_pcLocalPath;		// path of the file if it is local
 
+   int m_iWriteBufSize;		// write buffer size
+
 private:
    pthread_mutex_t m_FileLock;
 

@@ -80,7 +80,8 @@ m_bRead(false),
 m_bWrite(false),
 m_bSecure(false),
 m_bLocal(false),
-m_pcLocalPath(NULL)
+m_pcLocalPath(NULL),
+m_iWriteBufSize(1000000)
 {
 #ifndef WIN32
    pthread_mutex_init(&m_FileLock, NULL);
@@ -113,10 +114,12 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    int32_t m = mode;
    msg.setData(0, (char*)&m, 4);
+   int32_t wb = m_iWriteBufSize;
+   msg.setData(4, (char*)&wb, 4);
    int32_t port = m_pClient->m_DataChn.getPort();
-   msg.setData(4, (char*)&port, 4);
-   msg.setData(8, hint.c_str(), hint.length() + 1);
-   msg.setData(72, m_strFileName.c_str(), m_strFileName.length() + 1);
+   msg.setData(8, (char*)&port, 4);
+   msg.setData(12, hint.c_str(), hint.length() + 1);
+   msg.setData(76, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    Address serv;
    m_pClient->lookup(m_strFileName, serv);
@@ -229,6 +232,9 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    if ((offset < 0) || (offset > m_llSize))
       return SectorError::E_INVALID;
 
+   if (!m_bRead)
+      return -1;
+
    // does not support buffer > 32bit now
    if (size > 0x7FFFFFFF)
       return -1;
@@ -309,6 +315,9 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    if (offset < 0)
       return SectorError::E_INVALID;
 
+   if (!m_bWrite)
+      return -1;
+
    if (size > 0x7FFFFFF)
       return -1;
 
@@ -323,9 +332,14 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    *(int64_t*)(req + 8) = size;
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
 
-   int response = -1;
-   if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
-      return SectorError::E_CONNECTION;
+   // wait for server acknowledgement onlt for large write
+   // for small write, data is sent out immediately in order to improve performance
+   if (size > m_iWriteBufSize)
+   {
+      int response = -1;
+      if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
+         return SectorError::E_CONNECTION;
+   }
 
    int64_t sentsize = m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, size, m_bSecure);
 
@@ -335,7 +349,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
       if (m_llCurWritePos > m_llSize)
          m_llSize = m_llCurWritePos;
 
-      // update the file stat information in local cache, for correct stat() call
+      // update the file stat information in local cache, for correct stat() call and invalidate related read cache
       m_pClient->m_Cache.update(m_strFileName, CTimer::getTime(), m_llSize);
    }
 

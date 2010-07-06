@@ -52,6 +52,7 @@ void* Slave::fileHandler(void* p)
    string sname = ((Param2*)p)->filename;
    int key = ((Param2*)p)->key;
    int mode = ((Param2*)p)->mode;
+   int writeBufSize = ((Param2*)p)->writebufsize;
    int transid = ((Param2*)p)->transid;
    string src_ip = ((Param2*)p)->src_ip;
    int src_port = ((Param2*)p)->src_port;
@@ -116,10 +117,9 @@ void* Slave::fileHandler(void* p)
 
       fstream fhandle;
 
+      int32_t response = 0;
       if (cmd <= 4)
       {
-         int32_t response = 0;
-
          if (((2 == cmd) || (4 == cmd)) && !bWrite)
             response = -1;
          else if (((1 == cmd) || (3 == cmd)) && !bRead)
@@ -128,12 +128,6 @@ void* Slave::fileHandler(void* p)
          fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
          if (fhandle.fail() || fhandle.bad())
             response = -1;
-
-         if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
-            break;
-
-         if (response == -1)
-            break;
       }
 
       switch (cmd)
@@ -150,6 +144,11 @@ void* Slave::fileHandler(void* p)
             int64_t offset = *(int64_t*)param;
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
+
+            if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+               break;
+            if (response == -1)
+               break;
 
             if (self->m_DataChn.sendfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
                run = false;
@@ -174,6 +173,24 @@ void* Slave::fileHandler(void* p)
             int64_t offset = *(int64_t*)param;
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
+
+            // if write size is less than a threshold, accept the data without a reponse, in order to improve performance
+            // if reponse = -1, simply drop the data
+            if (size > writeBufSize)
+            {
+               if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+                  break;
+               if (response == -1)
+                  break;
+            }
+            else if (response == -1)
+            {
+               char* tmpbuf = NULL;
+               int tmpsize = int(size);
+               self->m_DataChn.recv(src_ip, src_port, transid, tmpbuf, tmpsize, bSecure);
+               delete [] tmpbuf;
+               break;
+            }
 
             if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
                run = false;
@@ -216,6 +233,11 @@ void* Slave::fileHandler(void* p)
                break;
             }
 
+            if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+               break;
+            if (response == -1)
+               break;
+
             fhandle.seekg(0, ios::end);
             int64_t size = (int64_t)(fhandle.tellg());
             fhandle.seekg(0, ios::beg);
@@ -255,6 +277,11 @@ void* Slave::fileHandler(void* p)
                run = false;
                break;
             }
+
+            if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+               break;
+            if (response == -1)
+               break;
 
             int64_t unit = 64000000; //send 64MB each time
             int64_t torecv = size;

@@ -391,7 +391,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       createDir(msg->getData());
       char* tmp = new char[64 + strlen(msg->getData())];
       sprintf(tmp, "created new directory %s.", msg->getData());
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
       break;
    }
@@ -416,7 +416,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       char* tmp = new char[64 + strlen(path)];
       sprintf(tmp, "removed directory %s.", path);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
       break;
@@ -446,17 +446,18 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->dst_port = *(int*)(msg->getData() + 132);
       p->key = *(int*)(msg->getData() + 136);
       p->mode = *(int*)(msg->getData() + 140);
-      p->transid = *(int*)(msg->getData() + 144);
-      memcpy(p->crypto_key, msg->getData() + 148, 16);
-      memcpy(p->crypto_iv, msg->getData() + 164, 8);
-      p->filename = msg->getData() + 172;
+      p->writebufsize = *(int*)(msg->getData() + 144);
+      p->transid = *(int*)(msg->getData() + 148);
+      memcpy(p->crypto_key, msg->getData() + 152, 16);
+      memcpy(p->crypto_iv, msg->getData() + 168, 8);
+      p->filename = msg->getData() + 176;
 
       p->master_ip = ip;
       p->master_port = port;
 
       char* tmp = new char[64 + p->filename.length()];
       sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->src_ip.c_str(), p->src_port);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
       pthread_t file_handler;
@@ -482,7 +483,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       char* tmp = new char[64 + p->src.length() + p->dst.length()];
       sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
       pthread_t replica_handler;
@@ -534,7 +535,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << endl;
       char* tmp = new char[64 + p->function.length()];
       sprintf(tmp, "starting SPE ... %d %d %s %d.", p->speid, p->client_data_port, p->function.c_str(), p->transid);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
       pthread_t spe_handler;
@@ -580,7 +581,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       char* tmp = new char[64 + p->filename.length()];
       sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
       pthread_t spe_shuffler;
@@ -1142,6 +1143,6 @@ void Slave::logError(int type, const string& ip, const int& port, const string& 
       break;
    }
 
-   m_SectorLog.insert(tmp);
+   m_SectorLog.insert(tmp, 2);
    delete [] tmp;
 }

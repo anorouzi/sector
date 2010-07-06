@@ -174,6 +174,7 @@ private:
 
       std::string filename;	// filename
       int mode;			// file access mode
+      int writebufsize;		// client write buffer size
 
       std::string master_ip;
       int master_port;

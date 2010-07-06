@@ -1,6 +1,7 @@
 version 2.5
 
 Windows client support
+Improved small write performance
 
 version 2.4
 
