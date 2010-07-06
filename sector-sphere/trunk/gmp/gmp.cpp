@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/25/2010
+   Yunhong Gu, last updated 07/05/2010
 *****************************************************************************/
 
 
@@ -693,7 +693,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             {
                if (id == (*i)->m_pMsg->m_iID)
                {
-                  int rtt = CTimer::getTime() - (*i)->m_llTimeStamp;
+                  int rtt = int(CTimer::getTime() - (*i)->m_llTimeStamp);
 
                   #ifndef WIN32
                      char ip[64];

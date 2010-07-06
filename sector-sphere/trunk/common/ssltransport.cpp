@@ -295,7 +295,7 @@ int64_t SSLTransport::sendfile(const char* file, const int64_t& offset, const in
    int64_t sent = 0;
    while (sent < size)
    {
-      int unit = (size - sent) > block ? block : size - sent;
+      int unit = int((size - sent) > block ? block : size - sent);
       ifs.read(buf, unit);
       send(buf, unit);
       sent += unit;
@@ -322,7 +322,7 @@ int64_t SSLTransport::recvfile(const char* file, const int64_t& offset, const in
    int64_t recd = 0;
    while (recd < size)
    {
-      int unit = (size - recd) > block ? block : size - recd;
+      int unit = int((size - recd) > block ? block : size - recd);
       recv(buf, unit);
       ofs.write(buf, unit);
       recd += unit;

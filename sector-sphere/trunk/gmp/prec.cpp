@@ -175,7 +175,7 @@ int CPeerManagement::flowControl(const string& ip, const int& port, const int& s
    if (i == m_sPeerRec.end())
       return 0;
 
-   int thresh = (*i)->m_iFlowWindow - (CTimer::getTime() - (*i)->m_llTimeStamp) / 1000;
+   int thresh = (*i)->m_iFlowWindow - int((CTimer::getTime() - (*i)->m_llTimeStamp) / 1000);
 
    if (thresh > 100)
    {

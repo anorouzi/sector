@@ -41,6 +41,9 @@ written by
 #include <iostream>
 #include <cmath>
 #include <sector.h>
+#ifdef WIN32
+   #include <time.h>
+#endif
 
 using namespace std;
 

@@ -980,7 +980,7 @@ int DCClient::prepareInput()
 #ifndef WIN32
       *s = atoll(p);
 #else
-      *s == _atoi64(p);
+      *s = _atoi64(p);
 #endif
       m_pInput->m_llSize += *s;
       p = p + strlen(p) + 1;
@@ -1138,14 +1138,14 @@ int DCClient::segmentData()
       int64_t unitsize;
       if (avg > m_iMaxUnitSize)
       {
-         int n = m_pInput->m_llSize / m_iMaxUnitSize;
+         int64_t n = m_pInput->m_llSize / m_iMaxUnitSize;
          if (m_pInput->m_llSize % m_iMaxUnitSize != 0)
             n ++;
          unitsize = m_pInput->m_llRecNum / n;
       }
       else if (avg < m_iMinUnitSize)
       {
-         int n = m_pInput->m_llSize / m_iMinUnitSize;
+         int64_t n = m_pInput->m_llSize / m_iMinUnitSize;
          if (m_pInput->m_llSize % m_iMinUnitSize != 0)
             n ++;
          unitsize = m_pInput->m_llRecNum / n;

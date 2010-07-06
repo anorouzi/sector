@@ -57,6 +57,7 @@ written by
    #else
       #define SECTOR_API __declspec(dllimport)
    #endif
+   #pragma warning( disable: 4251 )
 #endif
 
 struct Address

@@ -58,6 +58,7 @@ written by
    #else
       #define SECTOR_API __declspec(dllimport)
    #endif
+   #pragma warning( disable: 4251 )
 #endif
 
 class SECTOR_API SInput
@@ -90,8 +91,8 @@ public:
    std::string m_strError;	// error text to be send back to client
 
 public:
-   int resizeResBuf(const int64_t& newsize);
-   int resizeIdxBuf(const int64_t& newsize);
+   int resizeResBuf(const int& newsize);
+   int resizeIdxBuf(const int& newsize);
 };
 
 struct SECTOR_API MemObj

@@ -739,14 +739,14 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    p += 4;
    for (vector<SysStat::ClusterStat>::iterator i = sys.m_vCluster.begin(); i != sys.m_vCluster.end(); ++ i)
    {
-      i->m_iClusterID = *(int64_t*)p;
-      i->m_iTotalNodes = *(int64_t*)(p + 8);
-      i->m_llAvailDiskSpace = *(int64_t*)(p + 16);
-      i->m_llTotalFileSize = *(int64_t*)(p + 24);
-      i->m_llTotalInputData = *(int64_t*)(p + 32);
-      i->m_llTotalOutputData = *(int64_t*)(p + 40);
+      i->m_iClusterID = *(int32_t*)p;
+      i->m_iTotalNodes = *(int32_t*)(p + 4);
+      i->m_llAvailDiskSpace = *(int64_t*)(p + 8);
+      i->m_llTotalFileSize = *(int64_t*)(p + 16);
+      i->m_llTotalInputData = *(int64_t*)(p + 24);
+      i->m_llTotalOutputData = *(int64_t*)(p + 32);
 
-      p += 48;
+      p += 40;
    }
 
    int m = *(int32_t*)p;
@@ -836,5 +836,5 @@ int Client::retrieveMasterInfo(string& certfile)
    if (recvsize <= 0)
       return -1;
 
-   return recvsize;
+   return 0;
 }

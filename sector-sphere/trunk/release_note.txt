@@ -1,3 +1,7 @@
+version 2.5
+
+Windows client support
+
 version 2.4
 
 support $SECTOR_HOME so that Sector tools can be run anywhere

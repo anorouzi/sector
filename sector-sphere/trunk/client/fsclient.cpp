@@ -228,9 +228,14 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
 
    if ((offset < 0) || (offset > m_llSize))
       return SectorError::E_INVALID;
+
+   // does not support buffer > 32bit now
+   if (size > 0x7FFFFFFF)
+      return -1;
+
    m_llCurReadPos = offset;
 
-   int realsize = size;
+   int realsize = int(size);
    if (m_llCurReadPos + size > m_llSize)
       realsize = int(m_llSize - m_llCurReadPos);
 
@@ -303,6 +308,10 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
 
    if (offset < 0)
       return SectorError::E_INVALID;
+
+   if (size > 0x7FFFFFF)
+      return -1;
+
    m_llCurWritePos = offset;
 
    // write command: 2

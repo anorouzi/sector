@@ -278,7 +278,7 @@ int64_t Transport::secure_sendfile(fstream& ifs, int64_t offset, int64_t size)
    int64_t tosend = size;
    while (tosend > 0)
    {
-      int unitsize = (tosend < block) ? tosend : block;
+      int unitsize = int((tosend < block) ? tosend : block);
       ifs.read(tmp, unitsize);
       if (secure_send(tmp, unitsize) < 0)
          break;
@@ -299,7 +299,7 @@ int64_t Transport::secure_recvfile(fstream& ofs, int64_t offset, int64_t size)
    int64_t torecv = size;
    while (torecv > 0)
    {
-      int unitsize = (torecv < block) ? torecv : block;
+      int unitsize = int((torecv < block) ? torecv : block);
       if (secure_recv(tmp, unitsize) < 0)
          break;
       ofs.write(tmp, unitsize);

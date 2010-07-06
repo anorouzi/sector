@@ -689,14 +689,14 @@ int SlaveManager::serializeClusterInfo(char* buf, int& size)
    char* p = buf;
    for (map<int, Cluster>::iterator i = m_Cluster.m_mSubCluster.begin(); i != m_Cluster.m_mSubCluster.end(); ++ i)
    {
-      *(int64_t*)p = i->second.m_iClusterID;
-      *(int64_t*)(p + 8) = i->second.m_iTotalNodes;
-      *(int64_t*)(p + 16) = i->second.m_llAvailDiskSpace;
-      *(int64_t*)(p + 24) = i->second.m_llTotalFileSize;
-      *(int64_t*)(p + 32) = i->second.m_llTotalInputData;
-      *(int64_t*)(p + 40) = i->second.m_llTotalOutputData;
+      *(int32_t*)p = i->second.m_iClusterID;
+      *(int32_t*)(p + 4) = i->second.m_iTotalNodes;
+      *(int64_t*)(p + 8) = i->second.m_llAvailDiskSpace;
+      *(int64_t*)(p + 16) = i->second.m_llTotalFileSize;
+      *(int64_t*)(p + 24) = i->second.m_llTotalInputData;
+      *(int64_t*)(p + 32) = i->second.m_llTotalOutputData;
 
-      p += 48;
+      p += 40;
    }
 
    size = p - buf;
