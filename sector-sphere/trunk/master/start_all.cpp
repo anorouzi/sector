@@ -1,3 +1,4 @@
+#include <conf.h>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -7,13 +8,16 @@ using namespace std;
 
 int main()
 {
-   system("nohup ./start_master > /dev/null &");
-   cout << "start master ...\n";
+   string sector_home;
+   if (ConfLocation::locate(sector_home) < 0)
+   {
+      cerr << "no Sector information located; nothing to start.\n";
+      return -1;
+   }
 
-   string sector_home = "../";
-   char* system_env = getenv("SECTOR_HOME");
-   if (NULL != system_env)
-      sector_home = system_env;
+   string cmd = string("nohup " + sector_home + "/master/start_master > /dev/null &");
+   system(cmd.c_str());
+   cout << "start master ...\n";
 
    ifstream ifs((sector_home + "/conf/slaves.list").c_str());
 

@@ -81,7 +81,8 @@ m_bWrite(false),
 m_bSecure(false),
 m_bLocal(false),
 m_pcLocalPath(NULL),
-m_iWriteBufSize(1000000)
+m_iWriteBufSize(1000000),
+m_bOpened(false)
 {
 #ifndef WIN32
    pthread_mutex_init(&m_FileLock, NULL);
@@ -92,6 +93,7 @@ m_iWriteBufSize(1000000)
 
 FSClient::~FSClient()
 {
+   m_bOpened = false;
    delete [] m_pcLocalPath;
 #ifndef WIN32
    pthread_mutex_destroy(&m_FileLock);
@@ -177,6 +179,8 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    m_pClient->m_Cache.update(m_strFileName, m_llTimeStamp, m_llSize, true);
 
+   m_bOpened = true;
+
    return 0;
 }
 
@@ -227,6 +231,9 @@ int FSClient::reopen()
 
 int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    if ((offset < 0) || (offset > m_llSize))
@@ -310,6 +317,9 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
 
 int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    if (offset < 0)
@@ -358,16 +368,25 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
 
 int64_t FSClient::read(char* buf, const int64_t& size)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return read(buf, m_llCurReadPos, size);
 }
 
 int64_t FSClient::write(const char* buf, const int64_t& size)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return write(buf, m_llCurWritePos, size);
 }
 
 int64_t FSClient::download(const char* localpath, const bool& cont)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    int64_t offset;
@@ -446,6 +465,9 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
 
 int64_t FSClient::upload(const char* localpath, const bool& cont)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    fstream ifs;
@@ -491,6 +513,9 @@ int64_t FSClient::upload(const char* localpath, const bool& cont)
 
 int FSClient::close()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    // file close command: 5
@@ -511,6 +536,9 @@ int FSClient::close()
 
 int64_t FSClient::seekp(int64_t off, int pos)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    switch (pos)
@@ -539,6 +567,9 @@ int64_t FSClient::seekp(int64_t off, int pos)
 
 int64_t FSClient::seekg(int64_t off, int pos)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CGuard fg(m_FileLock);
 
    switch (pos)
@@ -567,16 +598,25 @@ int64_t FSClient::seekg(int64_t off, int pos)
 
 int64_t FSClient::tellp()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return m_llCurWritePos;
 }
 
 int64_t FSClient::tellg()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return m_llCurReadPos;
 }
 
 bool FSClient::eof()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return (m_llCurReadPos >= m_llSize);
 }
 

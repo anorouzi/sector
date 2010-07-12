@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/12/2010
+   Yunhong Gu, last updated 07/06/2010
 *****************************************************************************/
 
 #ifndef __SPHERE_CLIENT_H__
@@ -171,7 +171,9 @@ private:
 #else
    static DWORD WINAPI run(LPVOID);
 #endif
+
    pthread_mutex_t m_RunLock;
+   bool m_bOpened;
 
    int start();
    int checkSPE();

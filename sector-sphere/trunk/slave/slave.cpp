@@ -70,19 +70,16 @@ int Slave::init(const char* base)
 {
    if (NULL != base)
       m_strBase = base;
-   else
+   else if (ConfLocation::locate(m_strBase) < 0)
    {
-      char* system_env = getenv("SECTOR_HOME");
-      if (NULL != system_env)
-         m_strBase = system_env;
-      else
-         m_strBase = "../";
+      cerr << "unable to locate configuration file; quit.\n";
+      return -1;
    }
 
    string conf = m_strBase + "/conf/slave.conf";
    if (m_SysConfig.init(conf) < 0)
    {
-      cerr << "unable to initialize from configuration file; quit.\n";
+      cerr << "unable to locate or initialize from configuration file; quit.\n";
       return -1;
    }
 
@@ -324,6 +321,10 @@ void Slave::run()
 
       case 2:
          processDCCmd(ip, port, id, msg);
+         break;
+
+      case 3:
+         processDBCmd(ip, port, id, msg);
          break;
 
       case 10:
@@ -594,6 +595,25 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       break;
    }
+
+   default:
+      return -1;
+   }
+
+   return 0;
+}
+
+int Slave::processDBCmd(const string& ip, const int port, int id, SectorMsg* msg)
+{
+   switch (msg->getType())
+   {
+   case 301: // create a new table
+
+   case 302: // add a new attribute
+
+   case 303: // delete an attribute
+
+   case 304: // delete a table
 
    default:
       return -1;

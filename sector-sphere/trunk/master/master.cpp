@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/12/2010
+   Yunhong Gu, last updated 07/12/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -76,12 +76,12 @@ Master::~Master()
 
 int Master::init()
 {
-   //The master will look for the configurations from $SECTOR_HOME/conf/
-   //If $SECTOR_HOME is not set, it tries to check ../conf
-   m_strSectorHome = "../";
-   char* system_env = getenv("SECTOR_HOME");
-   if (NULL != system_env)
-      m_strSectorHome = system_env;
+   if (ConfLocation::locate(m_strSectorHome) < 0)
+   {
+      cerr << "unable to read/parse configuration file.\n";
+      m_SectorLog.insert("unable to read/parse configuration file.");
+      return -1;
+   }
 
    // read configuration from master.conf
    if (m_SysConfig.init(m_strSectorHome + "/conf/master.conf") < 0)
@@ -1072,6 +1072,10 @@ void* Master::processEx(void* param)
 
       case 2:
          self->processDCCmd(p->ip, p->port, p->user, p->key, p->id, p->msg);
+         break;
+
+      case 3:
+         self->processDBCmd(p->ip, p->port, p->user, p->key, p->id, p->msg);
          break;
 
       case 10:
@@ -2132,6 +2136,21 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
 
       break;
    }
+
+   default:
+      reject(ip, port, id, SectorError::E_UNKNOWN);
+      return -1;
+   }
+
+   return 0;
+}
+
+int Master::processDBCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
+{
+   // 300+ SpaceDB
+
+   switch (msg->getType())
+   {
 
    default:
       reject(ip, port, id, SectorError::E_UNKNOWN);

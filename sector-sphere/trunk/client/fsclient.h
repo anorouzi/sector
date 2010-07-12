@@ -99,6 +99,7 @@ private:
 
 private:
    pthread_mutex_t m_FileLock;
+   bool m_bOpened;		// if a file is actively for IO
 
 private:
    Client* m_pClient;		// client instance

@@ -56,6 +56,7 @@ int SectorError::init()
    s_mErrorMsg[-1005] = "a failure happens on the local file system.";
    s_mErrorMsg[-1006] = "directory is not empty.";
    s_mErrorMsg[-1007] = "directory does not exist or not a directory.";
+   s_mErrorMsg[-1008] = "this file is not openned yet for IO operations.";
    s_mErrorMsg[-2000] = "security check (certificate/account/password/acl) failed.";
    s_mErrorMsg[-2001] = "no certificate found or wrong certificate.";
    s_mErrorMsg[-2002] = "the account does not exist.";
@@ -70,6 +71,7 @@ int SectorError::init()
    s_mErrorMsg[-6000] = "at least one parameter is invalid.";
    s_mErrorMsg[-6001] = "the operation is not supported.";
    s_mErrorMsg[-7001] = "at least one bucket process has failed.";
+   s_mErrorMsg[-7002] = "no sphere process is running.";
 
    return s_mErrorMsg.size();
 }

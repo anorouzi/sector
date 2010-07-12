@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,9 +35,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/13/2009
+   Yunhong Gu, last updated 07/12/2010
 *****************************************************************************/
 
+#include <conf.h>
 #include <security.h>
 #include <filesrc.h>
 #include <iostream>
@@ -52,10 +53,12 @@ int main(int argc, char** argv)
    if (argc == 2)
       port = atoi(argv[1]);
 
-   string sector_home = "../";
-   char* system_env = getenv("SECTOR_HOME");
-   if (NULL != system_env)
-      sector_home = system_env;
+   string sector_home;
+   if (ConfLocation::locate(sector_home) < 0)
+   {
+      cerr << "cannot locate security server configurations.\n";
+      return -1;
+   }
 
    if (ss.init(port, (sector_home + "/conf/security_node.cert").c_str(), (sector_home + "/conf/security_node.key").c_str()) < 0)
    {

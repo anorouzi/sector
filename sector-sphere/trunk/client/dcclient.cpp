@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/11/2010
+   Yunhong Gu, last updated 07/06/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -183,6 +183,8 @@ m_bDataMove(true)
    m_iTotalSPE = 0;
    m_iAvailRes = 0;
    m_bBucketHealth = true;
+
+   m_bOpened = false;
 
 #ifndef WIN32
    pthread_mutex_init(&m_DSLock, NULL);
@@ -404,6 +406,8 @@ int DCClient::close()
    m_iTotalSPE = 0;
    m_iAvailRes = 0;
 
+   m_bOpened = false;
+
    return 0;
 }
 
@@ -416,6 +420,8 @@ DWORD WINAPI DCClient::run(LPVOID param)
    DCClient* self = (DCClient*)param;
 
    CGuard::enterCS(self->m_RunLock);
+
+   self->m_bOpened = true;
 
    while (self->m_iProgress < self->m_iTotalDS)
    {
@@ -521,7 +527,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
 #ifndef WIN32
       pthread_cond_signal(&self->m_ResCond);
 #else
-	  SetEvent(self->m_ResCond);
+      SetEvent(self->m_ResCond);
 #endif
    }
 
@@ -619,7 +625,7 @@ int DCClient::checkSPE()
             ds_found = true;
          }
 
-		 CGuard::leaveCS(m_DSLock);
+         CGuard::leaveCS(m_DSLock);
       }
       else 
       {
@@ -645,7 +651,7 @@ int DCClient::checkSPE()
             m_pClient->m_DataChn.remove(s->second.m_strIP, s->second.m_iDataPort);
             m_iTotalSPE --;
 
-			CGuard::enterCS(m_DSLock);
+            CGuard::enterCS(m_DSLock);
 
             if (++ s->second.m_pDS->m_iRetryNum > 3)
             {
@@ -669,7 +675,7 @@ int DCClient::checkSPE()
 
             s->second.m_pDS->m_iSPEID = -1;
 
-			CGuard::leaveCS(m_DSLock);
+            CGuard::leaveCS(m_DSLock);
          }
       }
    }
@@ -723,8 +729,8 @@ int DCClient::startSPE(SPE& s, DS* d)
       d->m_iStatus = 1;
       s.m_iStatus = 2;
       s.m_iProgress = 0;
-	  s.m_StartTime = CTimer::getTime();
-	  s.m_LastUpdateTime = CTimer::getTime();
+      s.m_StartTime = CTimer::getTime();
+      s.m_LastUpdateTime = CTimer::getTime();
       res = 1;
    }
 
@@ -735,6 +741,9 @@ int DCClient::startSPE(SPE& s, DS* d)
 
 int DCClient::checkProgress()
 {
+   if (!m_bOpened)
+      return SectorError::E_NOPROCESS;
+
    if ((0 == m_iTotalSPE) && (m_iProgress < m_iTotalDS))
       return SectorError::E_RESOURCE;
 
@@ -746,7 +755,7 @@ int DCClient::checkProgress()
    if (m_iTotalDS <= 0)
       progress = 100;
    else
-      progress = (m_iProgress + m_dRunningProgress) * 100 / m_iTotalDS;
+      progress = int((m_iProgress + m_dRunningProgress) * 100 / m_iTotalDS);
 
    if ((progress == 100) && (checkBucket() > 0))
       return 99;
@@ -761,6 +770,9 @@ int DCClient::checkMapProgress()
 
 int DCClient::checkReduceProgress()
 {
+   if (!m_bOpened)
+      return SectorError::E_NOPROCESS;
+
    if (m_mBucket.empty())
       return 100;
 
@@ -776,6 +788,9 @@ int DCClient::checkReduceProgress()
 
 int DCClient::waitForCompletion()
 {
+   if (!m_bOpened)
+      return SectorError::E_NOPROCESS;
+
    int64_t t1 = CTimer::getTime();
    int64_t t2 = t1;
 
@@ -802,7 +817,7 @@ int DCClient::waitForCompletion()
          res = NULL;
       }
 
-	  t2 = CTimer::getTime();
+      t2 = CTimer::getTime();
       if (t2 - t1 > 60000000)
       {
          cout << "PROGRESS: " << progress << "%" << endl;
@@ -815,6 +830,9 @@ int DCClient::waitForCompletion()
 
 int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
 {
+   if (!m_bOpened)
+      return SectorError::E_NOPROCESS;
+
    res = NULL;
 
    while (0 == m_iAvailRes)
@@ -833,9 +851,9 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       timeout.tv_sec = now.tv_sec + 10;
       timeout.tv_nsec = now.tv_usec * 1000;
 
-	  CGuard::enterCS(m_ResLock);
+      CGuard::enterCS(m_ResLock);
       int retcode = pthread_cond_timedwait(&m_ResCond, &m_ResLock, &timeout);
-	  CGuard::leaveCS(m_ResLock);
+      CGuard::leaveCS(m_ResLock);
 
       if (retcode == ETIMEDOUT)
          return SectorError::E_TIMEDOUT;
@@ -875,9 +893,9 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
 
    if (found)
    {
-	 CGuard::enterCS(m_ResLock);
+      CGuard::enterCS(m_ResLock);
       -- m_iAvailRes;
-     CGuard::leaveCS(m_ResLock);
+      CGuard::leaveCS(m_ResLock);
 
      return 1;
    }

@@ -321,6 +321,7 @@ public:
    static const int E_LOCALFILE = -1005;        // local file failure
    static const int E_NOEMPTY = -1006;          // directory is not empty (for rmdir)
    static const int E_NOTDIR = -1007;           // directory does not exist or not a directory
+   static const int E_FILENOTOPEN = -1008;	// the file is not open() yet for IO
    static const int E_SECURITY = -2000;         // security check failed
    static const int E_NOCERT = -2001;           // no certificate found
    static const int E_ACCOUNT = -2002;          // account does not exist
@@ -336,6 +337,7 @@ public:
    static const int E_INVALID = -6000;          // invalid parameter
    static const int E_SUPPORT = -6001;          // operation not supported
    static const int E_BUCKET = -7001;           // bucket failure
+   static const int E_NOPROCESS = -7002;	// no sphere process is running
 
 public: // internal error
    static const int E_MASTER = -101;            // incorrect master node to handle the request

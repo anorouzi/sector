@@ -79,13 +79,19 @@ public:
    int copy(const std::string& src, const std::string& dst);
    int utime(const std::string& path, const int64_t& ts);
 
+   //int createTable();
+   //int listTable();
+   //int deleteTable();
+
    int sysinfo(SysStat& sys);
 
 public:
    FSClient* createFSClient();
    DCClient* createDCClient();
+   //DBClient* createDBClient();
    int releaseFSClient(FSClient* sf);
    int releaseDCClient(DCClient* sp);
+   //int releaseDBClient(DBClient* sd);
 
 public:
    int setMaxCacheSize(const int64_t ms);

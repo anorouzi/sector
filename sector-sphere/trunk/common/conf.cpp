@@ -45,12 +45,43 @@ written by
 #endif
 #include "conf.h"
 #include <iostream>
+#include <string>
 #include <cstring>
 #include <cstdlib>
 #include <sys/types.h>
 #include <sys/stat.h>
 
 using namespace std;
+
+int ConfLocation::locate(string& loc)
+{
+   // search for configuration files from 1) $SECTOR_HOME, 2) ../, or 3) /opt/sector
+
+   struct stat t;
+
+   char* system_env = getenv("SECTOR_HOME");
+   if (NULL != system_env)
+      loc = system_env;
+
+   if (stat((loc + "/conf").c_str(), &t) == 0)
+      return 0;
+
+   if (stat("../conf", &t) == 0)
+   {
+      loc = "../";
+   }
+   else if (stat("/opt/sector/conf", &t) == 0)
+   {
+      loc = "/opt/sector";
+   }
+   else
+   {
+      cerr << "cannot locate Sector configurations from either $SECTOR_HOME, ../, or /opt/sector.";
+      return -1;
+   }
+
+   return 0;   
+}
 
 int ConfParser::init(const string& path)
 {
@@ -447,22 +478,11 @@ bool WildCard::match(const string& card, const string& path)
 
 int Session::loadInfo(const char* conf)
 {
-   string conf_file_path;
-
-   char* system_env = getenv("SECTOR_HOME");
-
-   struct stat t;
-   if ((NULL == conf) || (0 == strlen(conf)) || (stat(conf, &t) < 0))
-   {
-      if (NULL != system_env)
-         conf_file_path = string(system_env) + "/conf/client.conf";
-      else
-         conf_file_path = "../conf/client.conf";
-   }
-   else
-   {
+   string sector_home, conf_file_path;
+   if (ConfLocation::locate(sector_home) < 0)
       conf_file_path = conf;
-   }
+   else
+      conf_file_path = sector_home + "/conf/client.conf";
 
    m_ClientConf.init(conf_file_path);
 
@@ -499,16 +519,12 @@ int Session::loadInfo(const char* conf)
       cin >> m_ClientConf.m_strPassword;
    }
 
+   struct stat t;
    if (stat(m_ClientConf.m_strCertificate.c_str(), &t) < 0)
    {
-      if (NULL != system_env)
+      if (stat((sector_home + "/conf/master_node.cert").c_str(), &t) == 0)
       {
-         if (stat((string(system_env) + "/conf/master_node.cert").c_str(), &t) == 0)
-            m_ClientConf.m_strCertificate = string(system_env) + "/conf/master_node.cert";
-      }
-      else if (stat("../conf/master_node.cert", &t) == 0)
-      {
-         m_ClientConf.m_strCertificate = "../conf/master_node.cert";
+         m_ClientConf.m_strCertificate = sector_home + "/conf/master_node.cert";
       }
       else
       {
