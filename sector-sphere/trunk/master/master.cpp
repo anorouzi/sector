@@ -1137,15 +1137,19 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
             m_sstrOnReplicate.erase(attr.m_strName);
          }
       }
-      // send file changes to all other masters
-      if (m_Routing.getNumOfMasters() > 1)
+
+      if (num > 0)
       {
-         SectorMsg newmsg;
-         newmsg.setData(0, (char*)&change, 4);
-         newmsg.setData(4, ip.c_str(), 64);
-         newmsg.setData(68, (char*)&port, 4);
-         newmsg.setData(72, msg->getData() + 12, msg->m_iDataLength - 12);
-         sync(newmsg.getData(), newmsg.m_iDataLength, 1100);
+         // send file changes to all other masters
+         if (m_Routing.getNumOfMasters() > 1)
+         {
+            SectorMsg newmsg;
+            newmsg.setData(0, (char*)&change, 4);
+            newmsg.setData(4, ip.c_str(), 64);
+            newmsg.setData(68, (char*)&port, 4);
+            newmsg.setData(72, msg->getData() + 12, msg->m_iDataLength - 12);
+            sync(newmsg.getData(), newmsg.m_iDataLength, 1100);
+         }
       }
 
       // unlock the file, if this is a file operation

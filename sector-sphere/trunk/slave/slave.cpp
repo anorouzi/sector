@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/11/2010
+   Yunhong Gu, last updated 07/12/2010
 *****************************************************************************/
 
 
@@ -731,32 +731,32 @@ int Slave::getFileList(const std::string& path, std::vector<std::string>& fileli
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int& change)
 {
    vector<string> serlist;
-   for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   if (change > 0)
    {
-      struct stat64 s;
-      if (-1 == stat64((m_strHomeDir + *i).c_str(), &s))
-         continue;
+      for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
+      {
+         struct stat64 s;
+         if (-1 == stat64((m_strHomeDir + *i).c_str(), &s))
+            continue;
 
-      SNode sn;
-      sn.m_strName = *i;
-      sn.m_bIsDir = S_ISDIR(s.st_mode) ? 1 : 0;
-      sn.m_llTimeStamp = s.st_mtime;
-      sn.m_llSize = s.st_size;
+         SNode sn;
+         sn.m_strName = *i;
+         sn.m_bIsDir = S_ISDIR(s.st_mode) ? 1 : 0;
+         sn.m_llTimeStamp = s.st_mtime;
+         sn.m_llSize = s.st_size;
 
-      char buf[1024];
-      sn.serialize(buf);
+         char buf[1024];
+         sn.serialize(buf);
 
-      //update local
-      Address addr;
-      addr.m_strIP = "127.0.0.1";
-      addr.m_iPort = 0;
-      m_pLocalFile->update(buf, addr, change);
+         //update local
+         Address addr;
+         addr.m_strIP = "127.0.0.1";
+         addr.m_iPort = 0;
+         m_pLocalFile->update(buf, addr, change);
 
-      serlist.push_back(buf);
+         serlist.push_back(buf);
+      }
    }
-
-   if (serlist.empty())
-      return 0;
 
    SectorMsg msg;
    msg.setType(1);

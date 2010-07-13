@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/27/2010
+   Yunhong Gu, last updated 07/13/2010
 *****************************************************************************/
 
 #include <slave.h>
@@ -816,10 +816,12 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
       int32_t mode = 1;
       msg.setData(0, (char*)&mode, 4);
+      int32_t wb = 0;
+      msg.setData(4, (char*)&wb, 4);
       int32_t port = m_DataChn.getPort();
-      msg.setData(4, (char*)&port, 4);
-      msg.setData(8, "\0", 1);
-      msg.setData(72, idxfile.c_str(), idxfile.length() + 1);
+      msg.setData(8, (char*)&port, 4);
+      msg.setData(12, "\0", 1);
+      msg.setData(76, idxfile.c_str(), idxfile.length() + 1);
 
       Address addr;
       m_Routing.lookup(idxfile, addr);
@@ -840,15 +842,14 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       int32_t cmd = 1;
       m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
 
-      int response = -1;
-      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
-         return -1;
-
       char req[16];
       *(int64_t*)req = offset * 8;
       *(int64_t*)(req + 8) = (totalrows + 1) * 8;
-
       if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
+         return -1;
+
+      int response = -1;
+      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
          return -1;
 
       char* tmp = NULL;
@@ -890,10 +891,12 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
 
       int32_t mode = 1;
       msg.setData(0, (char*)&mode, 4);
+      int32_t wb = 0;
+      msg.setData(4, (char*)&wb, 4);
       int32_t port = m_DataChn.getPort();
-      msg.setData(4, (char*)&port, 4);
-      msg.setData(8, "\0", 1);
-      msg.setData(72, datafile.c_str(), datafile.length() + 1);
+      msg.setData(8, (char*)&port, 4);
+      msg.setData(12, "\0", 1);
+      msg.setData(76, datafile.c_str(), datafile.length() + 1);
 
       Address addr;
       m_Routing.lookup(datafile, addr);
@@ -914,15 +917,14 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
       int32_t cmd = 1;
       m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
 
-      int response = -1;
-      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
-         return -1;
-
       char req[16];
       *(int64_t*)req = index[0];
       *(int64_t*)(req + 8) = index[totalrows] - index[0];
-
       if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
+         return -1;
+
+      int response = -1;
+      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
          return -1;
 
       char* tmp = NULL;

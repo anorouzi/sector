@@ -26,9 +26,10 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   if (f->open(dst, SF_MODE::WRITE) < 0)
+   int result = f->open(dst, SF_MODE::WRITE);
+   if (result < 0)
    {
-      cout << "ERROR: unable to connect to server or file already exists." << endl;
+      cout << "ERROR: code " << result << " " << SectorError::getErrorMsg(result) << endl;
       return -1;
    }
 

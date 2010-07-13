@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/06/2010
+   Yunhong Gu, last updated 07/12/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -375,6 +375,8 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    CreateThread(NULL, 0, run, this, NULL, &ThreadID);
 #endif
 
+   m_bOpened = true;
+
    return 0;
 }
 
@@ -421,8 +423,6 @@ DWORD WINAPI DCClient::run(LPVOID param)
 
    CGuard::enterCS(self->m_RunLock);
 
-   self->m_bOpened = true;
-
    while (self->m_iProgress < self->m_iTotalDS)
    {
       if (0 == self->checkSPE())
@@ -445,7 +445,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
          continue;
 
       int progress = *(int32_t*)(msg.getData() + 4);
-	  s->second.m_LastUpdateTime = CTimer::getTime();
+      s->second.m_LastUpdateTime = CTimer::getTime();
       if (progress < 0)
       {
          cerr << "SPE PROCESSING ERROR " << ip << " " << port << endl;
@@ -946,8 +946,9 @@ int DCClient::dataInfo(const vector<string>& files, vector<string>& info)
 
 int DCClient::prepareInput()
 {
-   if ((m_pInput->m_iStatus != 0) || m_pInput->m_vOrigInput.empty())
-      return -1;
+   // if input data is already initilized or no data to be initialized, return immediately
+   if ((m_pInput->m_iStatus == 1) || m_pInput->m_vOrigInput.empty())
+      return 0;
 
    vector<string> datainfo;
    int res = dataInfo(m_pInput->m_vOrigInput, datainfo);
@@ -1270,7 +1271,7 @@ int DCClient::prepareOutput(const char* spenodes)
          b.m_iShufflerPort = *(int32_t*)msg.getData();
          b.m_iSession = *(int32_t*)(msg.getData() + 4);
          b.m_iProgress = 0;
-		 b.m_LastUpdateTime = CTimer::getTime();
+         b.m_LastUpdateTime = CTimer::getTime();
          m_mBucket[b.m_iID] = b;
 
          // set up data connection, not for data transfter, but for keep-alive
