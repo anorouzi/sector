@@ -4,6 +4,7 @@ Windows client support
 Improved small write performance
 Improved file update report performance from slave to master (ignore 
 unchanged files)
+mapreduce loadoperator bug fix
 
 version 2.4
 
