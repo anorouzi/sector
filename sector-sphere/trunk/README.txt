@@ -16,4 +16,4 @@ Please visit sector.sf.net for more information about Sector installation
 and usage. A copy of User's Manual can also be found in ./doc directory.
 
 Questions? please post to the Sector project forum:
-https://sourceforge.net/forum/?group_id=172838
+https://sourceforge.net/projects/sector/forums
