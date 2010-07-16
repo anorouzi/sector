@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/13/2010
+   Yunhong Gu, last updated 07/15/2010
 *****************************************************************************/
 
 #include <slave.h>
@@ -340,6 +340,7 @@ void* Slave::SPEHandler(void* p)
       sprintf(path, "%d", key);
       file.m_strLibDir = self->m_strHomeDir + ".sphere/" + path + "/";
       file.m_strTempDir = self->m_strHomeDir + ".tmp/";
+      file.m_iSlaveID = self->m_iSlaveID;
       file.m_pInMemoryObjects = &self->m_InMemoryObjects;
 
       result.clear();
@@ -531,6 +532,7 @@ void* Slave::SPEHandler(void* p)
 void* Slave::SPEShuffler(void* p)
 {
    Slave* self = ((Param5*)p)->serv_instance;
+   int transid = ((Param5*)p)->transid;
    string client_ip = ((Param5*)p)->client_ip;
    int client_port = ((Param5*)p)->client_ctrl_port;
    int client_data_port = ((Param5*)p)->client_data_port;
@@ -539,10 +541,16 @@ void* Slave::SPEShuffler(void* p)
    int bucketnum = ((Param5*)p)->bucketnum;
    CGMP* gmp = ((Param5*)p)->gmp;
    string function = ((Param5*)p)->function;
+   const int key = ((Param5*)p)->key;
+   const int type = ((Param5*)p)->type;
 
    //set up data connection, for keep-alive purpose
    if (self->m_DataChn.connect(client_ip, client_data_port) < 0)
       return NULL;
+
+   // read library files for MapReduce, no need for Sphere UDF
+   if (type == 1)
+      self->acceptLibrary(key, client_ip, client_data_port, transid);
 
    queue<Bucket>* bq = new queue<Bucket>;
    pthread_mutex_t* bqlock = new pthread_mutex_t;
@@ -738,25 +746,26 @@ void* Slave::SPEShufflerEx(void* p)
    {
       void* lh = NULL;
       self->openLibrary(key, function, lh);
-      //if (NULL == lh)
-      //   break;
 
-      MR_COMPARE comp = NULL;
-      MR_REDUCE reduce = NULL;
-      self->getReduceFunc(lh, function, comp, reduce);
-
-      if (NULL != comp)
+      if (NULL != lh)
       {
-         char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
-         for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
-         {
-            sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), *i);
-            self->sort(tmp, comp, reduce);
-         }
-         delete [] tmp;
-      }
+         MR_COMPARE comp = NULL;
+         MR_REDUCE reduce = NULL;
+         self->getReduceFunc(lh, function, comp, reduce);
 
-      self->closeLibrary(lh);
+         if (NULL != comp)
+         {
+            char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
+            for (set<int>::iterator i = fileid.begin(); i != fileid.end(); ++ i)
+            {
+               sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), *i);
+               self->sort(tmp, comp, reduce);
+            }
+            delete [] tmp;
+         }
+
+         self->closeLibrary(lh);
+      }
    }
 
 
@@ -1110,6 +1119,12 @@ int Slave::acceptLibrary(const int& key, const string& ip, int port, int session
       delete [] lib;
       delete [] buf;
       delete [] path;
+   }
+
+   if (num > 0)
+   {
+      int32_t confirm = 0;
+      m_DataChn.send(ip, port, session, (char*)&confirm, 4);
    }
 
    return 0;

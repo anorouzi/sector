@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/12/2010
+   Yunhong Gu, last updated 07/16/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -256,10 +256,10 @@ int DCClient::loadOperator(const char* library)
    return 0;
 }
 
-int DCClient::loadOperator(SPE& s)
+int DCClient::loadOperator(const string& ip, const int port, const int dataport, const int session)
 {
    char addr[128];
-   sprintf(addr, "%s:%d", s.m_strIP.c_str(), s.m_iPort);
+   sprintf(addr, "%s:%d", ip.c_str(), port);
 
    int num = 0;
    for (map<string, OP>::iterator i = m_mOP.begin(); i != m_mOP.end(); ++ i)
@@ -267,13 +267,13 @@ int DCClient::loadOperator(SPE& s)
       if (i->second.m_sUploaded.find(addr) == i->second.m_sUploaded.end())
          ++ num;
    }
-   m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&num, 4);
+   m_pClient->m_DataChn.send(ip, dataport, session, (char*)&num, 4);
 
    for (map<string, OP>::iterator i = m_mOP.begin(); i != m_mOP.end(); ++ i)
    {
       if (i->second.m_sUploaded.find(addr) == i->second.m_sUploaded.end())
       {
-         m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, i->second.m_strLibrary.c_str(), i->second.m_strLibrary.length() + 1);
+         m_pClient->m_DataChn.send(ip, dataport, session, i->second.m_strLibrary.c_str(), i->second.m_strLibrary.length() + 1);
 
          ifstream lib;
          lib.open(i->second.m_strLibPath.c_str(), ios::in | ios::binary);
@@ -281,11 +281,18 @@ int DCClient::loadOperator(SPE& s)
          lib.read(buf, i->second.m_iSize);
          lib.close();
 
-         m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, buf, i->second.m_iSize);
+         m_pClient->m_DataChn.send(ip, dataport, session, buf, i->second.m_iSize);
 
          // this library will not be uploaded again during the current client session
          i->second.m_sUploaded.insert(addr);
       }
+   }
+
+   if (num > 0)
+   {
+      // wait for library transfer to complete
+      int32_t confirm;
+      m_pClient->m_DataChn.recv4(ip, dataport, session, confirm);
    }
 
    return num;
@@ -1098,7 +1105,7 @@ int DCClient::connectSPE(SPE& s)
       return -1;
    }
 
-   s.m_iSession = *(int*)msg.getData();
+   s.m_iSession = *(int32_t*)msg.getData();
 
    m_pClient->m_DataChn.connect(s.m_strIP, s.m_iDataPort);
 
@@ -1116,7 +1123,7 @@ int DCClient::connectSPE(SPE& s)
    else if (m_iOutputType < 0)
       m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, strlen(m_pOutputLoc) + 1);
 
-   loadOperator(s);
+   loadOperator(s.m_strIP, s.m_iPort, s.m_iDataPort, s.m_iSession);
 
    s.m_iStatus = 1;
 
@@ -1276,6 +1283,10 @@ int DCClient::prepareOutput(const char* spenodes)
 
          // set up data connection, not for data transfter, but for keep-alive
          m_pClient->m_DataChn.connect(b.m_strIP, b.m_iDataPort);
+
+         // upload library files for MapReduce processing
+         if (m_iProcType == 1)
+            loadOperator(b.m_strIP, b.m_iPort, b.m_iDataPort, b.m_iSession);
       }
 
       if (m_mBucket.empty())

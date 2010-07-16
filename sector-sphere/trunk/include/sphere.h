@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/29/2010
+   Yunhong Gu, last updated 07/15/2010
 *****************************************************************************/
 
 #ifndef __SPHERE_H__
@@ -139,6 +139,7 @@ public:
    std::string m_strTempDir;		// Sector temporary directory
    std::set<std::string> m_sstrFiles; 	// list of modified files
 
+   int m_iSlaveID;			// unique slave ID
    MOMgmt* m_pInMemoryObjects;		// Handle to the in-memory objects management module
 };
 

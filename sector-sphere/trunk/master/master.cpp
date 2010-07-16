@@ -2134,6 +2134,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
+      msg->setData(4, (char*)&transid, 4);
+      msg->m_iDataLength = SectorMsg::m_iHdrSize + 8;
       m_GMP.sendto(ip, port, id, msg);
 
       m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start Shuffler", "", "SUCCESS", addr.m_strIP.c_str(), 9);

@@ -157,7 +157,7 @@ private:
       std::set<std::string> m_sUploaded;	// slave address that the op has been uploaded to; to avoid uploading a library multiple times
    };
    std::map<std::string, OP> m_mOP;
-   int loadOperator(SPE& s);
+   int loadOperator(const std::string& ip, const int port, const int dataport, const int session);
 
 private:
    int dataInfo(const std::vector<std::string>& files, std::vector<std::string>& info);
