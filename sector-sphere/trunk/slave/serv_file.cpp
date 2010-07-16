@@ -206,9 +206,13 @@ void* Slave::fileHandler(void* p)
             if (dst_port > 0)
             {
                self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
-               int response;
-               if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
-                  break;
+
+               if (size > writeBufSize)
+               {
+                  int response;
+                  if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
+                     break;
+               }
 
                // replicate data to another node
                char req[16];
@@ -218,7 +222,8 @@ void* Slave::fileHandler(void* p)
                if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
                   break;
 
-               self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset, size);
+               if (self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset, size) < 0)
+                  break;
             }
 
             break;
@@ -303,9 +308,13 @@ void* Slave::fileHandler(void* p)
 
                   int write = 2;
                   self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&write, 4);
-                  int response;
-                  if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
-                     break;
+
+                  if (size > writeBufSize)
+                  {
+                     int response;
+                     if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
+                        break;
+                  }
 
                   char req[16];
                   *(int64_t*)req = offset + recd;
@@ -314,7 +323,8 @@ void* Slave::fileHandler(void* p)
                   if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
                      break;
 
-                  self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset + recd, block);
+                  if (self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset + recd, block) < 0)
+                     break;
                }
 
                recd += block;
@@ -335,6 +345,8 @@ void* Slave::fileHandler(void* p)
       case 5: // end session
          if (dst_port > 0)
          {
+            //TODO:: send timestamp and size information, (more check) to uplink, if uplink fais, remove that copy
+
             // disconnet uplink
             self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
             self->m_DataChn.recv4(dst_ip, dst_port, transid, cmd);

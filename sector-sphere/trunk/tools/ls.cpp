@@ -91,5 +91,5 @@ int main(int argc, char** argv)
    client.logout();
    client.close();
 
-   return 1;
+   return 0;
 }

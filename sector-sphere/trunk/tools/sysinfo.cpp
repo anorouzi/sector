@@ -23,7 +23,8 @@ int main(int argc, char** argv)
       return -1;
 
    SysStat sys;
-   if (client.sysinfo(sys) >= 0)
+   int r = client.sysinfo(sys);
+   if (r >= 0)
       sys.print();
    else
       cout << "Error happened, failed to retrieve any system information.\n";
@@ -31,5 +32,5 @@ int main(int argc, char** argv)
    client.logout();
    client.close();
 
-   return 1;
+   return r;
 }
