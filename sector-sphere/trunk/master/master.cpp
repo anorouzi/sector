@@ -577,7 +577,7 @@ void* Master::serviceEx(void* param)
       return NULL;
    }
 
-   while (true)
+   while (self->m_Status == RUNNING)
    {
       ServiceJobParam* p = (ServiceJobParam*)self->m_ServiceJobQueue.pop();
       if (NULL == p)
@@ -1043,7 +1043,7 @@ void* Master::processEx(void* param)
 {
    Master* self = (Master*)param;
 
-   while (true)
+   while (self->m_Status == RUNNING)
    {
       ProcessJobParam* p = (ProcessJobParam*)self->m_ProcessJobQueue.pop();
       if (NULL == p)
@@ -1288,16 +1288,41 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
       int32_t type = *(int32_t*)msg->getData();
       int32_t size = *(int32_t*)(msg->getData() + 4);
-      char* p = msg->getData() + 8;
+      *(msg->getData() + 8 + size) = '\0';
+      string param = msg->getData() + 8;
 
       map<int, Address> sl;
 
-      if (type == 2)
+      if (type == 1)
       {
-         int32_t id = atoi(p);
+         // shutdown all nodes
+         m_SlaveManager.getSlaveListByRack(sl, "");
+      }
+      else if (type == 2)
+      {
+         // shutdown a node according to its ID
+         int32_t id = atoi(param.c_str());
          Address addr;
-         m_SlaveManager.getSlaveAddr(id, addr);
-         sl[id] = addr;
+         if (m_SlaveManager.getSlaveAddr(id, addr) >= 0)
+            sl[id] = addr;
+
+         // TODO: check if this is a master ID, and shutdown the master if necessary
+      }
+      else if (type == 3)
+      {
+         // shutdown a node according to the IP:port
+         Address addr;
+         int pos = param.find(':');
+         addr.m_strIP = param.substr(0, pos);
+         addr.m_iPort = atoi(param.substr(pos + 1, param.length() - pos - 1).c_str());
+         int id = m_SlaveManager.getSlaveID(addr);
+         if (id >= 0)
+            sl[id] = addr;
+      }
+      else if (type == 4)
+      {
+         // shutdown a rack
+         m_SlaveManager.getSlaveListByRack(sl, param);
       }
       else
       {
@@ -1305,13 +1330,16 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          break;
       }
 
+      //TODO: check active transcations, if a node is running a job, put it into a shutdown queue
+
       for (map<int, Address>::iterator i = sl.begin(); i != sl.end(); ++ i)
       {
          SectorMsg newmsg;
          newmsg.setType(8);
-         int msgid;
+         int msgid = 0;
          m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
          m_SlaveManager.remove(i->first);
+         m_pMetadata->substract("/", i->second);
 
          char text[64];
          sprintf(text, "Slave node %s:%d is shutdown.", i->second.m_strIP.c_str(), i->second.m_iPort);
@@ -1348,8 +1376,24 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          break;
       }
 
+      // shutdown other masters
+      map<uint32_t, Address> al;
+      m_Routing.getListOfMasters(al);
+      SectorMsg master_msg;
+      master_msg.setKey(0);
+      master_msg.setType(1009);
+      for (map<uint32_t, Address>::iterator m = al.begin(); m != al.end(); ++ m)
+      {
+         if (m->first == m_iRouterKey)
+            continue;
+
+         m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &master_msg, &master_msg);
+      }
+
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
+
+      m_Status = STOPPED;
 
       break;
    }
@@ -2269,6 +2313,14 @@ int Master::processMCmd(const string& ip, const int port,  const User* user, con
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
       m_GMP.sendto(ip, port, id, msg);
+      break;
+   }
+
+   case 1009: // system shutdown
+   {
+      m_GMP.sendto(ip, port, id, msg);
+      m_SectorLog.insert("System is shutdown.");
+      m_Status = STOPPED;
       break;
    }
 

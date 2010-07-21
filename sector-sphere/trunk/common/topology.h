@@ -143,7 +143,7 @@ public:
    int serialize(char* buf, int& size);
    int deserialize(const char* buf, const int& size);
 
-private:
+public:
    int parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask);
    int parseTopo(const char* topo, std::vector<int>& tm);
 

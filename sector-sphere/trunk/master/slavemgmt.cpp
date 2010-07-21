@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/25/2010
+   Yunhong Gu, last updated 07/21/2010
 *****************************************************************************/
 
 #include <slavemgmt.h>
@@ -134,7 +134,7 @@ int SlaveManager::insert(SlaveNode& sn)
    sn.m_iRetryNum = 0;
    sn.m_llLastVoteTime = CTimer::getTime();
    sn.m_iStatus = 1;
-
+   m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    m_mSlaveList[sn.m_iNodeID] = sn;
 
    Address addr;
@@ -142,7 +142,6 @@ int SlaveManager::insert(SlaveNode& sn)
    addr.m_iPort = sn.m_iPort;
    m_mAddrList[addr] = sn.m_iNodeID;
 
-   m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
    map<int, Cluster>::iterator pc;
    for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i)
@@ -803,4 +802,40 @@ void SlaveManager::updateclusterio_(Cluster& c, map<string, int64_t>& data_in, m
 
       total += p->second;
    }
+}
+
+int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopath)
+{
+   vector<int> path;
+   if (m_Topology.parseTopo(topopath.c_str(), path) < 0)
+      return -1;
+
+   sl.clear();
+   unsigned int len = path.size();
+
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      if (len > i->second.m_viPath.size())
+         continue;
+
+      bool match = true;
+      for (unsigned int p = 0; p < len; ++ p)
+      {
+         if (path[p] != i->second.m_viPath[p])
+         {
+            match = false;
+            break;
+         }
+      }
+
+      if (match)
+      {
+         Address addr;
+         addr.m_strIP = i->second.m_strIP;
+         addr.m_iPort = i->second.m_iPort;
+         sl[i->first] = addr;
+      }
+   }
+
+   return sl.size();
 }

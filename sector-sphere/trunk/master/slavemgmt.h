@@ -82,6 +82,7 @@ public:
    unsigned int getNumberOfSlaves();
    int serializeClusterInfo(char* buf, int& size);
    int serializeSlaveInfo(char* buf, int& size);
+   int getSlaveListByRack(std::map<int, Address>& sl, const std::string& topopath);
 
 public:
    uint64_t getTotalDiskSpace();

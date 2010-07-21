@@ -371,9 +371,9 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
 
 int Topology::parseTopo(const char* topo, vector<int>& tm)
 {
-   char buf[32];
-   strncpy(buf, topo, 32);
-   int size = strlen(buf);
+   int size = strlen(topo);
+   char* buf = new char [size + 32];
+   strcpy(buf, topo);
 
    for (int i = 0; i < size; ++ i)
    {
@@ -381,11 +381,22 @@ int Topology::parseTopo(const char* topo, vector<int>& tm)
          buf[i] = '\0';
    }
 
+   tm.clear();
+
    for (int i = 0; i < size; )
    {
+      while ((buf[i] == '\0') && (i < size))
+         ++ i;
+
+      if (i >= size)
+         break;
+
+      //TODO, check atoi value
       tm.insert(tm.end(), atoi(buf + i));
       i += strlen(buf + i) + 1;
    }
+
+   delete [] buf;
 
    return tm.size();
 }

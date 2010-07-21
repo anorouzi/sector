@@ -648,6 +648,15 @@ int Client::shutdown(const int& type, const std::string& param)
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
+   if (type == 1)
+   {
+      // shutdown masters
+      msg.setType(9);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize;
+      if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+         return SectorError::E_CONNECTION;
+   }
+
    return 0;
 }
 
