@@ -114,7 +114,7 @@ private:
 private:
    inline void reject(const std::string& ip, const int port, int id, int32_t code);
 
-private:
+private: // replication
    static void* replica(void* s);
 
    pthread_mutex_t m_ReplicaLock;

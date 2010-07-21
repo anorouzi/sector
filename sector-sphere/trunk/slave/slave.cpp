@@ -57,7 +57,8 @@ m_iSlaveID(-1),
 m_iDataPort(0),
 m_iLocalPort(0),
 m_strBase("./"),
-m_pLocalFile(NULL)
+m_pLocalFile(NULL),
+m_bRunning(false)
 {
 }
 
@@ -295,7 +296,9 @@ void Slave::run()
 
    cout << "slave process: " << "GMP " << m_iLocalPort << " DATA " << m_DataChn.getPort() << endl;
 
-   while (true)
+   m_bRunning = true;
+
+   while (m_bRunning)
    {
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
          break;
@@ -337,6 +340,8 @@ void Slave::run()
    }
 
    delete msg;
+
+   cout << "slave is stopped by master\n";
 }
 
 int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* msg)
@@ -370,9 +375,12 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
       break;
    }
 
-   case 3: // stop
+   case 8: // stop
    {
       // stop the slave node
+
+      m_bRunning = false;
+
       break;
    }
 

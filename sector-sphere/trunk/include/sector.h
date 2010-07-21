@@ -112,7 +112,9 @@ public:
    std::vector<Address> m_vMasterList;
    struct SlaveStat
    {
+      int32_t m_iID;
       std::string m_strIP;
+      int32_t m_iPort;
       int64_t m_llTimeStamp;
       int64_t m_llAvailDiskSpace;
       int64_t m_llTotalFileSize;
@@ -158,6 +160,7 @@ public:
    int utime(const std::string& path, const int64_t& ts);
 
    int sysinfo(SysStat& sys);
+   int shutdown(const int& type, const std::string& param = "");
 
 public:
    SectorFile* createSectorFile();
@@ -330,6 +333,7 @@ public:
    static const int E_INITCTX = -2005;          // failed to initialize CTX
    static const int E_NOSECSERV = -2006;        // security server is down or cannot connect to it
    static const int E_EXPIRED = - 2007;         // connection time out due to no activity
+   static const int E_AUTHORITY = - 2008;	// no authority to run the commands, e.g., only root can run it
    static const int E_CONNECTION = - 3000;      // cannot connect to master
    static const int E_RESOURCE = -4000;         // no available resources
    static const int E_NODISK = -4001;           // no enough disk

@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/12/2010
+   Yunhong Gu, last updated 07/20/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -223,7 +223,7 @@ int Master::init()
    m_llStartTime = time(NULL);
    m_SectorLog.insert("Sector started.");
 
-   cout << "Sector master is successfully running now. check sector.log for more details.\n";
+   cout << "Sector master is successfully running now. check the master log at $DATA_DIRECTORY/.log for more details.\n";
    cout << "There is no further screen output from this program.\n";
 
    return 1;
@@ -406,7 +406,7 @@ int Master::run()
       // if probe fails, remove the metadata of the data on the node, and create new replicas
       map<int, Address> bad;
       map<int, Address> lost;
-      m_SlaveManager.checkBadAndLost(bad, lost);
+      m_SlaveManager.checkBadAndLost(bad, lost, m_SysConfig.m_iSlaveTimeOut / 60 + 1);
 
       for (map<int, Address>::iterator i = bad.begin(); i != bad.end(); ++ i)
       {
@@ -440,15 +440,16 @@ int Master::run()
          // send lost slave info to all existing masters
          map<uint32_t, Address> al;
          m_Routing.getListOfMasters(al);
+         SectorMsg msg;
+         msg.setKey(0);
+         msg.setType(1007);
+         msg.setData(0, (char*)&(i->first), 4);
+
          for (map<uint32_t, Address>::iterator m = al.begin(); m != al.end(); ++ m)
          {
             if (m->first == m_iRouterKey)
                continue;
 
-            SectorMsg msg;
-            msg.setKey(0);
-            msg.setType(1007);
-            msg.setData(0, (char*)&(i->first), 4);
             m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &msg, &msg);
          }
 
@@ -465,18 +466,6 @@ int Master::run()
 
       // update cluster statistics
       m_SlaveManager.updateClusterStat();
-
-      // check replica, create or remove replicas if necessary
-      // only the first master is responsible for replica checking
-      map<string, int> special;
-      populateSpecialRep(m_strSectorHome + "/conf/replica.conf", special);
-
-      pthread_mutex_lock(&m_ReplicaLock);
-      if (m_vstrToBeReplicated.empty())
-         m_pMetadata->getUnderReplicated("/", m_vstrToBeReplicated, m_SysConfig.m_iReplicaNum, special);
-      if (!m_vstrToBeReplicated.empty())
-         pthread_cond_signal(&m_ReplicaCond);
-      pthread_mutex_unlock(&m_ReplicaLock);
    }
 
    return 0;
@@ -1286,6 +1275,82 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
+      break;
+   }
+
+   case 8: // request to remove a slave or a group of slaves
+   {
+      if (user->m_strName != "root")
+      {
+         reject(ip, port, id, SectorError::E_AUTHORITY);
+         break;
+      }
+
+      int32_t type = *(int32_t*)msg->getData();
+      int32_t size = *(int32_t*)(msg->getData() + 4);
+      char* p = msg->getData() + 8;
+
+      map<int, Address> sl;
+
+      if (type == 2)
+      {
+         int32_t id = atoi(p);
+         Address addr;
+         m_SlaveManager.getSlaveAddr(id, addr);
+         sl[id] = addr;
+      }
+      else
+      {
+         reject(ip, port, id, SectorError::E_AUTHORITY);
+         break;
+      }
+
+      for (map<int, Address>::iterator i = sl.begin(); i != sl.end(); ++ i)
+      {
+         SectorMsg newmsg;
+         newmsg.setType(8);
+         int msgid;
+         m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
+         m_SlaveManager.remove(i->first);
+
+         char text[64];
+         sprintf(text, "Slave node %s:%d is shutdown.", i->second.m_strIP.c_str(), i->second.m_iPort);
+         m_SectorLog.insert(text);
+
+         // send lost slave info to all existing masters
+         map<uint32_t, Address> al;
+         m_Routing.getListOfMasters(al);
+         SectorMsg master_msg;
+         master_msg.setKey(0);
+         master_msg.setType(1007);
+         master_msg.setData(0, (char*)&(i->first), 4);
+
+         for (map<uint32_t, Address>::iterator m = al.begin(); m != al.end(); ++ m)
+         {
+            if (m->first == m_iRouterKey)
+               continue;
+
+            m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &master_msg, &master_msg);
+         }      
+      }
+
+      msg->m_iDataLength = SectorMsg::m_iHdrSize;
+      m_GMP.sendto(ip, port, id, msg);
+
+      break;
+   }
+
+   case 9: // request to shutdown all masters
+   {
+      if (user->m_strName != "root")
+      {
+         reject(ip, port, id, SectorError::E_AUTHORITY);
+         break;
+      }
+
+      msg->m_iDataLength = SectorMsg::m_iHdrSize;
+      m_GMP.sendto(ip, port, id, msg);
+
       break;
    }
 
@@ -2334,6 +2399,22 @@ void* Master::replica(void* s)
 
    while (self->m_Status == RUNNING)
    {
+      // only the first master is responsible for replica checking
+      if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
+      {
+         sleep(60);
+         continue;
+      }
+
+      // check replica, create or remove replicas if necessary
+      // TODO: replica check may only be done when the system changes (new slave join or slave lost)
+      if (self->m_vstrToBeReplicated.empty())
+      {
+         map<string, int> special;
+         self->populateSpecialRep(self->m_strSectorHome + "/conf/replica.conf", special);
+         self->m_pMetadata->getUnderReplicated("/", self->m_vstrToBeReplicated, self->m_SysConfig.m_iReplicaNum, special);
+      }
+
       pthread_mutex_lock(&self->m_ReplicaLock);
 
       vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
@@ -2364,7 +2445,12 @@ void* Master::replica(void* s)
       // remove those already been replicated
       self->m_vstrToBeReplicated.erase(self->m_vstrToBeReplicated.begin(), r);
 
-      pthread_cond_wait(&self->m_ReplicaCond, &self->m_ReplicaLock);
+      timeval currtime;
+      gettimeofday(&currtime, NULL);
+      timespec to;
+      to.tv_sec = currtime.tv_sec + 60;
+      to.tv_nsec = currtime.tv_usec * 1000;
+      pthread_cond_timedwait(&self->m_ReplicaCond, &self->m_ReplicaLock, &to);
 
       pthread_mutex_unlock(&self->m_ReplicaLock);
    }
@@ -2506,7 +2592,7 @@ void Master::loadSlaveAddr(const string& file)
 
 int Master::serializeSysStat(char*& buf, int& size)
 {
-   size = 52 + m_SlaveManager.getNumberOfClusters() * 48 + m_Routing.getNumOfMasters() * 20 + m_SlaveManager.getNumberOfSlaves() * 72;
+   size = 52 + m_SlaveManager.getNumberOfClusters() * 48 + m_Routing.getNumOfMasters() * 20 + m_SlaveManager.getNumberOfSlaves() * 80;
    buf = new char[size];
 
    *(int64_t*)buf = m_llStartTime;

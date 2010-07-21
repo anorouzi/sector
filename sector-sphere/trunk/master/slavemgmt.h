@@ -72,7 +72,7 @@ public:
    int updateSlaveList(std::vector<Address>& sl, int64_t& last_update_time);
    int updateSlaveInfo(const Address& addr, const char* info, const int& len);
    int increaseRetryCount(const Address& addr);
-   int checkBadAndLost(std::map<int, Address>& bad, std::map<int, Address>& lost);
+   int checkBadAndLost(std::map<int, Address>& bad, std::map<int, Address>& lost, const int retry_thresh);
    int serializeSlaveList(char*& buf, int& size);
    int deserializeSlaveList(int num, const char* buf, int size);
    int getSlaveID(const Address& addr);

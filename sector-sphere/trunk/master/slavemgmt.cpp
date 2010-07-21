@@ -539,7 +539,7 @@ int SlaveManager::increaseRetryCount(const Address& addr)
    return 0;
 }
 
-int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost)
+int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, const int retry_thresh)
 {
    CGuard sg(m_SlaveLock);
 
@@ -562,7 +562,7 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
          bad[i->first].m_iPort = i->second.m_iPort;
       }
 
-      if (i->second.m_iRetryNum > 10)
+      if (i->second.m_iRetryNum >= retry_thresh)
       {
          lost[i->first].m_strIP = i->second.m_strIP;
          lost[i->first].m_iPort = i->second.m_iPort;
@@ -710,16 +710,18 @@ int SlaveManager::serializeSlaveInfo(char* buf, int& size)
    char* p = buf;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      strcpy(p, i->second.m_strIP.c_str());
-      *(int64_t*)(p + 16) = i->second.m_llAvailDiskSpace;
-      *(int64_t*)(p + 24) = i->second.m_llTotalFileSize;
-      *(int64_t*)(p + 32) = i->second.m_llCurrMemUsed;
-      *(int64_t*)(p + 40) = i->second.m_llCurrCPUUsed;
-      *(int64_t*)(p + 48) = i->second.m_llTotalInputData;
-      *(int64_t*)(p + 56) = i->second.m_llTotalOutputData;
-      *(int64_t*)(p + 64) = i->second.m_llTimeStamp;
+      *(int32_t*)p = i->first;
+      strcpy(p + 4, i->second.m_strIP.c_str());
+      *(int32_t*)(p + 20) = i->second.m_iPort;
+      *(int64_t*)(p + 24) = i->second.m_llAvailDiskSpace;
+      *(int64_t*)(p + 32) = i->second.m_llTotalFileSize;
+      *(int64_t*)(p + 40) = i->second.m_llCurrMemUsed;
+      *(int64_t*)(p + 48) = i->second.m_llCurrCPUUsed;
+      *(int64_t*)(p + 56) = i->second.m_llTotalInputData;
+      *(int64_t*)(p + 64) = i->second.m_llTotalOutputData;
+      *(int64_t*)(p + 72) = i->second.m_llTimeStamp;
 
-      p += 72;
+      p += 80;
    }
 
    size = p - buf;

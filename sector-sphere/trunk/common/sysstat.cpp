@@ -84,10 +84,9 @@ void SysStat::print()
    cout << "------------------------------------------------------------\n";
    cout << "SLAVE_ID  IP  TS(us)  AvailDisk(MB)  TotalFile(MB)  Mem(MB)  CPU(us)  NetIn(MB)  NetOut(MB)\n";
 
-   int s = 1;
    for (vector<SlaveStat>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
    {
-      cout << s++ << ":  "
+      cout << i->m_iID << ":  "
            << i->m_strIP << "  " 
            << i->m_llTimeStamp << "  " 
            << i->m_llAvailDiskSpace / MB << "  " 

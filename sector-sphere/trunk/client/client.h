@@ -79,11 +79,14 @@ public:
    int copy(const std::string& src, const std::string& dst);
    int utime(const std::string& path, const int64_t& ts);
 
+public:
    //int createTable();
    //int listTable();
    //int deleteTable();
 
+public:
    int sysinfo(SysStat& sys);
+   int shutdown(const int& type, const std::string& param = "");
 
 public:
    FSClient* createFSClient();

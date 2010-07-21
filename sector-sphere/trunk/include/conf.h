@@ -107,6 +107,7 @@ public:
    std::string m_strHomeDir;		// data directory
    int m_iReplicaNum;			// number of replicas of each file
    MetaForm m_MetaType;			// form of metadata
+   int m_iSlaveTimeOut;			// slave timeout threshold
    int64_t m_llSlaveMinDiskSpace;	// minimum available disk space allowed on each slave
    int m_iLogLevel;			// level of logs, higher = more verbose, 0 = no log
 };

@@ -335,6 +335,8 @@ private:
    MOMgmt m_InMemoryObjects;		// in-memory objects
 
    Routing m_Routing;			// master routing module
+
+   bool m_bRunning;			// slave running status; used to terminate the slave when set to false
 };
 
 #endif

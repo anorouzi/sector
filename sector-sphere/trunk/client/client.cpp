@@ -624,6 +624,33 @@ int Client::sysinfo(SysStat& sys)
    return 0;
 }
 
+int Client::shutdown(const int& type, const std::string& param)
+{
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(8);
+
+   int32_t t = type;
+   if ((t < 0) || (t > 4))
+      return -1;
+   msg.setData(0, (char*)&t, 4);
+   int32_t size = param.length() + 1;
+   msg.setData(4, (char*)&size, 4);
+   msg.setData(8, param.c_str(), size);
+
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   return 0;
+}
+
 int Client::setMaxCacheSize(const int64_t ms)
 {
    return m_Cache.setMaxCacheSize(ms);
@@ -765,16 +792,17 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    sys.m_vSlaveList.resize(n);
    for (vector<SysStat::SlaveStat>::iterator i = sys.m_vSlaveList.begin(); i != sys.m_vSlaveList.end(); ++ i)
    {
-      i->m_strIP = p;
-      i->m_llAvailDiskSpace = *(int64_t*)(p + 16);
-      i->m_llTotalFileSize = *(int64_t*)(p + 24);
-      i->m_llCurrMemUsed = *(int64_t*)(p + 32);
-      i->m_llCurrCPUUsed = *(int64_t*)(p + 40);
-      i->m_llTotalInputData = *(int64_t*)(p + 48);
-      i->m_llTotalOutputData = *(int64_t*)(p + 56);
-      i->m_llTimeStamp = *(int64_t*)(p + 64);
+      i->m_iID = *(int32_t*)p;
+      i->m_strIP = p + 4;
+      i->m_llAvailDiskSpace = *(int64_t*)(p + 24);
+      i->m_llTotalFileSize = *(int64_t*)(p + 32);
+      i->m_llCurrMemUsed = *(int64_t*)(p + 40);
+      i->m_llCurrCPUUsed = *(int64_t*)(p + 48);
+      i->m_llTotalInputData = *(int64_t*)(p + 56);
+      i->m_llTotalOutputData = *(int64_t*)(p + 64);
+      i->m_llTimeStamp = *(int64_t*)(p + 72);
 
-      p += 72;
+      p += 80;
    }
 
    return 0;

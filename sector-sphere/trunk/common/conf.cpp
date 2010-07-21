@@ -263,12 +263,18 @@ int MasterConf::init(const string& path)
          else if ("DISK" == param.m_vstrValue[0])
             m_MetaType = DISK;
       }
+      else if ("SLAVE_TIMEOUT" == param.m_strName)
+      {
+         m_iSlaveTimeOut = atoi(param.m_vstrValue[0].c_str());
+      }
       else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
+      {
 #ifndef WIN32
          m_llSlaveMinDiskSpace = atoll(param.m_vstrValue[0].c_str()) * 1000000;
 #else
          m_llSlaveMinDiskSpace = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
 #endif
+      }
       else if ("LOG_LEVEL" == param.m_strName)
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       else
@@ -323,11 +329,13 @@ int SlaveConf::init(const string& path)
             m_strHomeDir += "/";
       }
       else if ("MAX_DATA_SIZE" == param.m_strName)
+      {
 #ifndef WIN32
          m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str()) * 1024 * 1024;
 #else
          m_llMaxDataSize = _atoi64(param.m_vstrValue[0].c_str()) * 1024 * 1024;
 #endif
+      }
       else if ("MAX_SERVICE_INSTANCE" == param.m_strName)
          m_iMaxServiceNum = atoi(param.m_vstrValue[0].c_str());
       else if ("LOCAL_ADDRESS" == param.m_strName)
@@ -548,6 +556,7 @@ int CmdLineParser::parse(int argc, char** argv)
       {
          dash = true;
          key = argv[i] + 1;
+         m_mParams[key] = "";
       }
       else
       {
@@ -555,6 +564,7 @@ int CmdLineParser::parse(int argc, char** argv)
             return -1;
 
          m_mParams[key] = argv[i];
+         dash = false;
       }
    }
 
