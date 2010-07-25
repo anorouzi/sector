@@ -26,6 +26,9 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
+   // reserve enough space to upload the file
+   //f->reserveWriteSpace(s.st_size);
+
    int result = f->open(dst, SF_MODE::WRITE);
    if (result < 0)
    {

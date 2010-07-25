@@ -173,6 +173,7 @@ int ConfParser::getNextParam(Param& param)
          str = buf;
          if (NULL == (str = getToken(str, token)))
          {
+            //TODO: line count is incorrect, doesn't include # and blank lines
             cerr << "Configuration file parsing error at line " << m_iLineCount << ": " << buf << endl;
             return -1;
          }

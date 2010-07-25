@@ -39,8 +39,8 @@ written by
 *****************************************************************************/
 
 
-#ifndef __SERVER_H__
-#define __SERVER_H__
+#ifndef __SECTOR_SLAVE_H__
+#define __SECTOR_SLAVE_H__
 
 #include <gmp.h>
 #include <datachn.h>

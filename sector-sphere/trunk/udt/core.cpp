@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/11/2010
+   Yunhong Gu, last updated 05/17/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -126,7 +126,6 @@ CUDT::CUDT()
    m_bClosing = false;
    m_bShutdown = false;
    m_bBroken = false;
-   m_bInQueue = false;
 }
 
 CUDT::CUDT(const CUDT& ancestor)
@@ -177,7 +176,6 @@ CUDT::CUDT(const CUDT& ancestor)
    m_bClosing = false;
    m_bShutdown = false;
    m_bBroken = false;
-   m_bInQueue = false;
 }
 
 CUDT::~CUDT()
@@ -727,7 +725,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    m_bConnected = true;
 
    // register this socket for receiving data packets
-   m_bInQueue = true;
+   m_pRNode->m_bOnList = true;
    m_pRcvQueue->setNewEntry(this);
 
    // remove from rendezvous queue
@@ -819,7 +817,7 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    m_bConnected = true;
 
    // register this socket for receiving data packets
-   m_bInQueue = true;
+   m_pRNode->m_bOnList = true;
    m_pRcvQueue->setNewEntry(this);
 }
 
@@ -1675,6 +1673,10 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
    m_llLastRspTime = CTimer::getTime();
+   m_ullMinEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+   if (m_ullMinEXPInt < 100000 * m_ullCPUFrequency)
+       m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
+
    if ((CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck) || (2 == ctrlpkt.getType()) || (3 == ctrlpkt.getType()))
    {
       CTimer::rdtsc(m_ullNextEXPTime);
@@ -2058,7 +2060,7 @@ int CUDT::packData(CPacket& packet, uint64_t& ts)
    }
 
    packet.m_iTimeStamp = int(CTimer::getTime() - m_StartTime);
-   m_pSndTimeWindow->onPktSent(packet.m_iTimeStamp);
+   //m_pSndTimeWindow->onPktSent(packet.m_iTimeStamp);
 
    packet.m_iID = m_PeerID;
 
@@ -2106,6 +2108,9 @@ int CUDT::processData(CUnit* unit)
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
    m_llLastRspTime = CTimer::getTime();
+   m_ullMinEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+   if (m_ullMinEXPInt < 100000 * m_ullCPUFrequency)
+       m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
 
    if (CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck)
    {
@@ -2241,9 +2246,9 @@ void CUDT::checkTimers()
    // update CC parameters
    m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
    m_dCongestionWindow = m_pCC->m_dCWndSize;
-   uint64_t minint = (uint64_t)(m_ullCPUFrequency * m_pSndTimeWindow->getMinPktSndInt() * 0.9);
-   if (m_ullInterval < minint)
-      m_ullInterval = minint;
+   //uint64_t minint = (uint64_t)(m_ullCPUFrequency * m_pSndTimeWindow->getMinPktSndInt() * 0.9);
+   //if (m_ullInterval < minint)
+   //   m_ullInterval = minint;
 
    uint64_t currtime;
    CTimer::rdtsc(currtime);
@@ -2306,26 +2311,26 @@ void CUDT::checkTimers()
 
       // sender: Insert all the packets sent after last received acknowledgement into the sender loss list.
       // recver: Send out a keep-alive packet
-      if (CSeqNo::incseq(m_iSndCurrSeqNo) != m_iSndLastAck)
+      if (m_pSndBuffer->getCurrBufSize() > 0)
       {
-         int32_t csn = m_iSndCurrSeqNo;
-         int num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), csn);
-         m_iTraceSndLoss += num;
-         m_iSndLossTotal += num;
+         if (CSeqNo::incseq(m_iSndCurrSeqNo) != m_iSndLastAck)
+         {
+            int32_t csn = m_iSndCurrSeqNo;
+            int num = m_pSndLossList->insert(const_cast<int32_t&>(m_iSndLastAck), csn);
+            m_iTraceSndLoss += num;
+            m_iSndLossTotal += num;
+         }
 
          m_pCC->onTimeout();
          // update CC parameters
          m_ullInterval = (uint64_t)(m_pCC->m_dPktSndPeriod * m_ullCPUFrequency);
          m_dCongestionWindow = m_pCC->m_dCWndSize;
-      }
-      else
-         sendCtrl(1);
 
-      if (m_pSndBuffer->getCurrBufSize() > 0)
-      {
          // immediately restart transmission
          m_pSndQueue->m_pSndUList->update(this);
       }
+      else
+         sendCtrl(1);
 
       ++ m_iEXPCount;
       m_ullMinEXPInt = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;

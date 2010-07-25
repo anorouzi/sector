@@ -69,6 +69,8 @@ public:
    int64_t tellg();
    bool eof();
 
+   int reserveWriteSpace(const int64_t& size) {return 0;}
+
 private:
    int64_t prefetch(const int64_t& offset, const int64_t& size);
    int64_t flush() {return 0;}
@@ -77,6 +79,7 @@ private:
    int32_t m_iSession;		// session ID for data channel
    std::string m_strSlaveIP;	// slave IP address
    int32_t m_iSlaveDataPort;	// slave port number
+   vector<Address> m_vReplicaAddress;	//list of addresses of all replica nodes
 
    unsigned char m_pcKey[16];
    unsigned char m_pcIV[8];

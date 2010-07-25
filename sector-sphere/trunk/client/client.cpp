@@ -612,7 +612,7 @@ int Client::sysinfo(SysStat& sys)
 
    deserializeSysStat(sys, msg.getData(), msg.m_iDataLength);
 
-   for (vector<Address>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
+   for (vector<SysStat::MasterStat>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
    {
       if (i->m_strIP.length() == 0)
       {
@@ -788,8 +788,10 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    int m = *(int32_t*)p;
    p += 4;
    sys.m_vMasterList.resize(m);
-   for (vector<Address>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
+   for (vector<SysStat::MasterStat>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
    {
+      i->m_iID = *(int32_t*)p;
+      p += 4;
       i->m_strIP = p;
       p += 16;
       i->m_iPort = *(int32_t*)p;

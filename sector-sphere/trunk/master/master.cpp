@@ -404,6 +404,11 @@ int Master::run()
 
       // check each slave node
       // if probe fails, remove the metadata of the data on the node, and create new replicas
+
+
+      // TODO: if the disk is full for one slave, move/relocate part of its data to another slave
+
+
       map<int, Address> bad;
       map<int, Address> lost;
       m_SlaveManager.checkBadAndLost(bad, lost, m_SysConfig.m_iSlaveTimeOut / 60 + 1);
@@ -418,40 +423,7 @@ int Master::run()
       {
          m_SectorLog.insert(("Slave lost " + i->second.m_strIP + ".").c_str());
 
-         // remove the data on that node
-         Address addr;
-         addr.m_strIP = i->second.m_strIP;
-         addr.m_iPort = i->second.m_iPort;
-         m_pMetadata->substract("/", addr);
-
-         //remove all associated transactions and release IO locks...
-         vector<int> trans;
-         m_TransManager.retrieve(i->first, trans);
-         for (vector<int>::iterator t = trans.begin(); t != trans.end(); ++ t)
-         {
-            Transaction tt;
-            m_TransManager.retrieve(*t, tt);
-            m_pMetadata->unlock(tt.m_strFile.c_str(), tt.m_iUserKey, tt.m_iMode);
-            m_TransManager.updateSlave(*t, i->first);
-         }
-
-         m_SlaveManager.remove(i->first);
-
-         // send lost slave info to all existing masters
-         map<uint32_t, Address> al;
-         m_Routing.getListOfMasters(al);
-         SectorMsg msg;
-         msg.setKey(0);
-         msg.setType(1007);
-         msg.setData(0, (char*)&(i->first), 4);
-
-         for (map<uint32_t, Address>::iterator m = al.begin(); m != al.end(); ++ m)
-         {
-            if (m->first == m_iRouterKey)
-               continue;
-
-            m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &msg, &msg);
-         }
+         removeSlave(i->first, i->second);
 
          map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);
          if (sa != m_mSlaveAddrRec.end())
@@ -655,8 +627,24 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
    secconn.send(slaveIP, 64);
    secconn.recv((char*)&res, 4);
 
-   if ((lspath == "") || m_SlaveManager.checkDuplicateSlave(ip, lspath))
-      res = SectorError::E_REPSLAVE;
+   if (lspath == "")
+      res = SectorError::E_INVPARAM;
+   else
+   {
+      int32_t id;
+      Address addr;
+      if (m_SlaveManager.checkDuplicateSlave(ip, lspath, id, addr))
+      {
+         // another slave is already using the storage
+         // check if the current slave is still slave
+         SectorMsg msg;
+         msg.setType(1);
+         if (m_GMP.rpc(addr.m_strIP, addr.m_iPort, &msg, &msg) >= 0)
+            res = SectorError::E_REPSLAVE;
+         else
+            removeSlave(id, addr);
+      }
+   }
 
    s.send((char*)&res, 4);
 
@@ -1997,12 +1985,21 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
 
       // send the connection information back to the client
-      msg->setData(0, dstip.c_str(), dstip.length() + 1);
-      msg->setData(64, (char*)&dstport, 4);
-      msg->setData(68, (char*)&transid, 4);
-      msg->setData(72, (char*)&attr.m_llSize, 8);
-      msg->setData(80, (char*)&attr.m_llTimeStamp, 8);
-      msg->m_iDataLength = SectorMsg::m_iHdrSize + 88;
+      msg->setData(0, (char*)&transid, 4);
+      msg->setData(4, (char*)&attr.m_llSize, 8);
+      msg->setData(12, (char*)&attr.m_llTimeStamp, 8);
+
+      // send all replica nodes address to the client
+      int32_t addr_num = addr.size();
+      msg->setData(24, (char*)&addr_num, 0);
+      int offset = 28;
+      for (vector<SlaveNode>::iterator i = addr.begin(); i != addr.end(); ++ i)
+      {
+         msg->setData(offset, i->m_strIP.c_str(), i->m_strIP.length() + 1);
+         msg->setData(offset + 64, (char*)&i->m_iPort, 4);
+         offset += 68;
+      }
+      msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
 
       m_GMP.sendto(ip, port, id, msg);
 
@@ -2644,7 +2641,7 @@ void Master::loadSlaveAddr(const string& file)
 
 int Master::serializeSysStat(char*& buf, int& size)
 {
-   size = 52 + m_SlaveManager.getNumberOfClusters() * 48 + m_Routing.getNumOfMasters() * 20 + m_SlaveManager.getNumberOfSlaves() * 80;
+   size = 52 + m_SlaveManager.getNumberOfClusters() * 48 + m_Routing.getNumOfMasters() * 24 + m_SlaveManager.getNumberOfSlaves() * 80;
    buf = new char[size];
 
    *(int64_t*)buf = m_llStartTime;
@@ -2666,6 +2663,8 @@ int Master::serializeSysStat(char*& buf, int& size)
    m_Routing.getListOfMasters(al);
    for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
    {
+      *(int32_t*)p = i->first;
+      p += 4;
       strcpy(p, i->second.m_strIP.c_str());
       p += 16;
       *(int32_t*)p = i->second.m_iPort;
@@ -2716,4 +2715,41 @@ int Master::populateSpecialRep(const std::string& conf, std::map<std::string, in
    }
 
    return special.size();
+}
+
+int Master::removeSlave(const int& id, const Address& addr)
+{
+   // remove the data on that node
+   m_pMetadata->substract("/", addr);
+
+   //remove all associated transactions and release IO locks...
+   vector<int> trans;
+   m_TransManager.retrieve(id, trans);
+   for (vector<int>::iterator t = trans.begin(); t != trans.end(); ++ t)
+   {
+      Transaction tt;
+      m_TransManager.retrieve(*t, tt);
+      m_pMetadata->unlock(tt.m_strFile.c_str(), tt.m_iUserKey, tt.m_iMode);
+      m_TransManager.updateSlave(*t, id);
+   }
+
+   m_SlaveManager.remove(id);
+
+   // send lost slave info to all existing masters
+   map<uint32_t, Address> al;
+   m_Routing.getListOfMasters(al);
+   SectorMsg msg;
+   msg.setKey(0);
+   msg.setType(1007);
+   msg.setData(0, (char*)&id, 4);
+
+   for (map<uint32_t, Address>::iterator m = al.begin(); m != al.end(); ++ m)
+   {
+      if (m->first == m_iRouterKey)
+         continue;
+
+      m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &msg, &msg);
+   }
+
+   return 0;
 }

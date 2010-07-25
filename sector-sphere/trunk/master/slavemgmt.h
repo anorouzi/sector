@@ -58,7 +58,7 @@ public:
    int insert(SlaveNode& sn);
    int remove(int nodeid);
 
-   bool checkDuplicateSlave(const std::string& ip, const std::string& path);
+   bool checkDuplicateSlave(const std::string& ip, const std::string& path, int32_t& id, Address& addr);
 
 public:
    int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);

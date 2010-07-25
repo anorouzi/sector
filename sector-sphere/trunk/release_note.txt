@@ -1,11 +1,11 @@
 version 2.5
 
+slave can now restart immediately
 Windows client support
 Improved small write performance
 Improved file update report performance from slave to master (ignore unchanged files)
 mapreduce loadoperator bug fix
 correct the return values (1 -> 0) for Sector tools
-
 
 version 2.4
 

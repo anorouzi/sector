@@ -789,6 +789,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          #else
             WaitForSingleObject(self->m_RcvQueueLock, INFINITE);
             self->m_qRcvQueue.push(rec);
+            qsize += self->m_qRcvQueue.size();
             ReleaseMutex(self->m_RcvQueueLock);
             SetEvent(self->m_RcvQueueCond);
          #endif

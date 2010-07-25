@@ -60,6 +60,9 @@ public:
    void insert(const char* text, const int level = 1);
    void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level = 1);
 
+   //TODO: add "<<" operator overload
+   //TODO: add enable/disable log
+
 private:
    void checkLogFile();
 

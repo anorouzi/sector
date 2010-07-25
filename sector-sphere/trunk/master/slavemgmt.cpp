@@ -222,7 +222,7 @@ int SlaveManager::remove(int nodeid)
    return 1;
 }
 
-bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path)
+bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int32_t& id, Address& addr)
 {
    CGuard sg(m_SlaveLock);
 
@@ -237,7 +237,21 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path)
       // the new slave should be rejected in this case
 
       if ((j->find(revised_path) != string::npos) || (revised_path.find(*j) != string::npos))
+      {
+         //TODO: optimize this search
+         id = -1;
+         for (map<int, SlaveNode>::const_iterator s = m_mSlaveList.begin(); s != m_mSlaveList.end(); ++ s)
+         {
+            if (s->second.m_strStoragePath == *j)
+            {
+               id = s->first;
+               addr.m_strIP = s->second.m_strIP;
+               addr.m_iPort = s->second.m_iPort;
+               break;
+            }
+         }
          return true;
+      }
    }
 
    return false;

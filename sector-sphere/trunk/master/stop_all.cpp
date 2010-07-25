@@ -8,6 +8,16 @@ using namespace std;
 
 int main()
 {
+   cout << "This will stop this master and all slave nodes by brutal forces. If you need a graceful shutdown, use ./tools/sector_shutdown.\n";
+   cout << "Do you want to continue? Y/N:";
+   char answer;
+   cin >> answer;
+   if ((answer != 'Y') && (answer != 'y'))
+   {
+      cout << "aborted.\n";
+      return -1;
+   }
+
    system("killall -9 start_master");
    cout << "master node stopped\n";
 

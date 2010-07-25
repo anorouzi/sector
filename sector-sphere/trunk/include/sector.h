@@ -109,7 +109,14 @@ public:
 
    int64_t m_llTotalSlaves;
 
-   std::vector<Address> m_vMasterList;
+   struct MasterStat
+   {
+      int32_t m_iID;
+      std::string m_strIP;
+      int32_t m_iPort;
+   };
+   std::vector<MasterStat> m_vMasterList;
+
    struct SlaveStat
    {
       int32_t m_iID;
@@ -124,6 +131,7 @@ public:
       int64_t m_llTotalOutputData;
    };
    std::vector<SlaveStat> m_vSlaveList;
+
    struct ClusterStat
    {
       int m_iClusterID;
@@ -346,6 +354,7 @@ public:
 public: // internal error
    static const int E_MASTER = -101;            // incorrect master node to handle the request
    static const int E_REPSLAVE = -102;          // slave is already in the system; conflict
+   static const int E_INVPARAM = -103;		// invalid parameters
 
 public:
    static int init();

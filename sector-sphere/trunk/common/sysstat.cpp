@@ -61,10 +61,9 @@ void SysStat::print()
 
    cout << "------------------------------------------------------------\n";
    cout << "MASTER ID \t IP \t PORT\n";
-   int m = 1;
-   for (vector<Address>::iterator i = m_vMasterList.begin(); i != m_vMasterList.end(); ++ i)
+   for (vector<MasterStat>::iterator i = m_vMasterList.begin(); i != m_vMasterList.end(); ++ i)
    {
-      cout << m++ << ": \t" << i->m_strIP << "\t" << i->m_iPort << endl;
+      cout << i->m_iID << ": \t" << i->m_strIP << "\t" << i->m_iPort << endl;
    }
 
    cout << "------------------------------------------------------------\n";

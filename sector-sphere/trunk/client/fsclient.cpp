@@ -131,8 +131,10 @@ int FSClient::open(const string& filename, int mode, const string& hint)
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
-   m_llSize = *(int64_t*)(msg.getData() + 72);
-   m_llTimeStamp = *(int64_t*)(msg.getData() + 80);
+   m_iSession = *(int32_t*)msg.getData();
+
+   m_llSize = *(int64_t*)(msg.getData() + 4);
+   m_llTimeStamp = *(int64_t*)(msg.getData() + 12);
    m_llCurReadPos = m_llCurWritePos = 0;
 
    m_bRead = mode & 1;
@@ -143,9 +145,19 @@ int FSClient::open(const string& filename, int mode, const string& hint)
    if (mode & 8)
       m_llCurWritePos = m_llSize;
 
-   m_strSlaveIP = msg.getData();
-   m_iSlaveDataPort = *(int*)(msg.getData() + 64);
-   m_iSession = *(int*)(msg.getData() + 68);
+   // receiving all replica nodes
+   int32_t slave_num = *(int32_t*)(msg.getData() + 20);
+   int offset = 24;
+   m_vReplicaAddr.resize(num);
+   for (vector<Address>::iterator i = m_vReplicaAddr.begin(); i != m_vReplicaAddr.end(); ++ i)
+   {
+      i->m_strIP = msg.getData() + offset;
+      i->m_iPort = *(int32_t*)(msg.getData() + offset + 64);
+      offset += 68;
+   }
+
+   m_strSlaveIP = m_vReplicaAddr.begin()->m_strIP;
+   m_iSlaveDataPort = m_vReplicaAddr.begin()->m_iPort;
 
    cerr << "open file " << filename << " " << m_strSlaveIP << " " << m_iSlaveDataPort << endl;
    if (m_pClient->m_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)

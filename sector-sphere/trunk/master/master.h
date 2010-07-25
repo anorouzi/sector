@@ -112,6 +112,9 @@ private:
    int processSyncCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
 
 private:
+   int removeSlave(const int& id, const Address& addr);
+
+private:
    inline void reject(const std::string& ip, const int port, int id, int32_t code);
 
 private: // replication
