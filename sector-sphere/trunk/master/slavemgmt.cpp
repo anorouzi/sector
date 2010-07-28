@@ -260,7 +260,11 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
 int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
    CGuard sg(m_SlaveLock);
+   return choosereplicanode_(loclist, sn, filesize);
+}
 
+int SlaveManager::choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
+{
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 1);
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
@@ -323,7 +327,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    return 1;
 }
  
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
 {
    CGuard sg(m_SlaveLock);
 
@@ -384,7 +388,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
             continue;
 
          // only nodes with more than minimum available disk space are chosen
-         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace + reserve)
             avail.insert(i->first);
       }
 
@@ -408,8 +412,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
             locid.insert(j->m_iNodeID);
 
-         pthread_mutex_unlock(&m_SlaveLock);
-         if (chooseReplicaNode(locid, sn, m_llSlaveMinDiskSpace) < 0)
+         if (choosereplicanode_(locid, sn, reserve) < 0)
             continue;
 
          sl.push_back(sn);
@@ -430,7 +433,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
    return chooseReplicaNode(locid, sn, filesize);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
 {
    set<int> locid;
    for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -438,7 +441,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, client, mode, sl, replica);
+   return chooseIONode(locid, client, mode, sl, replica, reserve);
 }
 
 int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)

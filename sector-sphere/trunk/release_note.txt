@@ -1,5 +1,6 @@
 version 2.5
 
+improve write fault tolerance (handle slave node down during a write)
 slave can now restart immediately
 Windows client support
 Improved small write performance

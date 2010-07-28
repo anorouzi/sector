@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 {
    if (argc != 3)
    {
-      cout << "USAGE: cp <src_file/dir> <dst_file/dir>\n";
+      cerr << "USAGE: cp <src_file/dir> <dst_file/dir>\n";
       return -1;
    }
 
@@ -29,14 +29,14 @@ int main(int argc, char** argv)
    {
       int r = client.copy(argv[1], argv[2]);
       if (r < 0)
-         cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+         cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
    }
    else
    {
       SNode attr;
       if (client.stat(argv[2], attr) < 0)
       {
-         cout << "destination directory does not exist.\n";
+         cerr << "destination directory does not exist.\n";
       }
       else
       {
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
          vector<SNode> filelist;
          int r = client.list(path, filelist);
          if (r < 0)
-            cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+            cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
          vector<string> filtered;
          for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)

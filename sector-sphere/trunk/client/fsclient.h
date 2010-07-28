@@ -41,7 +41,9 @@ written by
 #ifndef __SECTOR_FS_CLIENT_H__
 #define __SECTOR_FS_CLIENT_H__
 
+#include <writelog.h>
 #include <client.h>
+#include <vector>
 
 class FSClient
 {
@@ -53,7 +55,7 @@ private:
    const FSClient& operator=(const FSClient&) {return *this;}
 
 public:
-   int open(const std::string& filename, int mode = SF_MODE::READ, const std::string& hint = "");
+   int open(const std::string& filename, int mode = SF_MODE::READ, const std::string& hint = "", const int64_t& reserve = 0);
    int reopen();
    int64_t read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch = 0);
    int64_t write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer = 0);
@@ -69,17 +71,16 @@ public:
    int64_t tellg();
    bool eof();
 
-   int reserveWriteSpace(const int64_t& size) {return 0;}
-
 private:
    int64_t prefetch(const int64_t& offset, const int64_t& size);
-   int64_t flush() {return 0;}
+   int flush();
+   int organizeChainOfWrite();
 
 private:
    int32_t m_iSession;		// session ID for data channel
    std::string m_strSlaveIP;	// slave IP address
    int32_t m_iSlaveDataPort;	// slave port number
-   vector<Address> m_vReplicaAddress;	//list of addresses of all replica nodes
+   std::vector<Address> m_vReplicaAddress;	//list of addresses of all replica nodes
 
    unsigned char m_pcKey[16];
    unsigned char m_pcIV[8];
@@ -99,6 +100,7 @@ private:
    char* m_pcLocalPath;		// path of the file if it is local
 
    int m_iWriteBufSize;		// write buffer size
+   WriteLog m_WriteLog;		// write log
 
 private:
    pthread_mutex_t m_FileLock;

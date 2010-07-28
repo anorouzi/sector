@@ -97,6 +97,8 @@ enum MetaForm {MEMORY = 1, DISK};
 class MasterConf
 {
 public:
+   MasterConf();
+
    int init(const std::string& path);
 
 public:
@@ -109,12 +111,15 @@ public:
    MetaForm m_MetaType;			// form of metadata
    int m_iSlaveTimeOut;			// slave timeout threshold
    int64_t m_llSlaveMinDiskSpace;	// minimum available disk space allowed on each slave
+   int m_iClientTimeOut;		// client timeout threshold
    int m_iLogLevel;			// level of logs, higher = more verbose, 0 = no log
 };
 
 class SlaveConf
 {
 public:
+   SlaveConf();
+
    int init(const std::string& path);
 
 public:
@@ -132,6 +137,8 @@ public:
 class SECTOR_API ClientConf
 {
 public:
+   ClientConf();
+
    int init(const std::string& path);
 
 public:
@@ -142,6 +149,7 @@ public:
    std::string m_strCertificate;
    int64_t m_llMaxCacheSize;
    int m_iFuseReadAheadBlock;
+   int64_t m_llMaxWriteCacheSize;
 };
 
 class SECTOR_API WildCard

@@ -66,6 +66,7 @@ struct CacheBlock
    int64_t m_llLastAccessTime;          // cache last access time
    int m_iAccessCount;                  // number of accesses
    char* m_pcBlock;                     // cache data
+   bool m_bWrite;			// if this block is being written
 };
 
 class Cache
@@ -85,8 +86,10 @@ public:
    int stat(const std::string& path, SNode& attr);
 
 public:
-   int insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size);
+   int insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size, const bool& write = false);
    int64_t read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size);
+   char* retrieve(const std::string& path, const int64_t& offset, const int64_t& size);
+   int clearWrite(const std::string& path, const int64_t& offset, const int64_t& size);
 
 private:
    int shrink();

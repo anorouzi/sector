@@ -385,7 +385,7 @@ int Master::run()
 
       // check each users, remove inactive ones
       vector<User*> iu;
-      m_UserManager.checkInactiveUsers(iu);
+      m_UserManager.checkInactiveUsers(iu, m_SysConfig.m_iClientTimeOut);
       for (vector<User*>::iterator i = iu.begin(); i != iu.end(); ++ i)
       {
          char* text = new char[64 + (*i)->m_strName.length()];
@@ -406,7 +406,7 @@ int Master::run()
       // if probe fails, remove the metadata of the data on the node, and create new replicas
 
 
-      // TODO: if the disk is full for one slave, move/relocate part of its data to another slave
+      // TODO: check slave disk usage, move/relocate part of its data from low-disk-space slave to another slave
 
 
       map<int, Address> bad;
@@ -1847,10 +1847,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    case 110: // open file
    {
       int32_t mode = *(int32_t*)(msg->getData());
-      int32_t writebufsize = *(int32_t*)(msg->getData() + 4);
-      int32_t dataport = *(int32_t*)(msg->getData() + 8);
-      string hintip = msg->getData() + 12;
-      string path = msg->getData() + 76;
+      int64_t reserve = *(int64_t*)(msg->getData() + 4);
+      int32_t dataport = *(int32_t*)(msg->getData() + 12);
+      string hintip = msg->getData() + 16;
+      string path = msg->getData() + 80;
 
       if (!m_Routing.match(path.c_str(), m_iRouterKey))
       {
@@ -1907,7 +1907,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             }
          }
 
-         if (m_SlaveManager.chooseIONode(candidates, hint, mode, addr, m_SysConfig.m_iReplicaNum) <= 0)
+         if (m_SlaveManager.chooseIONode(candidates, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve) <= 0)
          {
             reject(ip, port, id, SectorError::E_NODISK);
             m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "open", msg->getData(), "REJECT", "", 8);
@@ -1928,60 +1928,33 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             break;
          }
 
-         m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, m_SysConfig.m_iReplicaNum);
+         m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve);
       }
 
       int transid = m_TransManager.create(0, key, msg->getType(), path, mode);
 
-      //set up all slave nodes, chain of write
-      string srcip;
-      int srcport;
-      string dstip = "";
-      int dstport = 0;
-
+      msg->setData(0, ip.c_str(), ip.length() + 1);
+      msg->setData(64, (char*)&dataport, 4);
       msg->setData(136, (char*)&key, 4);
       msg->setData(140, (char*)&mode, 4);
-      msg->setData(144, (char*)&writebufsize, 4);
-      msg->setData(148, (char*)&transid, 4);
-      msg->setData(152, (char*)user->m_pcKey, 16);
-      msg->setData(168, (char*)user->m_pcIV, 8);
-      msg->setData(176, path.c_str(), path.length() + 1);
+      msg->setData(144, (char*)&transid, 4);
+      msg->setData(148, (char*)user->m_pcKey, 16);
+      msg->setData(164, (char*)user->m_pcIV, 8);
+      msg->setData(172, path.c_str(), path.length() + 1);
 
-      for (vector<SlaveNode>::iterator i = addr.begin(); i != addr.end();)
+      //TODO: optimize with multi_rpc
+      for (vector<SlaveNode>::iterator i = addr.begin(); i != addr.end(); ++ i)
       {
-         vector<SlaveNode>::iterator curraddr = i ++;
-
-         if (i == addr.end())
+         SectorMsg response;
+         if ((m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, &response) >= 0) && (response.getType() > 0))
          {
-            srcip = ip;
-            srcport = dataport;
+            m_TransManager.addSlave(transid, i->m_iNodeID);
          }
          else
          {
-            srcip = i->m_strIP;
-            srcport = i->m_iDataPort;
-            // do not use secure transfer between slave nodes
-            int m = mode & (0xFFFFFFFF - SF_MODE::SECURE);
-            msg->setData(140, (char*)&m, 4);
+            //TODO: remove that bad replica
+            //TODO: remove this from addr list
          }
-
-         msg->setData(0, srcip.c_str(), srcip.length() + 1);
-         msg->setData(64, (char*)&(srcport), 4);
-         msg->setData(68, dstip.c_str(), dstip.length() + 1);
-         msg->setData(132, (char*)&(dstport), 4);
-         SectorMsg response;
-         if ((m_GMP.rpc(curraddr->m_strIP.c_str(), curraddr->m_iPort, msg, &response) < 0) || (response.getType() < 0))
-         {
-            reject(ip, port, id, SectorError::E_RESOURCE);
-            m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "open", path.c_str(), "FAIL", "", 8);
-
-            //TODO: FIX THIS, ROLLBACK TRANS
-         }
-
-         dstip = curraddr->m_strIP;
-         dstport = curraddr->m_iDataPort;
-
-         m_TransManager.addSlave(transid, curraddr->m_iNodeID);
       }
 
       // send the connection information back to the client
@@ -1991,12 +1964,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       // send all replica nodes address to the client
       int32_t addr_num = addr.size();
-      msg->setData(24, (char*)&addr_num, 0);
-      int offset = 28;
+      msg->setData(20, (char*)&addr_num, 4);
+      int offset = 24;
       for (vector<SlaveNode>::iterator i = addr.begin(); i != addr.end(); ++ i)
       {
          msg->setData(offset, i->m_strIP.c_str(), i->m_strIP.length() + 1);
-         msg->setData(offset + 64, (char*)&i->m_iPort, 4);
+         msg->setData(offset + 64, (char*)&i->m_iDataPort, 4);
          offset += 68;
       }
       msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;

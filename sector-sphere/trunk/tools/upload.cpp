@@ -26,13 +26,10 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   // reserve enough space to upload the file
-   //f->reserveWriteSpace(s.st_size);
-
-   int result = f->open(dst, SF_MODE::WRITE);
+   int result = f->open(dst, SF_MODE::WRITE, "", s.st_size);
    if (result < 0)
    {
-      cout << "ERROR: code " << result << " " << SectorError::getErrorMsg(result) << endl;
+      cerr << "ERROR: code " << result << " " << SectorError::getErrorMsg(result) << endl;
       return -1;
    }
 
@@ -103,7 +100,7 @@ int main(int argc, char** argv)
 {
    if (3 != argc)
    {
-      cout << "usage: upload <src file/dir> <dst dir>" << endl;
+      cerr << "usage: upload <src file/dir> <dst dir>" << endl;
       return 0;
    }
 
@@ -125,7 +122,7 @@ int main(int argc, char** argv)
       struct stat64 st;
       if (stat64(argv[1], &st) < 0)
       {
-         cout << "ERROR: source file does not exist.\n";
+         cerr << "ERROR: source file does not exist.\n";
          return -1;
       }
       getFileList(argv[1], fl);
@@ -184,7 +181,7 @@ int main(int argc, char** argv)
    int r = client.stat(newdir, attr);
    if ((r < 0) || (!attr.m_bIsDir))
    {
-      cout << "destination directory on Sector does not exist.\n";
+      cerr << "destination directory on Sector does not exist.\n";
       return -1;
    }
 

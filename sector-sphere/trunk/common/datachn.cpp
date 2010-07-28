@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/17/2009
+   Yunhong Gu, last updated 07/26/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -115,6 +115,7 @@ int DataChn::init(const string& ip, int& port)
    c->m_QueueLock = CreateMutex(NULL, false, NULL);
 #endif
    c->m_iCount = 1;
+   c->m_llTotalQueueSize = 0;
 
    Address addr;
    addr.m_strIP = ip;
@@ -174,6 +175,8 @@ int DataChn::connect(const string& ip, int port)
       c->m_RcvLock = CreateMutex(NULL, false, NULL);
       c->m_QueueLock = CreateMutex(NULL, false, NULL);
 #endif
+      c->m_iCount = 0;
+      c->m_llTotalQueueSize = 0;
       m_mChannel[addr] = c;
    }
    else
@@ -221,9 +224,18 @@ int DataChn::remove(const string& ip, int port)
       -- i->second->m_iCount;
       if (0 == i->second->m_iCount)
       {
+         // release all data in the data channel queue
+         CGuard::enterCS(i->second->m_QueueLock);
+         for (vector<RcvData>::iterator q = i->second->m_vDataQueue.begin(); q != i->second->m_vDataQueue.end(); ++ q)
+         {
+            delete [] q->m_pcData;
+         }
+         CGuard::leaveCS(i->second->m_QueueLock);
+
          if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
             i->second->m_pTrans->close();
          delete i->second->m_pTrans;
+         delete i->second;
 #ifndef WIN32
          pthread_mutex_destroy(&i->second->m_SndLock);
          pthread_mutex_destroy(&i->second->m_RcvLock);
@@ -286,6 +298,7 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
       memcpy(q.m_pcData, data, size);
 
       CGuard::enterCS(c->m_QueueLock);
+      c->m_llTotalQueueSize += q.m_iSize;
       c->m_vDataQueue.push_back(q);
       CGuard::leaveCS(c->m_QueueLock);
 
@@ -319,6 +332,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          {
             size = q->m_iSize;
             data = q->m_pcData;
+            c->m_llTotalQueueSize -= q->m_iSize;
             c->m_vDataQueue.erase(q);
 
             CGuard::leaveCS(c->m_QueueLock);
@@ -350,6 +364,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          {
             size = q->m_iSize;
             data = q->m_pcData;
+            c->m_llTotalQueueSize -= q->m_iSize;
             c->m_vDataQueue.erase(q);
 
             found = true;
@@ -417,6 +432,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       }
 
       CGuard::enterCS(c->m_QueueLock);
+      c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
 
@@ -445,6 +461,7 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
       ifs.read(q.m_pcData, size);
 
       CGuard::enterCS(c->m_QueueLock);
+      c->m_llTotalQueueSize += q.m_iSize;
       c->m_vDataQueue.push_back(q);
       CGuard::leaveCS(c->m_QueueLock);
 
@@ -598,6 +615,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       }
 
       CGuard::enterCS(c->m_QueueLock);
+      c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
    }

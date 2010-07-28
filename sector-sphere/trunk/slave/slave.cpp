@@ -449,23 +449,20 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       Param2* p = new Param2;
       p->serv_instance = this;
-      p->src_ip = msg->getData();
-      p->src_port = *(int*)(msg->getData() + 64);
-      p->dst_ip = msg->getData() + 68;
-      p->dst_port = *(int*)(msg->getData() + 132);
+      p->client_ip = msg->getData();
+      p->client_port = *(int*)(msg->getData() + 64);
       p->key = *(int*)(msg->getData() + 136);
       p->mode = *(int*)(msg->getData() + 140);
-      p->writebufsize = *(int*)(msg->getData() + 144);
-      p->transid = *(int*)(msg->getData() + 148);
-      memcpy(p->crypto_key, msg->getData() + 152, 16);
-      memcpy(p->crypto_iv, msg->getData() + 168, 8);
-      p->filename = msg->getData() + 176;
+      p->transid = *(int*)(msg->getData() + 144);
+      memcpy(p->crypto_key, msg->getData() + 148, 16);
+      memcpy(p->crypto_iv, msg->getData() + 164, 8);
+      p->filename = msg->getData() + 172;
 
       p->master_ip = ip;
       p->master_port = port;
 
       char* tmp = new char[64 + p->filename.length()];
-      sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->src_ip.c_str(), p->src_port);
+      sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_port);
       m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 

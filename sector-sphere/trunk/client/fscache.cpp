@@ -151,7 +151,7 @@ int Cache::stat(const string& path, SNode& attr)
    return 1;
 }
 
-int Cache::insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size)
+int Cache::insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size, const bool& write)
 {
    CGuard sg(m_Lock);
 
@@ -167,6 +167,7 @@ int Cache::insert(char* block, const std::string& path, const int64_t& offset, c
    cb.m_llCreateTime = CTimer::getTime();
    cb.m_llLastAccessTime = CTimer::getTime();
    cb.m_pcBlock = block;
+   cb.m_bWrite = write;
 
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
 
@@ -252,3 +253,49 @@ int Cache::shrink()
 
    return 0;
 }
+
+char* Cache::retrieve(const std::string& path, const int64_t& offset, const int64_t& size)
+{
+   CGuard sg(m_Lock);
+
+   map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
+   if (s == m_mOpenedFiles.end())
+      return NULL;
+
+   map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
+   if (c == m_mCacheBlocks.end())
+      return NULL;
+
+   for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
+   {
+      if ((offset == i->m_llOffset) && (size == i->m_llSize))
+         return i->m_pcBlock;
+   }
+
+   return NULL;
+}
+
+int Cache::clearWrite(const std::string& path, const int64_t& offset, const int64_t& size)
+{
+   CGuard sg(m_Lock);
+
+   map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
+   if (s == m_mOpenedFiles.end())
+      return 0;
+
+   map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
+   if (c == m_mCacheBlocks.end())
+      return 0;
+
+   for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
+   {
+      if ((offset == i->m_llOffset) && (size == i->m_llSize))
+      {
+         i->m_bWrite = false;
+         return 0;
+      }
+   }
+
+   return 0;
+}
+

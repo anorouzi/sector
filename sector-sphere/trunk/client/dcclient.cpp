@@ -442,6 +442,9 @@ DWORD WINAPI DCClient::run(LPVOID param)
       if (self->m_pClient->m_GMP.recvfrom(ip, port, tmp, &msg, false) < 0)
          continue;
 
+      //TODO: due to one GMP limitation, one client can only execute one sphere process at each time
+      //can be solved with individual GMP, or enhance GMP with session
+
       int32_t speid = *(int32_t*)(msg.getData());
 
       map<int, SPE>::iterator s = self->m_mSPE.find(speid);

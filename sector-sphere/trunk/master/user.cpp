@@ -198,7 +198,7 @@ int UserManager::insert(User* u)
    return 0;
 }
 
-int UserManager::checkInactiveUsers(vector<User*>& iu)
+int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
 {
    CGuard ug(m_Lock);
 
@@ -210,7 +210,7 @@ int UserManager::checkInactiveUsers(vector<User*>& iu)
       if (0 == i->first)
          continue;
 
-      if (CTimer::getTime() - i->second->m_llLastRefreshTime > 30 * 60 * 1000000LL)
+      if (CTimer::getTime() - i->second->m_llLastRefreshTime > timeout * 1000000LL)
          iu.push_back(i->second);
    }
 

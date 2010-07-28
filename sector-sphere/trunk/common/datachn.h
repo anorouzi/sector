@@ -92,6 +92,7 @@ private:
       pthread_mutex_t m_RcvLock;
       pthread_mutex_t m_QueueLock;
       int m_iCount;
+      int64_t m_llTotalQueueSize;
    };
 
    std::map<Address, ChnInfo*, AddrComp> m_mChannel;

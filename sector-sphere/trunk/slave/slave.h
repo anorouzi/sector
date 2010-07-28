@@ -142,7 +142,6 @@ public:
 public:
    void init();
    void refresh();
-
    void updateIO(const std::string& ip, const int64_t& size, const int& type);
    int serializeIOStat(char* buf, unsigned int size);
 
@@ -175,17 +174,14 @@ private:
 
       std::string filename;	// filename
       int mode;			// file access mode
-      int writebufsize;		// client write buffer size
 
       std::string master_ip;
       int master_port;
       int transid;		// transaction ID
 
       int key;                  // client key
-      std::string src_ip;	// downlink IP
-      int src_port;		// downlink port
-      std::string dst_ip;	// uplink IP
-      int dst_port;		// uplink port
+      std::string client_ip;	// downlink IP
+      int client_port;		// downlink port
 
       unsigned char crypto_key[16];
       unsigned char crypto_iv[8];
@@ -266,7 +262,7 @@ private:
    static void* SPEShuffler(void* p5);
    static void* SPEShufflerEx(void* p5);
 
-private:
+private: // Sphere operations
    int SPEReadData(const std::string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
    int sendResultToFile(const SPEResult& result, const std::string& localfile, const int64_t& offset);
    int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, const SPEDestination& dest);
@@ -285,19 +281,19 @@ private:
    int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, int buckets, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
    int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);
 
-private:
+private: // SpaceDB operations
    int createTable(const std::string& name);
    int addTableAttribute(const std::string& name, const std::string& attr);
    int removeTableAttribute(const std::string& name, const std::string& attr);
    int deleteTable(const std::string& name);
 
-private:
+private: // local FS operations
    int createDir(const std::string& path);
    int createSysDir();
    std::string reviseSysCmdPath(const std::string& path);
    int move(const std::string& src, const std::string& dst, const std::string& newname);
 
-private:
+private: // local FS status
    int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int& change = 0);
    int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<std::string>& filelist, const int& change = 0);
    int reportMO(const std::string& master_ip, const int& master_port, const int32_t& transid);
@@ -308,6 +304,12 @@ private:
    void logError(int type, const std::string& ip, const int& port, const std::string& name);
 
    int checkBadDest(std::multimap<int64_t, Address>& sndspd, std::vector<Address>& bad);
+
+private: // optional: check local FS change
+   //TODO: this will allow applications outside Sector to modify Sector files.
+   //THIS IS DANGEROUS, and should only be enabled when customers request
+   //NO Sector configuration should be allowed for this; this can only be turned on by modifying the source code
+   //void* refresh(void* param) {}
 
 private:
    int m_iSlaveID;			// unique ID assigned by the master

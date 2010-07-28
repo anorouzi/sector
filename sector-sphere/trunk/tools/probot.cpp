@@ -41,6 +41,8 @@ written by
 #include <fstream>
 #include <iostream>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <probot.h>
 
 using namespace std;
@@ -169,7 +171,30 @@ int PRobot::generate()
 
 int PRobot::compile()
 {
-   string CCFLAGS = "-I../include";
+   string loc;
+   char* system_env = getenv("SECTOR_HOME");
+   if (NULL != system_env)
+      loc = system_env;
+
+   struct stat t;
+   if (stat((loc + "/include/sphere.h").c_str(), &t) == 0)
+   {
+   }
+   else if (stat("../include/sphere.h", &t) == 0)
+   {
+      loc = "../";
+   }
+   else if (stat("/opt/sector/sphere.h", &t) == 0)
+   {
+      loc = "/opt/sector";
+   }
+   else
+   {
+      cerr << "cannot locate Sector and UDT header files from either $SECTOR_HOME, ../, or /opt/sector.";
+      return -1;
+   }
+
+   string CCFLAGS = string("-I") + loc + string("/include -I") + loc + string("/udt");
    system(("g++ " + CCFLAGS + " -shared -fPIC -O3 -o " + m_strSrc + ".so -lstdc++ " + m_strSrc + ".cpp").c_str());
 
    system(("mv " + m_strSrc + ".* /tmp").c_str());

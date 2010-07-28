@@ -83,7 +83,7 @@ public:
 
 public:
    int insert(User* u);
-   int checkInactiveUsers(std::vector<User*>& iu);
+   int checkInactiveUsers(std::vector<User*>& iu, int timeout);
    int serializeUsers(int& num, std::vector<char*>& buf, std::vector<int>& size);
    User* lookup(int key);
    int remove(int key);

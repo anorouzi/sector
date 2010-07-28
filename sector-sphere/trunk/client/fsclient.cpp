@@ -35,13 +35,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/16/2010
+   Yunhong Gu, last updated 07/26/2010
 *****************************************************************************/
 
 
 #include <common.h>
 #include <fsclient.h>
-#include <iostream>
 
 using namespace std;
 
@@ -82,6 +81,7 @@ m_bSecure(false),
 m_bLocal(false),
 m_pcLocalPath(NULL),
 m_iWriteBufSize(1000000),
+m_WriteLog(),
 m_bOpened(false)
 {
 #ifndef WIN32
@@ -102,7 +102,7 @@ FSClient::~FSClient()
 #endif
 }
 
-int FSClient::open(const string& filename, int mode, const string& hint)
+int FSClient::open(const string& filename, int mode, const string& hint, const int64_t& reserve)
 {
    // if this client is already associated with an openned file, cannot open another file
    if (0 != m_strFileName.length())
@@ -116,12 +116,12 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    int32_t m = mode;
    msg.setData(0, (char*)&m, 4);
-   int32_t wb = m_iWriteBufSize;
-   msg.setData(4, (char*)&wb, 4);
+   int64_t res = (reserve > 0) ? reserve : 0;
+   msg.setData(4, (char*)&res, 8);
    int32_t port = m_pClient->m_DataChn.getPort();
-   msg.setData(8, (char*)&port, 4);
-   msg.setData(12, hint.c_str(), hint.length() + 1);
-   msg.setData(76, m_strFileName.c_str(), m_strFileName.length() + 1);
+   msg.setData(12, (char*)&port, 4);
+   msg.setData(16, hint.c_str(), hint.length() + 1);
+   msg.setData(80, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    Address serv;
    m_pClient->lookup(m_strFileName, serv);
@@ -148,24 +148,31 @@ int FSClient::open(const string& filename, int mode, const string& hint)
    // receiving all replica nodes
    int32_t slave_num = *(int32_t*)(msg.getData() + 20);
    int offset = 24;
-   m_vReplicaAddr.resize(num);
-   for (vector<Address>::iterator i = m_vReplicaAddr.begin(); i != m_vReplicaAddr.end(); ++ i)
+
+   for (int i = 0; i < slave_num; ++ i)
    {
-      i->m_strIP = msg.getData() + offset;
-      i->m_iPort = *(int32_t*)(msg.getData() + offset + 64);
+      Address addr;
+      addr.m_strIP = msg.getData() + offset;
+      addr.m_iPort = *(int32_t*)(msg.getData() + offset + 64);
       offset += 68;
+
+      if (m_pClient->m_DataChn.connect(addr.m_strIP, addr.m_iPort) >= 0)
+         m_vReplicaAddress.push_back(addr);
    }
 
-   m_strSlaveIP = m_vReplicaAddr.begin()->m_strIP;
-   m_iSlaveDataPort = m_vReplicaAddr.begin()->m_iPort;
+   while (m_bWrite && !m_vReplicaAddress.empty() && (organizeChainOfWrite() < 0)) {}
 
-   cerr << "open file " << filename << " " << m_strSlaveIP << " " << m_iSlaveDataPort << endl;
-   if (m_pClient->m_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)
+   if (m_vReplicaAddress.empty())
    {
-      // retry once
-      if (reopen() < 0)
+      if (m_bWrite)
+         return SectorError::E_CONNECTION;
+
+      if (m_bRead && (reopen() < 0))
          return SectorError::E_CONNECTION;
    }
+
+   m_strSlaveIP = m_vReplicaAddress.begin()->m_strIP;
+   m_iSlaveDataPort = m_vReplicaAddress.begin()->m_iPort;
 
    string localip;
    int localport;
@@ -191,6 +198,8 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    m_pClient->m_Cache.update(m_strFileName, m_llTimeStamp, m_llSize, true);
 
+   m_WriteLog.clear();
+
    m_bOpened = true;
 
    return 0;
@@ -201,7 +210,7 @@ int FSClient::reopen()
    if (0 == m_strFileName.length())
       return -1;
 
-   // currently re-open only works on read
+   // re-open only works on read
    if (m_bWrite)
       return -1;
 
@@ -246,8 +255,6 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CGuard fg(m_FileLock);
-
    if ((offset < 0) || (offset > m_llSize))
       return SectorError::E_INVALID;
 
@@ -257,6 +264,8 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    // does not support buffer > 32bit now
    if (size > 0x7FFFFFFF)
       return -1;
+
+   CGuard fg(m_FileLock);
 
    m_llCurReadPos = offset;
 
@@ -332,8 +341,6 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CGuard fg(m_FileLock);
-
    if (offset < 0)
       return SectorError::E_INVALID;
 
@@ -343,25 +350,22 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    if (size > 0x7FFFFFF)
       return -1;
 
+   CGuard fg(m_FileLock);
+
    m_llCurWritePos = offset;
 
-   // write command: 2
-   int32_t cmd = 2;
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
+   for (vector<Address>::iterator i = m_vReplicaAddress.begin(); i != m_vReplicaAddress.end(); ++ i)
+   {
+      // write command: 2
+      int32_t cmd = 2;
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4);
+   }
 
+   // send offset and size parameters
    char req[16];
    *(int64_t*)req = m_llCurWritePos;
    *(int64_t*)(req + 8) = size;
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
-
-   // wait for server acknowledgement onlt for large write
-   // for small write, data is sent out immediately in order to improve performance
-   if (size > m_iWriteBufSize)
-   {
-      int response = -1;
-      if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
-         return SectorError::E_CONNECTION;
-   }
 
    int64_t sentsize = m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, size, m_bSecure);
 
@@ -373,6 +377,24 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
 
       // update the file stat information in local cache, for correct stat() call and invalidate related read cache
       m_pClient->m_Cache.update(m_strFileName, CTimer::getTime(), m_llSize);
+
+      char* data = new char[sentsize];
+      memcpy(data, buf, sentsize);
+      m_pClient->m_Cache.insert(data, m_strFileName, offset, sentsize, true);
+
+      m_WriteLog.insert(offset, sentsize);
+   }
+   else
+   {
+      // write to the first replica failed, re-organize
+      if (flush() < 0)
+         return -1;
+   }
+
+   if (m_WriteLog.getCurrTotalSize() > m_iWriteBufSize)
+   {
+      if (flush() < 0)
+         return -1;
    }
 
    return sentsize;
@@ -383,7 +405,8 @@ int64_t FSClient::read(char* buf, const int64_t& size)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   return read(buf, m_llCurReadPos, size);
+   int64_t offset = m_llCurReadPos;
+   return read(buf, offset, size);
 }
 
 int64_t FSClient::write(const char* buf, const int64_t& size)
@@ -391,7 +414,8 @@ int64_t FSClient::write(const char* buf, const int64_t& size)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   return write(buf, m_llCurWritePos, size);
+   int64_t offset = m_llCurWritePos;
+   return write(buf, offset, size);
 }
 
 int64_t FSClient::download(const char* localpath, const bool& cont)
@@ -495,7 +519,6 @@ int64_t FSClient::upload(const char* localpath, const bool& cont)
    // upload command: 4
    int32_t cmd = 4;
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
-
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&size, 8);
 
    int response = -1;
@@ -520,6 +543,10 @@ int64_t FSClient::upload(const char* localpath, const bool& cont)
 
    ifs.close();
 
+   // check replica integrity
+   m_WriteLog.insert(0, size);
+   flush();
+
    return size;
 }
 
@@ -529,6 +556,8 @@ int FSClient::close()
       return SectorError::E_FILENOTOPEN;
 
    CGuard fg(m_FileLock);
+
+   flush();
 
    // file close command: 5
    int32_t cmd = 5;
@@ -661,4 +690,177 @@ int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
 
    m_pClient->m_Cache.insert(buf, m_strFileName, offset, recvsize);
    return recvsize;
+}
+
+int FSClient::organizeChainOfWrite()
+{
+   string src_ip = "";
+   int src_port = -1;
+   string dst_ip = "";
+   int dst_port = -1;
+   unsigned int i = 0;
+
+   // chain of write: each slave node write to the next 
+   // the first receive data from client, the last write to nobody
+
+   for (vector<Address>::iterator r = m_vReplicaAddress.begin(); r != m_vReplicaAddress.end(); ++ r)
+   {
+      if (i > 0)
+      {
+         src_ip = m_vReplicaAddress[i - 1].m_strIP;
+         src_port = m_vReplicaAddress[i - 1].m_iPort;
+      }
+      else
+      {
+         src_ip = "";
+         src_port = -1;
+      }
+
+      if (i + 1 < m_vReplicaAddress.size())
+      {
+         dst_ip = m_vReplicaAddress[i + 1].m_strIP;
+         dst_port = m_vReplicaAddress[i + 1].m_iPort;
+      }
+      else
+      {
+         dst_ip = "";
+         dst_port = -1;
+      }
+
+      char buf[136];
+      strcpy(buf, src_ip.c_str());
+      *(int32_t*)(buf + 64) = src_port;
+      strcpy(buf + 68, dst_ip.c_str());
+      *(int32_t*)(buf + 132) = dst_port;
+
+      int32_t cmd = 8;
+      m_pClient->m_DataChn.send(r->m_strIP, r->m_iPort, m_iSession, (char*)&cmd, 4);
+      m_pClient->m_DataChn.send(r->m_strIP, r->m_iPort, m_iSession, buf, 136);
+
+      int32_t confirmation = -1;
+      if ((m_pClient->m_DataChn.recv4(r->m_strIP, r->m_iPort, m_iSession, confirmation) < 0) || (confirmation < 0))
+      {
+         m_vReplicaAddress.erase(r);
+         m_strSlaveIP = m_vReplicaAddress.begin()->m_strIP;
+         m_iSlaveDataPort = m_vReplicaAddress.begin()->m_iPort;
+         return -1;
+      }
+
+      ++ i;
+   }
+
+   return 0;
+}
+
+int FSClient::flush()
+{
+   char* log = NULL;
+   int32_t size = 0;
+   m_WriteLog.serialize(log, size);
+
+   // return if nothing to flush
+   if (0 == size)
+      return 0;
+
+   vector<Address> newaddr;
+
+   timeval t;
+   gettimeofday(&t, NULL);
+   int32_t ts = t.tv_sec;
+
+   for (vector<Address>::iterator i = m_vReplicaAddress.begin(); i != m_vReplicaAddress.end(); ++ i)
+   {
+      int32_t cmd = 7;
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4);
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&size, 4);
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, log, size);
+
+      // synchronize timestamp
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&ts, 4);
+
+      int32_t confirm = -1;
+      if (m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, confirm) < 0)
+      {
+         // this replica has been lost
+      }
+      else if (confirm < 0)
+      {
+         // data transfer was not complete (due to lost of replica in the chain)
+         
+         char buf[136];
+         buf[0] = '\0';
+         *(int32_t*)(buf + 64) = -1;
+         buf[68] = '\0';
+         *(int32_t*)(buf + 132) = -1;
+
+         int32_t cmd = 8;
+         m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4);
+         m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, buf, 136);
+
+         int32_t response = -1;
+         if ((m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, response) < 0) || (response < 0))
+            continue;
+
+         for (vector<WriteEntry>::iterator w = m_WriteLog.m_vListOfWrites.begin(); w != m_WriteLog.m_vListOfWrites.end(); ++ w)
+         {
+            char* buf = m_pClient->m_Cache.retrieve(m_strFileName, w->m_llOffset, w->m_llSize);
+            if (NULL == buf)
+            {
+               // TODO: fatal error
+               break;
+            }
+
+            // write command: 2
+            cmd = 2;
+            m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4);
+
+            char req[16];
+            *(int64_t*)req = w->m_llOffset;
+            *(int64_t*)(req + 8) = w->m_llSize;
+            m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, req, 16);
+
+            if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, w->m_llSize, m_bSecure) < 0)
+               break;
+         }
+
+
+         // synchronize again for the rewrite
+         cmd = 7;
+         m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4);
+         m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&size, 4);
+         m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, log, size);
+         m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&ts, 4);
+
+         if ((m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, confirm) > 0) && (confirm > 0))
+         {
+            // write is successful
+            newaddr.push_back(*i);
+         }
+      }
+      else
+      {
+         // write was successful
+         newaddr.push_back(*i);
+      }
+   }
+
+   // write has been synchronized
+   for (vector<WriteEntry>::iterator w = m_WriteLog.m_vListOfWrites.begin(); w != m_WriteLog.m_vListOfWrites.end(); ++ w)
+   {
+      m_pClient->m_Cache.clearWrite(m_strFileName, w->m_llOffset, w->m_llSize);
+   }
+   m_WriteLog.clear();
+
+   // all nodes are down, no way to recover
+   if (newaddr.empty())
+      return -1;
+
+   // if some nodes are down, use the rest to finish write
+   if (m_vReplicaAddress.size() != newaddr.size())
+   {
+      m_vReplicaAddress = newaddr;
+      organizeChainOfWrite();
+   }
+
+   return 0;
 }

@@ -9,7 +9,7 @@ int main(int argc, char** argv)
 {
    if (argc != 2)
    {
-      cout << "USAGE: ls <dir>\n";
+      cerr << "USAGE: ls <dir>\n";
       return -1;
    }
 
@@ -42,7 +42,7 @@ int main(int argc, char** argv)
    int r = client.list(path, filelist);
    if (r < 0)
    {
-      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+      cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
       return -1;
    }
 

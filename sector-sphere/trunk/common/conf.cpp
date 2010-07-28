@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/22/2009
+   Yunhong Gu, last updated 07/27/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -212,12 +212,24 @@ char* ConfParser::getToken(char* str, string& token)
    return p;
 }
 
+
+MasterConf::MasterConf():
+m_iServerPort(0),
+m_strSecServIP(),
+m_iSecServPort(0),
+m_iMaxActiveUser(1024),
+m_strHomeDir("./"),
+m_iReplicaNum(1),
+m_MetaType(MEMORY),
+m_iSlaveTimeOut(300),
+m_llSlaveMinDiskSpace(10000000000LL),
+m_iClientTimeOut(600),
+m_iLogLevel(1)
+{
+}
+
 int MasterConf::init(const string& path)
 {
-   m_iServerPort = 6000;
-   m_llSlaveMinDiskSpace = 10000000000LL;
-   m_iLogLevel = 1;
-
    ConfParser parser;
    Param param;
 
@@ -276,10 +288,18 @@ int MasterConf::init(const string& path)
          m_llSlaveMinDiskSpace = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
 #endif
       }
+      else if ("CLIENT_TIMEOUT" == param.m_strName)
+      {
+         m_iClientTimeOut = atoi(param.m_vstrValue[0].c_str());
+      }
       else if ("LOG_LEVEL" == param.m_strName)
+      {
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
+      }
       else
+      {
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
+      }
    }
 
    parser.close();
@@ -287,15 +307,21 @@ int MasterConf::init(const string& path)
    return 0;
 }
 
+SlaveConf::SlaveConf():
+m_strMasterHost(),
+m_iMasterPort(6000),
+m_strHomeDir("./"),
+m_llMaxDataSize(-1),
+m_iMaxServiceNum(64),
+m_strLocalIP(),
+m_strPublicIP(),
+m_iClusterID(0),
+m_MetaType(MEMORY)
+{
+}
+
 int SlaveConf::init(const string& path)
 {
-   m_strMasterHost = "";
-   m_iMasterPort = 0;
-   m_llMaxDataSize = -1;
-   m_iMaxServiceNum = 2;
-   m_strLocalIP = "";
-   m_strPublicIP = "";
-   
    ConfParser parser;
    Param param;
 
@@ -359,16 +385,20 @@ int SlaveConf::init(const string& path)
    return 0;
 }
 
+ClientConf::ClientConf():
+m_strUserName(),
+m_strPassword(),
+m_strMasterIP(),
+m_iMasterPort(6000),
+m_strCertificate(),
+m_llMaxCacheSize(10000000),
+m_iFuseReadAheadBlock(1000000),
+m_llMaxWriteCacheSize(10000000)
+{
+}
+
 int ClientConf::init(const string& path)
 {
-   m_strUserName = "";
-   m_strPassword = "";
-   m_strMasterIP = "";
-   m_iMasterPort = 0;
-   m_strCertificate = "";
-   m_llMaxCacheSize = 10000000;
-   m_iFuseReadAheadBlock = 1000000;
-
    ConfParser parser;
    Param param;
 
@@ -419,6 +449,14 @@ int ClientConf::init(const string& path)
       else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
       {
          m_iFuseReadAheadBlock = atoi(param.m_vstrValue[0].c_str()) * 1000000;
+      }
+      else if ("MAX_READ_CACHE_SIZE" == param.m_strName)
+      {
+#ifndef WIN32
+         m_llMaxWriteCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llMaxWriteCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
       }
       else
          cerr << "unrecongnized client.conf parameter: " << param.m_strName << endl;

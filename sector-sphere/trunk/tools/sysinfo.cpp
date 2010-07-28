@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 {
    if (argc != 1)
    {
-      cout << "USAGE: sysinfo\n";
+      cerr << "USAGE: sysinfo\n";
       return -1;
    }
 
@@ -27,7 +27,7 @@ int main(int argc, char** argv)
    if (r >= 0)
       sys.print();
    else
-      cout << "Error happened, failed to retrieve any system information.\n";
+      cerr << "Error happened, failed to retrieve any system information.\n";
 
    client.logout();
    client.close();

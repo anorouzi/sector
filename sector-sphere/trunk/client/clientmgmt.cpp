@@ -393,14 +393,14 @@ int Sector::releaseSphereProcess(SphereProcess* sp)
    return 0;
 }
 
-int SectorFile::open(const string& filename, int mode, const string& hint)
+int SectorFile::open(const string& filename, int mode, const string& hint, const int64_t& reserve)
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
 
-   return f->open(filename, mode, hint);
+   return f->open(filename, mode, hint, reserve);
 }
 
 int64_t SectorFile::read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch)

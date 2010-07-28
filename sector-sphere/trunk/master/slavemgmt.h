@@ -62,9 +62,9 @@ public:
 
 public:
    int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica);
+   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0);
    int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica);
+   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0);
    int chooseSPENodes(const Address& client, std::vector<SlaveNode>& sl);
 
 public:
@@ -91,6 +91,7 @@ public:
 private:
    void updateclusterstat_(Cluster& c);
    void updateclusterio_(Cluster& c, std::map<std::string, int64_t>& data_in, std::map<std::string, int64_t>& data_out, int64_t& total);
+   int choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
 
 private:
    std::map<Address, int, AddrComp> m_mAddrList;		// list of slave addresses

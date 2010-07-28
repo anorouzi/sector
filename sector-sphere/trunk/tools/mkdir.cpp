@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 {
    if (argc != 2)
    {
-      cout << "USAGE: mkdir <dir>\n";
+      cerr << "USAGE: mkdir <dir>\n";
       return -1;
    }
 
@@ -24,7 +24,7 @@ int main(int argc, char** argv)
 
    int r = client.mkdir(argv[1]);
    if (r < 0)
-      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+      cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
    client.logout();
    client.close();

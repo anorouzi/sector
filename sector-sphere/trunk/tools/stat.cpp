@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 {
    if (argc != 2)
    {
-      cout << "USAGE: stat file\n";
+      cerr << "USAGE: stat file\n";
       return -1;
    }
 
@@ -27,7 +27,7 @@ int main(int argc, char** argv)
 
    if (r < 0)
    {
-      cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+      cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
    }
    else
    {

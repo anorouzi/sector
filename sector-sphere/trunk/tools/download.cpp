@@ -34,7 +34,7 @@ int download(const char* file, const char* dest, Sector& client)
    SNode attr;
    if (client.stat(file, attr) < 0)
    {
-      cout << "ERROR: cannot locate file " << file << endl;
+      cerr << "ERROR: cannot locate file " << file << endl;
       return -1;
    }
 
@@ -51,7 +51,7 @@ int download(const char* file, const char* dest, Sector& client)
 
    if (f->open(file) < 0)
    {
-      cout << "unable to locate file" << endl;
+      cerr << "unable to locate file" << endl;
       return -1;
    }
 
@@ -120,7 +120,7 @@ int main(int argc, char** argv)
 {
    if (argc != 3)
    {
-      cout << "USAGE: download <src file/dir> <local dir>\n";
+      cerr << "USAGE: download <src file/dir> <local dir>\n";
       return -1;
    }
 
@@ -131,12 +131,12 @@ int main(int argc, char** argv)
 
    if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
    {
-      cout << "unable to connect to the server at " << argv[1] << endl;
+      cerr << "unable to connect to the server at " << argv[1] << endl;
       return -1;
    }
    if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
    {
-      cout << "login failed\n";
+      cerr << "login failed\n";
       return -1;
    }
 
@@ -148,7 +148,7 @@ int main(int argc, char** argv)
       SNode attr;
       if (client.stat(argv[1], attr) < 0)
       {
-         cout << "ERROR: source file does not exist.\n";
+         cerr << "ERROR: source file does not exist.\n";
          return -1;
       }
       getFileList(argv[1], fl, client);
@@ -169,7 +169,7 @@ int main(int argc, char** argv)
       vector<SNode> filelist;
       int r = client.list(path, filelist);
       if (r < 0)
-         cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+         cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
       for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
@@ -183,7 +183,7 @@ int main(int argc, char** argv)
    int r = stat64(argv[2], &st);
    if ((r < 0) || !S_ISDIR(st.st_mode))
    {
-      cout << "ERROR: destination directory does not exist.\n";
+      cerr << "ERROR: destination directory does not exist.\n";
       return -1;
    }
 
@@ -226,7 +226,7 @@ int main(int argc, char** argv)
 
                if ((-1 == ::mkdir(substr.c_str(), S_IRWXU)) && (errno != EEXIST))
                {
-                  cout << "ERROR: unable to create local directory " << substr << endl;
+                  cerr << "ERROR: unable to create local directory " << substr << endl;
                   return -1;
                }
             }
@@ -234,7 +234,7 @@ int main(int argc, char** argv)
 
          if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
          {
-            cout << "ERROR: unable to create local directory " << localdir << endl;
+            cerr << "ERROR: unable to create local directory " << localdir << endl;
             return -1;
          }
       }

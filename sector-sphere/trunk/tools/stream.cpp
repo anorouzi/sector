@@ -107,13 +107,13 @@ int main(int argc, char** argv)
    SphereStream input;
    if (input.init(files) < 0)
    {
-      cout << "unable to locate input data files. quit.\n";
+      cerr << "unable to locate input data files. quit.\n";
       return -1;
    }
 
    if (client.mkdir(outpath) == SectorError::E_PERMISSION)
    {
-      cout << "unable to create output path " << outpath << endl;
+      cerr << "unable to create output path " << outpath << endl;
       return -1;
    }
 
@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 
    if (myproc->run(input, output, cmd, 0) < 0)
    {
-      cout << "failed to find any computing resources." << endl;
+      cerr << "failed to find any computing resources." << endl;
       return -1;
    }
 
@@ -191,7 +191,7 @@ int main(int argc, char** argv)
 
       if (myproc->run(input2, output2, "streamhash", 0) < 0)
       {
-         cout << "failed to find any computing resources." << endl;
+         cerr << "failed to find any computing resources." << endl;
          return -1;
       }
 

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,10 +35,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/16/2009
+   Yunhong Gu, last updated 07/28/2010
 *****************************************************************************/
 
 
+#include <writelog.h>
 #include <slave.h>
 #include <iostream>
 #include <utime.h>
@@ -52,12 +53,9 @@ void* Slave::fileHandler(void* p)
    string sname = ((Param2*)p)->filename;
    int key = ((Param2*)p)->key;
    int mode = ((Param2*)p)->mode;
-   int writeBufSize = ((Param2*)p)->writebufsize;
    int transid = ((Param2*)p)->transid;
-   string src_ip = ((Param2*)p)->src_ip;
-   int src_port = ((Param2*)p)->src_port;
-   string dst_ip = ((Param2*)p)->dst_ip;
-   int dst_port = ((Param2*)p)->dst_port;
+   string client_ip = ((Param2*)p)->client_ip;
+   int client_port = ((Param2*)p)->client_port;
    unsigned char crypto_key[16];
    unsigned char crypto_iv[8];
    memcpy(crypto_key, ((Param2*)p)->crypto_key, 16);
@@ -66,25 +64,31 @@ void* Slave::fileHandler(void* p)
    int master_port = ((Param2*)p)->master_port;
    delete (Param2*)p;
 
+   // uplink and downlink addresses for write, no need for read
+   string src_ip;
+   int src_port = -1;
+   string dst_ip;
+   int dst_port = -1;
+
+   // IO permissions
    bool bRead = mode & 1;
    bool bWrite = mode & 2;
    bool bSecure = mode & 16;
 
    bool run = true;
 
-   cout << "rendezvous connect source " << src_ip << " " << src_port << " " << filename << endl;
+   cout << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << endl;
 
-   if (self->m_DataChn.connect(src_ip, src_port) < 0)
+   if (self->m_DataChn.connect(client_ip, client_port) < 0)
    {
-      self->logError(1, src_ip, src_port, sname);
+      self->logError(1, client_ip, client_port, sname);
       return NULL;
    }
 
-   if (bSecure)
-      self->m_DataChn.setCryptoKey(src_ip, src_port, crypto_key, crypto_iv);
+   cout << "connected\n";
 
-   if (dst_port > 0)
-      self->m_DataChn.connect(dst_ip, dst_port);
+   if (bSecure)
+      self->m_DataChn.setCryptoKey(client_ip, client_port, crypto_key, crypto_iv);
 
    //create a new directory or file in case it does not exist
    int change = 0;
@@ -101,8 +105,6 @@ void* Slave::fileHandler(void* p)
       }
    }
 
-   cout << "connected\n";
-
    timeval t1, t2;
    gettimeofday(&t1, 0);
    int64_t rb = 0;
@@ -110,25 +112,15 @@ void* Slave::fileHandler(void* p)
 
    int32_t cmd = 0;
 
-   while (run)
+   WriteLog writelog;
+
+   fstream fhandle;
+   fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
+
+   while (!fhandle.fail() && run)
    {
-      if (self->m_DataChn.recv4(src_ip, src_port, transid, cmd) < 0)
+      if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
-
-      fstream fhandle;
-
-      int32_t response = 0;
-      if (cmd <= 4)
-      {
-         if (((2 == cmd) || (4 == cmd)) && !bWrite)
-            response = -1;
-         else if (((1 == cmd) || (3 == cmd)) && !bRead)
-            response = -1;
-
-         fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
-         if (fhandle.fail() || fhandle.bad())
-            response = -1;
-      }
 
       switch (cmd)
       {
@@ -136,7 +128,7 @@ void* Slave::fileHandler(void* p)
          {
             char* param = NULL;
             int tmp = 8 * 2;
-            if (self->m_DataChn.recv(src_ip, src_port, transid, param, tmp) < 0)
+            if (self->m_DataChn.recv(client_ip, client_port, transid, param, tmp) < 0)
             {
                run = false;
                break;
@@ -145,86 +137,80 @@ void* Slave::fileHandler(void* p)
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
 
-            if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+            int32_t response = bRead ? 0 : -1;
+            if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
                break;
             if (response == -1)
                break;
 
-            if (self->m_DataChn.sendfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
+            if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset, size, bSecure) < 0)
                run = false;
             else
                rb += size;
 
             // update total sent data size
-            self->m_SlaveStat.updateIO(src_ip, param[1], (key == 0) ? 1 : 3);
+            self->m_SlaveStat.updateIO(client_ip, param[1], (key == 0) ? 1 : 3);
 
             break;
          }
 
       case 2: // write
          {
-            char* param = NULL;
-            int tmp = 8 * 2;
-            if (self->m_DataChn.recv(src_ip, src_port, transid, param, tmp) < 0)
+            if (!bWrite)
             {
+               // if the client does not have write permission, disconnect it immediately
                run = false;
                break;
             }
+
+            //receive offset and size information from uplink
+            char* param = NULL;
+            int tmp = 8 * 2;
+            if (self->m_DataChn.recv(src_ip, src_port, transid, param, tmp) < 0)
+               break;
+
             int64_t offset = *(int64_t*)param;
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
 
-            // if write size is less than a threshold, accept the data without a reponse, in order to improve performance
-            // if reponse = -1, simply drop the data
-            if (size > writeBufSize)
+            // no secure transfer between two slaves
+            bool secure_transfer = bSecure;
+            if ((client_ip != src_ip) || (client_port != src_port))
+               secure_transfer = false;
+
+            bool io_status = (size > 0); 
+            if (!io_status || (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, secure_transfer) < size))
+               io_status = false;
+
+            if (dst_port > 0)
             {
-               if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
-                  break;
-               if (response == -1)
-                  break;
-            }
-            else if (response == -1)
-            {
-               char* tmpbuf = NULL;
-               int tmpsize = int(size);
-               self->m_DataChn.recv(src_ip, src_port, transid, tmpbuf, tmpsize, bSecure);
-               delete [] tmpbuf;
-               break;
+               // send offset and size parameters
+               char req[16];
+               *(int64_t*)req = offset;
+               if (io_status)
+                   *(int64_t*)(req + 8) = size;
+               else
+                   *(int64_t*)(req + 8) = -1;
+               self->m_DataChn.send(dst_ip, dst_port, transid, req, 16);
+
+               // send the data to the next replica in the chain
+               if (size > 0)
+                  self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset, size);
             }
 
-            if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, bSecure) < 0)
-               run = false;
-            else
-               wb += size;
+            if (!io_status)
+               break;
+
+            wb += size;
 
             // update total received data size
             self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
 
+            // update write log
+            writelog.insert(offset, size);
+
             if (change != 1)
                change = 2;
-
-            if (dst_port > 0)
-            {
-               self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
-
-               if (size > writeBufSize)
-               {
-                  int response;
-                  if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
-                     break;
-               }
-
-               // replicate data to another node
-               char req[16];
-               *(int64_t*)req = offset;
-               *(int64_t*)(req + 8) = size;
-
-               if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
-                  break;
-
-               if (self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset, size) < 0)
-                  break;
-            }
 
             break;
          }
@@ -232,13 +218,14 @@ void* Slave::fileHandler(void* p)
       case 3: // download
          {
             int64_t offset;
-            if (self->m_DataChn.recv8(src_ip, src_port, transid, offset) < 0)
+            if (self->m_DataChn.recv8(client_ip, client_port, transid, offset) < 0)
             {
                run = false;
                break;
             }
 
-            if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+            int32_t response = bRead ? 0 : -1;
+            if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
                break;
             if (response == -1)
                break;
@@ -255,7 +242,7 @@ void* Slave::fileHandler(void* p)
             while (tosend > 0)
             {
                int64_t block = (tosend < unit) ? tosend : unit;
-               if (self->m_DataChn.sendfile(src_ip, src_port, transid, fhandle, offset + sent, block, bSecure) < 0)
+               if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset + sent, block, bSecure) < 0)
                {
                   run = false;
                   break;
@@ -268,22 +255,31 @@ void* Slave::fileHandler(void* p)
             rb += sent;
 
             // update total sent data size
-            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 1 : 3);
+            self->m_SlaveStat.updateIO(client_ip, size, (key == 0) ? 1 : 3);
 
             break;
          }
 
       case 4: // upload
          {
+            if (!bWrite)
+            {
+               // if the client does not have write permission, disconnect it immediately
+               run = false;
+               break;
+            }
+
             int64_t offset = 0;
             int64_t size;
-            if (self->m_DataChn.recv8(src_ip, src_port, transid, size) < 0)
+            if (self->m_DataChn.recv8(client_ip, client_port, transid, size) < 0)
             {
                run = false;
                break;
             }
 
-            if (self->m_DataChn.send(src_ip, src_port, transid, (char*)&response, 4) < 0)
+            //TODO: check available size
+            int32_t response = 1;
+            if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
                break;
             if (response == -1)
                break;
@@ -292,11 +288,16 @@ void* Slave::fileHandler(void* p)
             int64_t torecv = size;
             int64_t recd = 0;
 
+            // no secure transfer between two slaves
+            bool secure_transfer = bSecure;
+            if ((client_ip != src_ip) || (client_port != src_port))
+               secure_transfer = false;
+
             while (torecv > 0)
             {
                int64_t block = (torecv < unit) ? torecv : unit;
 
-               if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, bSecure) < 0)
+               if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, secure_transfer) < 0)
                {
                   run = false;
                   break;
@@ -304,25 +305,7 @@ void* Slave::fileHandler(void* p)
 
                if (dst_port > 0)
                {
-                  // write to uplink
-
-                  int write = 2;
-                  self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&write, 4);
-
-                  if (size > writeBufSize)
-                  {
-                     int response;
-                     if ((self->m_DataChn.recv4(dst_ip, dst_port, transid, response) < 0) || (-1 == response))
-                        break;
-                  }
-
-                  char req[16];
-                  *(int64_t*)req = offset + recd;
-                  *(int64_t*)(req + 8) = block;
-
-                  if (self->m_DataChn.send(dst_ip, dst_port, transid, req, 16) < 0)
-                     break;
-
+                  // write to uplink for next replica in the chain
                   if (self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset + recd, block) < 0)
                      break;
                }
@@ -336,6 +319,9 @@ void* Slave::fileHandler(void* p)
             // update total received data size
             self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
 
+            // update write log
+            writelog.insert(0, size);
+
             if (change != 1)
                change = 2;
 
@@ -343,28 +329,98 @@ void* Slave::fileHandler(void* p)
          }
 
       case 5: // end session
-         if (dst_port > 0)
-         {
-            //TODO:: send timestamp and size information, (more check) to uplink, if uplink fais, remove that copy
-
-            // disconnet uplink
-            self->m_DataChn.send(dst_ip, dst_port, transid, (char*)&cmd, 4);
-            self->m_DataChn.recv4(dst_ip, dst_port, transid, cmd);
-         }
-
          run = false;
          break;
 
       case 6: // read file path for local IO optimization
-         self->m_DataChn.send(src_ip, src_port, transid, self->m_strHomeDir.c_str(), self->m_strHomeDir.length() + 1);
+         self->m_DataChn.send(client_ip, client_port, transid, self->m_strHomeDir.c_str(), self->m_strHomeDir.length() + 1);
          break;
+
+      case 7: // synchronize with the client, make sure write is correct
+      {
+         int32_t size = 0;
+         if (self->m_DataChn.recv4(client_ip, client_port, transid, size) < 0)
+            break;
+         char* buf = NULL;
+         if (self->m_DataChn.recv(client_ip, client_port, transid, buf, size) < 0)
+            break;
+         int32_t ts = 0;
+         if (self->m_DataChn.recv4(client_ip, client_port, transid, ts) < 0)
+            break;
+
+         WriteLog log;
+         log.deserialize(buf, size);
+         delete [] buf;
+
+         int32_t confirm = -1;
+         if (writelog.compare(log))
+            confirm = 1;
+
+         writelog.clear();
+
+         if (confirm > 0)
+         {
+            //synchronize timestamp
+            utimbuf ut;
+            ut.actime = ts;
+            ut.modtime = ts;
+            utime(filename.c_str(), &ut);
+         }
+
+         self->m_DataChn.send(client_ip, client_port, transid, (char*)&confirm, 4);
+
+         break;
+      }
+
+      case 8: // specify up and down links
+      {
+         char* buf = NULL;
+         int size = 136;
+         if (self->m_DataChn.recv(client_ip, client_port, transid, buf, size) < 0)
+            break;
+
+         int32_t response = bWrite ? 0 : -1;
+         if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
+            break;
+         if (response == -1)
+            break;
+
+         src_ip = buf;
+         src_port = *(int32_t*)(buf + 64);
+         dst_ip = buf + 68;
+         dst_port = *(int32_t*)(buf + 132);
+         delete [] buf;
+
+         if (src_port > 0)
+         {
+            // connect to uplink in the write chain
+            if (!self->m_DataChn.isConnected(src_ip, src_port))
+               self->m_DataChn.connect(src_ip, src_port);
+         }
+         else
+         {
+            // first node in the chain, read from client
+            src_ip = client_ip;
+            src_port = client_port;
+         }
+         
+         if (dst_port > 0)
+         {
+            //connect downlink in the write chain
+            if (!self->m_DataChn.isConnected(dst_ip, dst_port))
+               self->m_DataChn.connect(dst_ip, dst_port);
+         }
+
+         break;
+      }
 
       default:
          break;
       }
-
-      fhandle.close();
    }
+
+   // close local file
+   fhandle.close();
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
@@ -386,10 +442,9 @@ void* Slave::fileHandler(void* p)
    //report to master the task is completed
    self->report(master_ip, master_port, transid, sname, change);
 
-   self->m_DataChn.send(src_ip, src_port, transid, (char*)&cmd, 4);
-
+   self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
    if (key > 0)
-      self->m_DataChn.remove(src_ip, src_port);
+      self->m_DataChn.remove(client_ip, client_port);
 
    return NULL;
 }
@@ -409,6 +464,7 @@ void* Slave::copy(void* p)
    {
       //if file is local, copy directly
       //note that in this case, src != dst, therefore this is a regular "cp" command, not a system replication
+      //TODO: check disk space
 
       self->createDir(dst.substr(0, dst.rfind('/')));
       string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
@@ -423,6 +479,8 @@ void* Slave::copy(void* p)
 
       return NULL;
    }
+
+   bool success = true;
 
    queue<string> tr;
    tr.push(src);
@@ -442,7 +500,10 @@ void* Slave::copy(void* p)
       self->m_Routing.lookup(src_path, addr);
 
       if (self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
-         return NULL;
+      {
+         success = false;
+         break;
+      }
 
       if (msg.getType() >= 0)
       {
@@ -473,10 +534,11 @@ void* Slave::copy(void* p)
       msg.setData(8, "\0", 1);
       msg.setData(72, src_path.c_str(), src_path.length() + 1);
 
-      if (self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
-         return NULL;
-      if (msg.getType() < 0)
-         return NULL;
+      if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
+      {
+         success = false;
+         break;
+      }
 
       string ip = msg.getData();
       int port = *(int*)(msg.getData() + 64);
@@ -484,21 +546,28 @@ void* Slave::copy(void* p)
       int64_t size = *(int64_t*)(msg.getData() + 72);
       time_t ts = *(int64_t*)(msg.getData() + 80);
 
-      //cout << "rendezvous connect " << ip << " " << port << endl;
-      if (self->m_DataChn.connect(ip, port) < 0)
-         return NULL;
+      if (!self->m_DataChn.isConnected(ip, port))
+      {
+         if (self->m_DataChn.connect(ip, port) < 0)
+         {
+            success = false;
+            break;
+         }
+      }
 
       // download command: 3
       int32_t cmd = 3;
       self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
 
+      int64_t offset = 0;
+      self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
+
       int response = -1;
       if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
-         return NULL;
-
-      int64_t offset = 0;
-      if (self->m_DataChn.send(ip, port, session, (char*)&offset, 8) < 0)
-         return NULL;
+      {
+         success = false;
+         break;
+      }
 
       string dst_path = dst;
       if (src != src_path)
@@ -542,11 +611,19 @@ void* Slave::copy(void* p)
       }
    }
 
-   // move from temporary dir to the real dir when the copy is completed
-   self->createDir(dst.substr(0, dst.rfind('/')));
    string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
    string rfile = self->reviseSysCmdPath(dst);
-   system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
+   if (success)
+   {
+      // move from temporary dir to the real dir when the copy is completed
+      self->createDir(dst.substr(0, dst.rfind('/')));
+      system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
+   }
+   else
+   {
+      // failed, remove all temporary files
+      system(("rm -rf " + rhome + ".tmp" + rfile).c_str());
+   }
 
    // if the file has been modified during the replication, remove this replica
    int type = (src == dst) ? 3 : 1;
