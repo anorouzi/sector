@@ -20,9 +20,12 @@ int main(int argc, char** argv)
    if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
       return -1;
 
-   cout << "please input root password:";
-   string passwd;
-   cin >> passwd;
+   string passwd = s.m_ClientConf.m_strPassword;
+   if (s.m_ClientConf.m_strUserName != "root")
+   {
+      cout << "please input root password:";
+      cin >> passwd;
+   }
 
    if (client.login("root", passwd, s.m_ClientConf.m_strCertificate.c_str()) < 0)
       return -1;

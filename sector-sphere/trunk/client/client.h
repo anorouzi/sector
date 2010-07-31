@@ -88,6 +88,10 @@ public:
    int sysinfo(SysStat& sys);
    int shutdown(const int& type, const std::string& param = "");
 
+   #ifdef DEBUG
+   int sendDebugCode(const int32_t& slave_id, const int32_t& code);
+   #endif
+
 public:
    FSClient* createFSClient();
    DCClient* createDCClient();

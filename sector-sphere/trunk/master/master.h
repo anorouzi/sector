@@ -166,6 +166,10 @@ private:
 private:
    int64_t m_llStartTime;
    int serializeSysStat(char*& buf, int& size);
+
+   #ifdef DEBUG
+   int processDebugCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
+   #endif
 };
 
 #endif

@@ -354,7 +354,8 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
 
    m_llCurWritePos = offset;
 
-   for (vector<Address>::iterator i = m_vReplicaAddress.begin(); i != m_vReplicaAddress.end(); ++ i)
+   // send write msg from the end of the chain, so that if the client is broken, all replicas should be still the same
+   for (vector<Address>::reverse_iterator i = m_vReplicaAddress.rbegin(); i != m_vReplicaAddress.rend(); ++ i)
    {
       // write command: 2
       int32_t cmd = 2;
@@ -378,6 +379,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
       // update the file stat information in local cache, for correct stat() call and invalidate related read cache
       m_pClient->m_Cache.update(m_strFileName, CTimer::getTime(), m_llSize);
 
+      // keep the data in cache, in case write is not completed
       char* data = new char[sentsize];
       memcpy(data, buf, sentsize);
       m_pClient->m_Cache.insert(data, m_strFileName, offset, sentsize, true);
@@ -405,6 +407,7 @@ int64_t FSClient::read(char* buf, const int64_t& size)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
+   // offset is a reference, so we create a copy here
    int64_t offset = m_llCurReadPos;
    return read(buf, offset, size);
 }

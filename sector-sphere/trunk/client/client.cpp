@@ -735,10 +735,10 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
          break;
 
       vector<Address> ml;
-	  CGuard::enterCS(self->m_MasterSetLock);
+      CGuard::enterCS(self->m_MasterSetLock);
       for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
          ml.push_back(*i);
-	  CGuard::leaveCS(self->m_MasterSetLock);
+      CGuard::leaveCS(self->m_MasterSetLock);
 
       for (vector<Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
       {
@@ -877,3 +877,18 @@ int Client::retrieveMasterInfo(string& certfile)
 
    return 0;
 }
+
+#ifdef DEBUG
+int Client::sendDebugCode(const int32_t& slave_id, const int32_t& code)
+{
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(code);
+   msg.setData(0, (char*)&slave_id, 4);
+   return m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg);
+}
+#endif

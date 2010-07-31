@@ -167,6 +167,10 @@ private:
    int processDBCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
    int processMCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
 
+   #ifdef DEBUG
+   int processDebugCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
+   #endif
+
 private:
    struct Param2
    {
@@ -338,7 +342,11 @@ private:
 
    Routing m_Routing;			// master routing module
 
+private: //slave status
    bool m_bRunning;			// slave running status; used to terminate the slave when set to false
+
+   bool m_bDiskHealth;                  // disk health
+   bool m_bNetworkHealth;               // network health
 };
 
 #endif

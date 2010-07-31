@@ -58,7 +58,9 @@ m_iDataPort(0),
 m_iLocalPort(0),
 m_strBase("./"),
 m_pLocalFile(NULL),
-m_bRunning(false)
+m_bRunning(false),
+m_bDiskHealth(true),
+m_bNetworkHealth(true)
 {
 }
 
@@ -333,6 +335,11 @@ void Slave::run()
       case 10:
          processMCmd(ip, port, id, msg);
          break;
+
+      #ifdef DEBUG
+         processDebugCmd(ip, port, id, msg);
+         break;
+      #endif
 
       default:
          break;
@@ -659,6 +666,27 @@ int Slave::processMCmd(const string& ip, const int port, int id, SectorMsg* msg)
    return 0;
 }
 
+#ifdef DEBUG
+int Slave::processDebugCmd(const string& ip, const int port, int id, SectorMsg* msg)
+{
+   switch (msg->getType())
+   {
+   case 9901: // enable pseudo disk error
+      m_bDiskHealth = false;
+      break;
+
+   case 9902: // enable pseudo network error
+      m_bNetworkHealth = false;
+      break;
+
+   default:
+      return -1;
+   }
+
+   return 0;
+}
+#endif
+
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int& change)
 {
    vector<string> filelist;
@@ -782,6 +810,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
    cout << "report " << master_ip << " " << master_port << " " << num << endl;
 
+   //TODO: if the current master is down, try a different master
    if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
 

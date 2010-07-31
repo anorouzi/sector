@@ -1063,6 +1063,12 @@ void* Master::processEx(void* param)
          self->processSyncCmd(p->ip, p->port, p->user, p->key, p->id, p->msg);
          break;
 
+      #ifdef DEBUG
+      case 99:
+         self->processDebugCmd(p->ip, p->port, p->user, p->key, p->id, p->msg);
+         break;
+      #endif
+
       default:
          self->reject(p->ip, p->port, p->id, SectorError::E_UNKNOWN);
       }
@@ -2302,6 +2308,48 @@ int Master::processMCmd(const string& ip, const int port,  const User* user, con
    return 0;
 }
 
+#ifdef DEBUG
+int Master::processDebugCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
+{
+   //99xx commands, for debug and testing purpose only
+
+   switch (msg->getType())
+   {
+   case 9901:
+   {
+      int32_t slave_id = *(int32_t*)msg->getData();
+      Address addr;
+      m_SlaveManager.getSlaveAddr(slave_id, addr);
+      int32_t id2 = 0;
+      m_GMP.sendto(addr.m_strIP, addr.m_iPort, id2, msg);
+cout << addr.m_strIP << " " <<  addr.m_iPort << endl;
+      m_GMP.sendto(ip, port, id, msg);
+
+      break;
+   }
+
+   case 9902:
+   {
+      int32_t slave_id = *(int32_t*)msg->getData();
+      Address addr;
+      m_SlaveManager.getSlaveAddr(slave_id, addr);
+      int32_t id2 = 0;
+      m_GMP.sendto(addr.m_strIP, addr.m_iPort, id2, msg);
+
+      m_GMP.sendto(ip, port, id, msg);
+
+      break;
+   }
+
+   default:
+      reject(ip, port, id, SectorError::E_UNKNOWN);
+      return -1;
+   }
+
+   return 0;
+}
+#endif
+
 int Master::sync(const char* fileinfo, const int& size, const int& type)
 {
    SectorMsg msg;
@@ -2430,6 +2478,7 @@ void* Master::replica(void* s)
 
       // check replica, create or remove replicas if necessary
       // TODO: replica check may only be done when the system changes (new slave join or slave lost)
+      // TODO: check overreplicated and remove those
       if (self->m_vstrToBeReplicated.empty())
       {
          map<string, int> special;

@@ -7,7 +7,7 @@ CCFLAGS = -I. -I../include -I../udt
 LDFLAGS = -lstdc++ -lpthread -lssl -L.
 
 ifeq ($(DEBUG), 1)
-   CCFLAGS += -Wall -g
+   CCFLAGS += -Wall -g -DDEBUG
 else
    CCFLAGS += -O3
 endif

@@ -117,7 +117,7 @@ void* Slave::fileHandler(void* p)
    fstream fhandle;
    fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
 
-   while (!fhandle.fail() && run)
+   while (!fhandle.fail() && run && self->m_bDiskHealth && self->m_bNetworkHealth)
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
