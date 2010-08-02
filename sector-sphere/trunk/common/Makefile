@@ -6,6 +6,7 @@ OBJS = conf.o \
        index.o \
        index2.o \
        memobj.o \
+       transaction.o \
        topology.o \
        sysstat.o \
        log.o \

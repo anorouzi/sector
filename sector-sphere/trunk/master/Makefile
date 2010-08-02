@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../lib -lmaster -lrpc -lsecurity -lcommon -ludt
 endif
 
-OBJS = slavemgmt.o transaction.o user.o master.o
+OBJS = slavemgmt.o user.o master.o
 
 all: libmaster.so libmaster.a start_master start_all stop_all
 

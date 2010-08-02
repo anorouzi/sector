@@ -50,6 +50,7 @@ written by
 #include <log.h>
 #include <sphere.h>
 #include <routing.h>
+#include <transaction.h>
 
 
 typedef int (*SPHERE_PROCESS)(const SInput*, SOutput*, SFile*);
@@ -341,6 +342,8 @@ private:
    MOMgmt m_InMemoryObjects;		// in-memory objects
 
    Routing m_Routing;			// master routing module
+
+   TransManager m_TransManager;         // transaction management
 
 private: //slave status
    bool m_bRunning;			// slave running status; used to terminate the slave when set to false

@@ -468,10 +468,23 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
+      // the slave must also lock the file IO. Because there are multiple master servers,
+      // if one master is down, locks on this file may be lost when another master take over control of the file.
+      if (m_pLocalFile->lock(p->filename, p->key, p->mode) < 0)
+      {
+         msg->setType(-msg->getType());
+         msg->m_iDataLength = SectorMsg::m_iHdrSize;
+         m_GMP.sendto(ip, port, id, msg);
+         delete p;
+         break;
+      }
+
       char* tmp = new char[64 + p->filename.length()];
       sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_port);
       m_SectorLog.insert(tmp, 3);
       delete [] tmp;
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
       pthread_t file_handler;
       pthread_create(&file_handler, NULL, fileHandler, p);
@@ -498,6 +511,8 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
       m_SectorLog.insert(tmp, 3);
       delete [] tmp;
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
       pthread_t replica_handler;
       pthread_create(&replica_handler, NULL, copy, p);
@@ -551,6 +566,8 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
+
       pthread_t spe_handler;
       pthread_create(&spe_handler, NULL, SPEHandler, p);
       pthread_detach(spe_handler);
@@ -596,6 +613,8 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
       m_SectorLog.insert(tmp, 3);
       delete [] tmp;
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
       pthread_t spe_shuffler;
       pthread_create(&spe_shuffler, NULL, SPEShuffler, p);

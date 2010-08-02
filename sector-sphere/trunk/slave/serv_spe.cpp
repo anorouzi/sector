@@ -526,6 +526,9 @@ void* Slave::SPEHandler(void* p)
 
    self->reportSphere(master_ip, master_port, transid, &bad);
 
+   // clear this transaction
+   self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
+
    return NULL;
 }
 
@@ -629,6 +632,9 @@ void* Slave::SPEShuffler(void* p)
 
    gmp->close();
    delete gmp;
+
+   // clear this transaction
+   self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
 
    return NULL;
 }

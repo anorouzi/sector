@@ -446,6 +446,12 @@ void* Slave::fileHandler(void* p)
    if (key > 0)
       self->m_DataChn.remove(client_ip, client_port);
 
+   // clear this transaction
+   self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
+
+   // unlock the file
+   self->m_pLocalFile->unlock(sname, key, mode);
+
    return NULL;
 }
 
@@ -629,6 +635,9 @@ void* Slave::copy(void* p)
    int type = (src == dst) ? 3 : 1;
    if (self->report(master_ip, master_port, transid, dst, type) < 0)
       system(("rm " + rhome + rfile).c_str());
+
+   // clear this transaction
+   self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
 
    return NULL;
 }
