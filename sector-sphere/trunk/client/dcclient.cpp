@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/16/2010
+   Yunhong Gu, last updated 08/05/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -806,13 +806,11 @@ int DCClient::waitForCompletion()
 
    while (true)
    {
+      int progress = checkProgress();
       SphereResult* res = NULL;
-      int progress = 0;
 
       if (read(res) <= 0)
       {
-         progress = checkProgress();
-
          if (progress < 0)
          {
             cerr << "all SPEs failed\n";
@@ -1030,7 +1028,7 @@ int DCClient::prepareInput()
       // retrieve all the locations
       while (true)
       {
-         if (strlen(p) == 0)
+         if ('\0' == *p)
             break;
 
          Address addr;

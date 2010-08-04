@@ -92,9 +92,9 @@ public:
    std::string m_strChecksum;
 
 public:
-   int serialize(char* buf);
+   int serialize(char* buf) const;
    int deserialize(const char* buf);
-   int serialize2(const std::string& file);
+   int serialize2(const std::string& file) const;
    int deserialize2(const std::string& file);
 };
 
@@ -169,6 +169,7 @@ public:
 
    int sysinfo(SysStat& sys);
    int shutdown(const int& type, const std::string& param = "");
+   int fsck(const std::string& path);
 
 public:
    SectorFile* createSectorFile();

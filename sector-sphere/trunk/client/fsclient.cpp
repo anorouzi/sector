@@ -149,6 +149,7 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
    int32_t slave_num = *(int32_t*)(msg.getData() + 20);
    int offset = 24;
 
+   m_vReplicaAddress.clear();
    for (int i = 0; i < slave_num; ++ i)
    {
       Address addr;

@@ -319,6 +319,16 @@ int Sector::shutdown(const int& type, const string& param)
    return c->shutdown(type, param);
 }
 
+int Sector::fsck(const string& path)
+{
+   Client* c = g_ClientMgmt.lookupClient(m_iID);
+
+   if (NULL == c)
+      return SectorError::E_INVALID;
+
+   return c->fsck(path);
+}
+
 int Sector::setMaxCacheSize(const int64_t& ms)
 {
    Client* c = g_ClientMgmt.lookupClient(m_iID);

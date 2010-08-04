@@ -58,6 +58,8 @@ int main(int argc, char** argv)
          f->write(buf, read_size);
          total_size += read_size;
       }
+
+      delete [] buf;
    }
    else if (option == "s")
    {
@@ -80,6 +82,8 @@ int main(int argc, char** argv)
          buf[read_size + 1] = 0;
          printf("%s", buf);
       }
+
+      delete [] buf;
    }
 
    f->close();

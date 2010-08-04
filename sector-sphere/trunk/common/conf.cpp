@@ -43,7 +43,7 @@ written by
    #include <arpa/inet.h>
    #include <unistd.h>
 #endif
-#include "conf.h"
+#include <conf.h>
 #include <iostream>
 #include <string>
 #include <cstring>
@@ -98,7 +98,7 @@ int ConfParser::init(const string& path)
       char buf[1024];
       m_ConfFile.getline(buf, 1024);
 
-      if (strlen(buf) == 0)
+      if ('\0' == *buf)
          continue;
 
       //skip comments
@@ -167,7 +167,7 @@ int ConfParser::getNextParam(Param& param)
       {
          strcpy(buf, m_ptrLine->c_str());
 
-         if ((strlen(buf) == 0) || ('\t' != buf[0]))
+         if (('\0' == *buf) || ('\t' != *buf))
             break;
 
          str = buf;
@@ -249,7 +249,7 @@ int MasterConf::init(const string& path)
          strcpy(buf, param.m_vstrValue[0].c_str());
 
          unsigned int i = 0;
-         for (; i < strlen(buf); ++ i)
+         for (unsigned int n = strlen(buf); i < n; ++ i)
          {
             if (buf[i] == ':')
                break;
@@ -339,7 +339,7 @@ int SlaveConf::init(const string& path)
          strcpy(buf, param.m_vstrValue[0].c_str());
 
          unsigned int i = 0;
-         for (; i < strlen(buf); ++ i)
+         for (unsigned int n = strlen(buf); i < n; ++ i)
          {
             if (buf[i] == ':')
                break;
@@ -416,7 +416,7 @@ int ClientConf::init(const string& path)
          strcpy(buf, param.m_vstrValue[0].c_str());
 
          unsigned int i = 0;
-         for (; i < strlen(buf); ++ i)
+         for (unsigned int n = strlen(buf); i < n; ++ i)
          {
             if (buf[i] == ':')
                break;
@@ -543,7 +543,7 @@ int Session::loadInfo(const char* conf)
       strcpy(buf, addr.c_str());
 
       unsigned int i = 0;
-      for (; i < strlen(buf); ++ i)
+      for (unsigned int n = strlen(buf); i < n; ++ i)
       {
          if (buf[i] == ':')
             break;

@@ -230,13 +230,13 @@ int Index2::lookup(const string& path, set<Address, AddrComp>& addr)
    return addr.size();
 }
 
-int Index2::create(const string& path, bool isdir)
+int Index2::create(const SNode& node)
 {
    struct stat64 s;
-   if (stat64((m_strMetaPath + "/" + path).c_str(), &s) >= 0)
+   if (stat64((m_strMetaPath + "/" + node.m_strName).c_str(), &s) >= 0)
       return SectorError::E_EXIST;
 
-   string tmp = path;
+   string tmp = node.m_strName;
    size_t p = tmp.rfind('/');
    if (p != string::npos)
    {
@@ -244,18 +244,18 @@ int Index2::create(const string& path, bool isdir)
       system(cmd.c_str());
    }
 
-   if (isdir)
+   if (node.m_bIsDir)
    {
-      string cmd = string("mkdir ") + m_strMetaPath + "/" + path;
+      string cmd = string("mkdir ") + m_strMetaPath + "/" + node.m_strName;
       system(cmd.c_str());
    }
    else
    {
-      SNode n;
-      n.m_bIsDir = false;
-      n.m_llSize = 0;
-      n.m_llTimeStamp = CTimer::getTime();
-      n.serialize2(m_strMetaPath + "/" + path);
+      string filename = tmp.substr(p + 1, tmp.length() - p - 1);
+      string path = node.m_strName;
+      SNode sn = node;
+      sn.m_strName = filename;
+      sn.serialize2(m_strMetaPath + "/" + path);
    }
 
    return 0;
@@ -301,74 +301,86 @@ int Index2::remove(const string& path, bool recursive)
    return 0;
 }
 
-int Index2::update(const string& fileinfo, const Address& loc, const int& type)
+
+int Index2::addReplica(const string& path, const int64_t& ts, const int64_t& size, const Address& addr)
 {
-   SNode sn;
-   sn.deserialize(fileinfo.c_str());
-   sn.m_sLocation.insert(loc);
-
-   string path = sn.m_strName;
-
    vector<string> dir;
    parsePath(path.c_str(), dir);
 
    if (dir.empty())
       return -1;
 
-   sn.m_strName = *dir.rbegin();
-
    struct stat s;
    if (stat((m_strMetaPath + "/" + path).c_str(), &s) >= 0)
    {
-      if ((type == 1) || (type == 2))
-      {
-         SNode os;
-         os.deserialize2(m_strMetaPath + "/" + path);
-         os.m_llSize = sn.m_llSize;
-         os.m_llTimeStamp = sn.m_llTimeStamp;
-         os.m_sLocation.insert(loc);
-         os.serialize2(m_strMetaPath + "/" + path);
-         return 0;
-      }
-      else if (type == 3)
-      {
-         SNode os;
-         os.deserialize2(m_strMetaPath + "/" + path);
-
-         // a new replica
-         if (os.m_sLocation.find(loc) != os.m_sLocation.end())
-            return -1;
-
-         if ((os.m_llSize != sn.m_llSize) || (os.m_llTimeStamp != sn.m_llTimeStamp))
-            return -1;
-      }
-      else
-      {
+      SNode os;
+      os.deserialize2(m_strMetaPath + "/" + path);
+      if ((os.m_llSize != size) || (os.m_llTimeStamp != ts))
          return -1;
-      }
-   }
-   else
-   {
-      if ((type == 3) || (type == 2))
-      {
-         // this is for new files only
-         return -1;
-      }
-      sn.serialize2(m_strMetaPath + "/" + path);
+
+      os.m_sLocation.insert(addr);
+      os.serialize2(m_strMetaPath + "/" + path);
+      return 0;
    }
 
    return -1;
 }
 
-int Index2::utime(const string& path, const int64_t& ts)
+int Index2::removeReplica(const string& path, const Address& addr)
 {
-   timeval t[2];
-   t[0].tv_sec = ts;
-   t[0].tv_usec = 0;
-   t[1] = t[0];
-   utimes((m_strMetaPath + "/" + path).c_str(), t);
+   vector<string> dir;
+   parsePath(path.c_str(), dir);
 
-   return 0;
+   if (dir.empty())
+      return -1;
+
+   struct stat s;
+   if (stat((m_strMetaPath + "/" + path).c_str(), &s) >= 0)
+   {
+      SNode os;
+      if (os.deserialize2(m_strMetaPath + "/" + path) < 0)
+         return -1;
+
+      os.m_sLocation.erase(addr);
+      os.serialize2(m_strMetaPath + "/" + path);
+      return 0;
+   }
+
+   return -1;
+}
+
+int Index2::update(const string& path, const int64_t& ts, const int64_t& size)
+{
+   vector<string> dir;
+   parsePath(path.c_str(), dir);
+
+   if (dir.empty())
+      return -1;
+
+   struct stat s;
+   if (stat((m_strMetaPath + "/" + path).c_str(), &s) >= 0)
+   {
+      SNode os;
+      if (os.deserialize2(m_strMetaPath + "/" + path) < 0)
+         return -1;
+
+      if (size >= 0)
+         os.m_llSize = size;
+
+      os.m_llTimeStamp = ts;
+
+      os.serialize2(m_strMetaPath + "/" + path);
+
+      timeval t[2];
+      t[0].tv_sec = ts;
+      t[0].tv_usec = 0;
+      t[1] = t[0];
+      utimes((m_strMetaPath + "/" + path).c_str(), t); 
+
+      return 0;
+   }
+
+   return -1;
 }
 
 int Index2::serialize(const string& path, const string& dstfile)
@@ -702,7 +714,7 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
    return result.size();
 }
 
-int Index2::getUnderReplicated(const string& path, vector<string>& replica, const unsigned int& thresh, const map<string, int>& special)
+int Index2::checkReplica(const string& path, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
 {
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);
@@ -756,16 +768,18 @@ int Index2::getUnderReplicated(const string& path, vector<string>& replica, cons
             sn.deserialize2(m_strMetaPath + "/" + abs_path + "/.nosplit");
 
          if (sn.m_sLocation.size() < d)
-            replica.push_back(abs_path);
+            under.push_back(abs_path);
+         else if (sn.m_sLocation.size() > d)
+            over.push_back(abs_path);
       }
       else
-         getUnderReplicated(abs_path, replica, thresh, special);
+         checkReplica(abs_path, under, over, thresh, special);
 
       free(namelist[i]);
    }
    free(namelist);
 
-   return replica.size();
+   return 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////

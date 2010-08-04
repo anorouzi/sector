@@ -236,22 +236,39 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
       // if there is overlap between the two storage paths, it means that there is a conflict
       // the new slave should be rejected in this case
 
-      if ((j->find(revised_path) != string::npos) || (revised_path.find(*j) != string::npos))
+      vector<string> dir1;
+      vector<string> dir2;
+      Metadata::parsePath(*j, dir1);
+      Metadata::parsePath(path, dir2);
+
+      int n = (dir1.size() < dir2.size()) ? dir1.size() : dir2.size();
+      bool match = true;
+      for (int i = 0; i < n; ++ i)
       {
-         //TODO: optimize this search
-         id = -1;
-         for (map<int, SlaveNode>::const_iterator s = m_mSlaveList.begin(); s != m_mSlaveList.end(); ++ s)
+         if (dir1[i] != dir2[i])
          {
-            if (s->second.m_strStoragePath == *j)
-            {
-               id = s->first;
-               addr.m_strIP = s->second.m_strIP;
-               addr.m_iPort = s->second.m_iPort;
-               break;
-            }
+            match = false;
+            break;
          }
-         return true;
       }
+
+      if (!match)
+         continue;
+
+      //TODO: optimize this search
+      id = -1;
+      for (map<int, SlaveNode>::const_iterator s = m_mSlaveList.begin(); s != m_mSlaveList.end(); ++ s)
+      {
+         if (s->second.m_strStoragePath == *j)
+         {
+            id = s->first;
+            addr.m_strIP = s->second.m_strIP;
+            addr.m_iPort = s->second.m_iPort;
+            break;
+         }
+      }
+
+      return true;
    }
 
    return false;
@@ -263,7 +280,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    return choosereplicanode_(loclist, sn, filesize);
 }
 
-int SlaveManager::choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
+int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 1);

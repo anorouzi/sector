@@ -91,7 +91,7 @@ void* Slave::fileHandler(void* p)
       self->m_DataChn.setCryptoKey(client_ip, client_port, crypto_key, crypto_iv);
 
    //create a new directory or file in case it does not exist
-   int change = 0;
+   int change = FileChangeType::FILE_UPDATE_NO;
    if (mode > 1)
    {
       self->createDir(sname.substr(0, sname.rfind('/')));
@@ -101,7 +101,7 @@ void* Slave::fileHandler(void* p)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
-         change = 1;
+         change = FileChangeType::FILE_UPDATE_WRITE;
       }
    }
 
@@ -149,7 +149,7 @@ void* Slave::fileHandler(void* p)
                rb += size;
 
             // update total sent data size
-            self->m_SlaveStat.updateIO(client_ip, param[1], (key == 0) ? 1 : 3);
+            self->m_SlaveStat.updateIO(client_ip, param[1], (key == 0) ? +SlaveStat::SYS_OUT : +SlaveStat::CLI_OUT);
 
             break;
          }
@@ -204,13 +204,13 @@ void* Slave::fileHandler(void* p)
             wb += size;
 
             // update total received data size
-            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
+            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? +SlaveStat::SYS_IN : +SlaveStat::CLI_IN);
 
             // update write log
             writelog.insert(offset, size);
 
-            if (change != 1)
-               change = 2;
+            // file has been changed
+            change = FileChangeType::FILE_UPDATE_WRITE;
 
             break;
          }
@@ -255,7 +255,7 @@ void* Slave::fileHandler(void* p)
             rb += sent;
 
             // update total sent data size
-            self->m_SlaveStat.updateIO(client_ip, size, (key == 0) ? 1 : 3);
+            self->m_SlaveStat.updateIO(client_ip, size, (key == 0) ? +SlaveStat::SYS_OUT : +SlaveStat::CLI_OUT);
 
             break;
          }
@@ -317,13 +317,13 @@ void* Slave::fileHandler(void* p)
             wb += recd;
 
             // update total received data size
-            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? 0 : 2);
+            self->m_SlaveStat.updateIO(src_ip, size, (key == 0) ? +SlaveStat::SYS_IN : +SlaveStat::CLI_IN);
 
             // update write log
             writelog.insert(0, size);
 
-            if (change != 1)
-               change = 2;
+            // file has been changed
+            change = FileChangeType::FILE_UPDATE_WRITE;
 
             break;
          }
@@ -535,10 +535,12 @@ void* Slave::copy(void* p)
 
       int32_t mode = 1;
       msg.setData(0, (char*)&mode, 4);
+      int64_t reserve = 0;
+      msg.setData(4, (char*)&reserve, 8);
       int32_t localport = self->m_DataChn.getPort();
-      msg.setData(4, (char*)&localport, 4);
-      msg.setData(8, "\0", 1);
-      msg.setData(72, src_path.c_str(), src_path.length() + 1);
+      msg.setData(12, (char*)&localport, 4);
+      msg.setData(16, "\0", 1);
+      msg.setData(80, src_path.c_str(), src_path.length() + 1);
 
       if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
       {
@@ -546,11 +548,12 @@ void* Slave::copy(void* p)
          break;
       }
 
-      string ip = msg.getData();
-      int port = *(int*)(msg.getData() + 64);
-      int session = *(int*)(msg.getData() + 68);
-      int64_t size = *(int64_t*)(msg.getData() + 72);
-      time_t ts = *(int64_t*)(msg.getData() + 80);
+      int32_t session = *(int32_t*)msg.getData();
+      int64_t size = *(int64_t*)(msg.getData() + 4);
+      time_t ts = *(int64_t*)(msg.getData() + 12);
+
+      string ip = msg.getData() + 24;
+      int32_t port = *(int32_t*)(msg.getData() + 64 + 24);
 
       if (!self->m_DataChn.isConnected(ip, port))
       {
@@ -601,7 +604,7 @@ void* Slave::copy(void* p)
       ofs.close();
 
       // update total received data size
-      self->m_SlaveStat.updateIO(ip, size, 0);
+      self->m_SlaveStat.updateIO(ip, size, +SlaveStat::SYS_IN);
 
       cmd = 5;
       self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
@@ -632,7 +635,7 @@ void* Slave::copy(void* p)
    }
 
    // if the file has been modified during the replication, remove this replica
-   int type = (src == dst) ? 3 : 1;
+   int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
    if (self->report(master_ip, master_port, transid, dst, type) < 0)
       system(("rm " + rhome + rfile).c_str());
 

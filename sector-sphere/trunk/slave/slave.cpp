@@ -48,7 +48,7 @@ written by
 #include <unistd.h>
 #include <sys/times.h>
 #include <utime.h>
-#include "common.h"
+#include <common.h>
 
 using namespace std;
 
@@ -56,6 +56,7 @@ Slave::Slave():
 m_iSlaveID(-1),
 m_iDataPort(0),
 m_iLocalPort(0),
+m_iMasterPort(0),
 m_strBase("./"),
 m_pLocalFile(NULL),
 m_bRunning(false),
@@ -706,16 +707,20 @@ int Slave::processDebugCmd(const string& ip, const int port, int id, SectorMsg* 
 }
 #endif
 
-int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int& change)
+int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int32_t& change)
 {
    vector<string> filelist;
-   if (getFileList(filename, filelist) <= 0)
-      return 0;
+
+   if (change > 0)
+   {
+      if (getFileList(filename, filelist) <= 0)
+         return 0;
+   }
 
    return report(master_ip, master_port, transid, filelist, change);
 }
 
-int Slave::getFileList(const std::string& path, std::vector<std::string>& filelist)
+int Slave::getFileList(const string& path, vector<string>& filelist)
 {
    string abs_path = m_strHomeDir + path;
    struct stat64 s;
@@ -780,10 +785,10 @@ int Slave::getFileList(const std::string& path, std::vector<std::string>& fileli
    return filelist.size();
 }
 
-int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int& change)
+int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int32_t& change)
 {
    vector<string> serlist;
-   if (change > 0)
+   if (change != FileChangeType::FILE_UPDATE_NO)
    {
       for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
@@ -797,15 +802,20 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
          sn.m_llTimeStamp = s.st_mtime;
          sn.m_llSize = s.st_size;
 
-         char buf[1024];
-         sn.serialize(buf);
-
-         //update local
          Address addr;
          addr.m_strIP = "127.0.0.1";
          addr.m_iPort = 0;
-         m_pLocalFile->update(buf, addr, change);
+         sn.m_sLocation.insert(addr);
 
+         if (change == FileChangeType::FILE_UPDATE_WRITE)
+            m_pLocalFile->update(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize);
+         else if (change == FileChangeType::FILE_UPDATE_NEW)
+            m_pLocalFile->create(sn);
+         else if (change == FileChangeType::FILE_UPDATE_REPLICA)
+            m_pLocalFile->create(sn);
+
+         char buf[1024];
+         sn.serialize(buf);
          serlist.push_back(buf);
       }
    }
@@ -839,7 +849,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
    return 1;
 }
 
-int Slave::reportMO(const std::string& master_ip, const int& master_port, const int32_t& transid)
+int Slave::reportMO(const string& master_ip, const int& master_port, const int32_t& transid)
 {
    vector<MemObj> tba;
    vector<string> tbd;
@@ -1092,7 +1102,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
 
    map<string, int64_t>::iterator a;
 
-   if (type == 0)
+   if (type == SYS_IN)
    {
       map<string, int64_t>::iterator a = m_mSysIndInput.find(ip);
       if (a == m_mSysIndInput.end())
@@ -1104,7 +1114,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalInputData += size;
    }
-   else if (type == 1)
+   else if (type == SYS_OUT)
    {
       map<string, int64_t>::iterator a = m_mSysIndOutput.find(ip);
       if (a == m_mSysIndOutput.end())
@@ -1116,7 +1126,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalOutputData += size;
    }
-   else if (type == 2)
+   else if (type == CLI_IN)
    {
       map<string, int64_t>::iterator a = m_mCliIndInput.find(ip);
       if (a == m_mCliIndInput.end())
@@ -1128,7 +1138,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalInputData += size;
    }
-   else if (type == 3)
+   else if (type == CLI_OUT)
    {
       map<string, int64_t>::iterator a = m_mCliIndOutput.find(ip);
       if (a == m_mCliIndOutput.end())

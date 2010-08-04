@@ -77,7 +77,7 @@ int Cache::setMaxCacheTime(const int64_t mt)
    return 0;
 }
 
-void Cache::update(const std::string& path, const int64_t& ts, const int64_t& size, bool first)
+void Cache::update(const string& path, const int64_t& ts, const int64_t& size, bool first)
 {
    CGuard sg(m_Lock);
 
@@ -117,7 +117,7 @@ void Cache::update(const std::string& path, const int64_t& ts, const int64_t& si
       s->second.m_iCount ++;
 }
 
-void Cache::remove(const std::string& path)
+void Cache::remove(const string& path)
 {
    CGuard sg(m_Lock);
 
@@ -151,7 +151,7 @@ int Cache::stat(const string& path, SNode& attr)
    return 1;
 }
 
-int Cache::insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size, const bool& write)
+int Cache::insert(char* block, const string& path, const int64_t& offset, const int64_t& size, const bool& write)
 {
    CGuard sg(m_Lock);
 
@@ -182,7 +182,7 @@ int Cache::insert(char* block, const std::string& path, const int64_t& offset, c
    return 0;
 }
 
-int64_t Cache::read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size)
+int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const int64_t& size)
 {
    CGuard sg(m_Lock);
 
@@ -254,7 +254,7 @@ int Cache::shrink()
    return 0;
 }
 
-char* Cache::retrieve(const std::string& path, const int64_t& offset, const int64_t& size)
+char* Cache::retrieve(const string& path, const int64_t& offset, const int64_t& size)
 {
    CGuard sg(m_Lock);
 
@@ -275,7 +275,7 @@ char* Cache::retrieve(const std::string& path, const int64_t& offset, const int6
    return NULL;
 }
 
-int Cache::clearWrite(const std::string& path, const int64_t& offset, const int64_t& size)
+int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& size)
 {
    CGuard sg(m_Lock);
 

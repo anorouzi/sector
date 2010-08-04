@@ -214,7 +214,7 @@ int Routing::getNumOfMasters()
    return m_mAddressList.size();
 }
 
-void Routing::getListOfMasters(std::map<uint32_t, Address>& al)
+void Routing::getListOfMasters(map<uint32_t, Address>& al)
 {
    CGuard rg(m_Lock);
 

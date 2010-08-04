@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/07/2010
+   Yunhong Gu, last updated 08/02/2010
 *****************************************************************************/
 
 
@@ -147,7 +147,13 @@ public:
    int serializeIOStat(char* buf, unsigned int size);
 
 private:
-   pthread_mutex_t m_StatLock;   
+   pthread_mutex_t m_StatLock;
+
+public: // io statistics type
+   static const int SYS_IN = 1;
+   static const int SYS_OUT = 2;
+   static const int CLI_IN = 3;
+   static const int CLI_OUT = 4;
 };
 
 class Slave
@@ -286,6 +292,8 @@ private: // Sphere operations
    int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, int buckets, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
    int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);
 
+   int readSectorFile(const std::string& filename, const int64_t& offset, const int64_t& size, char* buf);
+
 private: // SpaceDB operations
    int createTable(const std::string& name);
    int addTableAttribute(const std::string& name, const std::string& attr);
@@ -299,8 +307,8 @@ private: // local FS operations
    int move(const std::string& src, const std::string& dst, const std::string& newname);
 
 private: // local FS status
-   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int& change = 0);
-   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<std::string>& filelist, const int& change = 0);
+   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int32_t& change = 0);
+   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<std::string>& filelist, const int32_t& change = 0);
    int reportMO(const std::string& master_ip, const int& master_port, const int32_t& transid);
    int reportSphere(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<Address>* bad = NULL);
 

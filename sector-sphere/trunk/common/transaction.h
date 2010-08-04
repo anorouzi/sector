@@ -48,13 +48,28 @@ written by
 #include <string>
 #include <pthread.h>
 
+struct TransType
+{
+   static const int FILE = 1;
+   static const int SPHERE = 2;
+   static const int DB = 3;
+};
+
+struct FileChangeType
+{
+   static const int32_t FILE_UPDATE_NO = 0;
+   static const int32_t FILE_UPDATE_NEW = 1;
+   static const int32_t FILE_UPDATE_WRITE = 2;
+   static const int32_t FILE_UPDATE_REPLICA = 3;
+};
+
 struct Transaction
 {
    int m_iTransID;		// unique id
-   int m_iType;			// 0: file, 1: sphere
+   int m_iType;			// TransType
    int64_t m_llStartTime;	// start time
-   std::string m_strFile;	// if type = 0, this is the file being accessed
-   int m_iMode;			// if type = 0, this is the file access mode
+   std::string m_strFile;	// if type = FILE, this is the file being accessed
+   int m_iMode;			// if type = FILE, this is the file access mode
    std::set<int> m_siSlaveID;	// set of slave id involved in this transaction
    int m_iUserKey;		// user key
    int m_iCommand;		// user's command, 110, 201, etc.

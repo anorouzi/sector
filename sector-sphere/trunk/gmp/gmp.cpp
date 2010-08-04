@@ -108,8 +108,7 @@ m_iLength(0)
 
 CGMPMessage::~CGMPMessage()
 {
-   if (NULL != m_pcData)
-      delete [] m_pcData;
+   delete [] m_pcData;
 }
 
 void CGMPMessage::pack(const char* data, const int& len, const int32_t& info)
@@ -118,12 +117,10 @@ void CGMPMessage::pack(const char* data, const int& len, const int32_t& info)
 
    if (len > 0)
    {
-      if (NULL != m_pcData)
-         delete [] m_pcData;
-
-      m_iLength = len;
+      delete [] m_pcData;
       m_pcData = new char[len];
       memcpy(m_pcData, data, len);
+      m_iLength = len;
    }
    else
       m_iLength = 0;

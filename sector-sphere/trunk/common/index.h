@@ -60,11 +60,12 @@ public:
    virtual int lookup(const std::string& path, std::set<Address, AddrComp>& addr);
 
 public:
-   virtual int create(const std::string& path, bool isdir = false);
+   virtual int create(const SNode& node);
    virtual int move(const std::string& oldpath, const std::string& newpath, const std::string& newname = "");
    virtual int remove(const std::string& path, bool recursive = false);
-   virtual int update(const std::string& fileinfo, const Address& addr, const int& type);
-   virtual int utime(const std::string& path, const int64_t& ts);
+   virtual int addReplica(const std::string& path, const int64_t& ts, const int64_t& size, const Address& addr);
+   virtual int removeReplica(const std::string& path, const Address& addr);
+   virtual int update(const std::string& path, const int64_t& ts, const int64_t& size = -1);
 
 public:
    virtual int serialize(const std::string& path, const std::string& dstfile);
@@ -77,7 +78,7 @@ public:
    virtual int64_t getTotalDataSize(const std::string& path);
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
-   virtual int getUnderReplicated(const std::string& path, std::vector<std::string>& replica, const unsigned int& thresh, const std::map<std::string, int>& special);
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special);
 
 private:
    int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
@@ -88,7 +89,7 @@ private:
    int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);
    int64_t getTotalFileNum(std::map<std::string, SNode>& currdir);
    int collectDataInfo(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& result);
-   int getUnderReplicated(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& replica, const unsigned int& thresh, const std::map<std::string, int>& special);
+   int checkReplica(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special);
    int list_r(std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist);
 
 private:

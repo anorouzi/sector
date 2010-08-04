@@ -43,6 +43,13 @@ written by
 
 using namespace std;
 
+
+//const int32_t FileChangeType::FILE_UPDATE_NO = 0;
+//const int32_t FileChangeType::FILE_UPDATE_NEW = 1;
+//const int32_t FileChangeType::FILE_UPDATE_WRITE = 2;
+//const int32_t FileChangeType::FILE_UPDATE_REPLICA = 3;
+
+
 TransManager::TransManager():
 m_iTransID(1)
 {

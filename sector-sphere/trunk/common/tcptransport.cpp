@@ -247,7 +247,7 @@ int64_t TCPTransport::recvfile(const char* file, const int64_t& offset, const in
    return recd;
 }
 
-int TCPTransport::getLocalIP(std::string& ip)
+int TCPTransport::getLocalIP(string& ip)
 {
    sockaddr_in addr;
    socklen_t size = sizeof(sockaddr_in);

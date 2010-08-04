@@ -63,7 +63,7 @@ int FileSrc::loadACL(vector<IPRange>& acl, const void* src)
    while (!af.eof())
    {
       af.getline(line, 128);
-      if (strlen(line) == 0)
+      if (*line == '\0')
          continue;
 
       IPRange ipr;

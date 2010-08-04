@@ -624,7 +624,7 @@ int Client::sysinfo(SysStat& sys)
    return 0;
 }
 
-int Client::shutdown(const int& type, const std::string& param)
+int Client::shutdown(const int& type, const string& param)
 {
    SectorMsg msg;
    msg.setKey(m_iKey);
@@ -656,6 +656,25 @@ int Client::shutdown(const int& type, const std::string& param)
       if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
          return SectorError::E_CONNECTION;
    }
+
+   return 0;
+}
+
+int Client::fsck(const string& path)
+{
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(9);
+
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
 
    return 0;
 }

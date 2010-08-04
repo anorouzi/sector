@@ -210,7 +210,7 @@ int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
       if (0 == i->first)
          continue;
 
-      if (CTimer::getTime() - i->second->m_llLastRefreshTime > timeout * 1000000LL)
+      if (CTimer::getTime() - i->second->m_llLastRefreshTime > timeout * 1000000ULL)
          iu.push_back(i->second);
    }
 

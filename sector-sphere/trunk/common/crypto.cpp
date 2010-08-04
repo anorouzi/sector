@@ -52,6 +52,8 @@ written by
 #include "crypto.h"
 
 Crypto::Crypto():
+m_pcKey(),
+m_pcIV(),
 m_iCoderType(0)
 {
 }

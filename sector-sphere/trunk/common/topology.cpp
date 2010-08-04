@@ -155,13 +155,13 @@ int Topology::init(const char* topoconf)
    {
       ifs.getline(line, 128);
 
-      if ((strlen(line) == 0) || (line[0] == '#'))
+      if (('\0' == *line) || ('#' == *line))
          continue;
 
       // 192.168.136.0/24	/1/1
 
       unsigned int p = 0;
-      for (; p < strlen(line); ++ p)
+      for (unsigned int n = strlen(line); p < n; ++ p)
       {
          if ((line[p] == ' ') || (line[p] == '\t'))
             break;

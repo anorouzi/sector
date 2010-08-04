@@ -64,7 +64,7 @@ SNode::~SNode()
 {
 }
 
-int SNode::serialize(char* buf)
+int SNode::serialize(char* buf) const
 {
    int namelen = m_strName.length();
    sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize);
@@ -204,7 +204,7 @@ int SNode::deserialize(const char* buf)
    return 0;
 }
 
-int SNode::serialize2(const string& file)
+int SNode::serialize2(const string& file) const
 {
    string tmp = file;
    size_t p = tmp.rfind('/');

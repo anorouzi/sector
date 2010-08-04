@@ -738,7 +738,7 @@ void* Slave::SPEShufflerEx(void* p)
       }
 
       // update total received data
-      self->m_SlaveStat.updateIO(speip, b.totalsize, 0);
+      self->m_SlaveStat.updateIO(speip, b.totalsize, +SlaveStat::SYS_IN);
    }
 
    pthread_mutex_destroy(bqlock);
@@ -825,63 +825,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    }
    else
    {
-      SectorMsg msg;
-      msg.setType(110); // open the index file
-      msg.setKey(0);
-
-      int32_t mode = 1;
-      msg.setData(0, (char*)&mode, 4);
-      int32_t wb = 0;
-      msg.setData(4, (char*)&wb, 4);
-      int32_t port = m_DataChn.getPort();
-      msg.setData(8, (char*)&port, 4);
-      msg.setData(12, "\0", 1);
-      msg.setData(76, idxfile.c_str(), idxfile.length() + 1);
-
-      Address addr;
-      m_Routing.lookup(idxfile, addr);
-
-      if (m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
+      if (readSectorFile(idxfile, offset * 8, (totalrows + 1) * 8, (char*)index) < 0)
          return -1;
-      if (msg.getType() < 0)
-         return -1;
-
-      string srcip = msg.getData();
-      int srcport = *(int*)(msg.getData() + 64);
-      int session = *(int*)(msg.getData() + 68);
-
-      cout << "rendezvous connect " << srcip << " " << srcport << endl;
-      if (m_DataChn.connect(srcip, srcport) < 0)
-         return -1;
-
-      int32_t cmd = 1;
-      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
-
-      char req[16];
-      *(int64_t*)req = offset * 8;
-      *(int64_t*)(req + 8) = (totalrows + 1) * 8;
-      if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
-         return -1;
-
-      int response = -1;
-      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
-         return -1;
-
-      char* tmp = NULL;
-      int size = (totalrows + 1) * 8;
-      if (m_DataChn.recv(srcip, srcport, session, tmp, size) < 0)
-         return -1;
-      if (size > 0)
-         memcpy((char*)index, tmp, size);
-      delete [] tmp;
-
-      // file close command: 5
-      cmd = 5;
-      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
-      m_DataChn.recv4(srcip, srcport, session, response);
-
-      // update total received data
-      m_SlaveStat.updateIO(srcip, (totalrows + 1) * 8, 0);
    }
 
    size = index[totalrows] - index[0];
@@ -900,63 +845,8 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    }
    else
    {
-      SectorMsg msg;
-      msg.setType(110); // open the index file
-      msg.setKey(0);
-
-      int32_t mode = 1;
-      msg.setData(0, (char*)&mode, 4);
-      int32_t wb = 0;
-      msg.setData(4, (char*)&wb, 4);
-      int32_t port = m_DataChn.getPort();
-      msg.setData(8, (char*)&port, 4);
-      msg.setData(12, "\0", 1);
-      msg.setData(76, datafile.c_str(), datafile.length() + 1);
-
-      Address addr;
-      m_Routing.lookup(datafile, addr);
-
-      if (m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
+      if (readSectorFile(datafile, index[0], index[totalrows] - index[0], block) < 0)
          return -1;
-      if (msg.getType() < 0)
-         return -1;
-
-      string srcip = msg.getData();
-      int srcport = *(int*)(msg.getData() + 64);
-      int session = *(int*)(msg.getData() + 68);
-
-      cout << "rendezvous connect " << srcip << " " << srcport << endl;
-      if (m_DataChn.connect(srcip, srcport) < 0)
-         return -1;
-
-      int32_t cmd = 1;
-      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
-
-      char req[16];
-      *(int64_t*)req = index[0];
-      *(int64_t*)(req + 8) = index[totalrows] - index[0];
-      if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
-         return -1;
-
-      int response = -1;
-      if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
-         return -1;
-
-      char* tmp = NULL;
-      int size = index[totalrows] - index[0];
-      if (m_DataChn.recv(srcip, srcport, session, tmp, size) < 0)
-         return -1;
-      if (size > 0)
-         memcpy(block, tmp, size);
-      delete [] tmp;
-
-      // file close command: 5
-      cmd = 5;
-      m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
-      m_DataChn.recv4(srcip, srcport, session, response);
-
-      // update total received data
-      m_SlaveStat.updateIO(srcip, index[totalrows] - index[0], 0);
    }
 
    return totalrows;
@@ -1085,7 +975,7 @@ int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPERe
       }
 
       // update total sent data
-      m_SlaveStat.updateIO(dstip, SizeByLoc[i], 1);
+      m_SlaveStat.updateIO(dstip, SizeByLoc[i], +SlaveStat::SYS_OUT);
 
       ResByLoc.erase(i);
       SizeByLoc.erase(i);
@@ -1295,8 +1185,20 @@ int Slave::reduce(vector<MRRecord>& vr, const string& bucket, MR_REDUCE red, voi
    file.m_strTempDir = m_strHomeDir + ".tmp/";
    file.m_pInMemoryObjects = &m_InMemoryObjects;
 
-   char* idata = new char[256000000];
-   int64_t* iidx = new int64_t[1000000];
+   char* idata = NULL;
+   int64_t* iidx = NULL;
+
+   try
+   {
+      idata = new char[256000000];
+      iidx = new int64_t[1000000];
+   }
+   catch (...)
+   {
+      delete [] idata;
+      delete [] iidx;
+      return -1;
+   }
 
    fstream reduced((bucket + ".reduced").c_str(), ios::out | ios::binary | ios::trunc);
    fstream reducedidx((bucket + ".reduced.idx").c_str(), ios::out | ios::binary | ios::trunc);
@@ -1444,4 +1346,70 @@ int Slave::checkBadDest(multimap<int64_t, Address>& sndspd, vector<Address>& bad
    }
 
    return bad.size();
+}
+
+int Slave::readSectorFile(const string& filename, const int64_t& offset, const int64_t& size, char* buf)
+{
+   SectorMsg msg;
+   msg.setType(110); // open the index file
+   msg.setKey(0);
+
+   int32_t mode = 1;
+   msg.setData(0, (char*)&mode, 4);
+   int64_t reserve = 0;
+   msg.setData(4, (char*)&reserve, 8);
+   int32_t port = m_DataChn.getPort();
+   msg.setData(12, (char*)&port, 4);
+   msg.setData(16, "\0", 1);
+   msg.setData(80, filename.c_str(), filename.length() + 1);
+
+   Address addr;
+   m_Routing.lookup(filename, addr);
+
+   if (m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0)
+      return -1;
+   if (msg.getType() < 0)
+      return -1;
+
+   int32_t session = *(int32_t*)msg.getData();
+   string srcip = msg.getData() + 24;
+   int32_t srcport = *(int32_t*)(msg.getData() + 64 + 24);
+
+   cout << "rendezvous connect " << srcip << " " << srcport << endl;
+   if (m_DataChn.connect(srcip, srcport) < 0)
+      return -1;
+
+   int32_t cmd = 1;
+   m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
+
+   char req[16];
+   *(int64_t*)req = offset;
+   *(int64_t*)(req + 8) = size;
+   if (m_DataChn.send(srcip, srcport, session, req, 16) < 0)
+      return -1;
+
+   int response = -1;
+   if (m_DataChn.recv4(srcip, srcport, session, response) < 0)
+      return -1;
+
+   char* tmp = NULL;
+   int recvsize = size;
+   if (m_DataChn.recv(srcip, srcport, session, tmp, recvsize) < 0)
+      return -1;
+   if (recvsize == size)
+      memcpy(buf, tmp, size);
+   delete [] tmp;
+
+   // file close command: 5
+   cmd = 5;
+   m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);
+   m_DataChn.recv4(srcip, srcport, session, response);
+
+   // update total received data
+   m_SlaveStat.updateIO(srcip, size, +SlaveStat::SYS_IN);
+
+   if (recvsize != size)
+      return -1;
+
+   return size;
 }
