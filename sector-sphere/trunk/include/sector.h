@@ -221,6 +221,7 @@ public:
    int64_t write(const char* buf, const int64_t& size);
    int64_t download(const char* localpath, const bool& cont = false);
    int64_t upload(const char* localpath, const bool& cont = false);
+   int flush();
    int close();
 
    int64_t seekp(int64_t off, int pos = SF_POS::BEG);

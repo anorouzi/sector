@@ -392,12 +392,13 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       }
 
       RcvData rd;
+      rd.m_iSize = 0;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
-      if (c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0)
+      if ((c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0) || (rd.m_iSize < 0))
       {
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
@@ -554,12 +555,13 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       }
 
       RcvData rd;
+      rd.m_iSize = 0;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
-      if (c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0)
+      if ((c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0) || (rd.m_iSize < 0))
       {
          CGuard::leaveCS(c->m_RcvLock);
          return -1;

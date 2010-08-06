@@ -216,12 +216,12 @@ int FSClient::reopen()
       return -1;
 
    // close connection to the current slave
-   int32_t cmd = 5;
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
-   int response;
-   m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response);
    m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
 
+   // clear current connection information
+   m_strSlaveIP = "";
+   m_iSlaveDataPort = 0;
+   m_vReplicaAddress.clear();
 
    SectorMsg msg;
    msg.setType(112); // open the file
@@ -240,6 +240,11 @@ int FSClient::reopen()
 
    m_strSlaveIP = msg.getData();
    m_iSlaveDataPort = *(int*)(msg.getData() + 64);
+
+   Address addr;
+   addr.m_strIP = m_strSlaveIP;
+   addr.m_iPort = m_iSlaveDataPort;
+   m_vReplicaAddress.push_back(addr);
 
    if (m_pClient->m_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)
       return SectorError::E_CONNECTION;
@@ -390,13 +395,13 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    else
    {
       // write to the first replica failed, re-organize
-      if (flush() < 0)
+      if (flush_() < 0)
          return -1;
    }
 
    if (m_WriteLog.getCurrTotalSize() > m_iWriteBufSize)
    {
-      if (flush() < 0)
+      if (flush_() < 0)
          return -1;
    }
 
@@ -549,9 +554,19 @@ int64_t FSClient::upload(const char* localpath, const bool& cont)
 
    // check replica integrity
    m_WriteLog.insert(0, size);
-   flush();
+   flush_();
 
    return size;
+}
+
+int FSClient::flush()
+{
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
+   CGuard fg(m_FileLock);
+
+   return flush_();
 }
 
 int FSClient::close()
@@ -561,13 +576,18 @@ int FSClient::close()
 
    CGuard fg(m_FileLock);
 
-   flush();
+   flush_();
 
-   // file close command: 5
-   int32_t cmd = 5;
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
-   int response;
-   m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response);
+   for (vector<Address>::iterator i = m_vReplicaAddress.begin(); i != m_vReplicaAddress.end(); ++ i)
+   {
+      // file close command: 5
+      int32_t cmd = 5;
+      if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4) > 0)
+      {
+         int response;
+         m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response);
+      }
+   }
 
    //m_pClient->m_DataChn.releaseCoder();
    m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
@@ -756,7 +776,7 @@ int FSClient::organizeChainOfWrite()
    return 0;
 }
 
-int FSClient::flush()
+int FSClient::flush_()
 {
    char* log = NULL;
    int32_t size = 0;

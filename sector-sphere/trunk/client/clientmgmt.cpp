@@ -473,6 +473,16 @@ int64_t SectorFile::upload(const char* localpath, const bool& cont)
    return f->upload(localpath, cont);
 }
 
+int SectorFile::flush()
+{
+   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+
+   if (NULL == f)
+      return SectorError::E_INVALID;
+
+   return f->flush();
+}
+
 int SectorFile::close()
 {
    FSClient* f = g_ClientMgmt.lookupFS(m_iID);

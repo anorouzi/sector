@@ -2024,8 +2024,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       Transaction t;
       if ((m_TransManager.retrieve(transid, t) < 0) || (key != t.m_iUserKey))
       {
-         msg->setType(-msg->getType());
-         m_GMP.sendto(ip, port, id, msg);
+         reject(ip, port, id, SectorError::E_SECURITY);
          break;
       }
 
@@ -2033,8 +2032,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       m_pMetadata->lookup(t.m_strFile.c_str(), attr);
       if (attr.m_sLocation.size() <= 1)
       {
-         msg->setType(-msg->getType());
-         m_GMP.sendto(ip, port, id, msg);
+         reject(ip, port, id, SectorError::E_RESOURCE);
          break;
       }
 

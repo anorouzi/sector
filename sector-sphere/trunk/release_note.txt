@@ -1,5 +1,8 @@
 version 2.5
 
+fix sector_download bug when local disk is full
+fix udt recvfile bug
+fix reopen on read error bug
 improve write fault tolerance (handle slave node down during a write)
 slave can now restart immediately
 Windows client support

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/time.h>
+#include <sys/vfs.h>
 #include <iostream>
 #include <sector.h>
 #include <conf.h>
@@ -85,8 +86,10 @@ int download(const char* file, const char* dest, Sector& client)
 
       cout << "Downloading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 
-      return 1;
+      return 0;
    }
+
+   cerr << "error happened during downloading " << file << endl;
 
    return -1;
 }
@@ -235,11 +238,23 @@ int main(int argc, char** argv)
          if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
          {
             cerr << "ERROR: unable to create local directory " << localdir << endl;
-            return -1;
+            break;
          }
       }
 
-      download(i->c_str(), localdir.c_str(), client);
+      if (download(i->c_str(), localdir.c_str(), client) < 0)
+      {
+         // calculate total available disk size
+         struct statfs64 dstinfo;
+         statfs64(newdir.c_str(), &dstinfo);
+         int64_t availdisk = dstinfo.f_bfree * dstinfo.f_bsize;
+
+         if (availdisk <= 0)
+         {
+            cerr << "insufficient local disk space. quit.\n";
+            break;
+         }
+      }
    }
 
    client.logout();

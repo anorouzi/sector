@@ -9,7 +9,7 @@ int main(int argc, char** argv)
    CmdLineParser clp;
    if (clp.parse(argc, argv) <= 0)
    {
-      cout << "USAGE: sector_shutdown -a | -i <slave id> | -d <slave IP:port> | -r <rack topo path>\n";
+      cout << "USAGE: send_dbg_cmd -i <slave id> -c <cmd code>\n";
       return -1;
    }
 
