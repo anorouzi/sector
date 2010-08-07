@@ -102,6 +102,7 @@ private:
 
    int m_iWriteBufSize;		// write buffer size
    WriteLog m_WriteLog;		// write log
+   int64_t m_llLastFlushTime;   // last time write is flushed
 
 private:
    pthread_mutex_t m_FileLock;

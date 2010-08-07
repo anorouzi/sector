@@ -44,12 +44,6 @@ written by
 using namespace std;
 
 
-//const int32_t FileChangeType::FILE_UPDATE_NO = 0;
-//const int32_t FileChangeType::FILE_UPDATE_NEW = 1;
-//const int32_t FileChangeType::FILE_UPDATE_WRITE = 2;
-//const int32_t FileChangeType::FILE_UPDATE_REPLICA = 3;
-
-
 TransManager::TransManager():
 m_iTransID(1)
 {
@@ -148,4 +142,13 @@ unsigned int TransManager::getTotalTrans()
    CGuard tl(m_TLLock);
 
    return m_mTransList.size();
+}
+
+int TransManager::addWriteResult(int transid, int slaveid, const std::string& result)
+{
+   CGuard tl(m_TLLock);
+
+   m_mTransList[transid].m_mResults[slaveid] = result;
+
+   return 0;
 }

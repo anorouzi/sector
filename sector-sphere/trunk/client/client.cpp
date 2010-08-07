@@ -49,6 +49,8 @@ written by
 #include <crypto.h>
 #include <common.h>
 #include "client.h"
+#include <fsclient.h>
+#include <dcclient.h>
 #include <iostream>
 
 using namespace std;
@@ -733,6 +735,7 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
 #endif
 {
    Client* self = (Client*)param;
+   int64_t last_heart_beat_time = CTimer::getTime();
 
    while (self->m_bActive)
    {
@@ -740,18 +743,34 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
       timeval t;
       gettimeofday(&t, NULL);
       timespec ts;
-      ts.tv_sec  = t.tv_sec + 60 * 10;
+      ts.tv_sec  = t.tv_sec + 10;
       ts.tv_nsec = t.tv_usec * 1000;
 
       pthread_mutex_lock(&self->m_KALock);
       pthread_cond_timedwait(&self->m_KACond, &self->m_KALock, &ts);
       pthread_mutex_unlock(&self->m_KALock);
 #else
-      WaitForSingleObject(self->m_KACond, 600000);
+      WaitForSingleObject(self->m_KACond, 10000);
 #endif
 
       if (!self->m_bActive)
          break;
+
+      int64_t currtime = CTimer::getTime();
+
+      //check if there is any write data that needs to be flushed
+      CGuard::enterCS(self->m_IDLock);
+      for (map<int, FSClient*>::iterator i = self->m_mFSList.begin(); i != self->m_mFSList.end(); ++ i)
+      {
+         if (currtime - i->second->m_llLastFlushTime > 10000000)
+            i->second->flush();
+      }
+      CGuard::leaveCS(self->m_IDLock);
+
+
+      // send a heart beat to masters every 60 seconds
+      if (CTimer::getTime() - last_heart_beat_time < 60000000)
+         continue;
 
       vector<Address> ml;
       CGuard::enterCS(self->m_MasterSetLock);
@@ -768,6 +787,8 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
          msg.m_iDataLength = SectorMsg::m_iHdrSize;
          self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
       }
+
+      last_heart_beat_time = CTimer::getTime();
    }
 
 #ifndef WIN32

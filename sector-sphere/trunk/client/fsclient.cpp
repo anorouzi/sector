@@ -82,6 +82,7 @@ m_bLocal(false),
 m_pcLocalPath(NULL),
 m_iWriteBufSize(1000000),
 m_WriteLog(),
+m_llLastFlushTime(0),
 m_bOpened(false)
 {
 #ifndef WIN32
@@ -874,6 +875,7 @@ int FSClient::flush_()
       m_pClient->m_Cache.clearWrite(m_strFileName, w->m_llOffset, w->m_llSize);
    }
    m_WriteLog.clear();
+   m_llLastFlushTime = CTimer::getTime();
 
    // all nodes are down, no way to recover
    if (newaddr.empty())

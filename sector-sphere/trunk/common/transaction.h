@@ -53,6 +53,7 @@ struct TransType
    static const int FILE = 1;
    static const int SPHERE = 2;
    static const int DB = 3;
+   static const int REPLICA = 4;
 };
 
 struct FileChangeType
@@ -73,6 +74,8 @@ struct Transaction
    std::set<int> m_siSlaveID;	// set of slave id involved in this transaction
    int m_iUserKey;		// user key
    int m_iCommand;		// user's command, 110, 201, etc.
+
+   std::map<int, std::string> m_mResults;	// results for write operation
 };
 
 class TransManager
@@ -88,6 +91,7 @@ public:
    int retrieve(int slaveid, std::vector<int>& trans);
    int updateSlave(int transid, int slaveid);
    int getUserTrans(int key, std::vector<int>& trans);
+   int addWriteResult(int transid, int slaveid, const std::string& result);
 
 public:
    unsigned int getTotalTrans();

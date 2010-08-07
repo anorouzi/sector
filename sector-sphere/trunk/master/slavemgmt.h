@@ -66,6 +66,7 @@ public:
    int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
    int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0);
    int chooseSPENodes(const Address& client, std::vector<SlaveNode>& sl);
+   int chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Address& addr);
 
 public:
    int serializeTopo(char*& buf, int& size);

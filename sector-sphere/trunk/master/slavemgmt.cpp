@@ -442,7 +442,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
    set<int> locid;
-   for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
       locid.insert(m_mAddrList[*i]);
    }
@@ -453,7 +453,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
 int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
 {
    set<int> locid;
-   for (set<Address>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
       locid.insert(m_mAddrList[*i]);
    }
@@ -479,6 +479,24 @@ int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)
    }
 
    return sl.size();
+}
+
+int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Address& addr)
+{
+   if (loclist.empty())
+      return -1;
+
+   int64_t min_avail_space = -1;
+
+   for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   {
+      int slave_id = m_mAddrList[*i];
+      SlaveNode sn = m_mSlaveList[slave_id];
+      if ((sn.m_llAvailDiskSpace < min_avail_space) || (min_avail_space < 0))
+         addr = *i;
+   }
+
+   return 0;
 }
 
 int SlaveManager::serializeTopo(char*& buf, int& size)

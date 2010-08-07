@@ -128,8 +128,11 @@ private: // replication
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
    int createReplica(const std::string& src, const std::string& dst);
+   int removeReplica(const std::string& filename, const Address& addr);
 
    int populateSpecialRep(const std::string& conf, std::map<std::string, int>& special);
+
+   int processWriteResults(const std::string& filename, std::map<int, std::string> results);
 
 private:
    CGMP m_GMP;						// GMP messenger

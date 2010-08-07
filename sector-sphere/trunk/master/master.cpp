@@ -1118,7 +1118,11 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
          if (change == FileChangeType::FILE_UPDATE_WRITE)
          {
-            m_pMetadata->update(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize);
+            // because there are multiple replicas, wait until all replicas are updated
+            m_TransManager.addWriteResult(transid, slaveid, fileinfo);
+
+            // update the transaction data for write results
+            m_TransManager.retrieve(transid, t);
          }
          else if (change == FileChangeType::FILE_UPDATE_NEW)
          {
@@ -1145,10 +1149,14 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
       }
 
+      // remove this slave from the transaction
+      int r = m_TransManager.updateSlave(transid, slaveid);
+
       // unlock the file, if this is a file operation, and all slaves have completed
       // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
-      if ((t.m_iType == TransType::FILE) && (m_TransManager.updateSlave(transid, slaveid) == 0))
+      if ((t.m_iType == TransType::FILE) && (r == 0))
       {
+         processWriteResults(t.m_strFile, t.m_mResults);
          m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
       }
 
@@ -2513,6 +2521,8 @@ void* Master::replica(void* s)
 {
    Master* self = (Master*)s;
 
+   int64_t last_replica_erase_time = CTimer::getTime();
+
    while (self->m_Status == RUNNING)
    {
       // only the first master is responsible for replica checking
@@ -2525,8 +2535,6 @@ void* Master::replica(void* s)
       vector<string> over_replicated;
 
       // check replica, create or remove replicas if necessary
-      // TODO: replica check may only be done when the system changes (new slave join or slave lost)
-      // TODO: check overreplicated and remove those
       if (self->m_vstrToBeReplicated.empty())
       {
          map<string, int> special;
@@ -2564,12 +2572,26 @@ void* Master::replica(void* s)
       // remove those already been replicated
       self->m_vstrToBeReplicated.erase(self->m_vstrToBeReplicated.begin(), r);
 
+      // over replication should be erased at a longer period, we use 1 hour 
+      if (CTimer::getTime() - last_replica_erase_time < 3600*1000000LL)
+         over_replicated.clear();
+      else if (!over_replicated.empty())
+         last_replica_erase_time = CTimer::getTime();
+
       // remove replicas from those over-replicated files
-      // extra replicas can decrease write performance 
+      // extra replicas can decrease write performance, and occupy disk spaces
       for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
       {
          // choose one replica and remove it
-         // m_pMetadata->removeReplica();
+         SNode attr;
+         if (self->m_pMetadata->lookup(*i, attr) < 0)
+            continue;
+
+         Address addr;
+         if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
+            continue;
+
+         self->removeReplica(*i, addr);
       }
 
       timeval currtime;
@@ -2617,7 +2639,7 @@ int Master::createReplica(const string& src, const string& dst)
          return -1;
    }
 
-   int transid = m_TransManager.create(TransType::FILE, 0, 111, dst, 0);
+   int transid = m_TransManager.create(TransType::REPLICA, 0, 111, dst, 0);
    if (src == dst)
       m_sstrOnReplicate.insert(src);
 
@@ -2641,7 +2663,7 @@ int Master::createReplica(const string& src, const string& dst)
    if (m_pMetadata->lookup(idx.c_str(), attr) < 0)
       return 0;
 
-   transid = m_TransManager.create(TransType::FILE, 0, 111, dst + ".idx", 0);
+   transid = m_TransManager.create(TransType::REPLICA, 0, 111, dst + ".idx", 0);
    if (src == dst)
       m_sstrOnReplicate.insert(idx);
 
@@ -2658,6 +2680,19 @@ int Master::createReplica(const string& src, const string& dst)
    }
 
    m_TransManager.addSlave(transid, sn.m_iNodeID);
+
+   return 0;
+}
+
+int Master::removeReplica(const std::string& filename, const Address& addr)
+{
+   SectorMsg msg;
+   msg.setData(0, filename.c_str(), filename.length() + 1);
+
+   int32_t id = 0;
+   m_GMP.sendto(addr.m_strIP, addr.m_iPort, id, &msg);
+
+   m_pMetadata->removeReplica(filename, addr);
 
    return 0;
 }
@@ -2810,9 +2845,12 @@ int Master::removeSlave(const int& id, const Address& addr)
 
       int r = m_TransManager.updateSlave(*i, id);
 
-      // last slave released, unlock the file
+      // if this is the last slave released, unlock the file
       if ((t.m_iType == TransType::FILE) && (r == 0))
+      {
+         processWriteResults(t.m_strFile, t.m_mResults);
          m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
+      }
    }
 
    m_SlaveManager.remove(id);
@@ -2831,6 +2869,58 @@ int Master::removeSlave(const int& id, const Address& addr)
          continue;
 
       m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &msg, &msg);
+   }
+
+   return 0;
+}
+
+int Master::processWriteResults(const string& filename, map<int, string> results)
+{
+   // if no replica was changed, return now
+   if (results.empty())
+      return 0;
+
+   int64_t timestamp = -1;
+   int64_t size = -1;
+   set<int> success;
+
+   for (map<int, string>::iterator i = results.begin(); i != results.end(); ++ i)
+   {
+      SNode node;
+      node.deserialize(i->second.c_str());
+
+      // keep the latest copy
+      if (node.m_llTimeStamp > timestamp)
+      {
+         timestamp = node.m_llTimeStamp;
+         size = node.m_llSize;
+      }
+   }
+
+   for (map<int, string>::iterator i = results.begin(); i != results.end(); ++ i)
+   {
+      SNode node;
+      node.deserialize(i->second.c_str());
+
+      if ((node.m_llTimeStamp == timestamp) && (node.m_llSize == size))
+         success.insert(i->first);
+   }
+
+   //update file with new timestamp and size
+   m_pMetadata->update(filename, timestamp, size);
+
+   SNode attr;
+   m_pMetadata->lookup(filename, attr);
+
+   // all replicas are successfully updated
+   if (attr.m_sLocation.size() == success.size())
+      return 0;
+
+   // remove those replicas with bad data
+   for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+   {
+      if (success.find(m_SlaveManager.getSlaveID(*i)) != success.end())
+         m_pMetadata->removeReplica(filename, *i);
    }
 
    return 0;
