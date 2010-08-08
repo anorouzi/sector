@@ -1375,9 +1375,12 @@ int Slave::readSectorFile(const string& filename, const int64_t& offset, const i
    string srcip = msg.getData() + 24;
    int32_t srcport = *(int32_t*)(msg.getData() + 64 + 24);
 
-   cout << "rendezvous connect " << srcip << " " << srcport << endl;
-   if (m_DataChn.connect(srcip, srcport) < 0)
-      return -1;
+   // connect to the slave node with the file.
+   if (!m_DataChn.isConnected(srcip, srcport))
+   {
+      if (m_DataChn.connect(srcip, srcport) < 0)
+         return -1;
+   }
 
    int32_t cmd = 1;
    m_DataChn.send(srcip, srcport, session, (char*)&cmd, 4);

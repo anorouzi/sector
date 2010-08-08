@@ -583,15 +583,16 @@ int FSClient::close()
    {
       // file close command: 5
       int32_t cmd = 5;
-      if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4) > 0)
+      if (m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4) > 0)
       {
          int response;
-         m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response);
+         m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, response);
       }
+
+      m_pClient->m_DataChn.remove(i->m_strIP, i->m_iPort);
    }
 
    //m_pClient->m_DataChn.releaseCoder();
-   m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
 
    m_pClient->m_Cache.remove(m_strFileName);
 

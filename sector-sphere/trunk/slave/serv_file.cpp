@@ -182,6 +182,8 @@ void* Slave::fileHandler(void* p)
             if (!io_status || (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, secure_transfer) < size))
                io_status = false;
 
+            //TODO: send imcomplete write to next slave on chain, rather than -1
+
             if (dst_port > 0)
             {
                // send offset and size parameters

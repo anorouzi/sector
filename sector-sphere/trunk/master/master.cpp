@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/20/2010
+   Yunhong Gu, last updated 08/06/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -2620,8 +2620,10 @@ int Master::createReplica(const string& src, const string& dst)
       if (attr.m_bIsDir)
       {
          // replicate a directory, only if there is ".nosplit" in the current directory
+         // locate src/.nosplit, but use the *total directory size*, note sub_attr and attr
+
          SNode sub_attr;
-         if (m_pMetadata->lookup((src + "/.nosplit").c_str(), attr) < 0)
+         if (m_pMetadata->lookup((src + "/.nosplit").c_str(), sub_attr) < 0)
             return -1;
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize) < 0)
             return -1;
@@ -2687,6 +2689,7 @@ int Master::createReplica(const string& src, const string& dst)
 int Master::removeReplica(const std::string& filename, const Address& addr)
 {
    SectorMsg msg;
+   msg.setType(105);
    msg.setData(0, filename.c_str(), filename.length() + 1);
 
    int32_t id = 0;
@@ -2919,8 +2922,8 @@ int Master::processWriteResults(const string& filename, map<int, string> results
    // remove those replicas with bad data
    for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
    {
-      if (success.find(m_SlaveManager.getSlaveID(*i)) != success.end())
-         m_pMetadata->removeReplica(filename, *i);
+      if (success.find(m_SlaveManager.getSlaveID(*i)) == success.end())
+         removeReplica(filename, *i);
    }
 
    return 0;

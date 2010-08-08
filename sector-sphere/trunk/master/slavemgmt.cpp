@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/21/2010
+   Yunhong Gu, last updated 08/07/2010
 *****************************************************************************/
 
 #include <slavemgmt.h>
@@ -259,7 +259,7 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
       id = -1;
       for (map<int, SlaveNode>::const_iterator s = m_mSlaveList.begin(); s != m_mSlaveList.end(); ++ s)
       {
-         if (s->second.m_strStoragePath == *j)
+         if ((s->second.m_strIP == ip) && (s->second.m_strStoragePath == *j))
          {
             id = s->first;
             addr.m_strIP = s->second.m_strIP;

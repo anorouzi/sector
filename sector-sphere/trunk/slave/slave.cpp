@@ -432,7 +432,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       system(sysrm.c_str());
 
       char* tmp = new char[64 + strlen(path)];
-      sprintf(tmp, "removed directory %s.", path);
+      sprintf(tmp, "dir/file %s is deleted.", path);
       m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 

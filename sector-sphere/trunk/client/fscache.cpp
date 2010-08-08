@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/23/2010
+   Yunhong Gu, last updated 08/07/2010
 *****************************************************************************/
 
 #include <string.h>
@@ -96,17 +96,8 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
       return;
    }
 
-   // the file has been changed by others, remove all cache data
    if ((s->second.m_llTimeStamp != ts) || (s->second.m_llSize != size))
    {
-      map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
-      if (c != m_mCacheBlocks.end())
-      {
-         for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
-            delete [] i->m_pcBlock;
-         m_mCacheBlocks.erase(c);
-      }
-
       s->second.m_bChange = true;
       s->second.m_llTimeStamp = ts;
       s->second.m_llSize = size;
@@ -174,9 +165,29 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
    if (c == m_mCacheBlocks.end())
       m_mCacheBlocks[path].push_front(cb);
    else
-      c->second.push_back(cb);
+      c->second.push_front(cb);
 
    m_llCacheSize += cb.m_llSize;
+
+   if (write)
+   {
+      //write invalidates all caches overlap with this block
+      c = m_mCacheBlocks.find(path);
+      for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end();)
+      {
+         if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset) && !i->m_bWrite)
+         {
+            list<CacheBlock>::iterator j = i;
+            ++ i;
+            c->second.erase(j);
+         }
+         else
+         {
+            ++ i;
+         }
+      }
+   }
+
    shrink();
 
    return 0;
@@ -205,6 +216,10 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
          s->second.m_llLastAccessTime = i->m_llLastAccessTime;
          return size;
       }
+
+      // search should not go further if an overlap block is found, due to possible write conflict (multiple writes on the same block)
+      if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset))
+         break;
    }
 
    return 0;

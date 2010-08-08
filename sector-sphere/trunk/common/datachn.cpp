@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/26/2010
+   Yunhong Gu, last updated 08/07/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -148,21 +148,27 @@ int DataChn::connect(const string& ip, int port)
    addr.m_strIP = ip;
    addr.m_iPort = port;
 
+   ChnInfo* c = NULL;
+
    CGuard::enterCS(m_ChnLock);
+
    map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
    if (i != m_mChannel.end())
    {
       if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
       {
+         // data channel already exists, increase reference count, and return
+         i->second->m_iCount ++;
          CGuard::leaveCS(m_ChnLock);
          return 0;
       }
+
+      // the existing data channel is already broken, create a new one
       delete i->second->m_pTrans;
       i->second->m_pTrans = NULL;
+      c = i->second;
    }
-
-   ChnInfo* c = NULL;
-   if (i == m_mChannel.end())
+   else
    {
       c = new ChnInfo;
       c->m_pTrans = NULL;
@@ -175,35 +181,26 @@ int DataChn::connect(const string& ip, int port)
       c->m_RcvLock = CreateMutex(NULL, false, NULL);
       c->m_QueueLock = CreateMutex(NULL, false, NULL);
 #endif
-      c->m_iCount = 0;
       c->m_llTotalQueueSize = 0;
       m_mChannel[addr] = c;
-   }
-   else
-   {
-      c = i->second;
    }
    CGuard::leaveCS(m_ChnLock);
 
    CGuard::enterCS(c->m_SndLock);
-   if ((NULL != c->m_pTrans) && c->m_pTrans->isConnected())
-   {
-      c->m_iCount ++;
-      CGuard::leaveCS(c->m_SndLock);
-      return 0;
-   }
 
    Transport* t = new Transport;
    t->open(m_iPort, true, true);
    int r = t->connect(ip.c_str(), port);
 
-   if (NULL == c->m_pTrans)
+   if (r >= 0)
+   {
+      // new channel, first connection
       c->m_pTrans = t;
+      c->m_iCount = 1;
+   }
    else
    {
-      Transport* tmp = c->m_pTrans;
-      c->m_pTrans = t;
-      delete tmp;
+      delete t;
    }
 
    CGuard::leaveCS(c->m_SndLock);
