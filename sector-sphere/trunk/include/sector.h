@@ -142,9 +142,6 @@ public:
       int64_t m_llTotalOutputData;
    };
    std::vector<ClusterStat> m_vCluster;
-
-public:
-   void print();
 };
 
 class SectorFile;
