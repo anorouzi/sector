@@ -208,13 +208,15 @@ void* Slave::SPEHandler(void* p)
 
    SectorMsg msg;
 
-   cout << "rendezvous connect " << ip << " " << dataport << endl;
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect " << ip << " " << dataport << LogStringTag(LogTag::END);
+
    if (self->m_DataChn.connect(ip, dataport) < 0)
    {
-      self->logError(2, ip, ctrlport, function);
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "failed to connect to spe client " << ip << ":" << ctrlport << " " << function << LogStringTag(LogTag::END);
       return NULL;
    }
-   cout << "connected\n";
+
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "connected." << LogStringTag(LogTag::END);
 
    // read outupt parameters
    int buckets;
@@ -252,7 +254,7 @@ void* Slave::SPEHandler(void* p)
    self->openLibrary(key, function, lh);
    if (NULL == lh)
    {
-      self->logError(3, ip, ctrlport, function);
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "failed to open SPE library " << ip << ":" << ctrlport << " " << function << LogStringTag(LogTag::END);
       return NULL;
    }
 
@@ -288,7 +290,8 @@ void* Slave::SPEHandler(void* p)
       string datafile = dataseg + 20;
       sprintf(dest.m_pcLocalFileID, ".%d", dsid);
       delete [] dataseg;
-      cout << "new job " << datafile << " " << offset << " " << totalrows << endl;
+
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "new job " << datafile << " " << offset << " " << totalrows << LogStringTag(LogTag::END);
 
       int64_t* index = NULL;
       if ((totalrows > 0) && (rows != 0))
@@ -452,7 +455,7 @@ void* Slave::SPEHandler(void* p)
       else
          progress = 100;
 
-      cout << "completed " << progress << " " << ip << " " << ctrlport << endl;
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "completed " << progress << " " << ip << " " << ctrlport << LogStringTag(LogTag::END);
 
       msg.setData(4, (char*)&progress, 4);
 
@@ -462,7 +465,6 @@ void* Slave::SPEHandler(void* p)
          int id = 0;
          self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
 
-         cout << "sending data back... " << buckets << endl;
          self->sendResultToClient(buckets, dest.m_piSArray, dest.m_piRArray, result, ip, dataport, transid);
          dest.reset(buckets);
 
@@ -506,7 +508,7 @@ void* Slave::SPEHandler(void* p)
    self->closeLibrary(lh);
    self->m_DataChn.remove(ip, dataport);
 
-   cout << "comp server closed " << ip << " " << ctrlport << " " << duration << endl;
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "comp server closed " << ip << " " << ctrlport << " " << duration << LogStringTag(LogTag::END);
 
    delete [] param;
 
@@ -572,7 +574,7 @@ void* Slave::SPEShuffler(void* p)
    pthread_create(&ex, NULL, SPEShufflerEx, p);
    pthread_detach(ex);
 
-   cout << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << endl;
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogStringTag(LogTag::END);
 
    while (true)
    {
@@ -791,7 +793,8 @@ void* Slave::SPEShufflerEx(void* p)
 
    self->reportSphere(master_ip, master_port, transid);
 
-   cout << "bucket completed 100 " << client_ip << " " << client_port << endl;
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "bucket completed 100 " << client_ip << " " << client_port << LogStringTag(LogTag::END);
+
    SectorMsg msg;
    msg.setType(1); // success, return result
    msg.setData(0, (char*)&(bucketid), 4);

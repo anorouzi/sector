@@ -306,7 +306,7 @@ void Slave::run()
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
          break;
 
-      cout << "recv cmd " << ip << " " << port << " type " << msg->getType() << endl;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "recv cmd " << ip << " " << port << " type " << msg->getType() << LogStringTag(LogTag::END);
 
       // a slave only accepts commands from the masters
       Address addr;
@@ -406,10 +406,10 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
    case 103: // mkdir
    {
       createDir(msg->getData());
-      char* tmp = new char[64 + strlen(msg->getData())];
-      sprintf(tmp, "created new directory %s.", msg->getData());
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      // TODO: update metatdata
+
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "created new directory " << msg->getData() << LogStringTag(LogTag::END);
+
       break;
    }
 
@@ -421,6 +421,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
       move(src, dst, newname);
+
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogStringTag(LogTag::END);
+
       break;
    }
 
@@ -431,10 +434,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
       system(sysrm.c_str());
 
-      char* tmp = new char[64 + strlen(path)];
-      sprintf(tmp, "dir/file %s is deleted.", path);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file " << path << " is deleted." << LogStringTag(LogTag::END);
 
       break;
    }
@@ -448,13 +448,13 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       ut.modtime = *(int64_t*)(msg->getData() + strlen(path) + 1);;
       utime((m_strHomeDir + path).c_str(), &ut);
 
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file " << path << " timestamp changed " << LogStringTag(LogTag::END);
+
       break;
    }
 
    case 110: // open file
    {
-      cout << "===> start file server " << ip << " " << port << endl;
-
       Param2* p = new Param2;
       p->serv_instance = this;
       p->client_ip = msg->getData();
@@ -480,10 +480,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
          break;
       }
 
-      char* tmp = new char[64 + p->filename.length()];
-      sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->client_ip.c_str(), p->client_port);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogStringTag(LogTag::END);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -508,10 +505,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      char* tmp = new char[64 + p->src.length() + p->dst.length()];
-      sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "creating replica " << p->src << " " << p->dst << LogStringTag(LogTag::END);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -561,11 +555,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << endl;
-      char* tmp = new char[64 + p->function.length()];
-      sprintf(tmp, "starting SPE ... %d %d %s %d.", p->speid, p->client_data_port, p->function.c_str(), p->transid);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << LogStringTag(LogTag::END);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -610,10 +600,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      char* tmp = new char[64 + p->filename.length()];
-      sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "starting SPE Bucket ... " << p->filename << " " << p->key << " " << p->type << " " << p->transid << LogStringTag(LogTag::END);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -837,8 +824,6 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
       pos += bufsize + 4;
    }
 
-   cout << "report " << master_ip << " " << master_port << " " << num << endl;
-
    //TODO: if the current master is down, try a different master
    if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
@@ -932,8 +917,6 @@ int Slave::reportSphere(const string& master_ip, const int& master_port, const i
       msg.setData(12 + 68 * i, (*bad)[i].m_strIP.c_str(), (*bad)[i].m_strIP.length() + 1);
       msg.setData(12 + 68 * i + 64, (char*)&((*bad)[i].m_iPort), 4);
    }
-
-   cout << "reportSphere " << master_ip << " " << master_port << " " << transid << endl;
 
    if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
@@ -1201,31 +1184,4 @@ int SlaveStat::serializeIOStat(char* buf, unsigned int size)
    pthread_mutex_unlock(&m_StatLock);
 
    return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
-}
-
-void Slave::logError(int type, const string& ip, const int& port, const string& name)
-{
-   char* tmp = new char[64 + name.length()];
-
-   switch (type)
-   {
-   case 1:
-      sprintf(tmp, "failed to connect to file client %s:%d %s.", ip.c_str(), port, name.c_str());
-      break;
-
-   case 2:
-      sprintf(tmp, "failed to connect spe client %s:%d %s.", ip.c_str(), port, name.c_str());
-      break;
-
-   case 3:
-      sprintf(tmp, "failed to load spe library %s:%d %s.", ip.c_str(), port, name.c_str());
-      break;
-
-   default:
-      sprintf(tmp, "unknown error.");
-      break;
-   }
-
-   m_SectorLog.insert(tmp, 2);
-   delete [] tmp;
 }

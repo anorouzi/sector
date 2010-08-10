@@ -8,7 +8,6 @@ OBJS = conf.o \
        memobj.o \
        transaction.o \
        topology.o \
-       sysstat.o \
        log.o \
        sphere.o \
        constant.o \

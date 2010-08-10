@@ -79,7 +79,6 @@ int Master::init()
    if (ConfLocation::locate(m_strSectorHome) < 0)
    {
       cerr << "unable to read/parse configuration file.\n";
-      m_SectorLog.insert("unable to read/parse configuration file.");
       return -1;
    }
 
@@ -87,7 +86,6 @@ int Master::init()
    if (m_SysConfig.init(m_strSectorHome + "/conf/master.conf") < 0)
    {
       cerr << "unable to read/parse configuration file.\n";
-      m_SectorLog.insert("unable to read/parse configuration file.");
       return -1;
    }
 
@@ -95,7 +93,6 @@ int Master::init()
    if (stat((m_strSectorHome + "/conf/topology.conf").c_str(), &s) < 0)
    {
       cerr << "Warning: no topology configuration found.\n";
-      m_SectorLog.insert("Warning: no topology configuration found.");
    }
 
    m_SlaveManager.init((m_strSectorHome + "/conf/topology.conf").c_str());
@@ -111,7 +108,6 @@ int Master::init()
       if (errno != ENOENT)
       {
          cerr << "unable to configure home directory.\n";
-         m_SectorLog.insert("unable to configure home directory.");
          return -1;
       }
 
@@ -137,7 +133,6 @@ int Master::init()
       || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
    {
       cerr << "unable to create home directory.\n";
-      m_SectorLog.insert("unable to create home directory.");
       return -1;
    }
 
@@ -169,7 +164,6 @@ int Master::init()
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
    {
       cerr << "cannot initialize GMP.\n";
-      m_SectorLog.insert("cannot initialize GMP.");
       return -1;
    }
 
@@ -178,7 +172,6 @@ int Master::init()
    if (secconn.initClientCTX((m_strSectorHome + "/conf/security_node.cert").c_str()) < 0)
    {
       cerr << "No security node certificate found.\n";
-      m_SectorLog.insert("No security node certificate found.");
       return -1;
    }
    secconn.open(NULL, 0);
@@ -186,7 +179,6 @@ int Master::init()
    {
       secconn.close();
       cerr << "Failed to find security server.\n";
-      m_SectorLog.insert("Failed to find security server.");
       return -1;
    }
 
@@ -388,10 +380,7 @@ int Master::run()
       m_UserManager.checkInactiveUsers(iu, m_SysConfig.m_iClientTimeOut);
       for (vector<User*>::iterator i = iu.begin(); i != iu.end(); ++ i)
       {
-         char* text = new char[64 + (*i)->m_strName.length()];
-         sprintf(text, "User %s timeout. Kicked out.", (*i)->m_strName.c_str());
-         m_SectorLog.insert(text);
-         delete [] text;
+         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " timeout. Kicked out." << LogStringTag(LogTag::END);
          delete *i;
       }
 
@@ -737,15 +726,11 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
       branch->clear();
       delete branch;
 
-      char text[64];
-      sprintf(text, "Slave node %s:%d joined.", ip.c_str(), sn.m_iPort);
-      m_SectorLog.insert(text);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << ip << ":" << sn.m_iPort << " joined." << LogStringTag(LogTag::END);
    }
    else
    {
-      char text[64];
-      sprintf(text, "Slave node %s join rejected.", ip.c_str());
-      m_SectorLog.insert(text);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogStringTag(LogTag::END);
    }
 
    return 0;
@@ -818,9 +803,7 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
 
       m_UserManager.insert(au);
 
-      char text[128];
-      sprintf(text, "User %s login from %s", user, ip.c_str());
-      m_SectorLog.insert(text);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << user << " login from " << ip << LogStringTag(LogTag::END);
 
       if (ukey <= 0)
       {
@@ -848,9 +831,7 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
    }
    else
    {
-      char text[128];
-      sprintf(text, "User %s login rejected from %s", user, ip.c_str());
-      m_SectorLog.insert(text);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << user << " login rejected from " << ip << LogStringTag(LogTag::END);
    }
 
    return 0;
@@ -1175,9 +1156,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
    case 2: // client logout
    {
-      char text[128];
-      sprintf(text, "User %s logout from %s.", user->m_strName.c_str(), ip.c_str());
-      m_SectorLog.insert(text);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << user->m_strName << " logout from " << ip << LogStringTag(LogTag::END);
 
       m_UserManager.remove(key);
 
@@ -1352,9 +1331,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          m_SlaveManager.remove(i->first);
          m_pMetadata->substract("/", i->second);
 
-         char text[64];
-         sprintf(text, "Slave node %s:%d is shutdown.", i->second.m_strIP.c_str(), i->second.m_iPort);
-         m_SectorLog.insert(text);
+         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << i->second.m_strIP << ":" << i->second.m_iPort << " is shutdown." << LogStringTag(LogTag::END);
 
          // send lost slave info to all existing masters
          map<uint32_t, Address> al;

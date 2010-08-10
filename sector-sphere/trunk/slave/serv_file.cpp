@@ -77,15 +77,15 @@ void* Slave::fileHandler(void* p)
 
    bool run = true;
 
-   cout << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << endl;
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
 
    if (self->m_DataChn.connect(client_ip, client_port) < 0)
    {
-      self->logError(1, client_ip, client_port, sname);
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "failed to connect to file client " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
       return NULL;
    }
 
-   cout << "connected\n";
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "connected." <<  LogStringTag(LogTag::END);
 
    if (bSecure)
       self->m_DataChn.setCryptoKey(client_ip, client_port, crypto_key, crypto_iv);
@@ -434,12 +434,8 @@ void* Slave::fileHandler(void* p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   cout << "file server closed " << src_ip << " " << src_port << " " << avgRS << endl;
-
-   char* tmp = new char[64 + sname.length()];
-   sprintf(tmp, "file server closed ... %s %f %f.", sname.c_str(), avgRS, avgWS);
-   self->m_SectorLog.insert(tmp);
-   delete [] tmp;
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "file server closed " << src_ip << " " << src_port << " " << avgWS << " " << avgRS << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << avgWS << " " << avgRS << LogStringTag(LogTag::END);
 
    //report to master the task is completed
    self->report(master_ip, master_port, transid, sname, change);

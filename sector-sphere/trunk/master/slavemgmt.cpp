@@ -554,13 +554,7 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
    if (s->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
    {
       if (s->second.m_iStatus == 1)
-      {
-         //char text[64];
-         //sprintf(text, "Slave %s has less than minimum available disk space left.", s->second.m_strIP.c_str());
-         //m_SectorLog.insert(text);
-
          s->second.m_iStatus = 2;
-      }
    }
    else
    {

@@ -314,8 +314,6 @@ private: // local FS status
 
    int getFileList(const std::string& path, std::vector<std::string>& filelist);
 
-   void logError(int type, const std::string& ip, const int& port, const std::string& name);
-
    int checkBadDest(std::multimap<int64_t, Address>& sndspd, std::vector<Address>& bad);
 
 private: // optional: check local FS change

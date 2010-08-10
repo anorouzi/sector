@@ -40,12 +40,19 @@ written by
 
 
 #include "log.h"
+#include <common.h>
 #include <time.h>
 #include <string>
 #include <cstring>
 #include <iostream>
 
 using namespace std;
+
+LogStringTag::LogStringTag(const int tag, const int level)
+{
+   m_iTag = tag;
+   m_iLevel = level;
+}
 
 SectorLog::SectorLog():
 m_iLevel(1),
@@ -89,12 +96,73 @@ void SectorLog::setLevel(const int level)
       m_iLevel = level;
 }
 
-void SectorLog::insert(const char* text, const int level)
+SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 {
+   CGuard lg(m_LogLock);
+
+   if (tag.m_iTag == LogTag::START)
+   {
+      LogString ls;
+      ls.m_iLevel = tag.m_iLevel;
+      int key = pthread_self();
+      m_mStoredString[key] = ls;
+   }
+   else if (tag.m_iTag == LogTag::END)
+   {
+      int key = pthread_self();
+      map<int, LogString>::iterator i = m_mStoredString.find(key);
+      if (i != m_mStoredString.end())
+      {
+         insert_((i->second.m_strLog + "\n").c_str(), i->second.m_iLevel);
+         m_mStoredString.erase(i);
+      }
+   }
+
+   return *this;
+}
+
+SectorLog& SectorLog::operator<<(const std::string& message)
+{
+   CGuard lg(m_LogLock);
+
+   int key = pthread_self();
+   map<int, LogString>::iterator i = m_mStoredString.find(key);
+   if (i != m_mStoredString.end())
+   {
+      i->second.m_strLog += message;
+   }
+
+   return *this;
+}
+
+SectorLog& SectorLog::operator<<(const int64_t& val)
+{
+   CGuard lg(m_LogLock);
+
+   int key = pthread_self();
+   map<int, LogString>::iterator i = m_mStoredString.find(key);
+   if (i != m_mStoredString.end())
+   {
+      char buf[64];
+      sprintf(buf, "%lld", val);
+      i->second.m_strLog += buf;
+   }
+
+   return *this;
+}
+
+void SectorLog::insert_(const char* text, const int level)
+{
+   #ifdef DEBUG
+   if (level == LogLevel::SCREEN)
+   {
+      cout << text;
+      return;
+   }
+   #endif
+
    if (level > m_iLevel)
       return;
-
-   pthread_mutex_lock(&m_LogLock);
 
    checkLogFile();
 
@@ -104,8 +172,12 @@ void SectorLog::insert(const char* text, const int level)
    ct[strlen(ct) - 1] = '\0';
    m_LogFile << ct << "\t" << text << endl;
    m_LogFile.flush();
+}
 
-   pthread_mutex_unlock(&m_LogLock);
+void SectorLog::insert(const char* text, const int level)
+{
+   CGuard lg(m_LogLock);
+   insert_(text, level);
 }
 
 void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level)
