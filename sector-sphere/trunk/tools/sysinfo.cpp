@@ -37,12 +37,17 @@ string format(const string& str, const int len)
    return fmt_str;
 }
 
-string format(const int64_t& val, const int len)
+string toString(const int64_t& val)
 {
    char buf[64];
    sprintf(buf, "%lld", val);
 
-   return format(buf, len);
+   return buf;
+}
+
+string format(const int64_t& val, const int len)
+{
+   return format(toString(val), len);
 }
 
 void print(const SysStat& s)
@@ -97,7 +102,7 @@ void print(const SysStat& s)
 
    cout << "------------------------------------------------------------\n";
    cout << format("SLAVE_ID", 10)
-        << format("IP", 16)
+        << format("Address", 24)
         << format("TS(us)", 20)
         << format("AvailDisk(MB)", 15)
         << format("TotalFile(MB)", 15)
@@ -109,7 +114,7 @@ void print(const SysStat& s)
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
       cout << format(i->m_iID, 10)
-           << format(i->m_strIP, 16)
+           << format(i->m_strIP + ":" + toString(i->m_iPort) , 24)
            << format(i->m_llTimeStamp, 20)
            << format(format(i->m_llAvailDiskSpace / MB), 15)
            << format(format(i->m_llTotalFileSize / MB), 15)

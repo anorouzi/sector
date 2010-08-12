@@ -845,6 +845,7 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    {
       i->m_iID = *(int32_t*)p;
       i->m_strIP = p + 4;
+      i->m_iPort = *(int32_t*)(p + 20);
       i->m_llAvailDiskSpace = *(int64_t*)(p + 24);
       i->m_llTotalFileSize = *(int64_t*)(p + 32);
       i->m_llCurrMemUsed = *(int64_t*)(p + 40);
