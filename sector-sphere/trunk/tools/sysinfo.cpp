@@ -68,7 +68,14 @@ void print(const SysStat& s)
 
    cout << "------------------------------------------------------------\n";
 
-   cout << "Total number of clusters:    " << s.m_vCluster.size() << endl;
+   int total_cluster = 0;
+   for (vector<SysStat::ClusterStat>::const_iterator i = s.m_vCluster.begin(); i != s.m_vCluster.end(); ++ i)
+   {
+      if (i->m_iTotalNodes > 0)
+         ++ total_cluster;
+   }
+
+   cout << "Total number of clusters:    " << total_cluster << endl;
    cout << format("Cluster_ID", 12)
         << format("Total_Nodes", 12)
         << format("AvailDisk(MB)", 15)
@@ -77,6 +84,9 @@ void print(const SysStat& s)
         << format("NetOut(MB)", 10) << endl;
    for (vector<SysStat::ClusterStat>::const_iterator i = s.m_vCluster.begin(); i != s.m_vCluster.end(); ++ i)
    {
+      if (i->m_iTotalNodes <= 0)
+         continue;
+
       cout << format(i->m_iClusterID, 12)
            << format(i->m_iTotalNodes, 12)
            << format(format(i->m_llAvailDiskSpace / MB), 15)

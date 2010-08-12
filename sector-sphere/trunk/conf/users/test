@@ -13,8 +13,7 @@ READ_PERMISSION
 
 #directories that the user can write or modify
 WRITE_PERMISSION
-	/angle
-	/
+	/test
 
 #if the user is allowed to run Sphere process, default is false.
 #All capital letters "TRUE" must be used, otherwise it will be treated as false

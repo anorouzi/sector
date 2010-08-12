@@ -928,7 +928,28 @@ int Client::sendDebugCode(const int32_t& slave_id, const int32_t& code)
    SectorMsg msg;
    msg.setKey(m_iKey);
    msg.setType(code);
-   msg.setData(0, (char*)&slave_id, 4);
+   int32_t type = 0;
+   msg.setData(0, (char*)&type, 4);
+   msg.setData(4, (char*)&slave_id, 4);
+   return m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg);
+}
+
+int Client::sendDebugCode(const string& slave_addr, const int32_t& code)
+{
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(code);
+   int32_t type = 1;
+   msg.setData(0, (char*)&type, 4);
+   string ip = slave_addr.substr(0, slave_addr.find(':'));
+   int32_t port = atoi(slave_addr.substr(slave_addr.find(':') + 1, slave_addr.length() - ip.length() - 1).c_str());
+   msg.setData(4, ip.c_str(), ip.length() + 1);
+   msg.setData(68, (char*)&port, 4);
+
    return m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg);
 }
 #endif

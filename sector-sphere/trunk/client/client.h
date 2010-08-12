@@ -91,6 +91,7 @@ public:
 
    #ifdef DEBUG
    int sendDebugCode(const int32_t& slave_id, const int32_t& code);
+   int sendDebugCode(const std::string& slave_addr, const int32_t& code);
    #endif
 
 public:

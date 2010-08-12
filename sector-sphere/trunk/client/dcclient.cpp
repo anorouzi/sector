@@ -1268,8 +1268,16 @@ int DCClient::prepareOutput(const char* spenodes)
          cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
          Address serv;
          m_pClient->m_Routing.getPrimaryMaster(serv);
-         if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
+         if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
             continue;
+
+         if (msg.getType() < 0)
+         {
+            if (*(int32_t*)msg.getData() == SectorError::E_PERMISSION)
+               break;
+            else
+               continue;
+         }
 
          BUCKET b;
          b.m_iID = i;

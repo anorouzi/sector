@@ -2189,6 +2189,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if ((m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
+         m_TransManager.updateSlave(transid, slaveid);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start SPE", "", "SLAVE FAILURE", "", 8);
          break;
       }
@@ -2204,7 +2205,10 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
 
    case 204: // start shuffler
    {
-      if (!user->m_bExec)
+      string path = msg->getData() + 80;
+
+      // check user sphere exec permission and output path write permission
+      if (!user->m_bExec || !user->match(path.c_str(), SF_MODE::WRITE));
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start Shuffler", "", "REJECTED DUE TO PERMISSION", "", 8);
@@ -2226,6 +2230,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if ((m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, msg, msg) < 0) || (msg->getType() < 0))
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
+         m_TransManager.updateSlave(transid, m_SlaveManager.getSlaveID(addr));
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start Shuffler", "", "SLAVE FAILURE", "", 8);
          break;
       }
@@ -2328,11 +2333,21 @@ int Master::processDebugCmd(const string& ip, const int port,  const User* user,
    {
    case 9901:
    {
-      int32_t slave_id = *(int32_t*)msg->getData();
+      int32_t type = *(int32_t*)msg->getData();
       Address addr;
-      m_SlaveManager.getSlaveAddr(slave_id, addr);
-      int32_t id2 = 0;
-      m_GMP.sendto(addr.m_strIP, addr.m_iPort, id2, msg);
+      if (type == 0)
+      {
+         int32_t slave_id = *(int32_t*)(msg->getData() + 4);
+         m_SlaveManager.getSlaveAddr(slave_id, addr);
+      }
+      else
+      {
+         addr.m_strIP = msg->getData() + 4;
+         addr.m_iPort = *(int32_t*)(msg->getData() + 68);
+      }
+
+      int32_t msg_id = 0;
+      m_GMP.sendto(addr.m_strIP, addr.m_iPort, msg_id, msg);
 
       m_GMP.sendto(ip, port, id, msg);
 
@@ -2341,11 +2356,21 @@ int Master::processDebugCmd(const string& ip, const int port,  const User* user,
 
    case 9902:
    {
-      int32_t slave_id = *(int32_t*)msg->getData();
+      int32_t type = *(int32_t*)msg->getData();
       Address addr;
-      m_SlaveManager.getSlaveAddr(slave_id, addr);
-      int32_t id2 = 0;
-      m_GMP.sendto(addr.m_strIP, addr.m_iPort, id2, msg);
+      if (type == 0)
+      {
+         int32_t slave_id = *(int32_t*)(msg->getData() + 4);
+         m_SlaveManager.getSlaveAddr(slave_id, addr);
+      }
+      else
+      {
+         addr.m_strIP = msg->getData() + 4;
+         addr.m_iPort = *(int32_t*)(msg->getData() + 68);
+      }
+
+      int32_t msg_id = 0;
+      m_GMP.sendto(addr.m_strIP, addr.m_iPort, msg_id, msg);
 
       m_GMP.sendto(ip, port, id, msg);
 
