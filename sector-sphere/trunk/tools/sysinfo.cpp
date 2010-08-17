@@ -1,9 +1,34 @@
+/*****************************************************************************
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 01/12/2010
+*****************************************************************************/
+
 #include <sector.h>
 #include <conf.h>
 #include <iostream>
 
 using namespace std;
 
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+}
 
 string format(const int64_t& val)
 {
@@ -16,13 +41,20 @@ string format(const int64_t& val)
       left = left / 1000;
 
       char buf[8];
-      sprintf(buf, "%d", section);
+      if (left > 0)
+         sprintf(buf, "%03d", section);
+      else
+         sprintf(buf, "%d", section);
 
-      if (fmt_val.length() == 0)
+      if (fmt_val.c_str()[0] == 0)
          fmt_val = buf;
       else
-         fmt_val = fmt_val + "," + buf;
+         fmt_val = string(buf) + "," + fmt_val;
    }
+
+   // nothing left, assign 0
+   if (fmt_val.c_str()[0] == 0)
+      fmt_val = "0";
 
    return fmt_val;
 }
@@ -85,8 +117,8 @@ void print(const SysStat& s)
         << format("Total_Nodes", 12)
         << format("AvailDisk(MB)", 15)
         << format("FileSize(MB)", 15)
-        << format("NetIn(MB)", 10)
-        << format("NetOut(MB)", 10) << endl;
+        << format("NetIn(MB)", 15)
+        << format("NetOut(MB)", 15) << endl;
    for (vector<SysStat::ClusterStat>::const_iterator i = s.m_vCluster.begin(); i != s.m_vCluster.end(); ++ i)
    {
       if (i->m_iTotalNodes <= 0)
@@ -96,32 +128,32 @@ void print(const SysStat& s)
            << format(i->m_iTotalNodes, 12)
            << format(format(i->m_llAvailDiskSpace / MB), 15)
            << format(format(i->m_llTotalFileSize / MB), 15)
-           << format(i->m_llTotalInputData / MB, 10)
-           << format(i->m_llTotalOutputData / MB, 10) << endl;
+           << format(i->m_llTotalInputData / MB, 15)
+           << format(i->m_llTotalOutputData / MB, 15) << endl;
    }
 
    cout << "------------------------------------------------------------\n";
    cout << format("SLAVE_ID", 10)
         << format("Address", 24)
-        << format("TS(us)", 20)
         << format("AvailDisk(MB)", 15)
         << format("TotalFile(MB)", 15)
         << format("Mem(MB)", 12)
         << format("CPU(us)", 12)
-        << format("NetIn(MB)", 10)
-        << format("NetOut(MB)", 10) << endl;
+        << format("NetIn(MB)", 15)
+        << format("NetOut(MB)", 15)
+        << format("TS(us)", 20) << endl;
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
       cout << format(i->m_iID, 10)
            << format(i->m_strIP + ":" + toString(i->m_iPort) , 24)
-           << format(i->m_llTimeStamp, 20)
            << format(format(i->m_llAvailDiskSpace / MB), 15)
            << format(format(i->m_llTotalFileSize / MB), 15)
            << format(i->m_llCurrMemUsed / MB, 12)
            << format(i->m_llCurrCPUUsed, 12)
-           << format(i->m_llTotalInputData / MB, 10)
-           << format(i->m_llTotalOutputData / MB, 10) << endl;
+           << format(i->m_llTotalInputData / MB, 15)
+           << format(i->m_llTotalOutputData / MB, 15)
+           << format(i->m_llTimeStamp, 20) << endl;
    }
 
    cout << endl;
@@ -140,20 +172,27 @@ int main(int argc, char** argv)
    Session s;
    s.loadInfo("../conf/client.conf");
 
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+   int result = 0;
+   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   {
+      print_error(result);
       return -1;
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
+   }
+   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
+   {
+      print_error(result);
       return -1;
+   }
 
    SysStat sys;
-   int r = client.sysinfo(sys);
-   if (r >= 0)
+   result = client.sysinfo(sys);
+   if (result >= 0)
       print(sys);
    else
-      cerr << "Error happened, failed to retrieve any system information.\n";
+      print_error(result);
 
    client.logout();
    client.close();
 
-   return r;
+   return result;
 }

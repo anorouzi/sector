@@ -474,10 +474,12 @@ void CUDT::open()
 
    // set up the timers
    m_ullSYNInt = m_iSYNInterval * m_ullCPUFrequency;
-   
+  
+   m_ullMinExpInt = 100000 * m_ullCPUFrequency;
+
    m_ullACKInt = m_ullSYNInt;
    m_ullNAKInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency;
-   m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
+   m_ullEXPInt = m_ullMinExpInt;
    m_llLastRspTime = CTimer::getTime();
 
    CTimer::rdtsc(m_ullNextACKTime);
@@ -485,7 +487,7 @@ void CUDT::open()
    CTimer::rdtsc(m_ullNextNAKTime);
    m_ullNextNAKTime += m_ullNAKInt;
    CTimer::rdtsc(m_ullNextEXPTime);
-   m_ullNextEXPTime += m_ullMinEXPInt;
+   m_ullNextEXPTime += m_ullEXPInt;
 
    m_iPktCount = 0;
    m_iLightACKCount = 1;
@@ -574,15 +576,22 @@ void CUDT::connect(const sockaddr* serv_addr)
    if (m_bRendezvous)
       timeo *= 10;
    uint64_t entertime = CTimer::getTime();
-   CUDTException e(0, 0);
+   uint64_t last_req_time = -1;
 
+   CUDTException e(0, 0);
    char* tmp = NULL;
 
    while (!m_bClosing)
    {
-      req.serialize(reqdata, m_iPayloadSize);
-      request.setLength(CHandShake::m_iContentSize);
-      m_pSndQueue->sendto(serv_addr, request);
+      // avoid sending too many requests, at most 1 request per 250ms
+      if (CTimer::getTime() - last_req_time > 250000)
+      {
+         req.serialize(reqdata, m_iPayloadSize);
+         request.setLength(CHandShake::m_iContentSize);
+         m_pSndQueue->sendto(serv_addr, request);
+
+         last_req_time = CTimer::getTime();
+      }
 
       response.setLength(m_iPayloadSize);
       if (m_pRcvQueue->recvfrom(m_SocketID, response) > 0)
@@ -627,6 +636,8 @@ void CUDT::connect(const sockaddr* serv_addr)
                   req.m_iReqType = -1;
                   req.m_iCookie = res.m_iCookie;
                   response.setLength(-1);
+                  // new response should be sent out immediately
+                  last_req_time = -1;
                }
             }
          }
@@ -819,6 +830,19 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    // register this socket for receiving data packets
    m_pRNode->m_bOnList = true;
    m_pRcvQueue->setNewEntry(this);
+
+   //send the response to the peer, see listen() for more discussions about this
+   CPacket response;
+   char* buffer = new char[CHandShake::m_iContentSize];
+   hs->serialize(buffer, CHandShake::m_iContentSize);
+   response.pack(0, NULL, buffer, CHandShake::m_iContentSize);
+
+   response.m_iTimeStamp = m_SocketID;
+
+
+   delete [] buffer;
+   response.m_iID = m_PeerID;
+   m_pSndQueue->sendto(peer, response);
 }
 
 void CUDT::close()
@@ -865,6 +889,8 @@ void CUDT::close()
    }
    if (m_bConnected)
    {
+//////////////////////////
+
       if (!m_bShutdown)
          sendCtrl(5);
 
@@ -1673,14 +1699,14 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
    m_llLastRspTime = CTimer::getTime();
-   m_ullMinEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-   if (m_ullMinEXPInt < 100000 * m_ullCPUFrequency)
-       m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
+   m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+   if (m_ullEXPInt < m_ullMinExpInt)
+       m_ullEXPInt = m_ullMinExpInt;
 
    if ((CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck) || (2 == ctrlpkt.getType()) || (3 == ctrlpkt.getType()))
    {
       CTimer::rdtsc(m_ullNextEXPTime);
-      m_ullNextEXPTime += m_ullMinEXPInt;
+      m_ullNextEXPTime += m_ullEXPInt;
    }
 
    switch (ctrlpkt.getType())
@@ -1781,9 +1807,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
       m_pCC->setRTT(m_iRTT);
 
-      m_ullMinEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-      if (m_ullMinEXPInt < 100000 * m_ullCPUFrequency)
-          m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
+      m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+      if (m_ullEXPInt < m_ullMinExpInt)
+          m_ullEXPInt = m_ullMinExpInt;
 
       if (ctrlpkt.getLength() > 16)
       {
@@ -1829,9 +1855,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
       m_pCC->setRTT(m_iRTT);
 
-      m_ullMinEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-      if (m_ullMinEXPInt < 100000 * m_ullCPUFrequency)
-          m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
+      m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+      if (m_ullEXPInt < m_ullMinExpInt)
+          m_ullEXPInt = m_ullMinExpInt;
 
       // update last ACK that has been received by the sender
       if (CSeqNo::seqcmp(ack, m_iRcvLastAckAck) > 0)
@@ -2108,15 +2134,15 @@ int CUDT::processData(CUnit* unit)
    // Just heard from the peer, reset the expiration count.
    m_iEXPCount = 1;
    m_llLastRspTime = CTimer::getTime();
-   m_ullMinEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
-   if (m_ullMinEXPInt < 100000 * m_ullCPUFrequency)
-       m_ullMinEXPInt = 100000 * m_ullCPUFrequency;
+   m_ullEXPInt = (m_iRTT + 4 * m_iRTTVar) * m_ullCPUFrequency + m_ullSYNInt;
+   if (m_ullEXPInt < m_ullMinExpInt)
+       m_ullEXPInt = m_ullMinExpInt;
 
    if (CSeqNo::incseq(m_iSndCurrSeqNo) == m_iSndLastAck)
    {
       CTimer::rdtsc(m_ullNextEXPTime);
       if (!m_pCC->m_bUserDefinedRTO)
-         m_ullNextEXPTime += m_ullMinEXPInt;
+         m_ullNextEXPTime += m_ullEXPInt;
       else
          m_ullNextEXPTime += m_pCC->m_iRTO * m_ullCPUFrequency;
    }
@@ -2226,16 +2252,29 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
    // When a peer side connects in...
    if ((1 == packet.getFlag()) && (0 == packet.getType()))
    {
-      if ((hs.m_iVersion != m_iVersion) || (hs.m_iType != m_iSockType) || (-1 == s_UDTUnited.newConnection(m_SocketID, addr, &hs)))
+      if ((hs.m_iVersion != m_iVersion) || (hs.m_iType != m_iSockType))
       {
-         // couldn't create a new connection, reject the request
+         // mismatch, reject the request
          hs.m_iReqType = 1002;
+         hs.serialize(packet.m_pcData, CHandShake::m_iContentSize);
+         packet.m_iID = id;
+         m_pSndQueue->sendto(addr, packet);
       }
+      else
+      {
+         int result = s_UDTUnited.newConnection(m_SocketID, addr, &hs);
+         if (result == -1)
+            hs.m_iReqType = 1002;
 
-      hs.serialize(packet.m_pcData, CHandShake::m_iContentSize);
-      packet.m_iID = id;
-
-      m_pSndQueue->sendto(addr, packet);
+         // send back a response if connection failed or connection already existed
+         // new connection response should be sent in connect()
+         if (result != 1)
+         {
+            hs.serialize(packet.m_pcData, CHandShake::m_iContentSize);
+            packet.m_iID = id;
+            m_pSndQueue->sendto(addr, packet);
+         }
+      }
    }
 
    return hs.m_iReqType;
@@ -2288,7 +2327,7 @@ void CUDT::checkTimers()
    {
       // Haven't receive any information from the peer, is it dead?!
       // timeout: at least 16 expirations and must be greater than 10 seconds
-      if ((m_iEXPCount > 16) && (CTimer::getTime() - m_llLastRspTime > 30000000))
+      if ((m_iEXPCount > 16) && (CTimer::getTime() - m_llLastRspTime > 10000000))
       {
          //
          // Connection is broken. 
@@ -2330,13 +2369,15 @@ void CUDT::checkTimers()
          m_pSndQueue->m_pSndUList->update(this);
       }
       else
+      {
          sendCtrl(1);
+      }
 
       ++ m_iEXPCount;
-      m_ullMinEXPInt = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;
-      if (m_ullMinEXPInt < m_iEXPCount * 100000 * m_ullCPUFrequency)
-         m_ullMinEXPInt = m_iEXPCount * 100000 * m_ullCPUFrequency;
+      m_ullEXPInt = (m_iEXPCount * (m_iRTT + 4 * m_iRTTVar) + m_iSYNInterval) * m_ullCPUFrequency;
+      if (m_ullEXPInt < m_iEXPCount * m_ullMinExpInt)
+         m_ullEXPInt = m_iEXPCount * m_ullMinExpInt;
       CTimer::rdtsc(m_ullNextEXPTime);
-      m_ullNextEXPTime += m_ullMinEXPInt;
+      m_ullNextEXPTime += m_ullEXPInt;
    }
 }

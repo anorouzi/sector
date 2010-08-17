@@ -41,7 +41,6 @@ written by
 #include <slave.h>
 #include <sphere.h>
 #include <dlfcn.h>
-#include <iostream>
 #include <algorithm>
 
 using namespace std;
@@ -1041,7 +1040,7 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
 
       if (NULL == lh)
       {
-         cerr << dlerror() << endl;
+         m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << dlerror() << LogStringTag(LogTag::END);
          return -1;
       }
    }
@@ -1054,7 +1053,7 @@ int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& proce
    process = (SPHERE_PROCESS)dlsym(lh, function.c_str());
    if (NULL == process)
    {
-      cerr << dlerror() << endl;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << dlerror() << LogStringTag(LogTag::END);
       return -1;
    }
 
@@ -1064,13 +1063,11 @@ int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& proce
 int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITION& partition)
 {
    map = (MR_MAP)dlsym(lh, (function + "_map").c_str());
-   if (NULL == map)
-      cerr << dlerror() << endl;
 
    partition = (MR_PARTITION)dlsym(lh, (function + "_partition").c_str());
    if (NULL == partition)
    {
-      cerr << dlerror() << endl;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "retriving Partition " << dlerror() << LogStringTag(LogTag::END);
       return -1;
    }
 
@@ -1080,13 +1077,11 @@ int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITIO
 int Slave::getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, MR_REDUCE& reduce)
 {
    reduce = (MR_REDUCE)dlsym(lh, (function + "_reduce").c_str());
-   if (NULL == reduce)
-      cerr << dlerror() << endl;
 
    compare = (MR_COMPARE)dlsym(lh, (function + "_compare").c_str());
    if (NULL == compare)
    {
-      cerr << dlerror() << endl;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "retriving Compare " << dlerror() << LogStringTag(LogTag::END);
       return -1;
    }
 

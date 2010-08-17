@@ -43,7 +43,6 @@ written by
 #include <common.h>
 #include <dirent.h>
 #include <index2.h>
-#include <iostream>
 #include <set>
 #include <sys/types.h>
 #include <sys/stat.h>

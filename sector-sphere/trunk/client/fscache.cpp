@@ -1,36 +1,17 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -46,8 +27,10 @@ using namespace std;
 
 Cache::Cache():
 m_llCacheSize(0),
+m_iBlockNum(0),
 m_llMaxCacheSize(10000000),
-m_llMaxCacheTime(10000000)
+m_llMaxCacheTime(10000000),
+m_iMaxCacheBlocks(32)
 {
 #ifndef WIN32
    pthread_mutex_init(&m_Lock, NULL);
@@ -74,6 +57,12 @@ int Cache::setMaxCacheSize(const int64_t ms)
 int Cache::setMaxCacheTime(const int64_t mt)
 {
    m_llMaxCacheTime = mt;
+   return 0;
+}
+
+int Cache::setMaxCacheBlocks(const int num)
+{
+   m_iMaxCacheBlocks = num;
    return 0;
 }
 
@@ -119,7 +108,19 @@ void Cache::remove(const string& path)
 
    if (-- s->second.m_iCount == 0)
    {
-      if (m_mCacheBlocks.find(path) == m_mCacheBlocks.end())
+      map<string, list<CacheBlock> > ::iterator c = m_mCacheBlocks.find(path);
+      if (c != m_mCacheBlocks.end())
+      {
+         for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
+         {
+            delete [] i->m_pcBlock;
+            m_llCacheSize -= i->m_llSize;
+            -- m_iBlockNum;
+         }
+
+         m_mCacheBlocks.erase(c);
+      }
+
       m_mOpenedFiles.erase(s);
    }
 }
@@ -168,10 +169,12 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
       c->second.push_front(cb);
 
    m_llCacheSize += cb.m_llSize;
+   ++ m_iBlockNum;
 
    if (write)
    {
       //write invalidates all caches overlap with this block
+      // TODO: optimize this
       c = m_mCacheBlocks.find(path);
       for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end();)
       {
@@ -179,6 +182,9 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
          {
             list<CacheBlock>::iterator j = i;
             ++ i;
+            delete [] j->m_pcBlock;
+            m_llCacheSize -= j->m_llSize;
+            -- m_iBlockNum;
             c->second.erase(j);
          }
          else
@@ -227,7 +233,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
 
 int Cache::shrink()
 {
-   if (m_llCacheSize < m_llMaxCacheSize)
+   if ((m_llCacheSize < m_llMaxCacheSize) && (m_iBlockNum < m_iMaxCacheBlocks))
       return 0;
 
    string last_file = "";
@@ -264,6 +270,7 @@ int Cache::shrink()
    delete [] d->m_pcBlock;
    d->m_pcBlock = NULL;
    m_llCacheSize -= d->m_llSize;
+   -- m_iBlockNum;
    c->second.erase(d);
 
    return 0;

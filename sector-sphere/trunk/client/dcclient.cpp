@@ -1,36 +1,17 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -321,8 +302,9 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    m_mBucket.clear();
    m_mSPE.clear();
 
-   if (prepareInput() < 0)
-      return -1;
+   int result = prepareInput();
+   if (result < 0)
+      return result;
 
    cout << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
 
@@ -333,35 +315,30 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
 
    Address serv;
    m_pClient->m_Routing.getPrimaryMaster(serv);
-   if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
-   {
-      cerr << "unable to locate any SPE.\n";
-      return -1;
-   }
+   if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)msg.getData();
 
    m_iSPENum = (msg.m_iDataLength - 4) / 72;
    if (0 == m_iSPENum)
-   {
-      cerr << "no available SPE found.\n";
       return SectorError::E_RESOURCE;
-   }
 
-   prepareSPE(msg.getData());
+   result = prepareSPE(msg.getData());
+   if (result < 0)
+      return result;
 
-   if (segmentData() <= 0)
-   {
-      cerr << "data segmentation error.\n";
-      return -1;
-   }
+   result = segmentData();
+   if (result <= 0)
+      return result;
 
    if (m_iOutputType == -1)
       m_pOutput->init(m_mpDS.size());
 
-   if (prepareOutput(msg.getData()) < 0)
-   {
-      cerr << "fail to locate any shufflers.\n";
-      return -1;
-   }
+   result = prepareOutput(msg.getData());
+   if (result < 0)
+      return result;
 
    m_iProgress = 0;
    m_iAvgRunTime = -1;
@@ -719,8 +696,9 @@ int DCClient::startSPE(SPE& s, DS* d)
    if (0 == s.m_iStatus)
    {
       // start an SPE at real time
-      if (connectSPE(s) < 0)
-         return SectorError::E_CONNECTION;
+      int result = connectSPE(s);
+      if (result < 0)
+         return result;
    }
 
    s.m_pDS = d;
@@ -758,7 +736,7 @@ int DCClient::checkProgress()
       return SectorError::E_RESOURCE;
 
    if (!m_bBucketHealth)
-      return SectorError::E_BUCKET;
+      return SectorError::E_BUCKETFAIL;
 
    int progress;
 
@@ -812,10 +790,7 @@ int DCClient::waitForCompletion()
       if (read(res) <= 0)
       {
          if (progress < 0)
-         {
-            cerr << "all SPEs failed\n";
-            return -1;
-         }
+            return SectorError::E_ALLSPEFAIL;
          else if (progress == 100)
             return 0;
       }
@@ -846,7 +821,7 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
    while (0 == m_iAvailRes)
    {
       if (!wait || (0 == m_iTotalSPE))
-         return -1;
+         return SectorError::E_ALLSPEFAIL;
 
       if (m_iProgress == m_iTotalDS)
          return 0;
@@ -908,7 +883,7 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
      return 1;
    }
 
-   return -1;
+   return SectorError::E_CANCELED;
 }
 
 int DCClient::dataInfo(const vector<string>& files, vector<string>& info)
@@ -955,8 +930,11 @@ int DCClient::dataInfo(const vector<string>& files, vector<string>& info)
 int DCClient::prepareInput()
 {
    // if input data is already initilized or no data to be initialized, return immediately
-   if ((m_pInput->m_iStatus == 1) || m_pInput->m_vOrigInput.empty())
+   if (m_pInput->m_iStatus == 1)
       return 0;
+
+   if (m_pInput->m_vOrigInput.empty())
+      return SectorError::E_INVALID;
 
    vector<string> datainfo;
    int res = dataInfo(m_pInput->m_vOrigInput, datainfo);
@@ -965,7 +943,7 @@ int DCClient::prepareInput()
 
    m_pInput->m_iFileNum = datainfo.size();
    if (0 == m_pInput->m_iFileNum)
-      return 0;
+      return  SectorError::E_INVALID;
 
    m_pInput->m_iStatus = -1;
 
@@ -1101,10 +1079,7 @@ int DCClient::connectSPE(SPE& s)
    Address serv;
    m_pClient->m_Routing.getPrimaryMaster(serv);
    if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
-   {
-      cerr << "failed to connect SPE " << s.m_strIP << " " << s.m_iPort << endl;
-      return -1;
-   }
+      return SectorError::E_CONNECTION;
 
    s.m_iSession = *(int32_t*)msg.getData();
 
@@ -1139,7 +1114,7 @@ int DCClient::segmentData()
       for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
       {
          if (m_pInput->m_vLocation[i].empty())
-            return -1;
+            return SectorError::E_MISSINGINPUT;
 
          DS* ds = new DS;
          ds->m_iID = seq ++;
@@ -1194,7 +1169,7 @@ int DCClient::segmentData()
                continue;
 
             if (m_pInput->m_vLocation[i].empty())
-               return -1;
+               return SectorError::E_MISSINGINPUT;
 
             DS* ds = new DS;
             ds->m_iID = seq ++;
@@ -1220,7 +1195,7 @@ int DCClient::segmentData()
    else
    {
       cerr << "You have specified the number of records to be processed each time, but there is no record index found.\n";
-      return -1;
+      return SectorError::E_NOINDEX;
    }
 
    return m_mpDS.size();
@@ -1299,7 +1274,7 @@ int DCClient::prepareOutput(const char* spenodes)
       }
 
       if (m_mBucket.empty())
-         return -1;
+         return SectorError::E_NOBUCKET;
 
       m_pOutputLoc = new char[m_mBucket.size() * 80];
       int l = 0;

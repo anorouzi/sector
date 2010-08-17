@@ -41,7 +41,6 @@ written by
 
 #include "slave.h"
 #include <ssltransport.h>
-#include <iostream>
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/vfs.h>
@@ -49,6 +48,7 @@ written by
 #include <sys/times.h>
 #include <utime.h>
 #include <common.h>
+#include <iostream>
 
 using namespace std;
 

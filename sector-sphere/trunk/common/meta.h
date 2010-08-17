@@ -133,6 +133,11 @@ protected:
       std::set<int> m_sWriteLock;
    };
    std::map<std::string, LockSet> m_mLock;
+
+private:
+   static bool initLC();
+   static bool m_pbLegalChar[256];
+   static bool m_bInit;
 };
 
 #endif

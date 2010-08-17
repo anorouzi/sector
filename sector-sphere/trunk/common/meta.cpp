@@ -44,6 +44,9 @@ written by
 
 using namespace std;
 
+bool Metadata::m_pbLegalChar[256];
+bool Metadata::m_bInit = Metadata::initLC();
+
 Metadata::Metadata()
 {
 #ifndef WIN32
@@ -113,11 +116,17 @@ int Metadata::parsePath(const string& path, vector<string>& result)
 
    char* token = new char[path.length() + 1];
    int tc = 0;
-   for (unsigned int i = 0, n = path.length(); i < n; ++ i)
-   {
-      // check invalid/special charactor such as * ; , etc.
 
-      if (path.c_str()[i] == '/')
+   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
+   {
+      // check legal characters
+      if (!m_pbLegalChar[int(*p)])
+      {
+         delete [] token;
+         return -1;
+      }
+
+      if (*p == '/')
       {
          if (tc > 0)
          {
@@ -127,7 +136,7 @@ int Metadata::parsePath(const string& path, vector<string>& result)
          }
       }
       else
-        token[tc ++] = path.c_str()[i];
+        token[tc ++] = *p;
    }
 
    if (tc > 0)
@@ -150,6 +159,13 @@ string Metadata::revisePath(const string& path)
 
    for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
    {
+      // check legal characters
+      if (!m_pbLegalChar[int(*p)])
+      {
+         delete [] newpath;
+         return "";
+      }
+
       if (*p == '/')
       {
          if (!slash)
@@ -171,4 +187,41 @@ string Metadata::revisePath(const string& path)
    delete [] newpath;
 
    return tmp;
+}
+
+bool Metadata::initLC()
+{
+   for (int i = 0; i < 256; ++ i)
+   {
+      m_pbLegalChar[i] = false;
+   }
+
+   m_pbLegalChar[32] = true; // Space
+   m_pbLegalChar[39] = true; // ' 
+   m_pbLegalChar[45] = true; // -
+   m_pbLegalChar[46] = true; // .
+
+   // 0 - 9
+   for (int i = 48; i <= 57; ++ i)
+   {
+      m_pbLegalChar[i] = true;
+   }
+
+   m_pbLegalChar[64] = true; // @
+
+   // A - Z
+   for (int i = 65; i <= 90; ++ i)
+   {
+      m_pbLegalChar[i] = true;
+   }
+
+   m_pbLegalChar[95] = true; // _
+
+   // a - z
+   for (int i = 97; i <= 122; ++ i)
+   {
+      m_pbLegalChar[i] = true;
+   }
+
+   return true;
 }

@@ -47,7 +47,6 @@ written by
 #include <topology.h>
 #include <sys/types.h>
 #include <fstream>
-#include <iostream>
 #include <cstring>
 #include <cstdlib>
 

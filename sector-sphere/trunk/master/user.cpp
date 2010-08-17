@@ -41,7 +41,7 @@ written by
 #include "user.h"
 #include <common.h>
 #include <string.h>
-
+#include <iostream>
 using namespace std;
 
 
@@ -64,6 +64,7 @@ int User::deserialize(vector<string>& dirs, const string& buf)
 
 bool User::match(const string& path, int32_t rwx) const
 {
+cout << "check " << path << " " << rwx << endl;
    // check read flag bit 1 and write flag bit 2
    rwx &= 3;
 
@@ -83,6 +84,7 @@ bool User::match(const string& path, int32_t rwx) const
    {
       for (vector<string>::const_iterator i = m_vstrWriteList.begin(); i != m_vstrWriteList.end(); ++ i)
       {
+cout << "=== > " << *i << endl;
          if ((path.length() >= i->length()) && (path.substr(0, i->length()) == *i) && ((path.length() == i->length()) || (path.c_str()[i->length()] == '/') || (*i == "/")))
          {
             rwx ^= 2;

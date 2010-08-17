@@ -44,7 +44,6 @@ written by
 #include <cstdlib>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <iostream>
 #include <sector.h>
 
 using namespace std;

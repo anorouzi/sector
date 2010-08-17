@@ -2205,11 +2205,14 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
 
    case 204: // start shuffler
    {
-      string path = msg->getData() + 80;
+      string path = Metadata::revisePath(msg->getData() + 80);
+
+cout << "wtf0 " << user->m_bExec << " " << user->match(path.c_str(), SF_MODE::WRITE) << endl;
 
       // check user sphere exec permission and output path write permission
-      if (!user->m_bExec || !user->match(path.c_str(), SF_MODE::WRITE));
+      if (!user->m_bExec || !user->match(path.c_str(), SF_MODE::WRITE))
       {
+cout << "wtf " << user->m_bExec << " " << user->match(path.c_str(), SF_MODE::WRITE) << endl;
          reject(ip, port, id, SectorError::E_PERMISSION);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start Shuffler", "", "REJECTED DUE TO PERMISSION", "", 8);
          break;

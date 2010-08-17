@@ -41,7 +41,6 @@ written by
 
 #include <writelog.h>
 #include <slave.h>
-#include <iostream>
 #include <utime.h>
 
 using namespace std;
@@ -437,18 +436,20 @@ void* Slave::fileHandler(void* p)
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "file server closed " << src_ip << " " << src_port << " " << avgWS << " " << avgRS << LogStringTag(LogTag::END);
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << avgWS << " " << avgRS << LogStringTag(LogTag::END);
 
-   //report to master the task is completed
+   // clear this transaction
+   self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
+
+   // unlock the file
+   // this must be done before the client is disconnected, otherwise if the client immediately re-open the file, the lock may not be released yet
+   self->m_pLocalFile->unlock(sname, key, mode);
+
+   // report to master the task is completed
+   // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
    self->report(master_ip, master_port, transid, sname, change);
 
    self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
    if (key > 0)
       self->m_DataChn.remove(client_ip, client_port);
-
-   // clear this transaction
-   self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
-
-   // unlock the file
-   self->m_pLocalFile->unlock(sname, key, mode);
 
    return NULL;
 }

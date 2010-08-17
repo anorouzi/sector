@@ -324,18 +324,6 @@ int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset
 
 int SectorFS::flush (const char *, struct fuse_file_info *)
 {
-   pthread_mutex_lock(&m_OpenFileLock);
-   map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
-   if (t == m_mOpenFileList.end())
-   {
-      pthread_mutex_unlock(&m_OpenFileLock);
-      return -EBADF;
-   }
-   SectorFile* h = t->second->m_pHandle;
-   pthread_mutex_unlock(&m_OpenFileLock);
-
-   h->flush();
-
    return 0;
 }
 

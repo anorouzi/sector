@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/22/2010
+   Yunhong Gu, last updated 08/06/2010
 *****************************************************************************/
 
 #include <cstring>

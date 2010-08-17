@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/26/2010
+   Yunhong Gu, last updated 08/12/2010
 *****************************************************************************/
 
 
@@ -107,7 +88,7 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
 {
    // if this client is already associated with an openned file, cannot open another file
    if (0 != m_strFileName.length())
-      return -1;
+      return SectorError::E_INVALID;
 
    m_strFileName = Metadata::revisePath(filename);
 
@@ -210,11 +191,11 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
 int FSClient::reopen()
 {
    if (0 == m_strFileName.length())
-      return -1;
+      return SectorError::E_INVALID;
 
    // re-open only works on read
    if (m_bWrite)
-      return -1;
+      return SectorError::E_PERMISSION;
 
    // close connection to the current slave
    m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
@@ -266,11 +247,11 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
       return SectorError::E_INVALID;
 
    if (!m_bRead)
-      return -1;
+      return SectorError::E_PERMISSION;
 
    // does not support buffer > 32bit now
    if (size > 0x7FFFFFFF)
-      return -1;
+      return SectorError::E_INVALID;
 
    CGuard fg(m_FileLock);
 
@@ -352,10 +333,10 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
       return SectorError::E_INVALID;
 
    if (!m_bWrite)
-      return -1;
+      return SectorError::E_PERMISSION;
 
    if (size > 0x7FFFFFF)
-      return -1;
+      return SectorError::E_INVALID;
 
    CGuard fg(m_FileLock);
 
@@ -396,14 +377,16 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    else
    {
       // write to the first replica failed, re-organize
-      if (flush_() < 0)
-         return -1;
+      int result = flush_();
+      if (result < 0)
+         return result;
    }
 
    if (m_WriteLog.getCurrTotalSize() > m_iWriteBufSize)
    {
-      if (flush_() < 0)
-         return -1;
+      int result = flush_();
+      if (result < 0)
+         return result;
    }
 
    return sentsize;
@@ -691,7 +674,7 @@ int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
 {
    int realsize = (int)size;
    if (offset >= m_llSize)
-      return -1;
+      return SectorError::E_INVALID;
    if (offset + size > m_llSize)
       realsize = int(m_llSize - offset);
 
@@ -699,14 +682,13 @@ int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
    int32_t cmd = 1;
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
 
-   int response = -1;
-   if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
-      return SectorError::E_CONNECTION;
-
    char req[16];
    *(int64_t*)req = offset;
    *(int64_t*)(req + 8) = realsize;
-   if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16) < 0)
+   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
+
+   int response = -1;
+   if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
       return SectorError::E_CONNECTION;
 
    char* buf = NULL;
@@ -880,13 +862,13 @@ int FSClient::flush_()
 
    // all nodes are down, no way to recover
    if (newaddr.empty())
-      return -1;
+      return SectorError::E_NOREPLICA;
 
    // if some nodes are down, use the rest to finish write
    if (m_vReplicaAddress.size() != newaddr.size())
    {
       m_vReplicaAddress = newaddr;
-      organizeChainOfWrite();
+      while (!m_vReplicaAddress.empty() && (organizeChainOfWrite() < 0)) {}
    }
 
    return 0;

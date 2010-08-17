@@ -1,36 +1,17 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -332,6 +313,7 @@ public:
    static const int E_NOEMPTY = -1006;          // directory is not empty (for rmdir)
    static const int E_NOTDIR = -1007;           // directory does not exist or not a directory
    static const int E_FILENOTOPEN = -1008;	// the file is not open() yet for IO
+   static const int E_NOREPLICA = -1009;        // all replicas have been lost
    static const int E_SECURITY = -2000;         // security check failed
    static const int E_NOCERT = -2001;           // no certificate found
    static const int E_ACCOUNT = -2002;          // account does not exist
@@ -341,17 +323,28 @@ public:
    static const int E_NOSECSERV = -2006;        // security server is down or cannot connect to it
    static const int E_EXPIRED = - 2007;         // connection time out due to no activity
    static const int E_AUTHORITY = - 2008;	// no authority to run the commands, e.g., only root can run it
-   static const int E_CONNECTION = - 3000;      // cannot connect to master
+   static const int E_ADDR = -2009;             // invalid network address
+   static const int E_GMP = -2010;              // unable to initialize gmp
+   static const int E_DATACHN = -2011;          // unable to initialize data channel
+   static const int E_CERTREFUSE = -2012;       // unable to retrieve master certificate
+   static const int E_MASTER = 2013;            // all masters have been lost
+   static const int E_CONNECTION = - 3000;      // unable to connect
+   static const int E_BROKENPIPE = -3001;       // data connection lost
    static const int E_RESOURCE = -4000;         // no available resources
    static const int E_NODISK = -4001;           // no enough disk
    static const int E_TIMEDOUT = -5000;         // timeout
    static const int E_INVALID = -6000;          // invalid parameter
    static const int E_SUPPORT = -6001;          // operation not supported
-   static const int E_BUCKET = -7001;           // bucket failure
+   static const int E_CANCELED = -6002;         // operation was canceled
+   static const int E_BUCKETFAIL = -7001;       // bucket failure
    static const int E_NOPROCESS = -7002;	// no sphere process is running
+   static const int E_MISSINGINPUT = -7003;     // at least one input file cannot be located
+   static const int E_NOINDEX = -7004;          // missing index file
+   static const int E_ALLSPEFAIL = -7005;       // All SPE has failed
+   static const int E_NOBUCKET = -7006;         // cannot locate any bucket
 
 public: // internal error
-   static const int E_MASTER = -101;            // incorrect master node to handle the request
+   static const int E_ROUTING = -101;           // incorrect master node to handle the request
    static const int E_REPSLAVE = -102;          // slave is already in the system; conflict
    static const int E_INVPARAM = -103;		// invalid parameters
 
