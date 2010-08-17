@@ -41,7 +41,7 @@ written by
 #include <common.h>
 #include <string.h>
 #include <meta.h>
-
+#include <iostream>
 using namespace std;
 
 bool Metadata::m_pbLegalChar[256];
@@ -119,13 +119,6 @@ int Metadata::parsePath(const string& path, vector<string>& result)
 
    for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
    {
-      // check legal characters
-      if (!m_pbLegalChar[int(*p)])
-      {
-         delete [] token;
-         return -1;
-      }
-
       if (*p == '/')
       {
          if (tc > 0)
@@ -136,7 +129,16 @@ int Metadata::parsePath(const string& path, vector<string>& result)
          }
       }
       else
-        token[tc ++] = *p;
+      {
+         // check legal characters
+         if (!m_pbLegalChar[int(*p)])
+         {
+            delete [] token;
+            return -1;
+         }
+
+         token[tc ++] = *p;
+      }
    }
 
    if (tc > 0)
@@ -159,13 +161,6 @@ string Metadata::revisePath(const string& path)
 
    for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
    {
-      // check legal characters
-      if (!m_pbLegalChar[int(*p)])
-      {
-         delete [] newpath;
-         return "";
-      }
-
       if (*p == '/')
       {
          if (!slash)
@@ -174,6 +169,13 @@ string Metadata::revisePath(const string& path)
       }
       else
       {
+         // check legal characters
+         if (!m_pbLegalChar[int(*p)])
+         {
+            delete [] newpath;
+            return "";
+         }
+
          *np++ = *p;
          slash = false;
       }
