@@ -22,9 +22,21 @@ init_test_env() {
         export UPLOAD=${UPLOAD:-${SECTOR}/tools/sector_upload}
         export DOWNLOAD=${DOWNLOAD:-${SECTOR}/tools/sector_download}
         export SYSINFO=${SYSINFO:-${SECTOR}/tools/sector_sysinfo}
+        export SECTOR_CMD=${SECTOR:-${SECTOR}/tests/send_dbg_cmd}
+        export SECTOR_SHUTDOWN=${SECTOR_SHUTDOWN:-${SECTOR}/tools/sector_shutdown}
         export DSH=${DSH:-"ssh"}
         export SECTOR_HOST=${SECTOR_HOST:-`hostname`}
         export TEST_FAILED=false
+
+        export SLAVE_COUNT=${SLAVE_COUNT:-"3"}
+
+        export SLAVE1_IP=${SLAVE1_IP:-"$SECTOR_HOST"}
+        export SLAVE2_IP=${SLAVE2_IP:-"$SECTOR_HOST"}
+        export SLAVE3_IP=${SLAVE3_IP:-"$SECTOR_HOST"}
+
+        export SLAVE1_DIR=${SLAVE1_DIR:-"$TMP/slave1"}
+        export SLAVE2_DIR=${SLAVE2_DIR:-"$TMP/slave2"}
+        export SLAVE3_DIR=${SLAVE3_DIR:-"$TMP/slave3"}
 
         if ! echo $PATH | grep -q $SECTOR/tests; then
             export PATH=$PATH:$SECTOR/tests
@@ -42,11 +54,77 @@ init_test_env() {
         echo $PATH
 }
 
+setup() {
+         echo "start security server..."
+         nohup $START_SECURITY > /dev/null &
+         echo "start master ...\n"
+         nohup $START_MASTER > /dev/null &
+         for i in `seq 1 $SLAVE_COUNT`; do
+                local SLAVE_NODE=SLAVE${i}_IP
+                mkdir -p SLAVE${i}_DIR
+                echo "start slave $i ...\n"
+                ${START_SLAVE} $SECTOR & > /dev/null &
+         done
+
+         #wait master to update stat information
+         sleep 2
+         REAL_SLAVES=`${SYSINFO} | grep Slave | awk '{print $6}'`
+         if [ ${REAL_SLAVES} -ne ${SLAVE_COUNT} ]; then
+            error "slave only setup ${REAL_SLAVES}, but require ${SLAVE_COUNT}"
+         fi
+}
+
+check_and_setup_sector() {
+         if ! ps -aux | grep start_master | grep -v grep 1>&2 > /dev/null; then
+                setup
+         fi 
+}
+
+cleanup() {
+         set -vx
+         local REAL_SLAVES=`${SYSINFO} | grep Slave | awk '{print $6}'`
+         for i in `seq 1 $REAL_SLAVES`; do
+                slave_id=`${SYSINFO} | tail -n $i | head -n 1 | awk '{print $1}'` 
+                $SECTOR_SHUTDOWN -i $slave_id 
+         done
+         killall -9 sserver
+         killall -9 start_master
+}
+
+check_and_cleanup_sector() {
+         if ps -aux | grep start_master | grep -v grep; then
+                cleanup 
+         fi 
+}
+
+
+read_only() {
+         local readonly_slave=$1
+         ${SECTOR_CMD} $readonly_slave -c 9901 
+}
+
+fail() {
+         local failed_id=$1
+         ${SECTOR_SHUTDOWN} $failed_id 
+}
+
+get_slave_address() {
+        local slave_id=$1
+        local REAL_SLAVES=`${SYSINFO} | grep Slave | awk '{print $6}'`
+        $SYSINFO | tail -n $((REAL_SLAVES - slave_id)) | head -n 1 | awk '{print $2}'
+}
+
+get_slave_id() {
+        local slave_id=$1
+        local REAL_SLAVES=`${SYSINFO} | grep Slave | awk '{print $6}'`
+        $SYSINFO | tail -n $((REAL_SLAVES - slave_id)) | head -n 1 | awk '{print $1}'
+}
+
 build_test_filter() {
-    [ "$ONLY" ] && echo "only running test `echo $ONLY`"
-    for O in $ONLY; do
-        eval ONLY_${O}=true 
-    done
+        [ "$ONLY" ] && echo "only running test `echo $ONLY`"
+        for O in $ONLY; do
+               eval ONLY_${O}=true 
+        done
 }
 
 error_no_exit() {
@@ -60,16 +138,16 @@ error() {
 }
 
 basetest() {
-    if [[ $1 = [a-z]* ]]; then
-        echo $1
-    else
-        echo ${1%%[a-z]*}
-    fi
+        if [[ $1 = [a-z]* ]]; then
+                echo $1
+        else
+                echo ${1%%[a-z]*}
+        fi
 }
 
 pass() {
-    $TEST_FAILED && echo -n "FAIL " || echo -n "PASS "
-    echo $@
+        $TEST_FAILED && echo -n "FAIL " || echo -n "PASS "
+        echo $@
 }
 
 run_one() {
