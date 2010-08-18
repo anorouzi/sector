@@ -140,12 +140,13 @@ private:
    std::map<std::string, OP> m_mOP;
    int loadOperator(const std::string& ip, const int port, const int dataport, const int session);
 
-private:
+private: // inputs and outputs
    int dataInfo(const std::vector<std::string>& files, std::vector<std::string>& info);
    int prepareInput();
    int prepareSPE(const char* spenodes);
    int segmentData();
    int prepareOutput(const char* spenodes);
+   int postProcessOutput();
 
 #ifndef WIN32
    static void* run(void*);

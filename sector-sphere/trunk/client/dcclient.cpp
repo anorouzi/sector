@@ -518,6 +518,9 @@ DWORD WINAPI DCClient::run(LPVOID param)
 #endif
    }
 
+   // some buckets may be left empty because no value was sent to them. remove these from the output stream
+   self->postProcessOutput();
+
    // set totalSPE = 0, so that read() will return error immediately
    if (self->m_iProgress < 100)
       self->m_iTotalSPE = 0;
@@ -1346,6 +1349,37 @@ int DCClient::prepareOutput(const char* spenodes)
       m_pOutputLoc = new char[strlen(localname) + 1];
       memcpy(m_pOutputLoc, localname, strlen(localname) + 1);
    }
+
+   return m_pOutput->m_iFileNum;
+}
+
+int DCClient::postProcessOutput()
+{
+   vector<string> files;
+   vector<int64_t> size;
+   vector<int64_t> recnum;
+   vector<set<Address, AddrComp> > location;
+
+   for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
+   {
+      if (m_pOutput->m_vSize[i] > 0)
+      {
+         files.push_back(m_pOutput->m_vFiles[i]);
+         size.push_back(m_pOutput->m_vSize[i]);
+         recnum.push_back(m_pOutput->m_vRecNum[i]);
+         location.push_back(m_pOutput->m_vLocation[i]);
+      }
+   }
+
+   m_pOutput->m_vFiles = files;
+   m_pOutput->m_vSize = size;
+   m_pOutput->m_vRecNum = recnum;
+   m_pOutput->m_vLocation = location;
+
+   m_pOutput->m_iFileNum = m_pOutput->m_vFiles.size();
+
+   delete [] m_pOutput->m_piLocID;
+   m_pOutput->m_piLocID = NULL;
 
    return m_pOutput->m_iFileNum;
 }

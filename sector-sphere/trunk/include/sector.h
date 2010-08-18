@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -328,7 +328,7 @@ public:
    static const int E_DATACHN = -2011;          // unable to initialize data channel
    static const int E_CERTREFUSE = -2012;       // unable to retrieve master certificate
    static const int E_MASTER = 2013;            // all masters have been lost
-   static const int E_CONNECTION = - 3000;      // unable to connect
+   static const int E_CONNECTION = -3000;       // unable to connect
    static const int E_BROKENPIPE = -3001;       // data connection lost
    static const int E_RESOURCE = -4000;         // no available resources
    static const int E_NODISK = -4001;           // no enough disk

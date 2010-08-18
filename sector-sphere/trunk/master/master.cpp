@@ -132,7 +132,8 @@ int Master::init()
       || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0)
       || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
    {
-      cerr << "unable to create home directory.\n";
+perror("here");
+      cerr << "unable to create home directory " << m_strHomeDir << endl;
       return -1;
    }
 

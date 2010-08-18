@@ -57,6 +57,12 @@ int main(int argc, char** argv)
    gettimeofday(&t, 0);
    cout << "stage 1 accomplished " << t.tv_sec << endl;
 
+   for (vector<string>::iterator i = temp.m_vFiles.begin(); i != temp.m_vFiles.end(); ++ i)
+      cout << *i << endl;
+
+   for (vector<int64_t>::iterator i = temp.m_vSize.begin(); i != temp.m_vSize.end(); ++ i)
+      cout << *i << endl;
+
 /*
    //NOT FINISHED. PROCESS EACH BUCKET AND GENERATE INDEX
 
