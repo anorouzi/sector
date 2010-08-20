@@ -39,17 +39,17 @@ written by
 *****************************************************************************/
 
 
-#ifndef __CB_TRANSPORT_H__
-#define __CB_TRANSPORT_H__
+#ifndef __UDT_TRANSPORT_H__
+#define __UDT_TRANSPORT_H__
 
 #include <udt.h>
 #include "crypto.h"
 
-class Transport
+class UDTTransport
 {
 public:
-   Transport();
-   ~Transport();
+   UDTTransport();
+   ~UDTTransport();
 
 public:
    static void initialize();
@@ -58,7 +58,7 @@ public:
    int open(int& port, bool rendezvous = true, bool reuseaddr = false);
 
    int listen();
-   int accept(Transport& t, sockaddr* addr = NULL, int* addrlen = NULL);
+   int accept(UDTTransport& t, sockaddr* addr = NULL, int* addrlen = NULL);
 
    int connect(const char* ip, int port);
    int send(const char* buf, int size);

@@ -19,5 +19,7 @@ int main(int argc, char** argv)
 
    s.run();
 
+   s.close();
+
    return 1;
 }

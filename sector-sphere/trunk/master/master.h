@@ -23,7 +23,6 @@ written by
 #define __SECTOR_MASTER_H__
 
 #include <gmp.h>
-#include <transport.h>
 #include <log.h>
 #include <conf.h>
 #include <index.h>

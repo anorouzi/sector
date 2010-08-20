@@ -63,7 +63,7 @@ written by
    #pragma warning( disable: 4251 )
 #endif
 
-#include <transport.h>
+#include <udttransport.h>
 #include <sector.h>
 #include <message.h>
 #include <prec.h>
@@ -107,7 +107,6 @@ private:
    static const int32_t g_iMaxID = 0xFFFFFFF;
    static const int m_iHdrSize = 16;
 };
-
 struct CMsgRecord
 {
    std::string m_strIP;
@@ -193,7 +192,7 @@ private:
       SOCKET m_UDPSocket;
    #endif
 
-   Transport m_UDTSocket;
+   UDTTransport m_UDTSocket;
    int m_iUDTReusePort;
 
    std::list<CMsgRecord*> m_lSndQueue;

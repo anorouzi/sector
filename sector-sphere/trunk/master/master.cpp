@@ -139,8 +139,6 @@ int Master::init()
    // running...
    m_Status = RUNNING;
 
-   Transport::initialize();
-
    // start GMP
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
    {

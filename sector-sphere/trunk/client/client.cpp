@@ -93,7 +93,8 @@ int Client::init(const string& server, const int& port)
 
    Crypto::generateKey(m_pcCryptoKey, m_pcCryptoIV);
 
-   Transport::initialize();
+   UDTTransport::initialize();
+
    if (m_GMP.init(0) < 0)
       return SectorError::E_GMP;
 
@@ -313,7 +314,7 @@ int Client::close()
       m_strServerIP = "";
       m_iServerPort = 0;
       m_GMP.close();
-      Transport::release();
+      UDTTransport::release();
 
 #ifdef WIN32
       WSACleanup();

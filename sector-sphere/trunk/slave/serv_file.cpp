@@ -59,7 +59,7 @@ void* Slave::fileHandler(void* p)
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
 
-   if (self->m_DataChn.connect(client_ip, client_port) < 0)
+   if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
    {
       self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "failed to connect to file client " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
       return NULL;

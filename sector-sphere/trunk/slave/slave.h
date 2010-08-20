@@ -147,6 +147,7 @@ public:
    int init(const char* base = NULL);
    int connect();
    void run();
+   void close();
 
 private:
    int processSysCmd(const std::string& ip, const int port, int id, SectorMsg* msg);

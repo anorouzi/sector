@@ -23,10 +23,34 @@ written by
 #ifndef __CB_DATACHN_H__
 #define __CB_DATACHN_H__
 
-#include <transport.h>
+#include <udttransport.h>
 #include <map>
 #include <string>
 #include <sector.h>
+
+struct RcvData
+{
+   int m_iSession;
+   int m_iSize;
+   char* m_pcData;
+};
+
+class ChnInfo
+{
+public:
+   ChnInfo();
+   ~ChnInfo();
+
+public:
+   UDTTransport* m_pTrans;
+   std::vector<RcvData> m_vDataQueue;
+   pthread_mutex_t m_SndLock;
+   pthread_mutex_t m_RcvLock;
+   pthread_mutex_t m_QueueLock;
+   int m_iCount;
+   int64_t m_llTotalQueueSize;
+   bool m_bSecKeySet;
+};
 
 class DataChn
 {
@@ -60,27 +84,9 @@ public:
    int getSelfAddr(const std::string& peerip, int peerport, std::string& localip, int& localport);
 
 private:
-   struct RcvData
-   {
-      int m_iSession;
-      int m_iSize;
-      char* m_pcData;
-   };
-
-   struct ChnInfo
-   {
-      Transport* m_pTrans;
-      std::vector<RcvData> m_vDataQueue;
-      pthread_mutex_t m_SndLock;
-      pthread_mutex_t m_RcvLock;
-      pthread_mutex_t m_QueueLock;
-      int m_iCount;
-      int64_t m_llTotalQueueSize;
-   };
-
    std::map<Address, ChnInfo*, AddrComp> m_mChannel;
 
-   Transport m_Base;
+   UDTTransport m_Base;
    std::string m_strIP;
    int m_iPort;
 

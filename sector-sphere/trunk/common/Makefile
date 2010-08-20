@@ -12,12 +12,12 @@ OBJS = conf.o \
        sphere.o \
        constant.o \
        crypto.o \
-       transport.o \
-       datachn.o \
        dhash.o \
        routing.o \
+       udttransport.o \
        ssltransport.o \
        tcptransport.o \
+       datachn.o \
        threadpool.o \
        writelog.o
 

@@ -195,6 +195,8 @@ CGMP::~CGMP()
 
 int CGMP::init(const int& port)
 {
+   UDT::startup();
+
    if (port != 0)
       m_iPort = port - 1;
    else
@@ -271,6 +273,8 @@ int CGMP::close()
    #ifdef WIN32
       WSACleanup();
    #endif
+
+   UDT::cleanup();
 
    return 1;
 }
@@ -387,7 +391,7 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
 
 int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 {
-   Transport t;
+   UDTTransport t;
    if (t.open(m_iUDTReusePort, false, true) < 0)
       return -1;
 
@@ -830,7 +834,7 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 {
    CGMP* self = (CGMP*)s;
 
-   Transport t;
+   UDTTransport t;
    sockaddr_in addr;
    int namelen = sizeof(sockaddr_in);
 

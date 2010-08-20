@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/13/2009
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 
@@ -49,29 +30,29 @@ written by
 
 #include <fstream>
 #include <cstring>
-#include "transport.h"
+#include "udttransport.h"
 
 using namespace std;
 
-Transport::Transport()
+UDTTransport::UDTTransport()
 {
 }
 
-Transport::~Transport()
+UDTTransport::~UDTTransport()
 {
 }
 
-void Transport::initialize()
+void UDTTransport::initialize()
 {
    UDT::startup();
 }
 
-void Transport::release()
+void UDTTransport::release()
 {
    UDT::cleanup();
 }
 
-int Transport::open(int& port, bool rendezvous, bool reuseaddr)
+int UDTTransport::open(int& port, bool rendezvous, bool reuseaddr)
 {
    m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
 
@@ -103,12 +84,12 @@ int Transport::open(int& port, bool rendezvous, bool reuseaddr)
    return 1;
 }
 
-int Transport::listen()
+int UDTTransport::listen()
 {
    return UDT::listen(m_Socket, 1024);
 }
 
-int Transport::accept(Transport& t, sockaddr* addr, int* addrlen)
+int UDTTransport::accept(UDTTransport& t, sockaddr* addr, int* addrlen)
 {
    timeval tv;
    UDT::UDSET readfds;
@@ -132,7 +113,7 @@ int Transport::accept(Transport& t, sockaddr* addr, int* addrlen)
    return 0;
 }
 
-int Transport::connect(const char* ip, int port)
+int UDTTransport::connect(const char* ip, int port)
 {
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
@@ -150,7 +131,7 @@ int Transport::connect(const char* ip, int port)
    return 1;
 }
 
-int Transport::send(const char* buf, int size)
+int UDTTransport::send(const char* buf, int size)
 {
    int ssize = 0;
    while (ssize < size)
@@ -165,7 +146,7 @@ int Transport::send(const char* buf, int size)
    return ssize;
 }
 
-int Transport::recv(char* buf, int size)
+int UDTTransport::recv(char* buf, int size)
 {
    int rsize = 0;
    while (rsize < size)
@@ -180,27 +161,27 @@ int Transport::recv(char* buf, int size)
    return rsize;
 }
 
-int64_t Transport::sendfile(fstream& ifs, int64_t offset, int64_t size)
+int64_t UDTTransport::sendfile(fstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::sendfile(m_Socket, ifs, offset, size);
 }
 
-int64_t Transport::recvfile(fstream& ifs, int64_t offset, int64_t size)
+int64_t UDTTransport::recvfile(fstream& ifs, int64_t offset, int64_t size)
 {
    return UDT::recvfile(m_Socket, ifs, offset, size);
 }
 
-int Transport::close()
+int UDTTransport::close()
 {
    return UDT::close(m_Socket);
 }
 
-bool Transport::isConnected()
+bool UDTTransport::isConnected()
 {
    return (UDT::send(m_Socket, NULL, 0, 0) == 0);
 }
 
-int64_t Transport::getRealSndSpeed()
+int64_t UDTTransport::getRealSndSpeed()
 {
    UDT::TRACEINFO perf;
    if (UDT::perfmon(m_Socket, &perf) < 0)
@@ -215,27 +196,27 @@ int64_t Transport::getRealSndSpeed()
    return int64_t(8.0 * perf.pktSent * mss / (perf.usSndDuration / 1000000.0));
 }
 
-int Transport::getsockname(sockaddr* addr)
+int UDTTransport::getsockname(sockaddr* addr)
 {
    int size = sizeof(sockaddr_in);
    return UDT::getsockname(m_Socket, addr, &size);
 }
 
-int Transport::initCoder(unsigned char key[16], unsigned char iv[16])
+int UDTTransport::initCoder(unsigned char key[16], unsigned char iv[16])
 {
    m_Encoder.initEnc(key, iv);
    m_Decoder.initDec(key, iv);
    return 0;
 }
 
-int Transport::releaseCoder()
+int UDTTransport::releaseCoder()
 {
    m_Encoder.release();
    m_Decoder.release();
    return 0;
 }
 
-int Transport::secure_send(const char* buf, int size)
+int UDTTransport::secure_send(const char* buf, int size)
 {
    char* tmp = new char[size + 64];
    int len = size + 64;
@@ -248,7 +229,7 @@ int Transport::secure_send(const char* buf, int size)
    return size;
 }
 
-int Transport::secure_recv(char* buf, int size)
+int UDTTransport::secure_recv(char* buf, int size)
 {
    int len;
    if (recv((char*)&len, 4) < 0)
@@ -268,7 +249,7 @@ int Transport::secure_recv(char* buf, int size)
    return size;
 }
 
-int64_t Transport::secure_sendfile(fstream& ifs, int64_t offset, int64_t size)
+int64_t UDTTransport::secure_sendfile(fstream& ifs, int64_t offset, int64_t size)
 {
    const int block = 640000;
    char* tmp = new char[block];
@@ -289,7 +270,7 @@ int64_t Transport::secure_sendfile(fstream& ifs, int64_t offset, int64_t size)
    return size - tosend;
 }
 
-int64_t Transport::secure_recvfile(fstream& ofs, int64_t offset, int64_t size)
+int64_t UDTTransport::secure_recvfile(fstream& ofs, int64_t offset, int64_t size)
 {
    const int block = 640000;
    char* tmp = new char[block];
@@ -310,28 +291,28 @@ int64_t Transport::secure_recvfile(fstream& ofs, int64_t offset, int64_t size)
    return size - torecv;
 }
 
-int Transport::sendEx(const char* buf, int size, bool secure)
+int UDTTransport::sendEx(const char* buf, int size, bool secure)
 {
    if (!secure)
       return send(buf, size);
    return secure_send(buf, size);
 }
 
-int Transport::recvEx(char* buf, int size, bool secure)
+int UDTTransport::recvEx(char* buf, int size, bool secure)
 {
    if (!secure)
       return recv(buf, size);
    return secure_recv(buf, size);
 }
 
-int64_t Transport::sendfileEx(fstream& ifs, int64_t offset, int64_t size, bool secure)
+int64_t UDTTransport::sendfileEx(fstream& ifs, int64_t offset, int64_t size, bool secure)
 {
    if (!secure)
       return sendfile(ifs, offset, size);
    return secure_sendfile(ifs, offset, size);
 }
 
-int64_t Transport::recvfileEx(fstream& ofs, int64_t offset, int64_t size, bool secure)
+int64_t UDTTransport::recvfileEx(fstream& ofs, int64_t offset, int64_t size, bool secure)
 {
    if (!secure)
       return recvfile(ofs, offset, size);

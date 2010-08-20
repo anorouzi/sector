@@ -83,7 +83,7 @@ int Slave::init(const char* base)
    m_strMasterIP = inet_ntop(AF_INET, masterip->h_addr_list[0], buf, 64);
    m_iMasterPort = m_SysConfig.m_iMasterPort;
 
-   Transport::initialize();
+   UDTTransport::initialize();
 
    // init GMP
    m_GMP.init(0);
@@ -341,6 +341,10 @@ void Slave::run()
    // TODO: check and cancel all file&spe threads
 
    cout << "slave is stopped by master\n";
+}
+
+void Slave::close()
+{
 }
 
 int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* msg)

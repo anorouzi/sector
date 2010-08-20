@@ -31,6 +31,33 @@ written by
 
 using namespace std;
 
+ChnInfo::ChnInfo():
+m_pTrans(NULL),
+m_iCount(0),
+m_llTotalQueueSize(0),
+m_bSecKeySet(false)
+{
+   CGuard::createMutex(m_SndLock);
+   CGuard::createMutex(m_RcvLock);
+   CGuard::createMutex(m_QueueLock);
+}
+
+ChnInfo::~ChnInfo()
+{
+   if (NULL != m_pTrans)
+   {
+      m_pTrans->close();
+      delete m_pTrans;
+   }
+
+   CGuard::releaseMutex(m_SndLock);
+   CGuard::releaseMutex(m_RcvLock);
+   CGuard::releaseMutex(m_QueueLock);
+
+   for (vector<RcvData>::iterator i = m_vDataQueue.begin(); i != m_vDataQueue.end(); ++ i)
+      delete [] i->m_pcData;
+}
+
 DataChn::DataChn()
 {
    CGuard::createMutex(m_ChnLock);
@@ -41,19 +68,6 @@ DataChn::~DataChn()
    // remove all allocated data structures, dangling connections, unread buffers, etc.
    for (map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.begin(); i != m_mChannel.end(); ++ i)
    {
-      if (NULL != i->second->m_pTrans)
-      {
-         i->second->m_pTrans->close();
-         delete i->second->m_pTrans;
-      }
-
-      CGuard::releaseMutex(i->second->m_SndLock);
-      CGuard::releaseMutex(i->second->m_RcvLock);
-      CGuard::releaseMutex(i->second->m_QueueLock);
-
-      for (vector<RcvData>::iterator j = i->second->m_vDataQueue.begin(); j != i->second->m_vDataQueue.end(); ++ j)
-         delete [] j->m_pcData;
-
       delete i->second;
    }
 
@@ -72,14 +86,7 @@ int DataChn::init(const string& ip, int& port)
 
    // add itself
    ChnInfo* c = new ChnInfo;
-   c->m_pTrans = NULL;
-
-   CGuard::createMutex(c->m_SndLock);
-   CGuard::createMutex(c->m_RcvLock);
-   CGuard::createMutex(c->m_QueueLock);
-
    c->m_iCount = 1;
-   c->m_llTotalQueueSize = 0;
 
    Address addr;
    addr.m_strIP = ip;
@@ -100,19 +107,6 @@ int DataChn::garbageCollect()
    {
       if ((NULL == i->second->m_pTrans) || i->second->m_pTrans->isConnected())
          continue;
-
-      if (NULL != i->second->m_pTrans)
-      {
-         i->second->m_pTrans->close();
-         delete i->second->m_pTrans;
-      }
-
-      CGuard::releaseMutex(i->second->m_SndLock);
-      CGuard::releaseMutex(i->second->m_RcvLock);
-      CGuard::releaseMutex(i->second->m_QueueLock);
-
-      for (vector<RcvData>::iterator j = i->second->m_vDataQueue.begin(); j != i->second->m_vDataQueue.end(); ++ j)
-         delete [] j->m_pcData;
 
       delete i->second;
 
@@ -156,13 +150,6 @@ int DataChn::connect(const string& ip, int port)
    if (NULL == c)
    {
       c = new ChnInfo;
-      c->m_pTrans = NULL;
-
-      CGuard::createMutex(c->m_SndLock);
-      CGuard::createMutex(c->m_RcvLock);
-      CGuard::createMutex(c->m_QueueLock);
-
-      c->m_llTotalQueueSize = 0;
 
       CGuard::enterCS(m_ChnLock);
       if (m_mChannel.find(addr) == m_mChannel.end())
@@ -195,7 +182,7 @@ int DataChn::connect(const string& ip, int port)
       }
    }
 
-   Transport* t = new Transport;
+   UDTTransport* t = new UDTTransport;
    t->open(m_iPort, true, true);
    int r = t->connect(ip.c_str(), port);
 
@@ -232,27 +219,13 @@ int DataChn::remove(const string& ip, int port)
          if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
             i->second->m_pTrans->close();
 
-         // release all data in the data channel queue
-         CGuard::enterCS(i->second->m_QueueLock);
-         for (vector<RcvData>::iterator q = i->second->m_vDataQueue.begin(); q != i->second->m_vDataQueue.end(); ++ q)
-         {
-            delete [] q->m_pcData;
-         }
-         CGuard::leaveCS(i->second->m_QueueLock);
-
          // wait for all send/recv to complete
          CGuard::enterCS(i->second->m_SndLock);
-         CGuard::enterCS(i->second->m_RcvLock);
-
-         delete i->second->m_pTrans;
-         delete i->second;
-
-         CGuard::leaveCS(i->second->m_RcvLock);
          CGuard::leaveCS(i->second->m_SndLock);
+         CGuard::enterCS(i->second->m_RcvLock);
+         CGuard::leaveCS(i->second->m_RcvLock);
 
-         CGuard::releaseMutex(i->second->m_SndLock);
-         CGuard::releaseMutex(i->second->m_RcvLock);
-         CGuard::releaseMutex(i->second->m_QueueLock);
+         delete i->second;
 
          m_mChannel.erase(i);
       }
@@ -268,12 +241,21 @@ int DataChn::setCryptoKey(const string& ip, int port, unsigned char key[16], uns
    if (NULL == c)
       return -1;
 
+   // crypto key should only be set once for each connection
+   // otherwise, encryption can be wrong due to key reset
+
+   CGuard cg(c->m_SndLock);
+
+   if (c->m_bSecKeySet)
+      return 0;
+
    c->m_pTrans->initCoder(key, iv);
+   c->m_bSecKeySet = true;
 
    return 0;
 }
 
-DataChn::ChnInfo* DataChn::locate(const string& ip, int port)
+ChnInfo* DataChn::locate(const string& ip, int port)
 {
    Address addr;
    addr.m_strIP = ip;
