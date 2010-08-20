@@ -1,43 +1,23 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/12/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
-
 
 #include "slave.h"
 #include <ssltransport.h>
@@ -63,11 +43,15 @@ m_bRunning(false),
 m_bDiskHealth(true),
 m_bNetworkHealth(true)
 {
+   CGuard::createMutex(m_RunLock);
+   CGuard::createCond(m_RunCond);
 }
 
 Slave::~Slave()
 {
    delete m_pLocalFile;
+   CGuard::releaseMutex(m_RunLock);
+   CGuard::releaseCond(m_RunCond);
 }
 
 int Slave::init(const char* base)
@@ -301,6 +285,9 @@ void Slave::run()
 
    m_bRunning = true;
 
+   pthread_t worker_thread;
+   pthread_create(&worker_thread, NULL, worker, this);
+
    while (m_bRunning)
    {
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
@@ -349,6 +336,10 @@ void Slave::run()
 
    delete msg;
 
+   pthread_join(worker_thread, NULL);
+
+   // TODO: check and cancel all file&spe threads
+
    cout << "slave is stopped by master\n";
 }
 
@@ -356,38 +347,15 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
 {
    switch (msg->getType())
    {
-   case 1: // probe
-   {
-      // calculate total available disk size
-      struct statfs64 slavefs;
-      statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
-      m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
-      m_SlaveStat.m_llDataSize = m_pLocalFile->getTotalDataSize("/");
-
-      m_SlaveStat.refresh();
-
-      msg->setData(0, (char*)&(m_SlaveStat.m_llTimeStamp), 8);
-      msg->setData(8, (char*)&m_SlaveStat.m_llAvailSize, 8);
-      msg->setData(16, (char*)&m_SlaveStat.m_llDataSize, 8);
-      msg->setData(24, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
-      msg->setData(32, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
-      msg->setData(40, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
-      msg->setData(48, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
-
-      int size = (m_SlaveStat.m_mSysIndInput.size() + m_SlaveStat.m_mSysIndOutput.size() + m_SlaveStat.m_mCliIndInput.size() + m_SlaveStat.m_mCliIndOutput.size()) * 24 + 16;
-      char* buf = new char[size];
-      m_SlaveStat.serializeIOStat(buf, size);
-      msg->setData(56, buf, size);
-      delete [] buf;
-      m_GMP.sendto(ip, port, id, msg);
-      break;
-   }
-
    case 8: // stop
    {
       // stop the slave node
 
       m_bRunning = false;
+
+      pthread_mutex_lock(&m_RunLock);
+      pthread_cond_signal(&m_RunCond);
+      pthread_mutex_unlock(&m_RunLock);
 
       break;
    }
@@ -1137,10 +1105,10 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
    pthread_mutex_unlock(&m_StatLock);
 }
 
-int SlaveStat::serializeIOStat(char* buf, unsigned int size)
+int SlaveStat::serializeIOStat(char*& buf, int& size)
 {
-   if (size < (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16)
-      return -1;
+   size = (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
+   buf = new char[size];
 
    pthread_mutex_lock(&m_StatLock);
 
@@ -1184,4 +1152,74 @@ int SlaveStat::serializeIOStat(char* buf, unsigned int size)
    pthread_mutex_unlock(&m_StatLock);
 
    return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
+}
+
+void* Slave::worker(void* param)
+{
+   Slave* self = (Slave*)param;
+
+   int64_t last_report_time = CTimer::getTime();
+   int64_t last_gc_time = CTimer::getTime();
+
+   while (self->m_bRunning)
+   {
+      timeval t;
+      gettimeofday(&t, NULL);
+      timespec ts;
+      ts.tv_sec  = t.tv_sec + 30;
+      ts.tv_nsec = t.tv_usec * 1000;
+
+      pthread_mutex_lock(&self->m_RunLock);
+      pthread_cond_timedwait(&self->m_RunCond, &self->m_RunLock, &ts);
+      pthread_mutex_unlock(&self->m_RunLock);
+
+      // report to master every half minute
+      if (CTimer::getTime() - last_report_time < 30000000)
+         continue;
+
+      // calculate total available disk size
+      struct statfs64 slavefs;
+      statfs64(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+      self->m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
+      self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
+
+      self->m_SlaveStat.refresh();
+
+      SectorMsg msg;
+      msg.setType(10);
+      msg.setKey(0);
+      msg.setData(0, (char*)&(self->m_SlaveStat.m_llTimeStamp), 8);
+      msg.setData(8, (char*)&(self->m_SlaveStat.m_llAvailSize), 8);
+      msg.setData(16, (char*)&(self->m_SlaveStat.m_llDataSize), 8);
+      msg.setData(24, (char*)&(self->m_SlaveStat.m_llCurrMemUsed), 8);
+      msg.setData(32, (char*)&(self->m_SlaveStat.m_llCurrCPUUsed), 8);
+      msg.setData(40, (char*)&(self->m_SlaveStat.m_llTotalInputData), 8);
+      msg.setData(48, (char*)&(self->m_SlaveStat.m_llTotalOutputData), 8);
+
+      char* buf = NULL;
+      int size = 0;
+      self->m_SlaveStat.serializeIOStat(buf, size);
+      msg.setData(56, buf, size);
+      delete [] buf;
+
+      map<uint32_t, Address> al;
+      self->m_Routing.getListOfMasters(al);
+
+      for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
+      {
+         int id = 0;
+         self->m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, id, &msg);
+      }
+
+      last_report_time = CTimer::getTime();
+
+      // clean broken data channels every hour
+      if (CTimer::getTime() - last_gc_time > 3600000000LL)
+      {
+         self->m_DataChn.garbageCollect();
+         last_gc_time = CTimer::getTime();
+      }
+   }
+
+   return NULL;
 }

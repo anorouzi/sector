@@ -62,7 +62,7 @@ int main(int argc, char** argv)
    int bucket = 0;
    string upload = "";
 
-   for (map<string, string>::const_iterator i = clp.m_mParams.begin(); i != clp.m_mParams.end(); ++ i)
+   for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
    {
       if (i->first == "i")
          inpath = i->second;

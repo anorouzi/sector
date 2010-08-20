@@ -282,6 +282,10 @@ void* Slave::SPEHandler(void* p)
       if (self->m_DataChn.recv(ip, dataport, transid, dataseg, size) < 0)
          break;
 
+      // client request to close this SPE
+      if (size < 20)
+         break;
+
       // read data segment parameters
       int64_t offset = *(int64_t*)(dataseg);
       int64_t totalrows = *(int64_t*)(dataseg + 8);
@@ -505,7 +509,6 @@ void* Slave::SPEHandler(void* p)
    int duration = t2.tv_sec - t1.tv_sec;
 
    self->closeLibrary(lh);
-   self->m_DataChn.remove(ip, dataport);
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "comp server closed " << ip << " " << ctrlport << " " << duration << LogStringTag(LogTag::END);
 
@@ -802,9 +805,6 @@ void* Slave::SPEShufflerEx(void* p)
    msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
    int id = 0;
    self->m_GMP.sendto(client_ip.c_str(), client_port, id, &msg);
-
-   //remove this client data channel
-   self->m_DataChn.remove(client_ip, client_data_port);
 
    return NULL;
 }

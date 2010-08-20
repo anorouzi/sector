@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/06/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -132,7 +113,6 @@ int Master::init()
       || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0)
       || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
    {
-perror("here");
       cerr << "unable to create home directory " << m_strHomeDir << endl;
       return -1;
    }
@@ -350,31 +330,6 @@ int Master::run()
       for (vector<uint32_t>::iterator i = tbrm.begin(); i != tbrm.end(); ++ i)
          m_Routing.remove(*i);
 
-      // check each slave node
-      SectorMsg msg;
-      msg.setType(1);
-      //TODO: add list of logout users so that slaves can clear the libraries they uploaded
-
-      m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
-
-      vector<CUserMessage*>* res = new vector<CUserMessage*>;
-      res->resize(m_vSlaveList.size());
-      for (vector<CUserMessage*>::iterator i = res->begin(); i != res->end(); ++ i)
-         *i = new SectorMsg;
-
-      m_GMP.multi_rpc(m_vSlaveList, &msg, res);
-
-      for (int i = 0, n = m_vSlaveList.size(); i < n; ++ i)
-      {
-         SectorMsg* r = dynamic_cast<SectorMsg*>((*res)[i]);
-
-         if ((r->getType() > 0) && (r->m_iDataLength > 0))
-            m_SlaveManager.updateSlaveInfo(m_vSlaveList[i], r->getData(), r->m_iDataLength);
-         else
-            m_SlaveManager.increaseRetryCount(m_vSlaveList[i]);
-
-         delete r;
-      }
 
       // check each users, remove inactive ones
       vector<User*> iu;
@@ -401,7 +356,7 @@ int Master::run()
 
       map<int, Address> bad;
       map<int, Address> lost;
-      m_SlaveManager.checkBadAndLost(bad, lost, m_SysConfig.m_iSlaveTimeOut / 60 + 1);
+      m_SlaveManager.checkBadAndLost(bad, lost, m_SysConfig.m_iSlaveTimeOut * 1000000LL);
 
       for (map<int, Address>::iterator i = bad.begin(); i != bad.end(); ++ i)
       {
@@ -647,7 +602,6 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
       s.recv((char*)&sn.m_iDataPort, 4);
       sn.m_strStoragePath = lspath;
       sn.m_llLastUpdateTime = CTimer::getTime();
-      sn.m_iRetryNum = 0;
       sn.m_llLastVoteTime = CTimer::getTime();
 
       s.recv((char*)&(sn.m_llAvailDiskSpace), 8);
@@ -984,9 +938,17 @@ void* Master::process(void* s)
          addr.m_strIP = ip;
          addr.m_iPort = port;
          if (self->m_SlaveManager.getSlaveID(addr) >= 0)
+         {
             secure = true;
+            self->m_SlaveManager.updateSlaveTS(addr);
+         }
          else if (self->m_Routing.getRouterID(addr) >= 0)
             secure = true;
+         else
+         {
+            //this may be a lost slave re-join the system (e.g., its network connection is down)
+            // TODO: kill it and restart it
+         }
       }
 
       if (!secure)
@@ -1383,6 +1345,16 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       m_GMP.sendto(ip, port, id, msg);
 
       m_Status = STOPPED;
+
+      break;
+   }
+
+   case 10: // slave report status
+   {
+      Address addr;
+      addr.m_strIP = ip;
+      addr.m_iPort = port;
+      m_SlaveManager.updateSlaveInfo(addr, msg->getData(), msg->m_iDataLength);
 
       break;
    }

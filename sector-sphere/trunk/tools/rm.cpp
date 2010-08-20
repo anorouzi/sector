@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 #include <iostream>
@@ -30,6 +30,12 @@ void print_error(int code)
    cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
 }
 
+void help()
+{
+   cerr << "USAGE: rm <dir> [--f]\n";
+   cerr << "use -f to force to remove recursively.\n";
+}
+
 bool isRecursive(const string& path)
 {
    cout << "Directory " << path << " is not empty. Force to remove? Y/N: ";
@@ -41,10 +47,25 @@ bool isRecursive(const string& path)
 
 int main(int argc, char** argv)
 {
-   if (argc != 2)
+   CmdLineParser clp;
+   clp.parse(argc, argv);
+
+   if ((clp.m_vParams.size() != 1))
    {
-      cerr << "USAGE: rm <dir>\n";
-      return -1;
+      help();
+      return 0;
+   }
+
+   bool recursive = false;
+   if (!clp.m_vSFlags.empty())
+   {
+      for (vector<string>::iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
+      {
+         if (*i == "f")
+            recursive = true;
+         else
+            cerr << "unknown flag " << *i << " ignored.\n";
+      }
    }
 
    Sector client;
@@ -64,7 +85,7 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   string path = argv[1];
+   string path = *clp.m_vParams.begin();
    bool wc = WildCard::isWildCard(path);
 
    if (!wc)
@@ -73,11 +94,13 @@ int main(int argc, char** argv)
 
       if (result == SectorError::E_NOEMPTY)
       {
-         if (isRecursive(path))
+         if (recursive || isRecursive(path))
             client.rmr(path);
       }
       else if (result < 0)
+      {
          print_error(result);
+      }
    }
    else
    {
@@ -110,8 +133,7 @@ int main(int argc, char** argv)
 
                if (result == SectorError::E_NOEMPTY)
                {
-                  recursive = isRecursive(path + "/" + i->m_strName);
-                  if (recursive)
+                  if (recursive || isRecursive(path + "/" + i->m_strName))
                      client.rmr(path + "/" + i->m_strName);
                }
                else if (result < 0)

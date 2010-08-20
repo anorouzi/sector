@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/12/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 
@@ -196,9 +196,6 @@ int FSClient::reopen()
    // re-open only works on read
    if (m_bWrite)
       return SectorError::E_PERMISSION;
-
-   // close connection to the current slave
-   m_pClient->m_DataChn.remove(m_strSlaveIP, m_iSlaveDataPort);
 
    // clear current connection information
    m_strSlaveIP = "";
@@ -571,8 +568,6 @@ int FSClient::close()
          int response;
          m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, response);
       }
-
-      m_pClient->m_DataChn.remove(i->m_strIP, i->m_iPort);
    }
 
    //m_pClient->m_DataChn.releaseCoder();
@@ -749,8 +744,16 @@ int FSClient::organizeChainOfWrite()
       if ((m_pClient->m_DataChn.recv4(r->m_strIP, r->m_iPort, m_iSession, confirmation) < 0) || (confirmation < 0))
       {
          m_vReplicaAddress.erase(r);
-         m_strSlaveIP = m_vReplicaAddress.begin()->m_strIP;
-         m_iSlaveDataPort = m_vReplicaAddress.begin()->m_iPort;
+         if (m_vReplicaAddress.empty())
+         {
+            m_strSlaveIP = "";
+            m_iSlaveDataPort = 0;
+         }
+         else
+         {
+            m_strSlaveIP = m_vReplicaAddress.begin()->m_strIP;
+            m_iSlaveDataPort = m_vReplicaAddress.begin()->m_iPort;
+         }
          return -1;
       }
 

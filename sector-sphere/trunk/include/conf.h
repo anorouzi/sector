@@ -174,7 +174,9 @@ public:
    int parse(int argc, char** argv);
 
 public:
-   std::map<std::string, std::string> m_mParams;
+   std::vector<std::string> m_vSFlags;           // --f
+   std::map<std::string, std::string> m_mDFlags; // -f val
+   std::vector<std::string> m_vParams;           // parameter
 };
 
 #endif

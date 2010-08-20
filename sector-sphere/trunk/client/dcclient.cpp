@@ -481,9 +481,13 @@ DWORD WINAPI DCClient::run(LPVOID param)
 
    self->m_dRunningProgress = 0;
 
-   // disconnect all SPEs and close all Shufflers
+   // release all SPEs and close all Shufflers
    for (map<int, SPE>::iterator i = self->m_mSPE.begin(); i != self->m_mSPE.end(); ++ i)
-      self->m_pClient->m_DataChn.remove(i->second.m_strIP, i->second.m_iDataPort);
+   {
+      // an offset of -1 will tell the SPE to release itself
+      int64_t cmd = -1;
+      self->m_pClient->m_DataChn.send(i->second.m_strIP, i->second.m_iDataPort, i->second.m_iSession, (char*)&cmd, 8);
+   }
 
    for(map<int, BUCKET>::iterator i = self->m_mBucket.begin(); i != self->m_mBucket.end(); ++ i)
    {
@@ -509,7 +513,6 @@ DWORD WINAPI DCClient::run(LPVOID param)
       if (b == self->m_mBucket.end())
          continue;
       b->second.m_iProgress = 100;
-      self->m_pClient->m_DataChn.remove(b->second.m_strIP, b->second.m_iDataPort);
 
 #ifndef WIN32
       pthread_cond_signal(&self->m_ResCond);
@@ -555,7 +558,7 @@ int DCClient::checkSPE()
          sn.m_iPort = s->second.m_iPort;
 
          // find a new DS and start it
-		 CGuard::enterCS(m_DSLock);
+         CGuard::enterCS(m_DSLock);
 
          // start from random node
          map<int, DS*>::iterator dss = m_mpDS.end();
@@ -576,6 +579,19 @@ int DCClient::checkSPE()
 
             if (0 != d->second->m_iStatus)
                continue;
+
+            if (!m_bDataMove)
+            {
+               // if a file is processed via pass by filename, it must be processed on its original location
+               // also, this depends on if the source data is allowed to move
+               if (d->second->m_pLoc->find(sn) != d->second->m_pLoc->end())
+               {
+                  dss = d;
+                  break;
+               }
+               else
+                  continue;
+            }
 
             unsigned int dist = m_pClient->m_Topology.distance(sn, *(d->second->m_pLoc));
 
@@ -599,14 +615,6 @@ int DCClient::checkSPE()
                   // process data file with the slower progress first
                }
             }
-         }
-
-         if ((MinDist != 0) && !m_bDataMove)
-         {
-            // if a file is processed via pass by filename, it must be processed on its original location
-            // also, this depends on if the source data is allowed to move
-
-            dss = m_mpDS.end();
          }
 
          if (dss != m_mpDS.end())
@@ -638,7 +646,6 @@ int DCClient::checkSPE()
 
             // dismiss this SPE and release its job
             s->second.m_iStatus = -1;
-            m_pClient->m_DataChn.remove(s->second.m_strIP, s->second.m_iDataPort);
             m_iTotalSPE --;
 
             CGuard::enterCS(m_DSLock);

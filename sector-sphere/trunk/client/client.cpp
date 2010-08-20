@@ -46,32 +46,18 @@ m_iCount(0),
 m_bActive(false),
 m_iID(0)
 {
-#ifndef WIN32
-   pthread_mutex_init(&m_MasterSetLock, NULL);
-   pthread_mutex_init(&m_KALock, NULL);
-   pthread_cond_init(&m_KACond, NULL);
-   pthread_mutex_init(&m_IDLock, NULL);
-#else
-   m_MasterSetLock = CreateMutex(NULL, false, NULL);
-   m_KALock = CreateMutex(NULL, false, NULL);
-   m_KACond = CreateEvent(NULL, false, false, NULL);
-   m_IDLock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_MasterSetLock);
+   CGuard::createMutex(m_KALock);
+   CGuard::createCond(m_KACond);
+   CGuard::createMutex(m_IDLock);
 }
 
 Client::~Client()
 {
-#ifndef WIN32
-   pthread_mutex_destroy(&m_MasterSetLock);
-   pthread_mutex_destroy(&m_KALock);
-   pthread_cond_destroy(&m_KACond);
-   pthread_mutex_destroy(&m_IDLock);
-#else
-   CloseHandle(m_MasterSetLock);
-   CloseHandle(m_KALock);
-   CloseHandle(m_KACond);
-   CloseHandle(m_IDLock);
-#endif
+   CGuard::releaseMutex(m_MasterSetLock);
+   CGuard::releaseMutex(m_KALock);
+   CGuard::releaseCond(m_KACond);
+   CGuard::releaseMutex(m_IDLock);
 }
 
 int Client::init(const string& server, const int& port)
@@ -669,7 +655,8 @@ int Client::updateMasters()
          addr.m_strIP = i->second.m_strIP;
          addr.m_iPort = i->second.m_iPort;
          uint32_t key = i->first;
-         
+
+         // reset routing information
          m_Routing.init();
          m_Routing.insert(key, addr);
 
@@ -687,6 +674,7 @@ int Client::updateMasters()
             m_Routing.insert(key, addr);
          }
 
+         // masters updated, no need to query further
          return n + 1;
       }
    }
@@ -702,6 +690,7 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
 {
    Client* self = (Client*)param;
    int64_t last_heart_beat_time = CTimer::getTime();
+   int64_t last_gc_time = CTimer::getTime();
 
    while (self->m_bActive)
    {
@@ -709,14 +698,14 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
       timeval t;
       gettimeofday(&t, NULL);
       timespec ts;
-      ts.tv_sec  = t.tv_sec + 10;
+      ts.tv_sec  = t.tv_sec + 1;
       ts.tv_nsec = t.tv_usec * 1000;
 
       pthread_mutex_lock(&self->m_KALock);
       pthread_cond_timedwait(&self->m_KACond, &self->m_KALock, &ts);
       pthread_mutex_unlock(&self->m_KALock);
 #else
-      WaitForSingleObject(self->m_KACond, 10000);
+      WaitForSingleObject(self->m_KACond, 1000);
 #endif
 
       if (!self->m_bActive)
@@ -724,11 +713,11 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
 
       int64_t currtime = CTimer::getTime();
 
-      //check if there is any write data that needs to be flushed
+      //check if there is any write data that needs to be flushed, flush at least once per second
       CGuard::enterCS(self->m_IDLock);
       for (map<int, FSClient*>::iterator i = self->m_mFSList.begin(); i != self->m_mFSList.end(); ++ i)
       {
-         if (currtime - i->second->m_llLastFlushTime > 10000000)
+         if (currtime - i->second->m_llLastFlushTime > 1000000)
             i->second->flush();
       }
       CGuard::leaveCS(self->m_IDLock);
@@ -755,6 +744,14 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
       }
 
       last_heart_beat_time = CTimer::getTime();
+
+
+      // clean broken connections, every hour
+      if (CTimer::getTime() - last_gc_time > 3600000000LL)
+      {
+         self->m_DataChn.garbageCollect();
+         last_gc_time = CTimer::getTime();
+      }
    }
 
 #ifndef WIN32

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 07/25/2010
+   Yunhong Gu [gu@lac.uic.edu], last updated 08/19/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -33,15 +33,12 @@ using namespace std;
 
 DataChn::DataChn()
 {
-#ifndef WIN32
-   pthread_mutex_init(&m_ChnLock, NULL);
-#else
-   m_ChnLock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_ChnLock);
 }
 
 DataChn::~DataChn()
 {
+   // remove all allocated data structures, dangling connections, unread buffers, etc.
    for (map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.begin(); i != m_mChannel.end(); ++ i)
    {
       if (NULL != i->second->m_pTrans)
@@ -50,15 +47,9 @@ DataChn::~DataChn()
          delete i->second->m_pTrans;
       }
 
-#ifndef WIN32
-      pthread_mutex_destroy(&i->second->m_SndLock);
-      pthread_mutex_destroy(&i->second->m_RcvLock);
-      pthread_mutex_destroy(&i->second->m_QueueLock);
-#else
-      CloseHandle(i->second->m_SndLock);
-      CloseHandle(i->second->m_RcvLock);
-      CloseHandle(i->second->m_QueueLock);
-#endif
+      CGuard::releaseMutex(i->second->m_SndLock);
+      CGuard::releaseMutex(i->second->m_RcvLock);
+      CGuard::releaseMutex(i->second->m_QueueLock);
 
       for (vector<RcvData>::iterator j = i->second->m_vDataQueue.begin(); j != i->second->m_vDataQueue.end(); ++ j)
          delete [] j->m_pcData;
@@ -68,11 +59,7 @@ DataChn::~DataChn()
 
    m_mChannel.clear();
 
-#ifndef WIN32
-   pthread_mutex_destroy(&m_ChnLock);
-#else
-   CloseHandle(m_ChnLock);
-#endif
+   CGuard::releaseMutex(m_ChnLock);
 }
 
 int DataChn::init(const string& ip, int& port)
@@ -86,15 +73,11 @@ int DataChn::init(const string& ip, int& port)
    // add itself
    ChnInfo* c = new ChnInfo;
    c->m_pTrans = NULL;
-#ifndef WIN32
-   pthread_mutex_init(&c->m_SndLock, NULL);
-   pthread_mutex_init(&c->m_RcvLock, NULL);
-   pthread_mutex_init(&c->m_QueueLock, NULL);
-#else
-   c->m_SndLock = CreateMutex(NULL, false, NULL);
-   c->m_RcvLock = CreateMutex(NULL, false, NULL);
-   c->m_QueueLock = CreateMutex(NULL, false, NULL);
-#endif
+
+   CGuard::createMutex(c->m_SndLock);
+   CGuard::createMutex(c->m_RcvLock);
+   CGuard::createMutex(c->m_QueueLock);
+
    c->m_iCount = 1;
    c->m_llTotalQueueSize = 0;
 
@@ -104,6 +87,42 @@ int DataChn::init(const string& ip, int& port)
    m_mChannel[addr] = c;
 
    return port;
+}
+
+int DataChn::garbageCollect()
+{
+   CGuard dg(m_ChnLock);
+
+   vector<Address> tbd;
+
+   // remove broken connections, which mean the peers have already left
+   for (map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.begin(); i != m_mChannel.end(); ++ i)
+   {
+      if ((NULL == i->second->m_pTrans) || i->second->m_pTrans->isConnected())
+         continue;
+
+      if (NULL != i->second->m_pTrans)
+      {
+         i->second->m_pTrans->close();
+         delete i->second->m_pTrans;
+      }
+
+      CGuard::releaseMutex(i->second->m_SndLock);
+      CGuard::releaseMutex(i->second->m_RcvLock);
+      CGuard::releaseMutex(i->second->m_QueueLock);
+
+      for (vector<RcvData>::iterator j = i->second->m_vDataQueue.begin(); j != i->second->m_vDataQueue.end(); ++ j)
+         delete [] j->m_pcData;
+
+      delete i->second;
+
+      tbd.push_back(i->first);
+   }
+
+   for (vector<Address>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
+      m_mChannel.erase(*i);
+
+   return 0;
 }
 
 bool DataChn::isConnected(const string& ip, int port)
@@ -138,15 +157,11 @@ int DataChn::connect(const string& ip, int port)
    {
       c = new ChnInfo;
       c->m_pTrans = NULL;
-#ifndef WIN32
-      pthread_mutex_init(&c->m_SndLock, NULL);
-      pthread_mutex_init(&c->m_RcvLock, NULL);
-      pthread_mutex_init(&c->m_QueueLock, NULL);
-#else
-      c->m_SndLock = CreateMutex(NULL, false, NULL);
-      c->m_RcvLock = CreateMutex(NULL, false, NULL);
-      c->m_QueueLock = CreateMutex(NULL, false, NULL);
-#endif
+
+      CGuard::createMutex(c->m_SndLock);
+      CGuard::createMutex(c->m_RcvLock);
+      CGuard::createMutex(c->m_QueueLock);
+
       c->m_llTotalQueueSize = 0;
 
       CGuard::enterCS(m_ChnLock);
@@ -160,6 +175,7 @@ int DataChn::connect(const string& ip, int port)
       CGuard::leaveCS(m_ChnLock);
    }
 
+   // snd lock is used to prevent two threads from connecting on the same channel at the same time
    CGuard::enterCS(c->m_SndLock);
 
    if (NULL != c->m_pTrans)
@@ -212,6 +228,10 @@ int DataChn::remove(const string& ip, int port)
       -- i->second->m_iCount;
       if (0 == i->second->m_iCount)
       {
+         // disconnect
+         if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
+            i->second->m_pTrans->close();
+
          // release all data in the data channel queue
          CGuard::enterCS(i->second->m_QueueLock);
          for (vector<RcvData>::iterator q = i->second->m_vDataQueue.begin(); q != i->second->m_vDataQueue.end(); ++ q)
@@ -220,19 +240,20 @@ int DataChn::remove(const string& ip, int port)
          }
          CGuard::leaveCS(i->second->m_QueueLock);
 
-         if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
-            i->second->m_pTrans->close();
+         // wait for all send/recv to complete
+         CGuard::enterCS(i->second->m_SndLock);
+         CGuard::enterCS(i->second->m_RcvLock);
+
          delete i->second->m_pTrans;
          delete i->second;
-#ifndef WIN32
-         pthread_mutex_destroy(&i->second->m_SndLock);
-         pthread_mutex_destroy(&i->second->m_RcvLock);
-         pthread_mutex_destroy(&i->second->m_QueueLock);
-#else
-         CloseHandle(i->second->m_SndLock);
-         CloseHandle(i->second->m_RcvLock);
-         CloseHandle(i->second->m_QueueLock);
-#endif
+
+         CGuard::leaveCS(i->second->m_RcvLock);
+         CGuard::leaveCS(i->second->m_SndLock);
+
+         CGuard::releaseMutex(i->second->m_SndLock);
+         CGuard::releaseMutex(i->second->m_RcvLock);
+         CGuard::releaseMutex(i->second->m_QueueLock);
+
          m_mChannel.erase(i);
       }
    }
@@ -294,12 +315,17 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
    }
 
    CGuard::enterCS(c->m_SndLock);
+
+   if (NULL == c->m_pTrans)
+   {
+      // no connection
+      CGuard::leaveCS(c->m_SndLock);
+      return -1;
+   }
+
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
-   if (!secure)
-      c->m_pTrans->send(data, size);
-   else
-      c->m_pTrans->sendEx(data, size, true);
+   c->m_pTrans->sendEx(data, size, secure);
    CGuard::leaveCS(c->m_SndLock);
 
    return size;
@@ -311,7 +337,11 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
    if (NULL == c)
       return -1;
 
-   while ((NULL == c->m_pTrans) || c->m_pTrans->isConnected())
+   bool self = (ip == m_strIP) && (port == m_iPort);
+   if (!self && ((NULL == c->m_pTrans) || !c->m_pTrans->isConnected()))
+      return -1;
+
+   while (true)
    {
       CGuard::enterCS(c->m_QueueLock);
       for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
@@ -336,11 +366,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
 #endif
       {
          // if another thread is receiving data, wait a little while and check the queue again
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
       }
 
@@ -367,16 +393,18 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          return size;
       }
 
-      if (NULL == c->m_pTrans)
+      if (self)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
          CGuard::leaveCS(c->m_RcvLock);
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
+      }
+      else if ((NULL == c->m_pTrans) && !c->m_pTrans->isConnected())
+      {
+         // no connection
+         CGuard::leaveCS(c->m_RcvLock);
+         return -1;
       }
 
       RcvData rd;
@@ -391,25 +419,13 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
-      if (!secure)
+
+      rd.m_pcData = new char[rd.m_iSize];
+      if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
       {
-         rd.m_pcData = new char[rd.m_iSize];
-         if (c->m_pTrans->recv(rd.m_pcData, rd.m_iSize) < 0)
-         {
-            delete [] rd.m_pcData;
-            CGuard::leaveCS(c->m_RcvLock);
-            return -1;
-         }
-      }
-      else
-      {
-         rd.m_pcData = new char[rd.m_iSize + 64];
-         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, true) < 0)
-         {
-            delete [] rd.m_pcData;
-            CGuard::leaveCS(c->m_RcvLock);
-            return -1;
-         }
+         delete [] rd.m_pcData;
+         CGuard::leaveCS(c->m_RcvLock);
+         return -1;
       }
 
       if (session == rd.m_iSession)
@@ -460,7 +476,7 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
    CGuard::enterCS(c->m_SndLock);
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
-   c->m_pTrans->sendfile(ifs, offset, size);
+   c->m_pTrans->sendfileEx(ifs, offset, size, secure);
    CGuard::leaveCS(c->m_SndLock);
 
    return size;
@@ -472,7 +488,11 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
    if (NULL == c)
       return -1;
 
-   while ((NULL == c->m_pTrans) || c->m_pTrans->isConnected())
+   bool self = (ip == m_strIP) && (port == m_iPort);
+   if (!self && ((NULL == c->m_pTrans) || !c->m_pTrans->isConnected()))
+      return -1;
+
+   while (true)
    {
       CGuard::enterCS(c->m_QueueLock);
       for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
@@ -498,11 +518,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
 #endif
       {
          // if another thread is receiving data, wait a little while and check the queue again
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
       }
 
@@ -530,16 +546,18 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          return size;
       }
 
-      if (NULL == c->m_pTrans)
+      if (self)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
          CGuard::leaveCS(c->m_RcvLock);
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
+      }
+      else if ((NULL == c->m_pTrans) && !c->m_pTrans->isConnected())
+      {
+         // no connection
+         CGuard::leaveCS(c->m_RcvLock);
+         return -1;
       }
 
       RcvData rd;
@@ -554,53 +572,30 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
-      if (!secure)
+
+      if (session == rd.m_iSession)
       {
-         if (session == rd.m_iSession)
+         if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, secure) < 0)
          {
-            if (c->m_pTrans->recvfile(ofs, offset, rd.m_iSize) < 0)
-            {
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
-         }
-         else
-         {
-            rd.m_pcData = new char[rd.m_iSize];
-            if (c->m_pTrans->recv(rd.m_pcData, rd.m_iSize) < 0)
-            {
-               delete [] rd.m_pcData;
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
+            CGuard::leaveCS(c->m_RcvLock);
+            return -1;
          }
       }
       else
       {
-         if (session == rd.m_iSession)
+         rd.m_pcData = new char[rd.m_iSize];
+         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
          {
-            if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, true) < 0)
-            {
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
-         }
-         else
-         {
-            rd.m_pcData = new char[rd.m_iSize + 64];
-            if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, true) < 0)
-            {
-               delete [] rd.m_pcData;
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
+            delete [] rd.m_pcData;
+            CGuard::leaveCS(c->m_RcvLock);
+            return -1;
          }
       }
-      CGuard::leaveCS(c->m_RcvLock);
 
       if (session == rd.m_iSession)
       {
          size = rd.m_iSize;
+         CGuard::leaveCS(c->m_RcvLock);
          return size;
       }
 
@@ -608,6 +603,8 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
+
+      CGuard::leaveCS(c->m_RcvLock);
    }
 
    size = 0;

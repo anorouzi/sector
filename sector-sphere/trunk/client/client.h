@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 
@@ -94,18 +94,18 @@ protected:
    int retrieveMasterInfo(std::string& certfile);
 
 protected:
-   std::string m_strUsername;           // user account name
-   std::string m_strPassword;           // user password
-   std::string m_strCert;               // master certificate
+   std::string m_strUsername;           	// user account name
+   std::string m_strPassword;           	// user password
+   std::string m_strCert;               	// master certificate
 
-   std::set<Address, AddrComp> m_sMasters;      // masters
+   std::set<Address, AddrComp> m_sMasters;      // list of masters that the client already log in
    pthread_mutex_t m_MasterSetLock;
 
-   Routing m_Routing;                   // master routing module
+   Routing m_Routing;                  	 	// master routing module
 
-   std::string m_strServerHost;		// original master server domain name
-   std::string m_strServerIP;		// original master server IP address
-   int m_iServerPort;			// original master server port
+   std::string m_strServerHost;			// original master server domain name
+   std::string m_strServerIP;			// original master server IP address
+   int m_iServerPort;				// original master server port
 
 protected:
    CGMP m_GMP;				// GMP

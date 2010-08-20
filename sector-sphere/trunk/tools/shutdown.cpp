@@ -76,17 +76,18 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   string type = clp.m_mParams.begin()->first;
+   string type = clp.m_mDFlags.begin()->first;
+   string param = clp.m_mDFlags.begin()->second;
 
    result = -1;
    if (type == "a")
       result = client.shutdown(1);
    else if (type == "i")
-      result = client.shutdown(2, clp.m_mParams.begin()->second);
+      result = client.shutdown(2, param);
    else if (type == "d")
-      result = client.shutdown(3, clp.m_mParams.begin()->second);
+      result = client.shutdown(3, param);
    else if (type == "r")
-      result = client.shutdown(4, clp.m_mParams.begin()->second);
+      result = client.shutdown(4, param);
    else
    {
       cout << "USAGE: sector_shutdown -a | -i <slave id> | -d <slave IP:port> | -r <rack topo path>\n";
