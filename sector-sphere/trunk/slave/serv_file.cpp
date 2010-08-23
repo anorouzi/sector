@@ -97,6 +97,9 @@ void* Slave::fileHandler(void* p)
    fstream fhandle;
    fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
 
+   // a file session is successful one when the client issue a close() request
+   bool success = false;
+
    while (!fhandle.fail() && run && self->m_bDiskHealth && self->m_bNetworkHealth)
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
@@ -311,6 +314,8 @@ void* Slave::fileHandler(void* p)
          }
 
       case 5: // end session
+         // the file has been successfully closed
+         success = true;
          run = false;
          break;
 
@@ -428,7 +433,10 @@ void* Slave::fileHandler(void* p)
    // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
    self->report(master_ip, master_port, transid, sname, change);
 
-   self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
+   if (success)
+      self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
+   else
+      self->m_DataChn.sendError(client_ip, client_port, transid);
 
    return NULL;
 }

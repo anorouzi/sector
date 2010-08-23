@@ -83,6 +83,8 @@ public:
 
    int getSelfAddr(const std::string& peerip, int peerport, std::string& localip, int& localport);
 
+   int sendError(const std::string& ip, int port, int session);
+
 private:
    std::map<Address, ChnInfo*, AddrComp> m_mChannel;
 

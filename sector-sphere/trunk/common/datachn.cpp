@@ -285,8 +285,11 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
       RcvData q;
       q.m_iSession = session;
       q.m_iSize = size;
-      q.m_pcData = new char[size];
-      memcpy(q.m_pcData, data, size);
+      if (size > 0)
+      {
+         q.m_pcData = new char[size];
+         memcpy(q.m_pcData, data, size);
+      }
 
       CGuard::enterCS(c->m_QueueLock);
       c->m_llTotalQueueSize += q.m_iSize;
@@ -307,7 +310,8 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
 
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
-   c->m_pTrans->sendEx(data, size, secure);
+   if (size > 0)
+      c->m_pTrans->sendEx(data, size, secure);
    CGuard::leaveCS(c->m_SndLock);
 
    return size;
@@ -396,18 +400,26 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
-      if ((c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0) || (rd.m_iSize < 0))
+      if (c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0)
       {
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
 
-      rd.m_pcData = new char[rd.m_iSize];
-      if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
+      if (rd.m_iSize < 0)
       {
-         delete [] rd.m_pcData;
-         CGuard::leaveCS(c->m_RcvLock);
-         return -1;
+         // the peer may send a negative size to indicate error, see sendError
+         rd.m_pcData = NULL;
+      }
+      else
+      {
+         rd.m_pcData = new char[rd.m_iSize];
+         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
+         {
+            delete [] rd.m_pcData;
+            CGuard::leaveCS(c->m_RcvLock);
+            return -1;
+         }
       }
 
       if (session == rd.m_iSession)
@@ -443,9 +455,12 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
       RcvData q;
       q.m_iSession = session;
       q.m_iSize = size;
-      q.m_pcData = new char[size];
-      ifs.seekg(offset);
-      ifs.read(q.m_pcData, size);
+      if (size > 0)
+      {
+         q.m_pcData = new char[size];
+         ifs.seekg(offset);
+         ifs.read(q.m_pcData, size);
+      }
 
       CGuard::enterCS(c->m_QueueLock);
       c->m_llTotalQueueSize += q.m_iSize;
@@ -458,7 +473,8 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
    CGuard::enterCS(c->m_SndLock);
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
-   c->m_pTrans->sendfileEx(ifs, offset, size, secure);
+   if (size > 0)
+      c->m_pTrans->sendfileEx(ifs, offset, size, secure);
    CGuard::leaveCS(c->m_SndLock);
 
    return size;
@@ -549,28 +565,35 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
-      if ((c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0) || (rd.m_iSize < 0))
+      if (c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0)
       {
          CGuard::leaveCS(c->m_RcvLock);
          return -1;
       }
 
-      if (session == rd.m_iSession)
+      if (rd.m_iSize < 0)
       {
-         if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, secure) < 0)
-         {
-            CGuard::leaveCS(c->m_RcvLock);
-            return -1;
-         }
+         rd.m_pcData = NULL;
       }
       else
       {
-         rd.m_pcData = new char[rd.m_iSize];
-         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
+         if (session == rd.m_iSession)
          {
-            delete [] rd.m_pcData;
-            CGuard::leaveCS(c->m_RcvLock);
-            return -1;
+            if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, secure) < 0)
+            {
+               CGuard::leaveCS(c->m_RcvLock);
+               return -1;
+            }
+         }
+         else
+         {
+            rd.m_pcData = new char[rd.m_iSize];
+            if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
+            {
+               delete [] rd.m_pcData;
+               CGuard::leaveCS(c->m_RcvLock);
+               return -1;
+            }
          }
       }
 
@@ -658,4 +681,9 @@ int DataChn::getSelfAddr(const string& peerip, int peerport, string& localip, in
    localip = inet_ntoa(addr.sin_addr);
    localport = ntohs(addr.sin_port);
    return 0;
+}
+
+int DataChn::sendError(const string& ip, int port, int session)
+{
+   return send(ip, port, session, NULL, -1);
 }
