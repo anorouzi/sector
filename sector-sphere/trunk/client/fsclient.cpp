@@ -167,14 +167,19 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
       int32_t cmd = 6;
       m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
       int size = 0;
+      delete [] m_pcLocalPath;
+      m_pcLocalPath = NULL;
       if (m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, m_pcLocalPath, size) > 0)
       {
          fstream test((m_pcLocalPath + filename).c_str(), ios::binary | ios::in);
          if (!test.bad() && !test.fail())
             m_bLocal = true;
+         test.close();
       }
    }
 
+   // crypto key should only be set once per connection
+   // repeated request to set the key will be ignored by datachn
    memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);
    memcpy(m_pcIV, m_pClient->m_pcCryptoIV, 8);
    m_pClient->m_DataChn.setCryptoKey(m_strSlaveIP, m_iSlaveDataPort, m_pcKey, m_pcIV);
@@ -576,6 +581,9 @@ int FSClient::close()
 
    m_strFileName = "";
 
+   delete [] m_pcLocalPath;
+   m_pcLocalPath = NULL;
+
    return 0;
 }
 
@@ -854,6 +862,8 @@ int FSClient::flush_()
          newaddr.push_back(*i);
       }
    }
+
+   delete [] log;
 
    // write has been synchronized
    for (vector<WriteEntry>::iterator w = m_WriteLog.m_vListOfWrites.begin(); w != m_WriteLog.m_vListOfWrites.end(); ++ w)

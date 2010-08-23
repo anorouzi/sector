@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/07/2010
+   Yunhong Gu, last updated 08/23/2010
 *****************************************************************************/
 
 #include <string.h>
@@ -254,18 +254,21 @@ int Cache::shrink()
    }
 
    // find the block with the earliest lass access time
-   // currently we assume all blocks have equal size, so removing one block is enough for a new block
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
    latest_time = CTimer::getTime();
-   list<CacheBlock>::iterator d = c->second.begin();
+   list<CacheBlock>::iterator d = c->second.end();
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
    {
-      if (i->m_llLastAccessTime < latest_time)
+      // write cache MUST NOT be removed until the write is cleared
+      if ((i->m_llLastAccessTime < latest_time) && !i->m_bWrite)
       {
          latest_time = i->m_llLastAccessTime;
          d = i;
       }
    }
+
+   if (d == c->second.end())
+      return 0;
 
    delete [] d->m_pcBlock;
    d->m_pcBlock = NULL;

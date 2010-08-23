@@ -836,13 +836,9 @@ void CUDT::connect(const sockaddr* peer, CHandShake* hs)
    char* buffer = new char[CHandShake::m_iContentSize];
    hs->serialize(buffer, CHandShake::m_iContentSize);
    response.pack(0, NULL, buffer, CHandShake::m_iContentSize);
-
-   response.m_iTimeStamp = m_SocketID;
-
-
-   delete [] buffer;
    response.m_iID = m_PeerID;
    m_pSndQueue->sendto(peer, response);
+   delete [] buffer;
 }
 
 void CUDT::close()
@@ -889,8 +885,6 @@ void CUDT::close()
    }
    if (m_bConnected)
    {
-//////////////////////////
-
       if (!m_bShutdown)
          sendCtrl(5);
 
@@ -2326,8 +2320,8 @@ void CUDT::checkTimers()
    if (currtime > m_ullNextEXPTime)
    {
       // Haven't receive any information from the peer, is it dead?!
-      // timeout: at least 16 expirations and must be greater than 10 seconds
-      if ((m_iEXPCount > 16) && (CTimer::getTime() - m_llLastRspTime > 10000000))
+      // timeout: at least 16 expirations and must be greater than 60 seconds
+      if ((m_iEXPCount > 16) && (CTimer::getTime() - m_llLastRspTime > 60000000))
       {
          //
          // Connection is broken. 

@@ -590,7 +590,7 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
       }
 
       // detect slave timeout
-      if (CTimer::getTime() - i->second.m_llLastUpdateTime >= timeout)
+      if (CTimer::getTime() - i->second.m_llLastUpdateTime >= (uint64_t)timeout)
       {
          lost[i->first].m_strIP = i->second.m_strIP;
          lost[i->first].m_iPort = i->second.m_iPort;

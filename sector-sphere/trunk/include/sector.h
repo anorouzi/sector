@@ -330,9 +330,10 @@ public:
    static const int E_MASTER = 2013;            // all masters have been lost
    static const int E_CONNECTION = -3000;       // unable to connect
    static const int E_BROKENPIPE = -3001;       // data connection lost
+   static const int E_TIMEOUT = -3002;          // message recv timeout
    static const int E_RESOURCE = -4000;         // no available resources
    static const int E_NODISK = -4001;           // no enough disk
-   static const int E_TIMEDOUT = -5000;         // timeout
+   static const int E_VERSION = -5000;          // incompatible version between client and servers
    static const int E_INVALID = -6000;          // invalid parameter
    static const int E_SUPPORT = -6001;          // operation not supported
    static const int E_CANCELED = -6002;         // operation was canceled

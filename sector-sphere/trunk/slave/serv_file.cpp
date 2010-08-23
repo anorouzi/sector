@@ -414,8 +414,8 @@ void* Slave::fileHandler(void* p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "file server closed " << src_ip << " " << src_port << " " << avgWS << " " << avgRS << LogStringTag(LogTag::END);
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << avgWS << " " << avgRS << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "file server closed " << src_ip << " " << src_port << " " << (long long)avgWS << " " << (long long)avgRS << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << (long long)avgWS << " " << (long long)avgRS << LogStringTag(LogTag::END);
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

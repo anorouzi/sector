@@ -144,7 +144,7 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
    if (i != m_mStoredString.end())
    {
       char buf[64];
-      sprintf(buf, "%lld", val);
+      sprintf(buf, "%lld", (long long)val);
       i->second.m_strLog += buf;
    }
 

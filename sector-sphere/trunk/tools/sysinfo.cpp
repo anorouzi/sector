@@ -72,7 +72,7 @@ string format(const string& str, const int len)
 string toString(const int64_t& val)
 {
    char buf[64];
-   sprintf(buf, "%lld", val);
+   sprintf(buf, "%lld", (long long)val);
 
    return buf;
 }
@@ -84,7 +84,7 @@ string format(const int64_t& val, const int len)
 
 void print(const SysStat& s)
 {
-   const float MB = 1024.0 * 1024.0;
+   const int MB = 1024 * 1024;
 
    cout << endl;
 
@@ -141,7 +141,7 @@ void print(const SysStat& s)
         << format("CPU(us)", 12)
         << format("NetIn(MB)", 15)
         << format("NetOut(MB)", 15)
-        << format("TS(us)", 20) << endl;
+        << format("TS(second)", 20) << endl;
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
@@ -153,7 +153,7 @@ void print(const SysStat& s)
            << format(i->m_llCurrCPUUsed, 12)
            << format(i->m_llTotalInputData / MB, 15)
            << format(i->m_llTotalOutputData / MB, 15)
-           << format(i->m_llTimeStamp, 20) << endl;
+           << format(i->m_llTimeStamp / 1000000, 20) << endl;
    }
 
    cout << endl;

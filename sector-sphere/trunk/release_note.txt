@@ -1,5 +1,6 @@
 version 2.5
 
+fix a bug that causes client to hang during concurrent IO from the same client
 log system improved
 fix sector_download bug when local disk is full
 fix udt recvfile bug

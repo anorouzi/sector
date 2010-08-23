@@ -649,7 +649,7 @@ void* Slave::SPEShufflerEx(void* p)
    int transid = ((Param5*)p)->transid;
    string client_ip = ((Param5*)p)->client_ip;
    int client_port = ((Param5*)p)->client_ctrl_port;
-   int client_data_port = ((Param5*)p)->client_data_port;
+   //int client_data_port = ((Param5*)p)->client_data_port;
    string path = ((Param5*)p)->path;
    string localfile = ((Param5*)p)->filename;
    int bucketnum = ((Param5*)p)->bucketnum;

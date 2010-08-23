@@ -48,6 +48,13 @@ void WriteLog::clear()
 
 int WriteLog::serialize(char*& buf, int& size)
 {
+    if (m_vListOfWrites.empty())
+    {
+       buf = NULL;
+       size = 0;
+       return 0;
+    }
+
     size = m_vListOfWrites.size() * sizeof(int64_t) * 2;
     buf =  new char [size];
     int64_t* p = (int64_t*)buf;
