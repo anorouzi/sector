@@ -849,10 +849,10 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       CGuard::leaveCS(m_ResLock);
 
       if (retcode == ETIMEDOUT)
-         return SectorError::E_TIMEDOUT;
+         return SectorError::E_TIMEOUT;
 #else
       if (WaitForSingleObject(m_ResCond, 10000) == WAIT_TIMEOUT)
-         return SectorError::E_TIMEDOUT;
+         return SectorError::E_TIMEOUT;
 #endif
    }
 
