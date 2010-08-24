@@ -771,9 +771,8 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    sys.m_llAvailDiskSpace = *(int64_t*)(buf + 8);
    sys.m_llTotalFileSize = *(int64_t*)(buf + 16);
    sys.m_llTotalFileNum = *(int64_t*)(buf + 24);
-   sys.m_llTotalSlaves = *(int64_t*)(buf + 32);
 
-   char* p = buf + 40;
+   char* p = buf + 32;
    int c = *(int32_t*)p;
    sys.m_vCluster.resize(c);
    p += 4;
@@ -802,9 +801,9 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
       p += 4;
    }
 
-   int n = *(int32_t*)p;
+   sys.m_llTotalSlaves = *(int32_t*)p;
    p += 4;
-   sys.m_vSlaveList.resize(n);
+   sys.m_vSlaveList.resize(sys.m_llTotalSlaves);
    for (vector<SysStat::SlaveStat>::iterator i = sys.m_vSlaveList.begin(); i != sys.m_vSlaveList.end(); ++ i)
    {
       i->m_iID = *(int32_t*)p;
@@ -817,8 +816,11 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
       i->m_llTotalInputData = *(int64_t*)(p + 56);
       i->m_llTotalOutputData = *(int64_t*)(p + 64);
       i->m_llTimeStamp = *(int64_t*)(p + 72);
+      i->m_iStatus = *(int64_t*)(p + 80);
+      i->m_iClusterID = *(int64_t*)(p + 84);
+      i->m_strDataDir = p + 92;
 
-      p += 80;
+      p += 92 + i->m_strDataDir.length() + 1;
    }
 
    return 0;

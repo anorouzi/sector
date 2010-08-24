@@ -351,6 +351,12 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
 {
    switch (msg->getType())
    {
+   case 1: // probe
+   {
+      m_GMP.sendto(ip, port, id, msg);
+      break;
+   }
+
    case 8: // stop
    {
       // stop the slave node

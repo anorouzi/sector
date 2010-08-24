@@ -63,8 +63,8 @@ public:
    int voteBadSlaves(const Address& voter, int num, const char* buf);
    unsigned int getNumberOfClusters();
    unsigned int getNumberOfSlaves();
-   int serializeClusterInfo(char* buf, int& size);
-   int serializeSlaveInfo(char* buf, int& size);
+   int serializeClusterInfo(char*& buf, int& size);
+   int serializeSlaveInfo(char*& buf, int& size);
    int getSlaveListByRack(std::map<int, Address>& sl, const std::string& topopath);
 
 public:

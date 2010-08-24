@@ -710,11 +710,16 @@ unsigned int SlaveManager::getNumberOfSlaves()
    return m_mSlaveList.size();
 }
 
-int SlaveManager::serializeClusterInfo(char* buf, int& size)
+int SlaveManager::serializeClusterInfo(char*& buf, int& size)
 {
    CGuard sg(m_SlaveLock);
 
-   char* p = buf;
+   size = 4 + m_Cluster.m_mSubCluster.size() * 40;
+   buf = new char[size];
+
+   *(int32_t*)buf = m_Cluster.m_mSubCluster.size();
+
+   char* p = buf + 4;
    for (map<int, Cluster>::iterator i = m_Cluster.m_mSubCluster.begin(); i != m_Cluster.m_mSubCluster.end(); ++ i)
    {
       *(int32_t*)p = i->second.m_iClusterID;
@@ -727,15 +732,25 @@ int SlaveManager::serializeClusterInfo(char* buf, int& size)
       p += 40;
    }
 
-   size = p - buf;
    return size;
 }
 
-int SlaveManager::serializeSlaveInfo(char* buf, int& size)
+int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
 {
    CGuard sg(m_SlaveLock);
 
-   char* p = buf;
+   size = 4;
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      size += i->second.m_strStoragePath.length() + 1;
+   }
+   size += m_mSlaveList.size() * 92;
+
+   buf = new char[size];
+
+   *(int32_t*)buf = m_mSlaveList.size();
+
+   char* p = buf + 4;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
       *(int32_t*)p = i->first;
@@ -748,11 +763,14 @@ int SlaveManager::serializeSlaveInfo(char* buf, int& size)
       *(int64_t*)(p + 56) = i->second.m_llTotalInputData;
       *(int64_t*)(p + 64) = i->second.m_llTotalOutputData;
       *(int64_t*)(p + 72) = i->second.m_llTimeStamp;
-
-      p += 80;
+      *(int64_t*)(p + 80) = i->second.m_iStatus;
+      *(int64_t*)(p + 84) = i->second.m_viPath[0];
+      *(int64_t*)(p + 88) = i->second.m_strStoragePath.length() + 1;
+      p+= 92;
+      strcpy(p, i->second.m_strStoragePath.c_str());
+      p+= i->second.m_strStoragePath.length() + 1;
    }
 
-   size = p - buf;
    return size;
 }
 

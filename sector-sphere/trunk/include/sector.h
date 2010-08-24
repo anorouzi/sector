@@ -110,6 +110,9 @@ public:
       int64_t m_llCurrCPUUsed;
       int64_t m_llTotalInputData;
       int64_t m_llTotalOutputData;
+      std::string m_strDataDir;
+      int32_t m_iClusterID;
+      int32_t m_iStatus;
    };
    std::vector<SlaveStat> m_vSlaveList;
 

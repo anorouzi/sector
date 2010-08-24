@@ -141,7 +141,8 @@ void print(const SysStat& s)
         << format("CPU(us)", 12)
         << format("NetIn(MB)", 15)
         << format("NetOut(MB)", 15)
-        << format("TS(second)", 20) << endl;
+        << format("TS(second)", 15)
+        << format("Data_Dir", 0) << endl;
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
@@ -153,7 +154,8 @@ void print(const SysStat& s)
            << format(i->m_llCurrCPUUsed, 12)
            << format(i->m_llTotalInputData / MB, 15)
            << format(i->m_llTotalOutputData / MB, 15)
-           << format(i->m_llTimeStamp / 1000000, 20) << endl;
+           << format(i->m_llTimeStamp / 1000000, 15)
+           << format(i->m_strDataDir, 0) << endl;
    }
 
    cout << endl;

@@ -58,12 +58,14 @@ setup() {
          echo "start security server..."
          nohup $START_SECURITY > /dev/null &
          echo "start master ...\n"
-         nohup $START_MASTER > /dev/null &
+         #nohup $START_MASTER > /dev/null &
+         nohup $START_MASTER &
          for i in `seq 1 $SLAVE_COUNT`; do
                 local SLAVE_NODE=SLAVE${i}_IP
                 mkdir -p SLAVE${i}_DIR
                 echo "start slave $i ...\n"
-                ${START_SLAVE} $SECTOR & > /dev/null &
+                #${START_SLAVE} $SECTOR & > /dev/null &
+                ${START_SLAVE} $SECTOR &
          done
 
          #wait master to update stat information

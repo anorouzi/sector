@@ -2178,12 +2178,9 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
    {
       string path = Metadata::revisePath(msg->getData() + 80);
 
-cout << "wtf0 " << user->m_bExec << " " << user->match(path.c_str(), SF_MODE::WRITE) << endl;
-
       // check user sphere exec permission and output path write permission
       if (!user->m_bExec || !user->match(path.c_str(), SF_MODE::WRITE))
       {
-cout << "wtf " << user->m_bExec << " " << user->match(path.c_str(), SF_MODE::WRITE) << endl;
          reject(ip, port, id, SectorError::E_PERMISSION);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start Shuffler", "", "REJECTED DUE TO PERMISSION", "", 8);
          break;
@@ -2733,40 +2730,37 @@ void Master::loadSlaveAddr(const string& file)
 
 int Master::serializeSysStat(char*& buf, int& size)
 {
-   size = 52 + m_SlaveManager.getNumberOfClusters() * 48 + m_Routing.getNumOfMasters() * 24 + m_SlaveManager.getNumberOfSlaves() * 80;
+   char* cluster_info = NULL;
+   int cluster_size = 0;
+   m_SlaveManager.serializeClusterInfo(cluster_info, cluster_size);
+
+   char* master_info = NULL;
+   int master_size = 0;
+   m_Routing.serializeMasterInfo(master_info, master_size);
+
+   char* slave_info = NULL;
+   int slave_size = 0;
+   m_SlaveManager.serializeSlaveInfo(slave_info, slave_size);
+
+   size = 32 + cluster_size + slave_size + master_size;
    buf = new char[size];
 
    *(int64_t*)buf = m_llStartTime;
    *(int64_t*)(buf + 8) = m_SlaveManager.getTotalDiskSpace();
    *(int64_t*)(buf + 16) = m_pMetadata->getTotalDataSize("/");
    *(int64_t*)(buf + 24) = m_pMetadata->getTotalFileNum("/");
-   *(int64_t*)(buf + 32) = m_SlaveManager.getNumberOfSlaves();
 
-   char* p = buf + 40;
-   *(int32_t*)p = m_SlaveManager.getNumberOfClusters();
-   p += 4;
-   int s = 0;
-   m_SlaveManager.serializeClusterInfo(p, s);
-   p += s;
+   char* p = buf + 32;
+   memcpy(p, cluster_info, cluster_size);
+   delete [] cluster_info;
+   p += cluster_size;
 
-   *(int32_t*)p = m_Routing.getNumOfMasters();
-   p += 4;
-   map<uint32_t, Address> al;
-   m_Routing.getListOfMasters(al);
-   for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
-   {
-      *(int32_t*)p = i->first;
-      p += 4;
-      strcpy(p, i->second.m_strIP.c_str());
-      p += 16;
-      *(int32_t*)p = i->second.m_iPort;
-      p += 4;
-   }
+   memcpy(p, master_info, master_size);
+   delete [] master_info;
+   p += master_size;
 
-   *(int32_t*)p = m_SlaveManager.getNumberOfSlaves();
-   p += 4;
-   s = 0;
-   m_SlaveManager.serializeSlaveInfo(p, s);
+   memcpy(p, slave_info, slave_size);
+   delete [] slave_info;
 
    return size;
 }
