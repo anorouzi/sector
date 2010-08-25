@@ -48,7 +48,7 @@ void print_error(int code)
 int main(int argc, char** argv)
 {
    CmdLineParser clp;
-   if (clp.parse(argc, argv) <= 0)
+   if (clp.parse(argc, argv) < 0)
    {
       help();
       return 0;

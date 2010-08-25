@@ -445,7 +445,8 @@ void* Master::service(void* s)
    sigaddset(&ps, SIGPIPE);
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
 
-   const int ServiceWorker = 4;
+   // ONLY ONE service worker, more will cause synchronization problem
+   const int ServiceWorker = 1;
    for (int i = 0; i < ServiceWorker; ++ i)
    {
       pthread_t t;

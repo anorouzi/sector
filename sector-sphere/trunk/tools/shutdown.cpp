@@ -40,7 +40,7 @@ int main(int argc, char** argv)
 {
    if ((argc != 2) && (argc != 3))
    {
-      cout << "USAGE: sector_shutdown -a | -i <slave id> | -d <slave IP:port> | -r <rack topo path>\n";
+      help();
       return -1;
    }
 
@@ -70,9 +70,9 @@ int main(int argc, char** argv)
    }
 
    CmdLineParser clp;
-   if (clp.parse(argc, argv) <= 0)
+   if (clp.parse(argc, argv) < 0)
    {
-      cout << "USAGE: sector_shutdown -a | -i <slave id> | -d <slave IP:port> | -r <rack topo path>\n";
+      help();
       return -1;
    }
 
@@ -90,7 +90,7 @@ int main(int argc, char** argv)
       result = client.shutdown(4, param);
    else
    {
-      cout << "USAGE: sector_shutdown -a | -i <slave id> | -d <slave IP:port> | -r <rack topo path>\n";
+      help();
    }
 
    if (result < 0)

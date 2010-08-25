@@ -610,4 +610,3 @@ int CmdLineParser::parse(int argc, char** argv)
 
    return 0;
 }
-

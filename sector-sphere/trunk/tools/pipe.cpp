@@ -38,7 +38,7 @@ void print_error(int code)
 int main(int argc, char** argv)
 {
    CmdLineParser clp;
-   if ((clp.parse(argc, argv) <= 0) || (clp.m_mDFlags.size() != 1))
+   if ((clp.parse(argc, argv) < 0) || (clp.m_mDFlags.size() != 1))
    {
       cerr << "usage #1: <your_application> | sector_pipe -d dst_file" << endl;
       cerr << "usage #2: sector_pipe -s src_file | <your_application>" << endl;
