@@ -34,9 +34,9 @@ init_test_env() {
         export SLAVE2_IP=${SLAVE2_IP:-"$SECTOR_HOST"}
         export SLAVE3_IP=${SLAVE3_IP:-"$SECTOR_HOST"}
 
-        export SLAVE1_DIR=${SLAVE1_DIR:-"$TMP/slave1"}
-        export SLAVE2_DIR=${SLAVE2_DIR:-"$TMP/slave2"}
-        export SLAVE3_DIR=${SLAVE3_DIR:-"$TMP/slave3"}
+        export SLAVE1_CONF=${SLAVE1_CONF:-"slave1_conf"}
+        export SLAVE2_CONF=${SLAVE2_CONF:-"slave2_conf"}
+        export SLAVE3_CONF=${SLAVE3_CONF:-"slave3_conf"}
 
         if ! echo $PATH | grep -q $SECTOR/tests; then
             export PATH=$PATH:$SECTOR/tests
@@ -51,21 +51,17 @@ init_test_env() {
         fi
 
         ONLY=${ONLY:-$*}
-        echo $PATH
 }
 
 setup() {
          echo "start security server..."
          nohup $START_SECURITY > /dev/null &
          echo "start master ...\n"
-         #nohup $START_MASTER > /dev/null &
-         nohup $START_MASTER &
+         nohup $START_MASTER > /dev/null &
          for i in `seq 1 $SLAVE_COUNT`; do
-                local SLAVE_NODE=SLAVE${i}_IP
-                mkdir -p SLAVE${i}_DIR
+                local SLAVE_CONF=SLAVE${i}_CONF
                 echo "start slave $i ...\n"
-                #${START_SLAVE} $SECTOR & > /dev/null &
-                ${START_SLAVE} $SECTOR &
+                ${START_SLAVE} ${!SLAVE_CONF} & > /dev/null &
          done
 
          #wait master to update stat information
@@ -77,7 +73,7 @@ setup() {
 }
 
 check_and_setup_sector() {
-         if ! ps -aux | grep start_master | grep -v grep 1>&2 > /dev/null; then
+         if ! ps aux | grep start_master | grep -v grep 1>&2 > /dev/null; then
                 setup
          fi 
 }
@@ -94,7 +90,7 @@ cleanup() {
 }
 
 check_and_cleanup_sector() {
-         if ps -aux | grep start_master | grep -v grep; then
+         if ps aux | grep start_master | grep -v grep; then
                 cleanup 
          fi 
 }

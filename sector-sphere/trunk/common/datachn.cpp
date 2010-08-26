@@ -284,6 +284,7 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
       // send data to self
       RcvData q;
       q.m_iSession = session;
+      q.m_pcData = NULL;
       q.m_iSize = size;
       if (size > 0)
       {
@@ -394,6 +395,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       }
 
       RcvData rd;
+      rd.m_pcData = NULL;
       rd.m_iSize = 0;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
@@ -431,7 +433,8 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       }
 
       CGuard::enterCS(c->m_QueueLock);
-      c->m_llTotalQueueSize += rd.m_iSize;
+      if (rd.m_iSize > 0)
+         c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
 
@@ -454,6 +457,7 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
       // send data to self
       RcvData q;
       q.m_iSession = session;
+      q.m_pcData = NULL;
       q.m_iSize = size;
       if (size > 0)
       {
@@ -559,6 +563,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       }
 
       RcvData rd;
+      rd.m_pcData = NULL;
       rd.m_iSize = 0;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
@@ -605,7 +610,8 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       }
 
       CGuard::enterCS(c->m_QueueLock);
-      c->m_llTotalQueueSize += rd.m_iSize;
+      if (rd.m_iSize > 0)
+         c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
 

@@ -802,10 +802,11 @@ int DCClient::waitForCompletion()
          if (progress < 0)
             return SectorError::E_ALLSPEFAIL;
          else if (progress == 100)
-            return 0;
+            break;
       }
       else
       {
+         // users not interested in the result content, delete it
          delete res;
          res = NULL;
       }
@@ -817,6 +818,10 @@ int DCClient::waitForCompletion()
          t1 = t2;
       }
    }
+
+   // wait for the sphere process to clean up
+   CGuard::enterCS(m_RunLock);
+   CGuard::leaveCS(m_RunLock);
 
    return 0;
 }
