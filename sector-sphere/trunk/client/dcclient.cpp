@@ -167,17 +167,10 @@ m_bDataMove(true)
 
    m_bOpened = false;
 
-#ifndef WIN32
-   pthread_mutex_init(&m_DSLock, NULL);
-   pthread_mutex_init(&m_ResLock, NULL);
-   pthread_cond_init(&m_ResCond, NULL);
-   pthread_mutex_init(&m_RunLock, NULL);
-#else
-   m_DSLock = CreateMutex(NULL, false, NULL);
-   m_ResLock = CreateMutex(NULL, false, NULL);
-   m_ResCond = CreateEvent(NULL, false, false, NULL);
-   m_RunLock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_DSLock);
+   CGuard::createMutex(m_ResLock);
+   CGuard::createCond(m_ResCond);
+   CGuard::createMutex(m_RunLock);
 }
 
 DCClient::~DCClient()
@@ -185,17 +178,10 @@ DCClient::~DCClient()
    delete [] m_pcParam;
    delete [] m_pOutputLoc;
 
-#ifndef WIN32
-   pthread_mutex_destroy(&m_DSLock);
-   pthread_mutex_destroy(&m_ResLock);
-   pthread_cond_destroy(&m_ResCond);
-   pthread_mutex_destroy(&m_RunLock);
-#else
-   CloseHandle(m_DSLock);
-   CloseHandle(m_ResLock);
-   CloseHandle(m_ResCond);
-   CloseHandle(m_RunLock);
-#endif
+   CGuard::releaseMutex(m_DSLock);
+   CGuard::releaseMutex(m_ResLock);
+   CGuard::releaseCond(m_ResCond);
+   CGuard::releaseMutex(m_RunLock);
 }
 
 int DCClient::loadOperator(const char* library)

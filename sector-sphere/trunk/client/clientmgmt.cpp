@@ -28,28 +28,16 @@ using namespace std;
 ClientMgmt::ClientMgmt():
 m_iID(0)
 {
-#ifndef WIN32
-   pthread_mutex_init(&m_CLock, NULL);
-   pthread_mutex_init(&m_FSLock, NULL);
-   pthread_mutex_init(&m_DCLock, NULL);
-#else
-   m_CLock = CreateMutex(NULL, false, NULL);
-   m_FSLock = CreateMutex(NULL, false, NULL);
-   m_DCLock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_CLock);
+   CGuard::createMutex(m_FSLock);
+   CGuard::createMutex(m_DCLock);
 }
 
 ClientMgmt::~ClientMgmt()
 {
-#ifndef WIN32
-   pthread_mutex_destroy(&m_CLock);
-   pthread_mutex_destroy(&m_FSLock);
-   pthread_mutex_destroy(&m_DCLock);
-#else
-   CloseHandle(m_CLock);
-   CloseHandle(m_FSLock);
-   CloseHandle(m_DCLock);
-#endif
+   CGuard::releaseMutex(m_CLock);
+   CGuard::releaseMutex(m_FSLock);
+   CGuard::releaseMutex(m_DCLock);
 }
 
 Client* ClientMgmt::lookupClient(const int& id)

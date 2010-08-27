@@ -49,7 +49,7 @@ int SNode::serialize(char* buf) const
    int namelen = m_strName.length();
    sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize);
    char* p = buf + strlen(buf);
-   for (set<Address, AddrComp>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {
       sprintf(p, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
       p = p + strlen(p);
@@ -206,7 +206,7 @@ int SNode::serialize2(const string& file) const
    ofs << m_llSize << endl;
    ofs << m_llTimeStamp << endl;
 
-   for (set<Address, AddrComp>::iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {
       ofs << i->m_strIP << endl;
       ofs << i->m_iPort << endl;

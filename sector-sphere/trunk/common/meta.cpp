@@ -30,20 +30,12 @@ bool Metadata::m_bInit = Metadata::initLC();
 
 Metadata::Metadata()
 {
-#ifndef WIN32
-   pthread_mutex_init(&m_MetaLock, NULL);
-#else
-   m_MetaLock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_MetaLock);
 }
 
 Metadata::~Metadata()
 {
-#ifndef WIN32
-   pthread_mutex_destroy(&m_MetaLock);
-#else
-   CloseHandle(m_MetaLock);
-#endif
+   CGuard::releaseMutex(m_MetaLock);
 }
 
 int Metadata::lock(const string& path, int user, int mode)

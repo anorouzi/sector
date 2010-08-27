@@ -73,9 +73,12 @@ int upload(const char* file, const char* dst, Sector& client)
       cout << "Uploading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
    }
    else
+   {
       cout << "Uploading failed! Please retry. " << endl << endl;
+      return -1;
+   }
 
-   return 1;
+   return 0;
 }
 
 int getFileList(const string& path, vector<string>& fl)
@@ -215,6 +218,8 @@ int main(int argc, char** argv)
       return -1;
    }
 
+   bool success = true;
+
    for (vector<string>::const_iterator i = fl.begin(); i != fl.end(); ++ i)
    {
       string dst = *i;
@@ -230,11 +235,14 @@ int main(int argc, char** argv)
       if (S_ISDIR(s.st_mode))
          client.mkdir(dst);
       else
-         upload(i->c_str(), dst.c_str(), client);
+      {
+         if (upload(i->c_str(), dst.c_str(), client) < 0)
+            success = false;
+      }
    }
 
    client.logout();
    client.close();
 
-   return 0;
+   return success ? 0 : -1;
 }

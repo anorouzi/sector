@@ -28,20 +28,12 @@ using namespace std;
 Routing::Routing():
 m_iKeySpace(32)
 {
-#ifndef WIN32
-   pthread_mutex_init(&m_Lock, NULL);
-#else
-   m_Lock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_Lock);
 }
 
 Routing::~Routing()
 {
-#ifndef WIN32
-   pthread_mutex_destroy(&m_Lock);
-#else
-   CloseHandle(m_Lock);
-#endif
+   CGuard::releaseMutex(m_Lock);
 }
 
 void Routing::init()

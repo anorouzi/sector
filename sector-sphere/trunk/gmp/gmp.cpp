@@ -73,21 +73,13 @@ m_iLength(0)
 {
    m_iSession = g_iSession;
 
-   #ifndef WIN32
-      pthread_mutex_lock(&g_IDLock);
-   #else
-      WaitForSingleObject(g_IDLock, INFINITE);
-   #endif
+   CGuard::enterCS(g_IDLock);
 
    m_iID = g_iID ++;
    if (g_iID == g_iMaxID)
       g_iID = 1;
 
-   #ifndef WIN32
-      pthread_mutex_unlock(&g_IDLock);
-   #else
-      ReleaseMutex(g_IDLock);
-   #endif
+   CGuard::leaveCS(g_IDLock);
 }
 
 CGMPMessage::CGMPMessage(const CGMPMessage& msg):
@@ -146,25 +138,14 @@ int32_t CGMPMessage::initSession()
 
 CGMP::CGMP()
 {
-   #ifndef WIN32
-      pthread_mutex_init(&m_SndQueueLock, NULL);
-      pthread_cond_init(&m_SndQueueCond, NULL);
-      pthread_mutex_init(&m_RcvQueueLock, NULL);
-      pthread_cond_init(&m_RcvQueueCond, NULL);
-      pthread_mutex_init(&m_ResQueueLock, NULL);
-      pthread_cond_init(&m_ResQueueCond, NULL);
-      pthread_mutex_init(&m_RTTLock, NULL);
-      pthread_cond_init(&m_RTTCond, NULL);
-   #else
-      m_SndQueueLock = CreateMutex(NULL, false, NULL);
-      m_SndQueueCond = CreateEvent(NULL, false, false, NULL);
-      m_RcvQueueLock = CreateMutex(NULL, false, NULL);
-      m_RcvQueueCond = CreateEvent(NULL, false, false, NULL);
-      m_ResQueueLock = CreateMutex(NULL, false, NULL);
-      m_ResQueueCond = CreateEvent(NULL, false, false, NULL);
-      m_RTTLock = CreateMutex(NULL, false, NULL);
-      m_RTTCond = CreateEvent(NULL, false, false, NULL);
-   #endif
+   CGuard::createMutex(m_SndQueueLock);
+   CGuard::createCond(m_SndQueueCond);
+   CGuard::createMutex(m_RcvQueueLock);
+   CGuard::createCond(m_RcvQueueCond);
+   CGuard::createMutex(m_ResQueueLock);
+   CGuard::createCond(m_ResQueueCond);
+   CGuard::createMutex(m_RTTLock);
+   CGuard::createCond(m_RTTCond);
 
    m_bInit = false;
    m_bClosed = false;
@@ -172,25 +153,14 @@ CGMP::CGMP()
 
 CGMP::~CGMP()
 {
-   #ifndef WIN32
-      pthread_mutex_destroy(&m_SndQueueLock);
-      pthread_cond_destroy(&m_SndQueueCond);
-      pthread_mutex_destroy(&m_RcvQueueLock);
-      pthread_cond_destroy(&m_RcvQueueCond);
-      pthread_mutex_destroy(&m_ResQueueLock);
-      pthread_cond_destroy(&m_ResQueueCond);
-      pthread_mutex_destroy(&m_RTTLock);
-      pthread_cond_destroy(&m_RTTCond);
-   #else
-      CloseHandle(m_SndQueueLock);
-      CloseHandle(m_SndQueueCond);
-      CloseHandle(m_RcvQueueLock);
-      CloseHandle(m_RcvQueueCond);
-      CloseHandle(m_ResQueueLock);
-      CloseHandle(m_ResQueueCond);
-      CloseHandle(m_RTTLock);
-      CloseHandle(m_RTTCond);
-   #endif
+   CGuard::releaseMutex(m_SndQueueLock);
+   CGuard::releaseCond(m_SndQueueCond);
+   CGuard::releaseMutex(m_RcvQueueLock);
+   CGuard::releaseCond(m_RcvQueueCond);
+   CGuard::releaseMutex(m_ResQueueLock);
+   CGuard::releaseCond(m_ResQueueCond);
+   CGuard::releaseMutex(m_RTTLock);
+   CGuard::releaseCond(m_RTTCond);
 }
 
 int CGMP::init(const int& port)
@@ -312,17 +282,9 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
       rec->m_pMsg = msg;
       rec->m_llTimeStamp = CTimer::getTime();
 
-      #ifndef WIN32
-         pthread_mutex_lock(&m_SndQueueLock);
-      #else
-         WaitForSingleObject(m_SndQueueLock, INFINITE);
-      #endif
+      CGuard::enterCS(m_SndQueueLock);
       m_lSndQueue.push_back(rec);
-      #ifndef WIN32
-         pthread_mutex_unlock(&m_SndQueueLock);
-      #else
-         ReleaseMutex(m_SndQueueLock);
-      #endif
+      CGuard::leaveCS(m_SndQueueLock);
    }
    else
    {
@@ -421,11 +383,7 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
 {
    bool timeout = false;
 
-   #ifndef WIN32
-      pthread_mutex_lock(&m_RcvQueueLock);
-   #else
-      WaitForSingleObject(m_RcvQueueLock, INFINITE);
-   #endif
+   CGuard::enterCS(m_RcvQueueLock);
 
    while (!m_bClosed && m_qRcvQueue.empty() && !timeout)
    {
@@ -457,22 +415,14 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
 
    if (m_bClosed || timeout)
    {
-      #ifndef WIN32
-         pthread_mutex_unlock(&m_RcvQueueLock);
-      #else
-         ReleaseMutex(m_RcvQueueLock);
-      #endif
+      CGuard::leaveCS(m_RcvQueueLock);
       return -1;
    }
 
    CMsgRecord* rec = m_qRcvQueue.front();
    m_qRcvQueue.pop();
 
-   #ifndef WIN32
-      pthread_mutex_unlock(&m_RcvQueueLock);
-   #else
-      ReleaseMutex(m_RcvQueueLock);
-   #endif
+   CGuard::leaveCS(m_RcvQueueLock);
 
    ip = rec->m_strIP;
    port = rec->m_iPort;
@@ -492,11 +442,7 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
 
 int CGMP::recv(const int32_t& id, CUserMessage* msg)
 {
-   #ifndef WIN32
-      pthread_mutex_lock(&m_ResQueueLock);
-   #else
-      WaitForSingleObject(m_ResQueueLock, INFINITE);
-   #endif
+   CGuard::enterCS(m_ResQueueLock);
 
    map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
 
@@ -536,11 +482,7 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg)
       found = true;
    }
 
-   #ifndef WIN32
-      pthread_mutex_unlock(&m_ResQueueLock);
-   #else
-      ReleaseMutex(m_ResQueueLock);
-   #endif
+   CGuard::leaveCS(m_ResQueueLock);
 
    if (!found)
       return -1;
@@ -574,11 +516,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
       vector<CMsgRecord*> udtsend;
       udtsend.clear();
 
-      #ifndef WIN32
-         pthread_mutex_lock(&self->m_SndQueueLock);
-      #else
-         WaitForSingleObject(self->m_SndQueueLock, INFINITE);
-      #endif
+      CGuard::enterCS(self->m_SndQueueLock);
 
       int64_t ts = CTimer::getTime();
 
@@ -602,11 +540,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
          ++ i;
       }
 
-      #ifndef WIN32
-         pthread_mutex_unlock(&self->m_SndQueueLock);
-      #else
-         ReleaseMutex(self->m_SndQueueLock);
-      #endif
+      CGuard::leaveCS(self->m_SndQueueLock);
 
       for (vector<CMsgRecord*>::iterator i = udtsend.begin(); i != udtsend.end(); ++ i)
       {
@@ -634,14 +568,14 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
    int32_t& session = header[1];
    int32_t& id = header[2];
    int32_t& info = header[3];
-   char* buf = new char [1456];
+   char* buf = new char [m_iMaxUDPMsgSize];
 
 #ifndef WIN32
    iovec vec[2];
    vec[0].iov_base = header;
    vec[0].iov_len = 16;
    vec[1].iov_base = buf;
-   vec[1].iov_len = 1456;
+   vec[1].iov_len = m_iMaxUDPMsgSize;
 
    msghdr mh;
    mh.msg_name = &addr;
@@ -656,7 +590,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
    vec[0].buf = (char*)header;
    vec[0].len = 16;
    vec[1].buf = buf;
-   vec[1].len = 1456;
+   vec[1].len = m_iMaxUDPMsgSize;
 #endif
 
    int32_t ack[4];
@@ -684,11 +618,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          switch (type)
          {
          case 1: // ACK
-            #ifndef WIN32
-               pthread_mutex_lock(&self->m_SndQueueLock);
-            #else
-               WaitForSingleObject(self->m_SndQueueLock, INFINITE);
-            #endif
+            CGuard::enterCS(self->m_SndQueueLock);
 
             for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end(); ++ i)
             {
@@ -718,11 +648,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
                }
             }
 
-            #ifndef WIN32
-               pthread_mutex_unlock(&self->m_SndQueueLock);
-            #else
-               ReleaseMutex(self->m_SndQueueLock);
-            #endif
+            CGuard::leaveCS(self->m_SndQueueLock);
 
             break;
 

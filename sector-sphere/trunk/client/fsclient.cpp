@@ -66,22 +66,15 @@ m_WriteLog(),
 m_llLastFlushTime(0),
 m_bOpened(false)
 {
-#ifndef WIN32
-   pthread_mutex_init(&m_FileLock, NULL);
-#else
-   m_FileLock = CreateMutex(NULL, false, NULL);
-#endif
+   CGuard::createMutex(m_FileLock);
 }
 
 FSClient::~FSClient()
 {
    m_bOpened = false;
    delete [] m_pcLocalPath;
-#ifndef WIN32
-   pthread_mutex_destroy(&m_FileLock);
-#else
-   CloseHandle(m_FileLock);
-#endif
+
+   CGuard::releaseMutex(m_FileLock);
 }
 
 int FSClient::open(const string& filename, int mode, const string& hint, const int64_t& reserve)
@@ -783,9 +776,7 @@ int FSClient::flush_()
 
    vector<Address> newaddr;
 
-   timeval t;
-   gettimeofday(&t, NULL);
-   int32_t ts = t.tv_sec;
+   int32_t ts = int32_t(CTimer::getTime() / 1000000);
 
    for (vector<Address>::iterator i = m_vReplicaAddress.begin(); i != m_vReplicaAddress.end(); ++ i)
    {

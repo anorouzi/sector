@@ -53,20 +53,12 @@ using namespace std;
 
 CPeerManagement::CPeerManagement()
 {
-   #ifndef WIN32
-      pthread_mutex_init(&m_PeerRecLock, NULL);
-   #else
-      m_PeerRecLock = CreateMutex(NULL, false, NULL);
-   #endif
+   CGuard::createMutex(m_PeerRecLock);
 }
 
 CPeerManagement::~CPeerManagement()
 {
-   #ifndef WIN32
-      pthread_mutex_destroy(&m_PeerRecLock);
-   #else
-      CloseHandle(m_PeerRecLock);
-   #endif
+   CGuard::releaseMutex(m_PeerRecLock);
 }
 
 void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)

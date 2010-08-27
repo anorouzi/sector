@@ -281,10 +281,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\common\sysstat.cpp"
-				>
-			</File>
-			<File
 				RelativePath="..\common\tcptransport.cpp"
 				>
 			</File>
@@ -293,11 +289,15 @@
 				>
 			</File>
 			<File
-				RelativePath="..\common\transport.cpp"
+				RelativePath="..\common\udttransport.cpp"
 				>
 			</File>
 			<File
 				RelativePath="..\udt\window.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\common\writelog.cpp"
 				>
 			</File>
 		</Filter>
@@ -431,15 +431,19 @@
 				>
 			</File>
 			<File
-				RelativePath="..\common\transport.h"
-				>
-			</File>
-			<File
 				RelativePath="..\udt\udt.h"
 				>
 			</File>
 			<File
+				RelativePath="..\common\udttransport.h"
+				>
+			</File>
+			<File
 				RelativePath="..\udt\window.h"
+				>
+			</File>
+			<File
+				RelativePath="..\common\writelog.h"
 				>
 			</File>
 		</Filter>
