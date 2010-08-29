@@ -317,6 +317,7 @@ public:
    static const int E_NOTDIR = -1007;           // directory does not exist or not a directory
    static const int E_FILENOTOPEN = -1008;	// the file is not open() yet for IO
    static const int E_NOREPLICA = -1009;        // all replicas have been lost
+   static const int E_NOTFILE = -1010;          // not a regular file
    static const int E_SECURITY = -2000;         // security check failed
    static const int E_NOCERT = -2001;           // no certificate found
    static const int E_ACCOUNT = -2002;          // account does not exist

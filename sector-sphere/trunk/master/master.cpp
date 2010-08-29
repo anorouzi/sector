@@ -1907,6 +1907,14 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       else
       {
+         if (attr.m_bIsDir)
+         {
+            // if this is a directory, cannot open it as a regular file
+            reject(ip, port, id, SectorError::E_NOTFILE);
+            m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "open", path.c_str(), "REJECT", "", 8);
+            break;
+         }
+
          r = m_pMetadata->lock(path.c_str(), key, rwx);
          if (r < 0)
          {

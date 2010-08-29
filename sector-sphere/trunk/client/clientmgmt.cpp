@@ -146,11 +146,18 @@ int ClientMgmt::removeDC(const int& id)
 int Sector::init(const string& server, const int& port)
 {
    Client* c = new Client;
-   c->init(server, port);
+   int r = c->init(server, port);
 
-   m_iID = g_ClientMgmt.insertClient(c);
+   if (r >= 0)
+   {
+      m_iID = g_ClientMgmt.insertClient(c);
+   }
+   else
+   {
+      delete c;
+   }
 
-   return 0;
+   return r;
 }
 
 int Sector::login(const string& username, const string& password, const char* cert)

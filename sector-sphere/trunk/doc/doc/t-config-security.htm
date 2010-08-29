@@ -20,7 +20,7 @@
 <p><b>master_acl.conf</b></p>
 <p>The &quot;master_acl.conf&quot; file includes a list of IP addresses (e.g., 192.168.0.1) or IP address ranges (e.g., 192.168.0.0/24) from which a computer can join the Sector system as a master server. Each line represents only one address or one address range. The address range is represented by bit mask. That is, 192.168.0.0/24 means 192.168.0.0 - 192.168.0.255. By default, any node (0.0.0.0/0) can join the system as a master. </p>
 <div class="code">
-    #list of IP addresses or ranges from which a slave can join the system<br />
+    #list of IP addresses or ranges from which a master can join the system<br />
     #by default the system is open: i.e., any node can become a slave node<br />
     #you should change this for a production system<br />
     #E.g., 192.168.0.0/24 allows all IPs within 192.168.0.0-255 to join<br />

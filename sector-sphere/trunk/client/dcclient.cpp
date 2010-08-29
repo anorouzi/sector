@@ -86,14 +86,21 @@ int SphereStream::init(const int& num)
    if (num <= 0)
       return 0;
 
-   m_vFiles.clear();
-   m_vFiles.resize(num);
-   m_vSize.clear();
-   m_vSize.resize(num);
-   m_vRecNum.clear();
-   m_vRecNum.resize(num);
-   m_vLocation.clear();
-   m_vLocation.resize(num);
+   try
+   {
+      m_vFiles.clear();
+      m_vFiles.resize(num);
+      m_vSize.clear();
+      m_vSize.resize(num);
+      m_vRecNum.clear();
+      m_vRecNum.resize(num);
+      m_vLocation.clear();
+      m_vLocation.resize(num);
+   }
+   catch (...)
+   {
+      return E_RESOURCE;
+   }
 
    m_piLocID = new int32_t[num];
 
@@ -729,7 +736,7 @@ int DCClient::checkProgress()
       return SectorError::E_NOPROCESS;
 
    if ((0 == m_iTotalSPE) && (m_iProgress < m_iTotalDS))
-      return SectorError::E_RESOURCE;
+      return SectorError::E_ALLSPEFAIL;
 
    if (!m_bBucketHealth)
       return SectorError::E_BUCKETFAIL;
@@ -756,6 +763,9 @@ int DCClient::checkReduceProgress()
 {
    if (!m_bOpened)
       return SectorError::E_NOPROCESS;
+
+   if (!m_bBucketHealth)
+      return SectorError::E_BUCKETFAIL;
 
    if (m_mBucket.empty())
       return 100;

@@ -17,27 +17,24 @@
 <body>
 <div class="ref_head">Reference: Classes: Sector </div>
 
-<h4 class="func_name"><strong>login</strong></h4>
-<p>The<strong> login  </strong>function logins a user with a password. </p>
+<h4 class="func_name"><strong>shutdown</strong></h4>
+<p>The<strong> shutdown  </strong>function can be used to shutdown part of or the complete Sector system. </p>
 
 <div class="code">
-  int login <br />
+  int shutdown <br />
   (<br />
-  &nbsp;&nbsp;&nbsp;const string& <span class="style2">username</span>,<br />
-  &nbsp;&nbsp;&nbsp;const string& <span class="style2">password</span>,<br />
-  &nbsp;&nbsp;&nbsp;const char* <span class="style2">cert</span> = NULL <br />
+  &nbsp;&nbsp;&nbsp;const string& <span class="style2">type</span>,<br />
+  &nbsp;&nbsp;&nbsp;const string& <span class="style2">param</span> = &quot;&quot; <br />
   );</div>
 
 <h5>Parameters</h5>
 
 
 <dl>
-  <dt><i>username</i></dt>
-  <dd>[in] Name of the user to login .</dd>
-  <dt><em>password</em></dt>
-  <dd>[in] The user's password in clear text (not encrypted).</dd>
-  <dt><em>cert</em></dt>
-  <dd>[in] path to the master certificate &quot;master_node.cert&quot;, default (NULL) means the certificate can be found in the current directory.</dd>
+  <dt><i>type</i></dt>
+  <dd>[in] type = &quot;a&quot;: shutdown whole system, no &quot;param&quot; required; type = &quot;d&quot;, shutdown one slave, &quot;param&quot; is the ip:port address; type = &quot;i&quot;, shutdown one slave, &quot;param&quot; is slave ID. </dd>
+  <dt><em>param</em></dt>
+  <dd>[in] shutdown parameter.</dd>
 </dl>
 <h5>Return Value</h5>
 <p>On success, the function returns a unique session key assigned by the Master. If error occurs, a negative value is returned:</p>
@@ -51,27 +48,15 @@
     <td>this Sector instance has not been initialized </td>
   </tr>
   <tr>
-    <td>E_NOCERT</td>
-    <td>no certificate is found </td>
+    <td>E_AUTHORITY</td>
+    <td>no authority to run this command  </td>
   </tr>
   <tr>
-    <td>E_PASSWORD</td>
-    <td>incorrect password</td>
-  </tr>
-  <tr>
-    <td>E_ACL</td>
-    <td>trying to login from an illegal IP address</td>
-  </tr>
-  <tr>
-    <td>E_NOSECSERV</td>
-    <td>security server is down</td>
+    <td>E_CONNECTION</td>
+    <td>connot connect to the master </td>
   </tr>
 </table>
 <h5>Description</h5>
-<p>&nbsp;</p>
-<h5><strong>See Also</strong></h5>
-<p><strong><a href="r-c-client-logout.htm">logout</a></strong></p>
-<p>&nbsp;</p>
-
+<p>The <strong>shutdown</strong> function requires &quot;root&quot; user. </p>
 </body>
 </html>

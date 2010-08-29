@@ -72,7 +72,7 @@ int Client::init(const string& server, const int& port)
     if (iResult != 0) 
     {
         printf("WSAStartup failed: %d\n", iResult);
-        return 1;
+        return -1;
     }
 #endif
 
