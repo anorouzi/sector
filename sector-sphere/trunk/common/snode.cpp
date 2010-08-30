@@ -61,7 +61,7 @@ int SNode::serialize(char*& buf) const
 
 int SNode::deserialize(const char* buf)
 {
-   char* buffer = new char[strlen(buf + 1)];
+   char* buffer = new char[strlen(buf) + 1];
    char* tmp = buffer;
 
    bool stop = true;
