@@ -40,10 +40,10 @@ int FileSrc::loadACL(vector<IPRange>& acl, const void* src)
 
    acl.clear();
 
-   char line[128];
+   char line[256];
    while (!af.eof())
    {
-      af.getline(line, 128);
+      af.getline(line, 256);
       if (*line == '\0')
          continue;
 
@@ -100,7 +100,7 @@ int FileSrc::loadUsers(map<string, User>& users, const void* src)
 
 int FileSrc::parseIPRange(IPRange& ipr, const char* ip)
 {
-   char buf[128];
+   char* buf = new char[strlen(ip) + 128];
    unsigned int i = 0;
    for (unsigned int n = strlen(ip); i < n; ++ i)
    {
@@ -113,7 +113,10 @@ int FileSrc::parseIPRange(IPRange& ipr, const char* ip)
 
    in_addr addr;
    if (inet_pton(AF_INET, buf, &addr) <= 0)
+   {
+      delete [] buf;
       return -1;
+   }
 
    ipr.m_uiIP = addr.s_addr;
    ipr.m_uiMask = 0xFFFFFFFF;
@@ -122,7 +125,10 @@ int FileSrc::parseIPRange(IPRange& ipr, const char* ip)
       return 0;
 
    if ('/' != ip[i])
+   {
+      delete [] buf;
       return -1;
+   }
    ++ i;
 
    bool format = false;
@@ -140,7 +146,10 @@ int FileSrc::parseIPRange(IPRange& ipr, const char* ip)
    {
       //255.255.255.0
       if (inet_pton(AF_INET, buf, &addr) < 0)
+      {
+         delete [] buf;
          return -1;
+      }
       ipr.m_uiMask = addr.s_addr;
    }
    else
@@ -149,12 +158,16 @@ int FileSrc::parseIPRange(IPRange& ipr, const char* ip)
       unsigned int bit = strtol(buf, &p, 10);
 
       if ((p == buf) || (bit > 32) || (bit < 0))
+      {
+         delete [] buf;
          return -1;
+      }
 
       if (bit < 32)
          ipr.m_uiMask = (bit == 0) ? 0 : htonl(~((1 << (32 - bit)) - 1));
    }
 
+   delete [] buf;
    return 0;
 }
 

@@ -1443,9 +1443,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      char buf[128];
+      char* buf = NULL;
       attr.serialize(buf);
       msg->setData(0, buf, strlen(buf) + 1);
+      delete [] buf;
 
       int c = 0;
 

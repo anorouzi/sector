@@ -227,7 +227,7 @@ int MasterConf::init(const string& path)
       else if ("SECURITY_SERVER" == param.m_strName)
       {
          char buf[128];
-         strcpy(buf, param.m_vstrValue[0].c_str());
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
 
          unsigned int i = 0;
          for (unsigned int n = strlen(buf); i < n; ++ i)
@@ -319,7 +319,7 @@ int SlaveConf::init(const string& path)
       if ("MASTER_ADDRESS" == param.m_strName)
       {
          char buf[128];
-         strcpy(buf, param.m_vstrValue[0].c_str());
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
 
          unsigned int i = 0;
          for (unsigned int n = strlen(buf); i < n; ++ i)
@@ -396,7 +396,7 @@ int ClientConf::init(const string& path)
       if ("MASTER_ADDRESS" == param.m_strName)
       {
          char buf[128];
-         strcpy(buf, param.m_vstrValue[0].c_str());
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
 
          unsigned int i = 0;
          for (unsigned int n = strlen(buf); i < n; ++ i)
@@ -523,7 +523,7 @@ int Session::loadInfo(const char* conf)
       cin >> addr;
 
       char buf[128];
-      strcpy(buf, addr.c_str());
+      strncpy(buf, addr.c_str(), 128);
 
       unsigned int i = 0;
       for (unsigned int n = strlen(buf); i < n; ++ i)

@@ -62,9 +62,10 @@ int Index::list(const string& path, vector<string>& filelist)
          if (depth != dir.size())
             return SectorError::E_NOEXIST;
 
-         char buf[4096];
+         char* buf = NULL;
          s->second.serialize(buf);
          filelist.insert(filelist.end(), buf);
+         delete [] buf;
          return 1;
       }
 
@@ -75,9 +76,10 @@ int Index::list(const string& path, vector<string>& filelist)
    filelist.clear();
    for (map<string, SNode>::iterator i = currdir->begin(); i != currdir->end(); ++ i)
    {
-      char buf[4096];
+      char* buf = NULL;
       i->second.serialize(buf);
       filelist.insert(filelist.end(), buf);
+      delete [] buf;
    }
 
    return filelist.size();
@@ -658,7 +660,7 @@ int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
-      char* buf = new char[i->first.length() + 64];
+      char* buf = NULL;
       i->second.serialize(buf);
       ofs << level << " " << buf << endl;
       delete [] buf;

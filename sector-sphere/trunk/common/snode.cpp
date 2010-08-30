@@ -44,9 +44,11 @@ SNode::~SNode()
 {
 }
 
-int SNode::serialize(char* buf) const
+int SNode::serialize(char*& buf) const
 {
    int namelen = m_strName.length();
+   buf = new char[namelen + 24 + m_sLocation.size() * 256];
+
    sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize);
    char* p = buf + strlen(buf);
    for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
@@ -59,7 +61,7 @@ int SNode::serialize(char* buf) const
 
 int SNode::deserialize(const char* buf)
 {
-   char buffer[4096];
+   char* buffer = new char[strlen(buf + 1)];
    char* tmp = buffer;
 
    bool stop = true;
@@ -78,11 +80,17 @@ int SNode::deserialize(const char* buf)
    unsigned int namelen = atoi(tmp);
 
    if (stop)
+   {
+      delete [] buffer;
       return -1;
+   }
 
    tmp = tmp + strlen(tmp) + 1;
    if (strlen(tmp) < namelen)
+   {
+      delete [] buffer;
       return -1;
+   }
    tmp[namelen] = '\0';
    m_strName = tmp;
 
@@ -102,7 +110,10 @@ int SNode::deserialize(const char* buf)
    m_bIsDir = atoi(tmp);
 
    if (stop)
+   {
+      delete [] buffer;
       return -1;
+   }
    stop = true;
 
    // restore timestamp
@@ -123,7 +134,10 @@ int SNode::deserialize(const char* buf)
 #endif
 
    if (stop)
+   {
+      delete [] buffer;
       return -1;
+   }
    stop = true;
 
    // restore size
@@ -163,7 +177,10 @@ int SNode::deserialize(const char* buf)
       addr.m_strIP = tmp;
 
       if (stop)
+      {
+         delete [] buffer;
          return -1;
+      }
       stop = true;
 
       tmp = tmp + strlen(tmp) + 1;
@@ -181,6 +198,7 @@ int SNode::deserialize(const char* buf)
       m_sLocation.insert(addr);
    }
 
+   delete [] buffer;
    return 0;
 }
 

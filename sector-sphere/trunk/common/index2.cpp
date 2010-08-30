@@ -65,9 +65,10 @@ int Index2::list(const string& path, vector<string>& filelist)
    {
       SNode sn;
       sn.deserialize2(item);
-      char buf[4096];
+      char* buf = NULL;
       sn.serialize(buf);
       filelist.insert(filelist.end(), buf);
+      delete [] buf;
       return 1;
    }
 
@@ -94,9 +95,10 @@ int Index2::list(const string& path, vector<string>& filelist)
          continue;
       }
 
-      char buf[4096];
+      char* buf = NULL;
       sn.serialize(buf);
       filelist.insert(filelist.end(), buf);
+      delete [] buf;
 
       free(namelist[i]);
    }

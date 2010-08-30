@@ -779,9 +779,10 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
             m_pLocalFile->create(sn);
 
-         char buf[1024];
+         char* buf = NULL;
          sn.serialize(buf);
          serlist.push_back(buf);
+         delete [] buf;
       }
    }
 
@@ -830,9 +831,10 @@ int Slave::reportMO(const string& master_ip, const int& master_port, const int32
          sn.m_llTimeStamp = i->m_llCreationTime;
          sn.m_llSize = 8;
 
-         char buf[1024];
+         char* buf = NULL;
          sn.serialize(buf);
          serlist.push_back(buf);
+         delete [] buf;
       }
 
       SectorMsg msg;

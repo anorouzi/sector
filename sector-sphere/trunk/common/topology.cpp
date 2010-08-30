@@ -130,10 +130,10 @@ int Topology::init(const char* topoconf)
       return 0;
    }
 
-   char line[128];
+   char line[256];
    while (!ifs.eof())
    {
-      ifs.getline(line, 128);
+      ifs.getline(line, 256);
 
       if (('\0' == *line) || ('#' == *line))
          continue;
@@ -302,7 +302,7 @@ int Topology::deserialize(const char* buf, const int& size)
 
 int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
 {
-   char buf[128];
+   char* buf = new char[strlen(ip) + 128];
    unsigned int i = 0;
    for (unsigned int n = strlen(ip); i < n; ++ i)
    {
@@ -316,11 +316,17 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
    in_addr addr;
 #ifndef WIN32
    if (inet_pton(AF_INET, buf, &addr) < 0)
+   {
+      delete [] buf;
       return -1;
+   }
 #else
    addr.s_addr = inet_addr(buf);
    if (addr.s_addr == INADDR_NONE)
+   {
+      delete [] buf;
       return -1;
+   }
 #endif
 
    digit = ntohl(addr.s_addr);
@@ -342,10 +348,14 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
    unsigned int bit = strtol(buf, &p, 10);
 
    if ((p == buf) || (bit > 32) || (bit < 0))
+   {
+      delete [] buf;
       return -1;
+   }
 
    mask <<= (32 - bit);
 
+   delete [] buf;
    return 0;
 }
 
