@@ -99,7 +99,7 @@ int SphereStream::init(const int& num)
    }
    catch (...)
    {
-      return E_RESOURCE;
+      return SectorError::E_RESOURCE;
    }
 
    m_piLocID = new int32_t[num];

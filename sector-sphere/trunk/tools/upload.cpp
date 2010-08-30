@@ -58,14 +58,12 @@ int upload(const char* file, const char* dst, Sector& client)
       return -1;
    }
 
-   bool finish = true;
-   if (f->upload(file) < 0LL)
-      finish = false;
+   int64_t result = f->upload(file);
 
    f->close();
    client.releaseSectorFile(f);
 
-   if (finish)
+   if (result > 0)
    {
       gettimeofday(&t2, 0);
       float throughput = s.st_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
@@ -75,6 +73,7 @@ int upload(const char* file, const char* dst, Sector& client)
    else
    {
       cout << "Uploading failed! Please retry. " << endl << endl;
+      print_error(result);
       return -1;
    }
 
