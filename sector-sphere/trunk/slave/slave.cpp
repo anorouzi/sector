@@ -1198,7 +1198,7 @@ void* Slave::worker(void* param)
       // users may limit the maximum disk size used by Sector
       if (self->m_SysConfig.m_llMaxDataSize > 0)
       {
-         int64_t avail_limit = self->m_SlaveStat.m_llDataSize - self->m_SysConfig.m_llMaxDataSize;
+         int64_t avail_limit = self->m_SysConfig.m_llMaxDataSize - self->m_SlaveStat.m_llDataSize;
          if (avail_limit < 0)
             avail_limit = 0;
          if (avail_limit < self->m_SlaveStat.m_llAvailSize)
