@@ -300,7 +300,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    set<int> candidate;
    for (unsigned int i = 0; i <= m_Topology.m_uiLevel; ++ i)
    {
-      if (avail[i].size() > 0)
+      if (!avail[i].empty())
       {
          candidate = avail[i];
          break;
@@ -333,14 +333,20 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
    gettimeofday(&t, 0);
    srand(t.tv_usec);
 
+   // clear this in case there is already data in it
+   sl.clear();
+
+   if (m_mSlaveList.empty())
+      return SectorError::E_NODISK;
+
    if (!loclist.empty())
    {
       // find nearest node, if equal distance, choose a random one
-      unsigned int dist = 1000000000;
-      map<unsigned int, vector<int> > dist_vec;
+      int dist = -1;
+      map<int, vector<int> > dist_vec;
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
       {
-         unsigned int d = 1000000000;
+         int d = -1;
 
          // do not choose bad node
          if (m_siBadSlaves.find(*i) == m_siBadSlaves.end())
@@ -348,9 +354,13 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
          dist_vec[d].push_back(*i);
 
-         if (d < dist)
+         if ((d < dist) || (dist < 0))
             dist = d;
       }
+
+      // if no slave node found, return 0
+      if (dist < 0)
+         return SectorError::E_NODISK;
 
       int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
       vector<int>::iterator n = dist_vec[dist].begin();
@@ -360,7 +370,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
       // if this is a READ_ONLY operation, one node is enough
       if ((mode & SF_MODE::WRITE) == 0)
-         return 1;
+         return sl.size();
 
       // the first node will be the closest to the client; the client writes to that node only
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); i ++)
@@ -391,8 +401,12 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       }
 
       int r = 0;
-      if (avail.size() > 0)
+
+      if (!avail.empty())
          r = int(avail.size() * (double(rand()) / RAND_MAX)) % avail.size();
+      else
+         return SectorError::E_NODISK;
+
       set<int>::iterator n = avail.begin();
       for (int i = 0; i < r; ++ i)
          n ++;
@@ -410,8 +424,8 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
             locid.insert(j->m_iNodeID);
 
-         if (choosereplicanode_(locid, sn, reserve) < 0)
-            continue;
+         if (choosereplicanode_(locid, sn, reserve) <= 0)
+            break;
 
          sl.push_back(sn);
       }

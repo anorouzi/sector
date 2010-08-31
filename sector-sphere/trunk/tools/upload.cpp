@@ -52,9 +52,11 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   if (f->open(dst, SF_MODE::WRITE, "", s.st_size) < 0)
+   int r = f->open(dst, SF_MODE::WRITE, "", s.st_size);
+   if (r < 0)
    {
       cerr << "unable to open file " << dst << endl;
+      print_error(r);
       return -1;
    }
 

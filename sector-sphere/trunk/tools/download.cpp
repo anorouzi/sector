@@ -39,6 +39,13 @@ written by
 
 using namespace std;
 
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+   if (code == SectorError::E_LOCALFILE)
+      perror("");
+}
+
 int download(const char* file, const char* dest, Sector& client)
 {
    #ifndef WIN32
@@ -89,14 +96,12 @@ int download(const char* file, const char* dest, Sector& client)
    else
       localpath = string(dest) + string(file + sn + 1);
 
-   bool finish = true;
-   if (f->download(localpath.c_str(), true) < 0LL)
-      finish = false;
+   int64_t result = f->download(localpath.c_str(), true);
 
    f->close();
    client.releaseSectorFile(f);
 
-   if (finish)
+   if (result >= 0)
    {
       #ifndef WIN32
          gettimeofday(&t2, 0);
@@ -111,6 +116,7 @@ int download(const char* file, const char* dest, Sector& client)
    }
 
    cerr << "error happened during downloading " << file << endl;
+   print_error(result);
 
    return -1;
 }
