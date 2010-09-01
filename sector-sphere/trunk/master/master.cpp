@@ -1876,7 +1876,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             if (path.c_str()[i] == '/')
             {
                string updir = path.substr(0, i);
-               if (m_pMetadata->lookup(updir + "/.nosplit", attr) > 0)
+               if (m_pMetadata->lookup(updir + "/.nosplit", attr) >= 0)
                {
                   candidates = attr.m_sLocation;
                   break;

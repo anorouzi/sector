@@ -86,8 +86,6 @@ void print(const SysStat& s)
 {
    const int MB = 1024 * 1024;
 
-   cout << endl;
-
    cout << "Sector System Information:" << endl;
    time_t st = s.m_llStartTime;
    cout << "Running since:               " << ctime(&st);
@@ -157,8 +155,6 @@ void print(const SysStat& s)
            << format(i->m_llTimeStamp / 1000000, 15)
            << format(i->m_strDataDir, 0) << endl;
    }
-
-   cout << endl;
 }
 
 int main(int argc, char** argv)

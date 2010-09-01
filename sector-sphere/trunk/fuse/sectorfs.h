@@ -103,6 +103,9 @@ private:
 
 private:
    static int translateErr(int sferr);
+
+private:
+   static const int g_iBlockSize = 512;
 };
 
 #endif
