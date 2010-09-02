@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/02/2010
 *****************************************************************************/
 
 
@@ -63,8 +63,8 @@ int Index::list(const string& path, vector<string>& filelist)
             return SectorError::E_NOEXIST;
 
          char* buf = NULL;
-         s->second.serialize(buf);
-         filelist.insert(filelist.end(), buf);
+         if (s->second.serialize(buf) >= 0)
+            filelist.insert(filelist.end(), buf);
          delete [] buf;
          return 1;
       }
@@ -77,8 +77,8 @@ int Index::list(const string& path, vector<string>& filelist)
    for (map<string, SNode>::iterator i = currdir->begin(); i != currdir->end(); ++ i)
    {
       char* buf = NULL;
-      i->second.serialize(buf);
-      filelist.insert(filelist.end(), buf);
+      if (i->second.serialize(buf) >= 0)
+         filelist.insert(filelist.end(), buf);
       delete [] buf;
    }
 
@@ -661,8 +661,8 @@ int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
       char* buf = NULL;
-      i->second.serialize(buf);
-      ofs << level << " " << buf << endl;
+      if (i->second.serialize(buf) >= 0)
+         ofs << level << " " << buf << endl;
       delete [] buf;
 
       if (i->second.m_bIsDir)
