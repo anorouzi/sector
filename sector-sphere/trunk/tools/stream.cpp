@@ -168,9 +168,10 @@ int main(int argc, char** argv)
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   if (myproc->run(input, output, cmd, 0) < 0)
+   result = myproc->run(input, output, cmd, 0);
+   if (result < 0)
    {
-      cerr << "failed to find any computing resources." << endl;
+      print_error(result);
       return -1;
    }
 
@@ -222,9 +223,10 @@ int main(int argc, char** argv)
       output2.setOutputPath(outpath, "stream_result");
       output2.init(bucket);
 
-      if (myproc->run(input2, output2, "streamhash", 0) < 0)
+      result = myproc->run(input2, output2, "streamhash", 0);
+      if (result < 0)
       {
-         cerr << "failed to find any computing resources." << endl;
+         print_error(result);
          return -1;
       }
 

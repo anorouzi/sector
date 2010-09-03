@@ -5,6 +5,11 @@
 
 using namespace std;
 
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+}
+
 int main(int argc, char** argv)
 {
    if (1 != argc)
@@ -18,10 +23,17 @@ int main(int argc, char** argv)
    Session s;
    s.loadInfo("../conf/client.conf");
 
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+   int result = 0;
+   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   {
+      print_error(result);
       return -1;
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
+   }
+   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
+   {
+      print_error(result);
       return -1;
+   }
 
    client.rmr("test");
    client.mkdir("test");
@@ -33,7 +45,7 @@ int main(int argc, char** argv)
    SectorFile* guide = client.createSectorFile();
    if (guide->open("tmp/guide.dat", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)
    {
-      cout << "error to open file." << endl;
+      cout << "error to open seed file." << endl;
       return -1;
    }
    int32_t* id = new int32_t[fn];
@@ -44,7 +56,7 @@ int main(int argc, char** argv)
 
    if (guide->open("tmp/guide.dat.idx", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)
    {
-      cout << "error to open file." << endl;
+      cout << "error to open seed index." << endl;
       return -1;
    }
    int64_t* idx = new int64_t[fn + 1];
@@ -71,7 +83,10 @@ int main(int argc, char** argv)
 
    SphereProcess* myproc = client.createSphereProcess();
    if (myproc->loadOperator("./funcs/randwriter.so") < 0)
+   {
+      cout << "unable to load operator. quit\n";
       return -1;
+   }
 
    myproc->setMinUnitSize(4);
    myproc->setMaxUnitSize(4);
@@ -81,9 +96,10 @@ int main(int argc, char** argv)
    cout << "start time " << t.tv_sec << endl;
 
    string target = "test/sort_input";
-   if (myproc->run(input, output, "randwriter", -1, target.c_str(), target.length() + 1) < 0)
+   result = myproc->run(input, output, "randwriter", -1, target.c_str(), target.length() + 1);
+   if (result < 0)
    {
-      cout << "failed to find any computing resources." << endl;
+      print_error(result);
       return -1;
    }
 
