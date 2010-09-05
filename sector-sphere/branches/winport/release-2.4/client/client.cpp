@@ -38,6 +38,7 @@ written by
    Yunhong Gu, last updated 04/23/2010
 *****************************************************************************/
 
+#include <iostream>
 
 #ifndef WIN32	// <slr>
    #include <netdb.h>
@@ -48,10 +49,10 @@ written by
     #endif
     #include <process.h>
 #endif
-#include <ssltransport.h>
-#include <crypto.h>
+#include "ssltransport.h"
+#include "tcptransport.h"
+#include "crypto.h"
 #include "client.h"
-#include <iostream>
 
 using namespace std;
 
@@ -133,13 +134,18 @@ int Client::login(const string& username, const string& password, const char* ce
    if (m_iKey > 0)
       return m_iKey;
 
-   SSLTransport::init();
-
    string master_cert;
-   if (cert != NULL)
+   if ((cert != NULL) && (0 != strlen(cert)))
       master_cert = cert;
    else
-      master_cert = "master_node.cert";
+   {
+      if (retrieveMasterInfo() >= 0)
+         master_cert = "/tmp/master_node.cert";
+      else
+         return -1;
+   }
+
+   SSLTransport::init();
 
    int result;
    SSLTransport secconn;
@@ -793,4 +799,22 @@ int Client::lookup(const int32_t& key, Address& serv_addr)
    }
 
    return 0;
+}
+
+int Client::retrieveMasterInfo()
+{
+   TCPTransport t;
+   t.open(NULL, 0);
+   if (t.connect(m_strServerIP.c_str(), m_iServerPort - 1) < 0)
+      return -1;
+
+   int32_t size = 0;
+   t.recv((char*)&size, 4);
+   size = static_cast<int32_t>(t.recvfile("/tmp/master_node.cert", 0, size));
+   t.close();
+
+   if (size <= 0)
+      return -1;
+
+   return size;
 }

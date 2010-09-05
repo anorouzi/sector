@@ -582,6 +582,16 @@ int SphereProcess::checkReduceProgress()
    return d->checkReduceProgress();
 }
 
+int SphereProcess::waitForCompletion()
+{
+   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+
+   if (NULL == d)
+      return SectorError::E_INVALID;
+
+   return d->waitForCompletion();
+}
+
 void SphereProcess::setMinUnitSize(int size)
 {
    DCClient* d = g_ClientMgmt.lookupDC(m_iID);

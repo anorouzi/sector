@@ -46,9 +46,7 @@ written by
     #include <sys/times.h>
     #include <utime.h>
 #else
-   //#include <winsock2.h>
    #include <ws2tcpip.h>
-   //#include <wspiapi.h>
    #include "dirent.h"
    #include "statfs.h"
 
@@ -92,8 +90,16 @@ int Slave::init(const char* base)
 {
    if (NULL != base)
       m_strBase = base;
+   else
+   {
+      char* system_env = getenv("SECTOR_HOME");
+      if (NULL != system_env)
+         m_strBase = system_env;
+      else
+         m_strBase = "../";
+   }
 
-   string conf = m_strBase + "/../conf/slave.conf";
+   string conf = m_strBase + "/conf/slave.conf";
    if (m_SysConfig.init(conf) < 0)
    {
       cerr << "unable to initialize from configuration file; quit.\n";
@@ -129,16 +135,16 @@ int Slave::init(const char* base)
    }
 
    // initialize slave log
-   m_SectorLog.init((m_strHomeDir + ".log/sector.log").c_str());
+   m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
    //copy permanent sphere libraries
 #ifndef WIN32
-   string cmd ("cp " + m_strBase + "/sphere/*.so "  + m_strHomeDir + "/.sphere/perm/");
+   string cmd ("cp "  + m_strBase + "/slave/sphere/*.so " + m_strHomeDir + "/.sphere/perm/");
 #else
    string dosbase = m_strBase;
    string doshomedir = m_strHomeDir;
    string cmd ("copy /Y /V \"" + unix_to_win_path(dosbase) + \
-       "\\sphere\\*.dll\" \""  + unix_to_win_path(doshomedir) + "\\.sphere\\perm\\\"");
+       "\\slave\\sphere\\*.dll\" \""  + unix_to_win_path(doshomedir) + "\\.sphere\\perm\\\"");
 #endif
    system(cmd.c_str());
 
@@ -160,7 +166,7 @@ int Slave::connect()
    // join the server
    SSLTransport::init();
 
-   string cert = m_strBase + "/../conf/master_node.cert";
+   string cert = m_strBase + "/conf/master_node.cert";
 
    // calculate total available disk size
    struct statfs slavefs;

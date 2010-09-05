@@ -22,6 +22,7 @@
     <ProjectGuid>{98B13064-1208-4438-861E-EC476D0509E1}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>upload</RootNamespace>
+    <ProjectName>sector_upload</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

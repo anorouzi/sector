@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/12/2010
+   Yunhong Gu, last updated 06/12/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -46,6 +46,8 @@ written by
     #include "dirent.h"
     #include "statfs.h"
 #endif
+#include <tcptransport.h>
+#include <dirent.h>
 #include <signal.h>
 #include <iostream>
 #include <stack>
@@ -85,10 +87,15 @@ Master::~Master()
 
 int Master::init()
 {
-   m_SectorLog.init("sector.log");
+   //The master will look for the configurations from $SECTOR_HOME/conf/
+   //If $SECTOR_HOME is not set, it tries to check ../conf
+   m_strSectorHome = "../";
+   char* system_env = getenv("SECTOR_HOME");
+   if (NULL != system_env)
+      m_strSectorHome = system_env;
 
    // read configuration from master.conf
-   if (m_SysConfig.init("../conf/master.conf") < 0)
+   if (m_SysConfig.init(m_strSectorHome + "/conf/master.conf") < 0)
    {
       cerr << "unable to read/parse configuration file.\n";
       m_SectorLog.insert("unable to read/parse configuration file.");
@@ -96,13 +103,13 @@ int Master::init()
    }
 
    struct stat s;
-   if (stat("../conf/topology.conf", &s) < 0)
+   if (stat((m_strSectorHome + "/conf/topology.conf").c_str(), &s) < 0)
    {
       cerr << "Warning: no topology configuration found.\n";
       m_SectorLog.insert("Warning: no topology configuration found.");
    }
 
-   m_SlaveManager.init("../conf/topology.conf");
+   m_SlaveManager.init((m_strSectorHome + "/conf/topology.conf").c_str());
    m_SlaveManager.setSlaveMinDiskSpace(m_SysConfig.m_llSlaveMinDiskSpace);
    m_SlaveManager.serializeTopo(m_pcTopoData, m_iTopoDataSize);
 
@@ -153,12 +160,15 @@ int Master::init()
 
 
    if ((mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0)
-      || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
+      || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0)
+      || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
    {
       cerr << "unable to create home directory.\n";
       m_SectorLog.insert("unable to create home directory.");
       return -1;
    }
+
+   m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
    if (m_SysConfig.m_MetaType == DISK)
       m_pMetadata = new Index2;
@@ -167,7 +177,7 @@ int Master::init()
    m_pMetadata->init(m_strHomeDir + ".metadata");
 
    // load slave list and addresses
-   loadSlaveAddr("../conf/slaves.list");
+   loadSlaveAddr(m_strSectorHome + "/conf/slaves.list");
 
    // add "slave" as a special user
    User* au = new User;
@@ -192,7 +202,7 @@ int Master::init()
 
    //connect security server to get ID
    SSLTransport secconn;
-   if (secconn.initClientCTX("../conf/security_node.cert") < 0)
+   if (secconn.initClientCTX((m_strSectorHome + "/conf/security_node.cert").c_str()) < 0)
    {
       cerr << "No security node certificate found.\n";
       m_SectorLog.insert("No security node certificate found.");
@@ -218,6 +228,11 @@ int Master::init()
    m_Routing.insert(m_iRouterKey, addr);
 
 #ifndef WIN32
+   // start utility thread
+   pthread_t utilserver;
+   pthread_create(&utilserver, NULL, utility, this);
+   pthread_detach(utilserver);
+
    // start service thread
    pthread_t svcserver;
    pthread_create(&svcserver, NULL, service, this);
@@ -236,6 +251,12 @@ int Master::init()
 #else  // <slr>
     DWORD ThreadID = 0;
     HANDLE hThread = NULL;
+
+    // start utility thread
+    hThread = CreateThread(NULL, 0, utility, this, NULL, &ThreadID);
+    if (hThread)
+       CloseHandle(hThread);
+
     // start service thread
     hThread = CreateThread(NULL, 0, service, this, NULL, &ThreadID);
     if (hThread)
@@ -266,7 +287,7 @@ int Master::init()
 int Master::join(const char* ip, const int& port)
 {
    // join the server
-   string cert = "../conf/master_node.cert";
+   string cert = m_strSectorHome + "/conf/master_node.cert";
 
    SSLTransport s;
    s.initClientCTX(cert.c_str());
@@ -497,7 +518,7 @@ int Master::run()
 
             // kill and restart the slave
             system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
-            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
          }
       }
 
@@ -507,7 +528,7 @@ int Master::run()
       // check replica, create or remove replicas if necessary
       // only the first master is responsible for replica checking
       map<string, int> special;
-      populateSpecialRep("../conf/replica.conf", special);
+      populateSpecialRep(m_strSectorHome + "/conf/replica.conf", special);
 
       {
           CMutexGuard guard(m_ReplicaLock);
@@ -530,6 +551,54 @@ int Master::stop()
    m_Status = STOPPED;
 
    return 0;
+}
+
+#ifndef WIN32
+    void* Master::utility(void* s)
+#else
+    DWORD WINAPI Master::utility(void* s)
+#endif
+{
+   Master* self = (Master*)s;
+
+   //the utility thread is used to allow clients to download certain information without login
+   //such information may include the master certificate
+
+   char* buf = new char[65536];
+   ifstream ifs((self->m_strSectorHome + "/conf/master_node.cert").c_str());
+   ifs.seekg(0, ios::end);
+   std::streamoff size = ifs.tellg();
+   ifs.seekg(0);
+   ifs.read(buf, size);
+   ifs.close();
+
+#ifndef WIN32
+   //ignore SIGPIPE
+   sigset_t ps;
+   sigemptyset(&ps);
+   sigaddset(&ps, SIGPIPE);
+   pthread_sigmask(SIG_BLOCK, &ps, NULL);
+#endif
+
+   TCPTransport util;
+   util.open(NULL, self->m_SysConfig.m_iServerPort - 1);
+   util.listen();
+
+   while (self->m_Status == RUNNING)
+   {
+      char ip[64];
+      int port;
+      TCPTransport* t = util.accept(ip, port);
+      if (NULL == t)
+         continue;
+
+      t->send((char*)&size, 4);
+      t->send(buf, static_cast<int>(size));
+      t->close();
+      delete t;
+   }
+
+   return NULL;
 }
 
 #ifndef WIN32
@@ -564,7 +633,7 @@ int Master::stop()
    }
 
    SSLTransport serv;
-   if (serv.initServerCTX("../conf/master_node.cert", "../conf/master_node.key") < 0)
+   if (serv.initServerCTX((self->m_strSectorHome + "/conf/master_node.cert").c_str(), (self->m_strSectorHome + "/conf/master_node.key").c_str()) < 0)
    {
       self->m_SectorLog.insert("WARNING: No master_node certificate or key found.");
       return NULL;
@@ -600,7 +669,7 @@ int Master::stop()
    Master* self = (Master*)param;
 
    SSLTransport secconn;
-   if (secconn.initClientCTX("../conf/security_node.cert") < 0)
+   if (secconn.initClientCTX((self->m_strSectorHome + "/conf/security_node.cert").c_str()) < 0)
    {
       self->m_SectorLog.insert("No security node certificate found. All slave/client connection will be rejected.");
       return NULL;
@@ -1833,8 +1902,24 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
          // otherwise, create a new file for write
          // choose a slave node for the new file
-         set<int> empty;
-         if (m_SlaveManager.chooseIONode(empty, hint, mode, addr, m_SysConfig.m_iReplicaNum) <= 0)
+         set<Address, AddrComp> candidates;
+
+         //if the current directory is nonsplit, the new file must be created on the same node
+         for (int i = 0, n = path.length(); i < n; ++ i)
+         {
+            // if there is a ".nosplit" file in the path dir
+            if (path.c_str()[i] == '/')
+            {
+               string updir = path.substr(0, i);
+               if (m_pMetadata->lookup(updir + "/.nosplit", attr) > 0)
+               {
+                  candidates = attr.m_sLocation;
+                  break;
+               }
+            }
+         }
+
+         if (m_SlaveManager.chooseIONode(candidates, hint, mode, addr, m_SysConfig.m_iReplicaNum) <= 0)
          {
             reject(ip, port, id, SectorError::E_NODISK);
             //m_SectorLog.logUserActivity(user->m_strName.c_str(), ip, "open", msg->getData(), "REJECT", "");

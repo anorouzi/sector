@@ -25,6 +25,7 @@
     <ProjectGuid>{39321064-82F8-4D6D-8757-7A463B54C7FD}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>ls</RootNamespace>
+    <ProjectName>sector_ls</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

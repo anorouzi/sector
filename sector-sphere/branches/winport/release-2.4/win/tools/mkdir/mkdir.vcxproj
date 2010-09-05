@@ -22,6 +22,7 @@
     <ProjectGuid>{F50CE4CE-01AD-4FEE-8985-DB97EAE08432}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>mkdir</RootNamespace>
+    <ProjectName>sector_mkdir</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

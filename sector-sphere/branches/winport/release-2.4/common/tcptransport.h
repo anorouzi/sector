@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,19 +35,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/29/2008
+   Yunhong Gu, last updated 06/12/2010
 *****************************************************************************/
 
+#ifndef __TCP_TRANSPORT_H__
+#define __TCP_TRANSPORT_H__
 
-#ifndef __SECTOR_LOG_H__
-#define __SECTOR_LOG_H__
-
-#ifndef WIN32
-    #include <pthread.h>
-#endif
-#include <fstream>
-
-#include "common.h"
+#include <string>
 
 #ifdef WIN32
     #ifdef COMMON_EXPORTS
@@ -59,32 +53,30 @@ written by
     #define COMMON_API
 #endif
 
-class COMMON_API SectorLog
+class COMMON_API TCPTransport
 {
 public:
-   SectorLog();
-   ~SectorLog();
+   TCPTransport();
+   ~TCPTransport();
 
 public:
-   int init(const char* path);
-   void close();
+   int open(const char* ip, const int& port);
+   int listen();
+   TCPTransport* accept(char* ip, int& port);
+   int connect(const char* ip, const int& port);
+   int close();
 
-   void setLevel(const int level);
+   int send(const char* data, const int& size);
+   int recv(char* data, const int& size);
 
-   void insert(const char* text, const int level = 1);
-   void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level = 1);
+   int64_t sendfile(const char* file, const int64_t& offset, const int64_t& size);
+   int64_t recvfile(const char* file, const int64_t& offset, const int64_t& size);
+
+   int getLocalIP(std::string& ip);
 
 private:
-   void checkLogFile();
-
-private:
-   int m_iLevel;
-   int m_iDay;
-
-   std::string m_strLogPath;
-
-   std::ofstream m_LogFile;
-   CMutex m_LogLock;
+   int m_iSocket;
+   bool m_bConnected;
 };
 
 #endif

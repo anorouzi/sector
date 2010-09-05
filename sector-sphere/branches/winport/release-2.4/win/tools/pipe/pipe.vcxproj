@@ -19,29 +19,30 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{AC520693-9044-448F-B127-77AB5F23526F}</ProjectGuid>
+    <ProjectGuid>{254F7560-8540-40A1-B502-2F426EAEC936}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>common</RootNamespace>
+    <RootNamespace>pipe</RootNamespace>
+    <ProjectName>sector_pipe</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>NotSet</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>NotSet</CharacterSet>
@@ -88,16 +89,15 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>SECTOR_EXPORTS;COMMON_EXPORTS;WINVER=0x0501;_WIN32_WINNT=0x0501;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\common;$(SolutionDir)\..\common\win;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(OPENSSL_ROOT)/include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0501;_WIN32_WINNT=0x0501;PSAPI_VERSION=1;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>udt.lib;libeay32.lib;ssleay32.lib;ws2_32.lib;kernel32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(OPENSSL_ROOT)/lib;$(OutDir)</AdditionalLibraryDirectories>
-      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>$(OPENSSL_ROOT)/lib;$(SolutionDir)$(PlatformName)\$(ConfigurationName)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>client.lib;common.lib;udt.lib;ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -106,16 +106,15 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>SECTOR_EXPORTS;COMMON_EXPORTS;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\common;$(SolutionDir)\..\common\win;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(OPENSSLX64_ROOT)/include</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0501;_WIN32_WINNT=0x0501;PSAPI_VERSION=1;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>udt.lib;libeay32.lib;ssleay32.lib;ws2_32.lib;kernel32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(OPENSSLX64_ROOT)/lib;$(OutDir)</AdditionalLibraryDirectories>
-      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>$(OPENSSL_ROOT)/lib;$(SolutionDir)$(PlatformName)\$(ConfigurationName)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>client.lib;common.lib;udt.lib;ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -126,17 +125,17 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>SECTOR_EXPORTS;COMMON_EXPORTS;WINVER=0x0501;_WIN32_WINNT=0x0501;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WINVER=0x0501;_WIN32_WINNT=0x0501;PSAPI_VERSION=1;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\common;$(SolutionDir)\..\common\win;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(OPENSSL_ROOT)/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(OPENSSL_ROOT)/lib;$(OutDir)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>udt.lib;libeay32.lib;ssleay32.lib;ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(OPENSSL_ROOT)/lib;$(SolutionDir)$(PlatformName)\$(ConfigurationName)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>client.lib;common.lib;udt.lib;ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -147,60 +146,21 @@
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>SECTOR_EXPORTS;COMMON_EXPORTS;_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WINVER=0x0501;_WIN32_WINNT=0x0501;PSAPI_VERSION=1;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\common;$(SolutionDir)\..\common\win;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(OPENSSLX64_ROOT)/include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalLibraryDirectories>$(OPENSSLX64_ROOT)/lib;$(OutDir)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>udt.lib;libeay32.lib;ssleay32.lib;ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(OPENSSL_ROOT)/lib;$(SolutionDir)$(PlatformName)\$(ConfigurationName)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>client.lib;common.lib;udt.lib;ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\common\crypto.h" />
-    <ClInclude Include="..\..\common\datachn.h" />
-    <ClInclude Include="..\..\common\dhash.h" />
-    <ClInclude Include="..\..\common\index.h" />
-    <ClInclude Include="..\..\common\index2.h" />
-    <ClInclude Include="..\..\common\log.h" />
-    <ClInclude Include="..\..\common\meta.h" />
-    <ClInclude Include="..\..\common\routing.h" />
-    <ClInclude Include="..\..\common\ssltransport.h" />
-    <ClInclude Include="..\..\common\tcptransport.h" />
-    <ClInclude Include="..\..\common\threadpool.h" />
-    <ClInclude Include="..\..\common\topology.h" />
-    <ClInclude Include="..\..\common\transport.h" />
-    <ClInclude Include="..\..\common\win\dirent.h" />
-    <ClInclude Include="..\..\common\win\statfs.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\common\conf.cpp" />
-    <ClCompile Include="..\..\common\constant.cpp" />
-    <ClCompile Include="..\..\common\crypto.cpp" />
-    <ClCompile Include="..\..\common\datachn.cpp" />
-    <ClCompile Include="..\..\common\dhash.cpp" />
-    <ClCompile Include="..\..\common\index.cpp" />
-    <ClCompile Include="..\..\common\index2.cpp" />
-    <ClCompile Include="..\..\common\log.cpp" />
-    <ClCompile Include="..\..\common\memobj.cpp" />
-    <ClCompile Include="..\..\common\meta.cpp" />
-    <ClCompile Include="..\..\common\routing.cpp" />
-    <ClCompile Include="..\..\common\snode.cpp" />
-    <ClCompile Include="..\..\common\sphere.cpp" />
-    <ClCompile Include="..\..\common\ssltransport.cpp" />
-    <ClCompile Include="..\..\common\sysstat.cpp" />
-    <ClCompile Include="..\..\common\tcptransport.cpp" />
-    <ClCompile Include="..\..\common\threadpool.cpp" />
-    <ClCompile Include="..\..\common\topology.cpp" />
-    <ClCompile Include="..\..\common\transport.cpp" />
-    <ClCompile Include="..\..\common\win\access.cpp" />
-    <ClCompile Include="..\..\common\win\canonicalize.cpp" />
-    <ClCompile Include="..\..\common\win\dirent.cpp" />
-    <ClCompile Include="..\..\common\win\statfs.cpp" />
+    <ClCompile Include="..\..\..\tools\pipe.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

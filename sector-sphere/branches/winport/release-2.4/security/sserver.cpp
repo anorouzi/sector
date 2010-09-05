@@ -52,7 +52,12 @@ int main(int argc, char** argv)
    if (argc == 2)
       port = atoi(argv[1]);
 
-   if (ss.init(port, "../conf/security_node.cert", "../conf/security_node.key") < 0)
+   string sector_home = "../";
+   char* system_env = getenv("SECTOR_HOME");
+   if (NULL != system_env)
+      sector_home = system_env;
+
+   if (ss.init(port, (sector_home + "/conf/security_node.cert").c_str(), (sector_home + "/conf/security_node.key").c_str()) < 0)
    {
       cerr << "failed to initialize security server at port " << port << endl;
       cerr << "Security server failed to start. Please fix the problem.\n";
@@ -61,21 +66,21 @@ int main(int argc, char** argv)
 
    SSource* src = new FileSrc;
 
-   if (ss.loadMasterACL(src, "../conf/master_acl.conf") < 0)
+   if (ss.loadMasterACL(src, (sector_home + "/conf/master_acl.conf").c_str()) < 0)
    {
-      cerr << "WARNING: failed to read master ACL configuration file master_acl.conf in ../conf. No masters would be able to join.\n";
+      cerr << "WARNING: failed to read master ACL configuration file master_acl.conf. No masters would be able to join.\n";
       cerr << "Security server failed to start. Please fix the problem.\n";
       return -1;
    }
 
-   if (ss.loadSlaveACL(src, "../conf/slave_acl.conf") < 0)
+   if (ss.loadSlaveACL(src, (sector_home + "/conf/slave_acl.conf").c_str()) < 0)
    {
-      cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf in ../conf. No slaves would be able to join.\n";
+      cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf. No slaves would be able to join.\n";
       cerr << "Security server failed to start. Please fix the problem.\n";
       return -1;
    }
 
-   if (ss.loadShadowFile(src, "../conf/users") < 0)
+   if (ss.loadShadowFile(src, (sector_home + "/conf/users").c_str()) < 0)
    {
       cerr << "WARNING: no users account initialized.\n";
       cerr << "Security server failed to start. Please fix the problem.\n";

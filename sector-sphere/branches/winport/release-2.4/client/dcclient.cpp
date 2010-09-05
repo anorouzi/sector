@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/23/2010
+   Yunhong Gu, last updated 06/11/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -299,11 +299,10 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    m_mBucket.clear();
    m_mSPE.clear();
 
-   prepareInput();
-   if (m_pInput->m_llSize <= 0)
-      return 0;
+   if (prepareInput() < 0)
+      return -1;
 
-   cout << "JOB " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
+   cout << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
 
    SectorMsg msg;
    msg.setType(202); // locate available SPE
@@ -767,6 +766,46 @@ int DCClient::checkReduceProgress()
    return count * 100 / m_mBucket.size();   
 }
 
+int DCClient::waitForCompletion()
+{
+   timeval t1, t2;
+   gettimeofday(&t1, 0);
+   t2 = t1;
+
+   while (true)
+   {
+      SphereResult* res = NULL;
+      int progress = 0;
+
+      if (read(res) <= 0)
+      {
+         progress = checkProgress();
+
+         if (progress < 0)
+         {
+            cerr << "all SPEs failed\n";
+            return -1;
+         }
+         else if (progress == 100)
+            return 0;
+      }
+      else
+      {
+         delete res;
+         res = NULL;
+      }
+
+      gettimeofday(&t2, 0);
+      if (t2.tv_sec - t1.tv_sec > 60)
+      {
+         cout << "PROGRESS: " << progress << "%" << endl;
+         t1 = t2;
+      }
+   }
+
+   return 0;
+}
+
 int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
 {
    res = NULL;
@@ -1069,9 +1108,6 @@ int DCClient::segmentData()
       int seq = 0;
       for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
       {
-         if ((0 == m_pInput->m_vFiles[i].length()) || (0 == m_pInput->m_vSize[i]))
-            continue;
-
          if (m_pInput->m_vLocation[i].empty())
             return -1;
 

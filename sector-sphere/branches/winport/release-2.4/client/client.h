@@ -99,6 +99,7 @@ protected:
    int lookup(const std::string& path, Address& serv_addr);
    int lookup(const int32_t& key, Address& serv_addr);
    int deserializeSysStat(SysStat& sys, char* buf, int size);
+   int retrieveMasterInfo();
 
 protected:
    std::string m_strUsername;           // user account name

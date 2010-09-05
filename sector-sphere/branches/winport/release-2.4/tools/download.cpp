@@ -210,7 +210,7 @@ int main(int argc, char** argv)
       // if localdir does not exist, create it
       if (stat(localdir.c_str(), &st) < 0)
       {
-         for (unsigned int p = 0; p < localdir.length(); ++ p)
+         for (unsigned int p = 1; p < localdir.length(); ++ p)
          {
             if (localdir.c_str()[p] == '/')
             {

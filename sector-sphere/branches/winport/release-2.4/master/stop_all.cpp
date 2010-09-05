@@ -15,7 +15,13 @@ int main()
 #endif
    cout << "master node stopped\n";
 
-   ifstream ifs("../conf/slaves.list");
+
+   string sector_home = "../";
+   char* system_env = getenv("SECTOR_HOME");
+   if (NULL != system_env)
+      sector_home = system_env;
+
+   ifstream ifs((sector_home + "/conf/slaves.list").c_str());
 
    if (ifs.bad() || ifs.fail())
    {

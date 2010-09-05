@@ -45,9 +45,12 @@ written by
 #include <cstring>
 #include <iostream>
 
+
 using namespace std;
 
-SectorLog::SectorLog()
+SectorLog::SectorLog():
+m_iLevel(1),
+m_iDay(-1)
 {
 }
 
@@ -57,7 +60,21 @@ SectorLog::~SectorLog()
 
 int SectorLog::init(const char* path)
 {
-   m_LogFile.open(path, ios::trunc);
+   m_strLogPath = path;
+   time_t t = time(NULL);
+   tm date;
+#ifndef WIN32
+   gmtime_r(&t, &date);
+#else
+   gmtime_s(&date, &t);
+#endif
+
+   m_iDay = date.tm_mday;
+
+   char fn[32];
+   sprintf(fn, "%d.%d.%d.log", date.tm_mon + 1, date.tm_mday, date.tm_year + 1900);
+
+   m_LogFile.open((m_strLogPath + "/" + fn).c_str(), ios::app);
 
    if (m_LogFile.bad() || m_LogFile.fail())
       return -1;
@@ -70,9 +87,20 @@ void SectorLog::close()
    m_LogFile.close();
 }
 
-void SectorLog::insert(const char* text)
+void SectorLog::setLevel(const int level)
 {
+   if (level >= 0)
+      m_iLevel = level;
+}
+
+void SectorLog::insert(const char* text, const int level)
+{
+   if (level > m_iLevel)
+      return;
+
    CMutexGuard guard (m_LogLock);
+
+   checkLogFile();
 
    time_t t = time(NULL);
    char ct[64];
@@ -83,10 +111,34 @@ void SectorLog::insert(const char* text)
 
 }
 
-void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave)
+void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level)
 {
+   if (level > m_iLevel)
+      return;
+
    char* text = new char[128 + strlen(file)];
    sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %s  SLAVE: %s", user, ip, cmd, file, res, slave);
-   insert(text);
+   insert(text, level);
    delete [] text;
+}
+
+void SectorLog::checkLogFile()
+{
+   time_t t = time(NULL);
+   tm date;
+#ifndef WIN32
+   gmtime_r(&t, &date);
+#else
+   gmtime_s(&date, &t);
+#endif
+   if (date.tm_mday == m_iDay)
+      return;
+
+   m_iDay = date.tm_mday;
+
+   char fn[32];
+   sprintf(fn, "%d.%d.%d.log", date.tm_mon + 1, date.tm_mday, date.tm_year + 1900);
+
+   m_LogFile.close();
+   m_LogFile.open((m_strLogPath + "/" + fn).c_str(), ios::app);
 }

@@ -85,9 +85,11 @@ private:
       SSLTransport* ssl;
    };
 #ifndef WIN32
+   static void* utility(void* s);
    static void* service(void* s);
    static void* serviceEx(void* p);
 #else
+   static DWORD WINAPI utility(void* s);
    static DWORD WINAPI service(void* s);
    static DWORD WINAPI serviceEx(void* p);
 #endif
@@ -143,6 +145,7 @@ private:
 private:
    CGMP m_GMP;						// GMP messenger
 
+   std::string m_strSectorHome;				// $SECTOR_HOME directory, for code and configuration file location
    MasterConf m_SysConfig;				// master configuration
    std::string m_strHomeDir;				// home data directory, for system metadata
 

@@ -22,6 +22,7 @@
     <ProjectGuid>{182F15EE-A8DC-4A1E-85EA-DDC18B16C853}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>mv</RootNamespace>
+    <ProjectName>sector_mv</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
