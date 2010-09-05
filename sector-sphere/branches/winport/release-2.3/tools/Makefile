@@ -1,0 +1,50 @@
+include ../Makefile.common
+
+CCFLAGS += -I../udt
+
+ifeq ($(STATIC), 1)
+   LDFLAGS += ../lib/libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libcommon.a ../lib/libudt.a -lssl -lcrypto
+else
+   LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient -lssl -lcrypto
+endif
+
+all: download upload ls rm mkdir stat sysinfo mv cp stream
+
+%.o: %.cpp
+	$(C++) -fPIC $(CCFLAGS) $< -c
+
+download: download.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+upload: upload.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+ls: ls.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+rm: rm.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+mkdir: mkdir.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+stat: stat.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+sysinfo: sysinfo.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+mv: mv.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+cp: cp.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+stream: stream.cpp probot.o
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+clean:
+	rm -f *.o download upload ls rm mkdir stat sysinfo mv cp stream
+
+install:
+	
