@@ -41,6 +41,10 @@ written by
    #pragma warning( disable: 4251 )
 #endif
 
+
+const std::string SectorVersion = "Sector version 2.5 build 09/08/2010.";
+
+
 struct Address
 {
    std::string m_strIP;

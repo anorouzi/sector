@@ -159,6 +159,8 @@ void print(const SysStat& s)
 
 int main(int argc, char** argv)
 {
+   cout << SectorVersion << endl;
+
    if (argc != 1)
    {
       cerr << "USAGE: sysinfo\n";

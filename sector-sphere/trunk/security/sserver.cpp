@@ -19,6 +19,7 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
+#include <sector.h>
 #include <conf.h>
 #include <security.h>
 #include <filesrc.h>
@@ -28,6 +29,8 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
+   cout << SectorVersion << endl;
+
    SServer ss;
 
    int port = 5000;

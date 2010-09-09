@@ -22,7 +22,7 @@ written by
 
 #include <common.h>
 #include <fsclient.h>
-
+#include <iostream>
 using namespace std;
 
 FSClient* Client::createFSClient()
@@ -131,9 +131,11 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
       addr.m_strIP = msg.getData() + offset;
       addr.m_iPort = *(int32_t*)(msg.getData() + offset + 64);
       offset += 68;
-
+cout << "connecting " << addr.m_strIP << " " << addr.m_iPort << " " << m_strFileName << endl;
       if (m_pClient->m_DataChn.connect(addr.m_strIP, addr.m_iPort) >= 0)
          m_vReplicaAddress.push_back(addr);
+      else
+         cout << "connection failed\n";
    }
 
    while (m_bWrite && !m_vReplicaAddress.empty() && (organizeChainOfWrite() < 0)) {}

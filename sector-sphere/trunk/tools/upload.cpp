@@ -43,6 +43,25 @@ void print_error(int code)
 
 int upload(const char* file, const char* dst, Sector& client)
 {
+   //check if file already exists
+
+   struct stat64 st;
+   if (stat64(file, &st) < 0)
+   {
+      cout << "cannot locate source file " << file << endl;
+      return -1;
+   }
+
+   SNode attr;
+   if (client.stat(dst, attr) >= 0)
+   {
+      if (attr.m_llSize == st.st_size)
+      {
+         cout << "destination file " << dst << " exists on Sector FS. skip.\n";
+         return 0;
+      }
+   }
+
    timeval t1, t2;
    gettimeofday(&t1, 0);
 
@@ -65,7 +84,7 @@ int upload(const char* file, const char* dst, Sector& client)
    f->close();
    client.releaseSectorFile(f);
 
-   if (result > 0)
+   if (result >= 0)
    {
       gettimeofday(&t2, 0);
       float throughput = s.st_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);

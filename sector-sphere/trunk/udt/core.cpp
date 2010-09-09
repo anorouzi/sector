@@ -576,7 +576,7 @@ void CUDT::connect(const sockaddr* serv_addr)
    if (m_bRendezvous)
       timeo *= 10;
    uint64_t entertime = CTimer::getTime();
-   uint64_t last_req_time = -1;
+   uint64_t last_req_time = 0;
 
    CUDTException e(0, 0);
    char* tmp = NULL;
@@ -637,7 +637,7 @@ void CUDT::connect(const sockaddr* serv_addr)
                   req.m_iCookie = res.m_iCookie;
                   response.setLength(-1);
                   // new response should be sent out immediately
-                  last_req_time = -1;
+                  last_req_time = 0;
                }
             }
          }

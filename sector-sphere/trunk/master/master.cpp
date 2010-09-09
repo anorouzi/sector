@@ -24,10 +24,10 @@ written by
 #include <tcptransport.h>
 #include <dirent.h>
 #include <signal.h>
-#include <iostream>
 #include <stack>
 #include <sstream>
 #include "master.h"
+#include <iostream>
 
 using namespace std;
 
@@ -193,9 +193,6 @@ int Master::init()
 
    m_llStartTime = time(NULL);
    m_SectorLog.insert("Sector started.");
-
-   cout << "Sector master is successfully running now. check the master log at $DATA_DIRECTORY/.log for more details.\n";
-   cout << "There is no further screen output from this program.\n";
 
    return 1;
 }

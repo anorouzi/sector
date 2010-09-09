@@ -106,6 +106,7 @@ void Cache::remove(const string& path)
          for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
          {
             delete [] i->m_pcBlock;
+            i->m_pcBlock = NULL;
             m_llCacheSize -= i->m_llSize;
             -- m_iBlockNum;
          }
@@ -175,6 +176,7 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
             list<CacheBlock>::iterator j = i;
             ++ i;
             delete [] j->m_pcBlock;
+            j->m_pcBlock = NULL;
             m_llCacheSize -= j->m_llSize;
             -- m_iBlockNum;
             c->second.erase(j);
@@ -186,6 +188,7 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
       }
    }
 
+   // remove old caches to limit memory usage
    shrink();
 
    return 0;
@@ -210,7 +213,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
       {
          memcpy(buf, i->m_pcBlock + offset - i->m_llOffset, int(size));
          i->m_llLastAccessTime = CTimer::getTime();
-         // update the file's last access time; it must be equal to the block's last access time
+         // update the file's last access time; it must equal to the block's last access time
          s->second.m_llLastAccessTime = i->m_llLastAccessTime;
          return size;
       }
@@ -247,6 +250,13 @@ int Cache::shrink()
 
    // find the block with the earliest lass access time
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
+
+   if (c == m_mCacheBlocks.end())
+   {
+      // this should not happen
+      return 0;
+   }
+
    latest_time = CTimer::getTime();
    list<CacheBlock>::iterator d = c->second.end();
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
