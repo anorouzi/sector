@@ -193,9 +193,10 @@ int main(int argc, char** argv)
          if (myproc->checkProgress() == 100)
             break;
       }
-
-      if ((outpath.length() == 0) && (res->m_iDataLen > 0))
+      else if ((outpath.length() == 0) && (res->m_iDataLen > 0))
       {
+         // part of result has been returned, display it
+
          cout << "RESULT " << res->m_strOrigFile << endl;
          cout << res->m_pcData << endl;
       }
