@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu [gu@lac.uic.edu], last updated 08/19/2010
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/09/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -320,6 +320,8 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
 
 int DataChn::recv(const string& ip, int port, int session, char*& data, int& size, bool secure)
 {
+   data = NULL;
+
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
       return -1;
@@ -415,7 +417,16 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       }
       else
       {
-         rd.m_pcData = new char[rd.m_iSize];
+         try
+         {
+            rd.m_pcData = new char[rd.m_iSize];
+         }
+         catch (...)
+         {
+            CGuard::leaveCS(c->m_RcvLock);
+            return -1;
+         }
+
          if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
          {
             delete [] rd.m_pcData;
@@ -592,7 +603,16 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          }
          else
          {
-            rd.m_pcData = new char[rd.m_iSize];
+            try
+            {
+               rd.m_pcData = new char[rd.m_iSize];
+            }
+            catch (...)
+            {
+               CGuard::leaveCS(c->m_RcvLock);
+               return -1;
+            }
+
             if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
             {
                delete [] rd.m_pcData;

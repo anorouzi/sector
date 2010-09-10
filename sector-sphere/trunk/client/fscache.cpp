@@ -156,10 +156,17 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
 
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
 
-   if (c == m_mCacheBlocks.end())
-      m_mCacheBlocks[path].push_front(cb);
-   else
-      c->second.push_front(cb);
+   try
+   {
+      if (c == m_mCacheBlocks.end())
+         m_mCacheBlocks[path].push_front(cb);
+      else
+         c->second.push_front(cb);
+   }
+   catch (...)
+   {
+      return -1;
+   }
 
    m_llCacheSize += cb.m_llSize;
    ++ m_iBlockNum;
@@ -169,21 +176,24 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
       //write invalidates all caches overlap with this block
       // TODO: optimize this
       c = m_mCacheBlocks.find(path);
-      for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end();)
+      if (c != m_mCacheBlocks.end())
       {
-         if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset) && !i->m_bWrite)
+         for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end();)
          {
-            list<CacheBlock>::iterator j = i;
-            ++ i;
-            delete [] j->m_pcBlock;
-            j->m_pcBlock = NULL;
-            m_llCacheSize -= j->m_llSize;
-            -- m_iBlockNum;
-            c->second.erase(j);
-         }
-         else
-         {
-            ++ i;
+            if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset) && !i->m_bWrite)
+            {
+               list<CacheBlock>::iterator j = i;
+               ++ i;
+               delete [] j->m_pcBlock;
+               j->m_pcBlock = NULL;
+               m_llCacheSize -= j->m_llSize;
+               -- m_iBlockNum;
+               c->second.erase(j);
+            }
+            else
+            {
+               ++ i;
+            }
          }
       }
    }

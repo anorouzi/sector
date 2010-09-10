@@ -694,7 +694,12 @@ int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
    if (recvsize <= 0)
       return SectorError::E_CONNECTION;
 
-   m_pClient->m_Cache.insert(buf, m_strFileName, offset, recvsize);
+   if (m_pClient->m_Cache.insert(buf, m_strFileName, offset, recvsize) < 0)
+   {
+      delete [] buf;
+      return -1;
+   }
+
    return recvsize;
 }
 

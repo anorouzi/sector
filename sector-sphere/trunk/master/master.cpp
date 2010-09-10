@@ -82,7 +82,7 @@ int Master::init()
 
    // check local directories, create them is not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
-   system((string("rm -rf ") + m_strHomeDir).c_str());
+   //system((string("rm -rf ") + m_strHomeDir).c_str());
    DIR* test = opendir(m_strHomeDir.c_str());
    if (NULL == test)
    {

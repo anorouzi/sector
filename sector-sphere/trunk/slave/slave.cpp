@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/10/2010
 *****************************************************************************/
 
 #include "slave.h"
@@ -963,7 +963,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
+   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
 
    test = opendir((m_strHomeDir + ".sphere").c_str());
    if (NULL == test)
@@ -972,7 +972,7 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
+   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
 
    test = opendir((m_strHomeDir + ".sphere/perm").c_str());
    if (NULL == test)
