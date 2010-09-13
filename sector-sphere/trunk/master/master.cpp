@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/11/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -1071,7 +1071,9 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
+            pthread_mutex_lock(&m_ReplicaLock);
             m_sstrOnReplicate.erase(sn.m_strName);
+            pthread_mutex_unlock(&m_ReplicaLock);
          }
       }
 
@@ -1082,7 +1084,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             SectorMsg newmsg;
             newmsg.setData(0, (char*)&change, 4);
-            newmsg.setData(4, ip.c_str(), 64);
+            newmsg.setData(4, ip.c_str(), ip.length() + 1);
             newmsg.setData(68, (char*)&port, 4);
             newmsg.setData(72, msg->getData() + 12, msg->m_iDataLength - 12);
             sync(newmsg.getData(), newmsg.m_iDataLength, 1100);
@@ -1128,7 +1130,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
    {
       if (!m_Routing.match(key, m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1373,7 +1375,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1420,7 +1422,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1480,7 +1482,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1540,7 +1542,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1629,7 +1631,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1702,7 +1704,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1774,7 +1776,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1828,7 +1830,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (!m_Routing.match(path.c_str(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_MASTER);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -2420,7 +2422,9 @@ int Master::processSyncCmd(const string& ip, const int port,  const User* user, 
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
+            pthread_mutex_lock(&m_ReplicaLock);
             m_sstrOnReplicate.erase(sn.m_strName);
+            pthread_mutex_unlock(&m_ReplicaLock);
          }
       }
 

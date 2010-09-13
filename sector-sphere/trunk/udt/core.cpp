@@ -636,10 +636,11 @@ void CUDT::connect(const sockaddr* serv_addr)
                   req.m_iReqType = -1;
                   req.m_iCookie = res.m_iCookie;
                   response.setLength(-1);
-                  // new response should be sent out immediately
-                  last_req_time = 0;
                }
             }
+
+            // new response should be sent out immediately
+            last_req_time = 0;
          }
       }
 

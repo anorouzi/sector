@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/12/2010
 *****************************************************************************/
 
 
@@ -100,11 +100,20 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
 
    Address serv;
    m_pClient->lookup(m_strFileName, serv);
-   if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
-
-   if (msg.getType() < 0)
-      return *(int32_t*)(msg.getData());
+   if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || ((msg.getType() < 0) && (SectorError::E_ROUTING == *(int32_t*)msg.getData())))
+   {
+      // masters might have been changed, retrieve new master information
+      m_pClient->updateMasters();
+      m_pClient->lookup(m_strFileName, serv);
+      if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+         return SectorError::E_CONNECTION;
+      if (msg.getType() < 0)
+         return *(int32_t*)msg.getData();
+   }
+   else if (msg.getType() < 0)
+   {
+      return *(int32_t*)msg.getData();
+   }
 
    m_iSession = *(int32_t*)msg.getData();
 

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 09/12/2010
 *****************************************************************************/
 
 #include <sector.h>
@@ -95,7 +95,7 @@ void print(const SysStat& s)
    cout << "Total Number of Slave Nodes: " << s.m_llTotalSlaves << endl;
 
    cout << "------------------------------------------------------------\n";
-   cout << format("MASTER ID", 10) << format("IP", 16) << "PORT" << endl;
+   cout << format("MASTER_ID", 10) << format("IP", 16) << "PORT" << endl;
    for (vector<SysStat::MasterStat>::const_iterator i = s.m_vMasterList.begin(); i != s.m_vMasterList.end(); ++ i)
    {
       cout << format(i->m_iID, 10) << format(i->m_strIP, 16) << i->m_iPort << endl;
