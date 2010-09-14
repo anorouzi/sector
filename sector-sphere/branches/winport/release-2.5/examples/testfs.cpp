@@ -33,7 +33,7 @@ int main(int argc, char** argv)
    const int fn = static_cast<int>(sys.m_llTotalSlaves);
 
    SectorFile* guide = client.createSectorFile();
-   if (guide->open("tmp/guide.dat", SF_MODE::WRITE) < 0)
+   if (guide->open("tmp/guide.dat", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)
    {
       cout << "error to open file." << endl;
       return -1;
@@ -44,7 +44,7 @@ int main(int argc, char** argv)
    delete [] id;
    guide->close();
 
-   if (guide->open("tmp/guide.dat.idx", SF_MODE::WRITE) < 0)
+   if (guide->open("tmp/guide.dat.idx", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)
    {
       cout << "error to open file." << endl;
       return -1;

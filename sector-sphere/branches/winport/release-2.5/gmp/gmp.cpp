@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/25/2010
+   Yunhong Gu, last updated 07/05/2010
 *****************************************************************************/
 
 

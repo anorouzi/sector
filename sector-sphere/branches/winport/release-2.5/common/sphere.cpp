@@ -35,13 +35,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/17/2010
+   Yunhong Gu, last updated 07/05/2010
 *****************************************************************************/
 
 #include <sphere.h>
 #include <cstring>
 
-int SOutput::resizeResBuf(const int64_t& newsize)
+int SOutput::resizeResBuf(const int& newsize)
 {
    if (newsize < m_iResSize)
       return -1;
@@ -66,7 +66,7 @@ int SOutput::resizeResBuf(const int64_t& newsize)
    return static_cast<int>(newsize);
 }
 
-int SOutput::resizeIdxBuf(const int64_t& newsize)
+int SOutput::resizeIdxBuf(const int& newsize)
 {
    if (newsize < (m_iRows + 1) * 8)
       return -1;

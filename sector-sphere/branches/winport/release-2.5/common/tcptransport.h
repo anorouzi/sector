@@ -75,7 +75,11 @@ public:
    int getLocalIP(std::string& ip);
 
 private:
+#ifndef WIN32
    int m_iSocket;
+#else
+   SOCKET m_iSocket;
+#endif
    bool m_bConnected;
 };
 

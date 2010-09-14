@@ -45,11 +45,12 @@ written by
 #include <vector>
 #include <map>
 #include <string>
-#ifndef WIN32 // <slr>
+#ifndef WIN32
    #include <pthread.h>
 #endif
 #include "dhash.h"
-#include "topology.h"
+#include "udt.h"
+#include "sector.h"
 
 class COMMON_API Routing
 {

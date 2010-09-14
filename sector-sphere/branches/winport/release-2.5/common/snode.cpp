@@ -38,6 +38,7 @@ written by
    Yunhong Gu, last updated 01/08/2010
 *****************************************************************************/
 
+
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
@@ -141,7 +142,11 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
+
    m_llTimeStamp = atoll(tmp);
+
+
+
 
    if (stop)
       return -1;
@@ -158,7 +163,11 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
+
    m_llSize = atoll(tmp);
+
+
+
 
    // restore locations
    while (!stop)
@@ -253,7 +262,11 @@ int SNode::deserialize2(const string& file)
    else
       m_strName = file.substr(p + 1);
 
+
    if (S_ISDIR(s.st_mode))
+
+
+
    {
       m_bIsDir = true;
       m_llSize = s.st_size;

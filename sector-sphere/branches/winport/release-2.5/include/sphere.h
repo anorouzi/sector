@@ -92,8 +92,8 @@ public:
    std::string m_strError;	// error text to be send back to client
 
 public:
-   int resizeResBuf(const int64_t& newsize);
-   int resizeIdxBuf(const int64_t& newsize);
+   int resizeResBuf(const int& newsize);
+   int resizeIdxBuf(const int& newsize);
 };
 
 struct SECTOR_API MemObj
@@ -122,6 +122,9 @@ public:
 private:
    std::map<std::string, MemObj> m_mObjects;
    CMutex m_MOLock;
+
+
+
 
 private:
    std::vector<MemObj> m_vTBA;

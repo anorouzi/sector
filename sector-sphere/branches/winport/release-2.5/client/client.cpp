@@ -35,23 +35,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/23/2010
+   Yunhong Gu, last updated 07/05/2010
 *****************************************************************************/
 
 #include <iostream>
-
-#ifndef WIN32	// <slr>
+#ifndef WIN32
    #include <netdb.h>
 #else
-    #include <ws2tcpip.h>
-    #ifdef LEGACY_WIN32
-        #include <wspiapi.h>
-    #endif
-    #include <process.h>
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+   #include <process.h>
 #endif
 #include "ssltransport.h"
 #include "tcptransport.h"
 #include "crypto.h"
+#include "common.h"
 #include "client.h"
 
 using namespace std;
@@ -88,7 +86,34 @@ int Client::init(const string& server, const int& port)
    if (m_iCount ++ > 0)
       return 0;
 
+#ifdef WIN32
+    WSADATA wsaData = {0};
+    int iResult = 0;
+    iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (iResult != 0) 
+    {
+        printf("WSAStartup failed: %d\n", iResult);
+        return 1;
+    }
+#endif
+
    m_ErrorInfo.init();
+
+   struct addrinfo* result;
+   if (getaddrinfo(server.c_str(), NULL, NULL, &result) != 0)
+   {
+      cerr << "incorrect host name.\n";
+      return -1;
+   }
+
+   m_strServerHost = server;
+
+   char hostip[NI_MAXHOST];
+   getnameinfo((sockaddr *)result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, NI_NUMERICHOST);
+   m_strServerIP = hostip;
+   freeaddrinfo(result);
+
+   m_iServerPort = port;
 
    Crypto::generateKey(m_pcCryptoKey, m_pcCryptoIV);
 
@@ -105,18 +130,6 @@ int Client::init(const string& server, const int& port)
       cerr << "unable to init data channel.\n";
       return -1;
    }
-
-   // Invoke socket APIs after transport initialization <slr>
-   struct hostent* serverip = gethostbyname(server.c_str());
-   if (NULL == serverip)
-   {
-      cerr << "incorrect host name.\n";
-      return -1;
-   }
-   m_strServerHost = server;
-   char buf[64]="";
-   m_strServerIP = udt_inet_ntop(AF_INET, serverip->h_addr_list[0], buf, 64);
-   m_iServerPort = port;
 
    m_bActive = true;
 #ifndef WIN32
@@ -137,13 +150,8 @@ int Client::login(const string& username, const string& password, const char* ce
    string master_cert;
    if ((cert != NULL) && (0 != strlen(cert)))
       master_cert = cert;
-   else
-   {
-      if (retrieveMasterInfo() >= 0)
-         master_cert = "/tmp/master_node.cert";
-      else
-         return -1;
-   }
+   else if (retrieveMasterInfo(master_cert) < 0)
+      return -1;
 
    SSLTransport::init();
 
@@ -247,9 +255,9 @@ int Client::login(const string& serv_ip, const int& serv_port)
    addr.m_iPort = serv_port;
 
    {
-       CMutexGuard guard(m_MasterSetLock);
-       if (m_sMasters.find(addr) != m_sMasters.end())
-          return 0;
+      CMutexGuard guard(m_MasterSetLock);
+      if (m_sMasters.find(addr) != m_sMasters.end())
+         return 0;
    }
 
    if (m_iKey < 0)
@@ -340,20 +348,21 @@ int Client::close()
       pthread_cond_signal(&m_KACond);
       pthread_mutex_unlock(&m_KALock.m_Mutex);
       pthread_join(m_KeepAlive, NULL);
-   #else
-      {
-          CMutexGuard guard (m_KALock);
-          m_bActive = false;
-          SetEvent(m_KACond);
-      }
+#else
+      m_bActive = false;
+      SetEvent(m_KACond);
       WaitForSingleObject(m_KeepAlive, INFINITE);
-   #endif
+#endif
 
       m_strServerHost = "";
       m_strServerIP = "";
       m_iServerPort = 0;
       m_GMP.close();
       Transport::release();
+
+#ifdef WIN32
+      WSACleanup();
+#endif
    }
 
    return 0;
@@ -660,7 +669,7 @@ int Client::updateMasters()
    return -1;
 }
 
-#ifndef WIN32  // <slr>
+#ifndef WIN32
 void* Client::keepAlive(void* param)
 #else
 unsigned int WINAPI Client::keepAlive(void * param)
@@ -681,7 +690,7 @@ unsigned int WINAPI Client::keepAlive(void * param)
       pthread_cond_timedwait(&self->m_KACond, &self->m_KALock.m_Mutex, &ts);
       self->m_KALock.release();
 #else
-      WaitForSingleObject(self->m_KACond, 60 * 10 * 1000L);    // <slr>
+      WaitForSingleObject(self->m_KACond, 600000);
 #endif
 
       if (!self->m_bActive)
@@ -706,7 +715,11 @@ unsigned int WINAPI Client::keepAlive(void * param)
       }
    }
 
+#ifndef WIN32
    return NULL;
+#else
+   return 0;
+#endif
 }
 
 int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
@@ -726,14 +739,14 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    p += 4;
    for (vector<SysStat::ClusterStat>::iterator i = sys.m_vCluster.begin(); i != sys.m_vCluster.end(); ++ i)
    {
-      i->m_iClusterID = static_cast<int>(*(int64_t*)p);
-      i->m_iTotalNodes = static_cast<int>(*(int64_t*)(p + 8));
-      i->m_llAvailDiskSpace = *(int64_t*)(p + 16);
-      i->m_llTotalFileSize = *(int64_t*)(p + 24);
-      i->m_llTotalInputData = *(int64_t*)(p + 32);
-      i->m_llTotalOutputData = *(int64_t*)(p + 40);
+      i->m_iClusterID = *(int32_t*)p;
+      i->m_iTotalNodes = *(int32_t*)(p + 4);
+      i->m_llAvailDiskSpace = *(int64_t*)(p + 8);
+      i->m_llTotalFileSize = *(int64_t*)(p + 16);
+      i->m_llTotalInputData = *(int64_t*)(p + 24);
+      i->m_llTotalOutputData = *(int64_t*)(p + 32);
 
-      p += 48;
+      p += 40;
    }
 
    int m = *(int32_t*)p;
@@ -801,20 +814,27 @@ int Client::lookup(const int32_t& key, Address& serv_addr)
    return 0;
 }
 
-int Client::retrieveMasterInfo()
+int Client::retrieveMasterInfo(string& certfile)
 {
    TCPTransport t;
    t.open(NULL, 0);
    if (t.connect(m_strServerIP.c_str(), m_iServerPort - 1) < 0)
       return -1;
 
+   certfile = "";
+#ifndef WIN32
+   certfile = "/tmp/master_node.cert";
+#else
+   certfile = "master_node.cert";
+#endif
+
    int32_t size = 0;
    t.recv((char*)&size, 4);
-   size = static_cast<int32_t>(t.recvfile("/tmp/master_node.cert", 0, size));
+   int64_t recvsize = t.recvfile(certfile.c_str(), 0, size);
    t.close();
 
-   if (size <= 0)
+   if (recvsize <= 0)
       return -1;
 
-   return size;
+   return 0;
 }

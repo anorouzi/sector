@@ -1,3 +1,4 @@
+#include <conf.h>
 #include <cstdlib>
 #include <string.h>
 #include <string>
@@ -13,19 +14,23 @@ using namespace std;
 int main()
 {
    cout << "starting master ...\n";
+
+   string sector_home;
+   if (ConfLocation::locate(sector_home) < 0)
+   {
+      cerr << "no Sector information located; nothing to start.\n";
+      return -1;
+   }
+
 #ifndef WIN32
-   system("nohup ./start_master > /dev/null &");
+   string cmd = string("nohup " + sector_home + "/master/start_master > /dev/null &");
 #else
    // NOTE: there is NO 'nohup' option in start cmd
    // TODO: Add options to run master as a NT service (i.e., use srvany), requires admin rights.
    // or would ssh work?
-   system("start start_master.exe > NULL");
+   string cmd = string("start " + sector_home + "/master/start_master.exe > NULL");
 #endif
-
-   string sector_home = "../";
-   char* system_env = getenv("SECTOR_HOME");
-   if (NULL != system_env)
-      sector_home = system_env;
+   system(cmd.c_str());
 
    ifstream ifs((sector_home + "/conf/slaves.list").c_str());
 

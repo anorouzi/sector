@@ -49,10 +49,16 @@ m_llCacheSize(0),
 m_llMaxCacheSize(10000000),
 m_llMaxCacheTime(10000000)
 {
+
+
+
 }
 
 Cache::~Cache()
 {
+
+
+
 }
 
 int Cache::setMaxCacheSize(const int64_t ms)
@@ -171,7 +177,7 @@ int Cache::insert(char* block, const std::string& path, const int64_t& offset, c
    return 0;
 }
 
-int Cache::read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size)
+int64_t Cache::read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size)
 {
    CMutexGuard sg(m_Lock);
 
@@ -188,7 +194,7 @@ int Cache::read(const std::string& path, char* buf, const int64_t& offset, const
       // this condition can be improved to provide finer granularity
       if ((offset >= i->m_llOffset) && (i->m_llSize - (offset - i->m_llOffset) >= size))
       {
-         memcpy(buf, i->m_pcBlock + offset - i->m_llOffset, static_cast<size_t>(size));
+         memcpy(buf, i->m_pcBlock + offset - i->m_llOffset, int(size));
          i->m_llLastAccessTime = CTimer::getTime();
          // update the file's last access time; it must be equal to the block's last access time
          s->second.m_llLastAccessTime = i->m_llLastAccessTime;

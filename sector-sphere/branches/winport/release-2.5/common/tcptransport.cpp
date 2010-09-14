@@ -38,19 +38,18 @@ written by
    Yunhong Gu, last updated 06/12/2010
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <netinet/in.h>
+   #include <netdb.h>
+   #include <arpa/inet.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+#endif
 #include <sector.h>
 #include <tcptransport.h>
-#include <sys/types.h>
-#ifndef WIN32
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <netdb.h>
-    #include <arpa/inet.h>
-#else
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #include <wspiapi.h>
-#endif
 #include <cstring>
 #include <iostream>
 #include <fstream>
@@ -85,7 +84,7 @@ int TCPTransport::open(const char* ip, const int& port)
    addr.sin_port = htons(port);
 
    const char reuse = 1;
-   ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+   ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
    if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
    {
@@ -154,10 +153,11 @@ int TCPTransport::close()
       return 0;
 
    m_bConnected = false;
+
 #ifndef WIN32
    return ::close(m_iSocket);
 #else
-   return ::closesocket(m_iSocket);
+   return closesocket(m_iSocket);
 #endif
 }
 
@@ -210,7 +210,7 @@ int64_t TCPTransport::sendfile(const char* file, const int64_t& offset, const in
    int64_t sent = 0;
    while (sent < size)
    {
-      int unit = (size - sent) > block ? block : static_cast<int>(size - sent);
+      int unit = int((size - sent) > block ? block : size - sent);
       ifs.read(buf, unit);
       send(buf, unit);
       sent += unit;
@@ -237,7 +237,7 @@ int64_t TCPTransport::recvfile(const char* file, const int64_t& offset, const in
    int64_t recd = 0;
    while (recd < size)
    {
-      int unit = (size - recd) > block ? block : static_cast<int>(size - recd);
+      int unit = int((size - recd) > block ? block : size - recd);
       recv(buf, unit);
       ofs.write(buf, unit);
       recd += unit;

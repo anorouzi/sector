@@ -39,20 +39,14 @@ written by
 *****************************************************************************/
 
 #ifndef WIN32
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <pthread.h>
-#else
-   #include <winsock2.h>
-   #include <ws2tcpip.h>
-   #include <wspiapi.h>
+   #include <sys/socket.h>
+   #include <netinet/in.h>
+   #include <arpa/inet.h>
+   #include <pthread.h>
 #endif
-
 #include <cstring>
-#include <datachn.h>
-
 #include "common.h"
+#include "datachn.h"
 
 using namespace std;
 
@@ -68,7 +62,6 @@ DataChn::~DataChn()
       {
          i->second->m_pTrans->close();
          delete i->second->m_pTrans;
-         i->second->m_pTrans = NULL; // <slr>
       }
 
       for (vector<RcvData>::iterator j = i->second->m_vDataQueue.begin(); j != i->second->m_vDataQueue.end(); ++ j)
@@ -90,7 +83,7 @@ int DataChn::init(const string& ip, int& port)
    m_iPort = port;
 
    // add itself
-   ChnInfo* c = new ChnInfo (NULL, 1);
+   ChnInfo* c = new ChnInfo(NULL, 1);
 
    Address addr;
    addr.m_strIP = ip;
@@ -123,55 +116,53 @@ int DataChn::connect(const string& ip, int port)
    addr.m_strIP = ip;
    addr.m_iPort = port;
 
+   m_ChnLock.acquire();
+   map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
+   if (i != m_mChannel.end())
+   {
+      if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
+      {
+         m_ChnLock.release();
+         return 0;
+      }
+      delete i->second->m_pTrans;
+      i->second->m_pTrans = NULL;
+   }
+
    ChnInfo* c = NULL;
+   if (i == m_mChannel.end())
    {
-       CMutexGuard guard (m_ChnLock);
+      c = new ChnInfo(NULL, 0);
+      m_mChannel[addr] = c;
+   }
+   else
+   {
+      c = i->second;
+   }
+   m_ChnLock.release();
 
-       map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
-       if (i != m_mChannel.end())
-       {
-          if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
-          {
-             return 0;
-          }
-          delete i->second->m_pTrans;
-          i->second->m_pTrans = NULL;
-       }
-
-       if (i == m_mChannel.end())
-       {
-          c = new ChnInfo (NULL, 0);
-          m_mChannel[addr] = c;
-       }
-       else
-       {
-          c = i->second;
-       }
+   c->m_SndLock.acquire();
+   if ((NULL != c->m_pTrans) && c->m_pTrans->isConnected())
+   {
+      c->m_iCount ++;
+      c->m_SndLock.release();
+      return 0;
    }
 
-   int r = 0;
+   Transport* t = new Transport;
+   t->open(m_iPort, true, true);
+   int r = t->connect(ip.c_str(), port);
+
+   if (NULL == c->m_pTrans)
+      c->m_pTrans = t;
+   else
    {
-       CMutexGuard guard (c->m_SndLock);
-
-       if ((NULL != c->m_pTrans) && c->m_pTrans->isConnected())
-       {
-          c->m_iCount ++;
-          return 0;
-       }
-
-       Transport* t = new Transport;
-       t->open(m_iPort, true, true);
-       r = t->connect(ip.c_str(), port);
-
-       if (NULL == c->m_pTrans)
-          c->m_pTrans = t;
-       else
-       {
-          Transport* tmp = c->m_pTrans;
-          c->m_pTrans = t;
-          delete tmp;
-       }
+      Transport* tmp = c->m_pTrans;
+      c->m_pTrans = t;
+      delete tmp;
    }
+
+   c->m_SndLock.release();
 
    return r;
 }
@@ -182,8 +173,7 @@ int DataChn::remove(const string& ip, int port)
    addr.m_strIP = ip;
    addr.m_iPort = port;
 
-   CMutexGuard guard (m_ChnLock);
-
+   m_ChnLock.acquire();
    map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
    if (i != m_mChannel.end())
    {
@@ -192,9 +182,11 @@ int DataChn::remove(const string& ip, int port)
       {
          if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
             i->second->m_pTrans->close();
+         delete i->second->m_pTrans;
          m_mChannel.erase(i);
       }
    }
+   m_ChnLock.release();
 
    return 0;
 }
@@ -216,13 +208,14 @@ DataChn::ChnInfo* DataChn::locate(const string& ip, int port)
    addr.m_strIP = ip;
    addr.m_iPort = port;
 
-   CMutexGuard guard (m_ChnLock);
-
+   m_ChnLock.acquire();
    map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
    if ((i == m_mChannel.end()) || ((NULL != i->second->m_pTrans) && !i->second->m_pTrans->isConnected()))
    {
-       return NULL;
+       m_ChnLock.release();
+      return NULL;
    }
+   m_ChnLock.release();
 
    return i->second;
 }
@@ -242,20 +235,21 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
       q.m_pcData = new char[size];
       memcpy(q.m_pcData, data, size);
 
-      CMutexGuard guard (c->m_QueueLock);
+      c->m_QueueLock.acquire();
       c->m_vDataQueue.push_back(q);
+      c->m_QueueLock.release();
 
       return size;
    }
 
-   CMutexGuard guard (c->m_SndLock);
-
+   c->m_SndLock.acquire();
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
    if (!secure)
       c->m_pTrans->send(data, size);
    else
       c->m_pTrans->sendEx(data, size, true);
+   c->m_SndLock.release();
 
    return size;
 }
@@ -268,70 +262,76 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
 
    while ((NULL == c->m_pTrans) || c->m_pTrans->isConnected())
    {
-       {
-          CMutexGuard guard (c->m_QueueLock);
-          for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
-          {
-             if (session == q->m_iSession)
-             {
-                size = q->m_iSize;
-                data = q->m_pcData;
-                c->m_vDataQueue.erase(q);
+       c->m_QueueLock.acquire();
+      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
+      {
+         if (session == q->m_iSession)
+         {
+            size = q->m_iSize;
+            data = q->m_pcData;
+            c->m_vDataQueue.erase(q);
 
-                return size;
-             }
-          }
+            c->m_QueueLock.release();
+            return size;
+         }
       }
+      c->m_QueueLock.release();
 
-      if (!c->m_RcvLock.trylock())
+      if (c->m_RcvLock.trylock() == false)
       {
          // if another thread is receiving data, wait a little while and check the queue again
+#ifndef WIN32
          usleep(10);
+#else
+         Sleep(1);
+#endif
          continue;
       }
 
       bool found = false;
+      c->m_QueueLock.acquire();
+      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
       {
-          CMutexGuard guard (c->m_QueueLock);
+         if (session == q->m_iSession)
+         {
+            size = q->m_iSize;
+            data = q->m_pcData;
+            c->m_vDataQueue.erase(q);
 
-          for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
-          {
-             if (session == q->m_iSession)
-             {
-                size = q->m_iSize;
-                data = q->m_pcData;
-                c->m_vDataQueue.erase(q);
-
-                found = true;
-                break;
-             }
-          }
+            found = true;
+            break;
+         }
       }
+      c->m_QueueLock.release();
 
       if (found)
       {
-         c->m_RcvLock.release();
+          c->m_RcvLock.release();
          return size;
       }
 
       if (NULL == c->m_pTrans)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
-         c->m_RcvLock.release();
+          c->m_RcvLock.release();
+#ifndef WIN32
          usleep(10);
+#else
+         Sleep(1);
+#endif
          continue;
       }
 
       RcvData rd;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
-         c->m_RcvLock.release();
-         return -1;
+          c->m_RcvLock.release();
+          return -1;
       }
       if (c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0)
       {
-         c->m_RcvLock.release();
-         return -1;
+          c->m_RcvLock.release();
+          return -1;
       }
       if (!secure)
       {
@@ -362,10 +362,9 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          return size;
       }
 
-      {
-        CMutexGuard guard (c->m_QueueLock);
-        c->m_vDataQueue.push_back(rd);
-      }
+      c->m_QueueLock.acquire();
+      c->m_vDataQueue.push_back(rd);
+      c->m_QueueLock.release();
 
       c->m_RcvLock.release();
    }
@@ -386,24 +385,23 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
       // send data to self
       RcvData q;
       q.m_iSession = session;
-      q.m_iSize = (int)size;
-      q.m_pcData = new char[q.m_iSize];
+      q.m_iSize = static_cast<int>(size);
+      q.m_pcData = new char[static_cast<size_t>(size)];
       ifs.seekg(offset);
       ifs.read(q.m_pcData, size);
 
-      {
-         CMutexGuard guard (c->m_QueueLock);
-         c->m_vDataQueue.push_back(q);
-      }
+      c->m_QueueLock.acquire();
+      c->m_vDataQueue.push_back(q);
+      c->m_QueueLock.release();
+
       return size;
    }
 
-   {
-        CMutexGuard guard (c->m_SndLock);
-        c->m_pTrans->send((char*)&session, 4);
-        c->m_pTrans->send((char*)&size, 4);
-        c->m_pTrans->sendfile(ifs, offset, size);
-   }
+   c->m_SndLock.acquire();
+   c->m_pTrans->send((char*)&session, 4);
+   c->m_pTrans->send((char*)&size, 4);
+   c->m_pTrans->sendfile(ifs, offset, size);
+   c->m_SndLock.release();
 
    return size;
 }
@@ -416,73 +414,79 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
 
    while ((NULL == c->m_pTrans) || c->m_pTrans->isConnected())
    {
-       {
-          CMutexGuard guard (c->m_QueueLock);
-          for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
-          {
-             if (session == q->m_iSession)
-             {
-                size = q->m_iSize;
-                ofs.seekp(offset);
-                ofs.write(q->m_pcData, size);
-                delete [] q->m_pcData;
-                c->m_vDataQueue.erase(q);
+       c->m_QueueLock.acquire();
+      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
+      {
+         if (session == q->m_iSession)
+         {
+            size = q->m_iSize;
+            ofs.seekp(offset);
+            ofs.write(q->m_pcData, size);
+            delete [] q->m_pcData;
+            c->m_vDataQueue.erase(q);
 
-                return size;
-             }
-          }
-       }
+            c->m_QueueLock.release();
+            return size;
+         }
+      }
+      c->m_QueueLock.release();
 
-      if (!c->m_RcvLock.trylock())
+      if (c->m_RcvLock.trylock() == false)
       {
          // if another thread is receiving data, wait a little while and check the queue again
+#ifndef WIN32
          usleep(10);
+#else
+         Sleep(1);
+#endif
          continue;
       }
 
       bool found = false;
+      c->m_QueueLock.acquire();
+      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
       {
-         CMutexGuard guard (c->m_QueueLock);
+         if (session == q->m_iSession)
+         {
+            size = q->m_iSize;
+            ofs.seekp(offset);
+            ofs.write(q->m_pcData, size);
+            delete [] q->m_pcData;
+            c->m_vDataQueue.erase(q);
 
-          for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
-          {
-             if (session == q->m_iSession)
-             {
-                size = q->m_iSize;
-                ofs.seekp(offset);
-                ofs.write(q->m_pcData, size);
-                delete [] q->m_pcData;
-                c->m_vDataQueue.erase(q);
-
-                found = true;
-                break;
-             }
-          }
+            found = true;
+            break;
+         }
       }
+      c->m_QueueLock.release();
 
       if (found)
       {
-         c->m_RcvLock.release();
+          c->m_RcvLock.release();
          return size;
       }
 
       if (NULL == c->m_pTrans)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
-         c->m_RcvLock.release();
+          c->m_RcvLock.release();
+#ifndef WIN32
          usleep(10);
+#else
+         Sleep(1);
+#endif
          continue;
       }
 
       RcvData rd;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
-         c->m_RcvLock.release();
+          c->m_RcvLock.release();
          return -1;
       }
       if (c->m_pTrans->recv((char*)&rd.m_iSize, 4) < 0)
       {
-         c->m_RcvLock.release();
+          c->m_RcvLock.release();
          return -1;
       }
       if (!secure)
@@ -491,7 +495,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          {
             if (c->m_pTrans->recvfile(ofs, offset, rd.m_iSize) < 0)
             {
-               c->m_RcvLock.release();
+                c->m_RcvLock.release();
                return -1;
             }
          }
@@ -512,7 +516,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          {
             if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, true) < 0)
             {
-               c->m_RcvLock.release();
+                c->m_RcvLock.release();
                return -1;
             }
          }
@@ -535,11 +539,9 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          return size;
       }
 
-
-      {
-         CMutexGuard guard (c->m_QueueLock);
-         c->m_vDataQueue.push_back(rd);
-      }
+      c->m_QueueLock.acquire();
+      c->m_vDataQueue.push_back(rd);
+      c->m_QueueLock.release();
    }
 
    size = 0;

@@ -60,6 +60,7 @@ written by
    #else
       #define GMP_API __declspec(dllimport)
    #endif
+   #pragma warning( disable: 4251 )
 #endif
 
 #include <transport.h>

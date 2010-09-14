@@ -39,24 +39,22 @@ written by
 *****************************************************************************/
 
 #ifndef WIN32
-    #include <unistd.h>
-    #include <netinet/in.h>
-    #include <sys/socket.h>
-    #include <arpa/inet.h>
-    #include <netdb.h>
+   #include <netinet/in.h>
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+   #include <netdb.h>
+   #include <unistd.h>
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
-   #include <wspiapi.h>
 #endif
 #include <string.h>
-#include <sys/types.h>
 #include <fstream>
 #include <iostream>
 
 #include "sector.h"
 #include "ssltransport.h"
-
 #include "common.h"
 
 
@@ -290,10 +288,11 @@ int SSLTransport::close()
    SSL_shutdown(m_pSSL);
 
    m_bConnected = false;
-#ifdef WIN32
-   return ::closesocket(m_iSocket);
-#else
+
+#ifndef WIN32
    return ::close(m_iSocket);
+#else
+   return closesocket(m_iSocket);
 #endif
 }
 

@@ -47,7 +47,7 @@ sphere_stream: stream.cpp probot.o
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 clean:
-	rm -f *.o sector_download sector_upload sector_ls sector_rm sector_mkdir sector_stat sector_sysinfo sector_mv sector_cp sphere_stream
+	rm -f *.o sector_download sector_upload sector_ls sector_rm sector_mkdir sector_stat sector_sysinfo sector_mv sector_cp sector_pipe sphere_stream
 
 install:
 	

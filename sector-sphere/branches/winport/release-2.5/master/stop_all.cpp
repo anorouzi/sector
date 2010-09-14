@@ -1,3 +1,4 @@
+#include <conf.h>
 #include <cstdlib>
 #include <string.h>
 #include <string>
@@ -15,17 +16,18 @@ int main()
 #endif
    cout << "master node stopped\n";
 
-
-   string sector_home = "../";
-   char* system_env = getenv("SECTOR_HOME");
-   if (NULL != system_env)
-      sector_home = system_env;
+   string sector_home;
+   if (ConfLocation::locate(sector_home) < 0)
+   {
+      cerr << "no Sector information located; nothing to stop.\n";
+      return -1;
+   }
 
    ifstream ifs((sector_home + "/conf/slaves.list").c_str());
 
    if (ifs.bad() || ifs.fail())
    {
-      cout << "no slave list found!\n";
+      cerr << "no slave list found!\n";
       return -1;
    }
 
@@ -66,8 +68,8 @@ int main()
          }
       }
 
-      string base = newline;
-      base = base.substr(base.find(' ') + 1, base.length());
+      //string base = newline;
+      //base = base.substr(base.find(' ') + 1, base.length());
 
       string addr = newline;
       addr = addr.substr(0, addr.find(' '));

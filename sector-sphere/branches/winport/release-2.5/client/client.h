@@ -43,17 +43,13 @@ written by
 #define __SECTOR_CLIENT_H__
 
 #include <gmp.h>
-#include <index.h>
-#include <topology.h>
-
-#ifndef WIN32 // <slr>
-   #include <pthread.h>
-#endif
-
 #include <datachn.h>
 #include <routing.h>
 #include <sector.h>
 #include "fscache.h"
+#ifndef WIN32
+   #include <pthread.h>
+#endif
 
 class FSClient;
 class DCClient;
@@ -83,13 +79,19 @@ public:
    int copy(const std::string& src, const std::string& dst);
    int utime(const std::string& path, const int64_t& ts);
 
+   //int createTable();
+   //int listTable();
+   //int deleteTable();
+
    int sysinfo(SysStat& sys);
 
 public:
    FSClient* createFSClient();
    DCClient* createDCClient();
+   //DBClient* createDBClient();
    int releaseFSClient(FSClient* sf);
    int releaseDCClient(DCClient* sp);
+   //int releaseDBClient(DBClient* sd);
 
 public:
    int setMaxCacheSize(const int64_t ms);
@@ -99,7 +101,7 @@ protected:
    int lookup(const std::string& path, Address& serv_addr);
    int lookup(const int32_t& key, Address& serv_addr);
    int deserializeSysStat(SysStat& sys, char* buf, int size);
-   int retrieveMasterInfo();
+   int retrieveMasterInfo(std::string& certfile);
 
 protected:
    std::string m_strUsername;           // user account name
@@ -143,6 +145,9 @@ protected: // the following are used for keeping alive with the masters
    #else
       static unsigned int WINAPI keepAlive(void *);
    #endif
+
+
+
 
 protected:
    CMutex m_IDLock;

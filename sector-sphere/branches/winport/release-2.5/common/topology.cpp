@@ -38,6 +38,12 @@ written by
    Yunhong Gu, last updated 11/11/2009
 *****************************************************************************/
 
+
+
+
+
+
+
 #include <topology.h>
 
 #include <sys/types.h>
@@ -203,6 +209,11 @@ int Topology::lookup(const char* ip, vector<int>& path)
    if (udt_inet_pton(AF_INET, ip, &addr) < 0)
       return -1;
 
+
+
+
+
+
    uint32_t digitip = ntohl(addr.s_addr);
 
    for (vector<TopoMap>::iterator i = m_vTopoMap.begin(); i != m_vTopoMap.end(); ++ i)
@@ -254,7 +265,7 @@ unsigned int Topology::distance(const Address& addr, const set<Address, AddrComp
       return 0;
 
    unsigned int dist = 1000000000;
-   for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   for (set<Address, AddrComp>::const_iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
       unsigned int d = distance(addr.m_strIP.c_str(), i->m_strIP.c_str());
       if (d < dist)
@@ -333,6 +344,11 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
    in_addr addr;
    if (udt_inet_pton(AF_INET, buf, &addr) < 0)
       return -1;
+
+
+
+
+
 
    digit = ntohl(addr.s_addr);
    mask = 0xFFFFFFFF;

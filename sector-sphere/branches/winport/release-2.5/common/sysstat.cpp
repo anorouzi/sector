@@ -42,6 +42,9 @@ written by
 #include <cmath>
 #include <time.h>
 #include "sector.h"
+#ifdef WIN32
+   #include <time.h>
+#endif
 
 using namespace std;
 

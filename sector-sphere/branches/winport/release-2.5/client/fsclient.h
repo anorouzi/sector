@@ -95,8 +95,11 @@ private:
    bool m_bLocal;		// if this file exist on the same node, i.e., local file
    char* m_pcLocalPath;		// path of the file if it is local
 
+   int m_iWriteBufSize;		// write buffer size
+
 private:
    CMutex m_FileLock;
+   bool m_bOpened;		// if a file is actively for IO
 
 private:
    Client* m_pClient;		// client instance

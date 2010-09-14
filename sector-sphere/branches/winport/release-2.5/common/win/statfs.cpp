@@ -1,3 +1,5 @@
+// Adapted from:
+
 /* Return information about the filesystem on which FILE resides.
    Copyright (C) 1998 Free Software Foundation, Inc.
    This file is part of the GNU C Library.

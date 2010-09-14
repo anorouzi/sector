@@ -86,14 +86,23 @@ m_bRead(false),
 m_bWrite(false),
 m_bSecure(false),
 m_bLocal(false),
-m_pcLocalPath(NULL)
+m_pcLocalPath(NULL),
+m_iWriteBufSize(1000000),
+m_bOpened(false)
 {
+
+
+
 }
 
 FSClient::~FSClient()
 {
+    m_bOpened = false;
     if (m_pcLocalPath)
         delete [] m_pcLocalPath;
+
+
+
 }
 
 int FSClient::open(const string& filename, int mode, const string& hint)
@@ -110,10 +119,12 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    int32_t m = mode;
    msg.setData(0, (char*)&m, 4);
+   int32_t wb = m_iWriteBufSize;
+   msg.setData(4, (char*)&wb, 4);
    int32_t port = m_pClient->m_DataChn.getPort();
-   msg.setData(4, (char*)&port, 4);
-   msg.setData(8, hint.c_str(), hint.length() + 1);
-   msg.setData(72, m_strFileName.c_str(), m_strFileName.length() + 1);
+   msg.setData(8, (char*)&port, 4);
+   msg.setData(12, hint.c_str(), hint.length() + 1);
+   msg.setData(76, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    Address serv;
    m_pClient->lookup(m_strFileName, serv);
@@ -171,6 +182,8 @@ int FSClient::open(const string& filename, int mode, const string& hint)
 
    m_pClient->m_Cache.update(m_strFileName, m_llTimeStamp, m_llSize, true);
 
+   m_bOpened = true;
+
    return 0;
 }
 
@@ -221,13 +234,24 @@ int FSClient::reopen()
 
 int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    if ((offset < 0) || (offset > m_llSize))
       return SectorError::E_INVALID;
+
+   if (!m_bRead)
+      return -1;
+
+   // does not support buffer > 32bit now
+   if (size > 0x7FFFFFFF)
+      return -1;
+
    m_llCurReadPos = offset;
 
-   int realsize = static_cast<int>(size);
+   int realsize = int(size);
    if (m_llCurReadPos + size > m_llSize)
       realsize = int(m_llSize - m_llCurReadPos);
 
@@ -296,10 +320,20 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
 
 int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    if (offset < 0)
       return SectorError::E_INVALID;
+
+   if (!m_bWrite)
+      return -1;
+
+   if (size > 0x7FFFFFF)
+      return -1;
+
    m_llCurWritePos = offset;
 
    // write command: 2
@@ -311,9 +345,14 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    *(int64_t*)(req + 8) = size;
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
 
-   int response = -1;
-   if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
-      return SectorError::E_CONNECTION;
+   // wait for server acknowledgement onlt for large write
+   // for small write, data is sent out immediately in order to improve performance
+   if (size > m_iWriteBufSize)
+   {
+      int response = -1;
+      if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
+         return SectorError::E_CONNECTION;
+   }
 
    int64_t sentsize = m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, static_cast<int>(size), m_bSecure);
 
@@ -323,7 +362,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
       if (m_llCurWritePos > m_llSize)
          m_llSize = m_llCurWritePos;
 
-      // update the file stat information in local cache, for correct stat() call
+      // update the file stat information in local cache, for correct stat() call and invalidate related read cache
       m_pClient->m_Cache.update(m_strFileName, CTimer::getTime(), m_llSize);
    }
 
@@ -332,16 +371,25 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
 
 int64_t FSClient::read(char* buf, const int64_t& size)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return read(buf, m_llCurReadPos, size);
 }
 
 int64_t FSClient::write(const char* buf, const int64_t& size)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return write(buf, m_llCurWritePos, size);
 }
 
 int64_t FSClient::download(const char* localpath, const bool& cont)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    int64_t offset;
@@ -420,6 +468,9 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
 
 int64_t FSClient::upload(const char* localpath, const bool& cont)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    fstream ifs;
@@ -465,6 +516,9 @@ int64_t FSClient::upload(const char* localpath, const bool& cont)
 
 int FSClient::close()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    // file close command: 5
@@ -485,6 +539,9 @@ int FSClient::close()
 
 int64_t FSClient::seekp(int64_t off, int pos)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    switch (pos)
@@ -513,6 +570,9 @@ int64_t FSClient::seekp(int64_t off, int pos)
 
 int64_t FSClient::seekg(int64_t off, int pos)
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    CMutexGuard fg(m_FileLock);
 
    switch (pos)
@@ -541,22 +601,31 @@ int64_t FSClient::seekg(int64_t off, int pos)
 
 int64_t FSClient::tellp()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return m_llCurWritePos;
 }
 
 int64_t FSClient::tellg()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return m_llCurReadPos;
 }
 
 bool FSClient::eof()
 {
+   if (!m_bOpened)
+      return SectorError::E_FILENOTOPEN;
+
    return (m_llCurReadPos >= m_llSize);
 }
 
 int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
 {
-   int realsize = static_cast<int>(size);
+   int realsize = (int)size;
    if (offset >= m_llSize)
       return -1;
    if (offset + size > m_llSize)

@@ -42,11 +42,11 @@ written by
 #ifndef __CB_DATACHN_H__
 #define __CB_DATACHN_H__
 
-#include <transport.h>
-#include <topology.h>
 #include <map>
 #include <string>
-#include "common.h"
+
+#include "transport.h"
+#include "sector.h"
 
 class COMMON_API DataChn
 {

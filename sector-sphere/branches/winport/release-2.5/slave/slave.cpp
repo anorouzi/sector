@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/11/2010
+   Yunhong Gu, last updated 07/12/2010
 *****************************************************************************/
 
 
@@ -90,19 +90,16 @@ int Slave::init(const char* base)
 {
    if (NULL != base)
       m_strBase = base;
-   else
+   else if (ConfLocation::locate(m_strBase) < 0)
    {
-      char* system_env = getenv("SECTOR_HOME");
-      if (NULL != system_env)
-         m_strBase = system_env;
-      else
-         m_strBase = "../";
+      cerr << "unable to locate configuration file; quit.\n";
+      return -1;
    }
 
    string conf = m_strBase + "/conf/slave.conf";
    if (m_SysConfig.init(conf) < 0)
    {
-      cerr << "unable to initialize from configuration file; quit.\n";
+      cerr << "unable to locate or initialize from configuration file; quit.\n";
       return -1;
    }
 
@@ -355,6 +352,10 @@ void Slave::run()
          processDCCmd(ip, port, id, msg);
          break;
 
+      case 3:
+         processDBCmd(ip, port, id, msg);
+         break;
+
       case 10:
          processMCmd(ip, port, id, msg);
          break;
@@ -420,7 +421,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       createDir(msg->getData());
       char* tmp = new char[64 + strlen(msg->getData())];
       sprintf(tmp, "created new directory %s.", msg->getData());
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
       break;
    }
@@ -459,7 +460,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       char* tmp = new char[64 + strlen(path)];
       sprintf(tmp, "removed directory %s.", path);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
       break;
@@ -489,17 +490,18 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->dst_port = *(int*)(msg->getData() + 132);
       p->key = *(int*)(msg->getData() + 136);
       p->mode = *(int*)(msg->getData() + 140);
-      p->transid = *(int*)(msg->getData() + 144);
-      memcpy(p->crypto_key, msg->getData() + 148, 16);
-      memcpy(p->crypto_iv, msg->getData() + 164, 8);
-      p->filename = msg->getData() + 172;
+      p->writebufsize = *(int*)(msg->getData() + 144);
+      p->transid = *(int*)(msg->getData() + 148);
+      memcpy(p->crypto_key, msg->getData() + 152, 16);
+      memcpy(p->crypto_iv, msg->getData() + 168, 8);
+      p->filename = msg->getData() + 176;
 
       p->master_ip = ip;
       p->master_port = port;
 
       char* tmp = new char[64 + p->filename.length()];
       sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->src_ip.c_str(), p->src_port);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
 #ifndef WIN32  // <slr>
@@ -532,7 +534,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       char* tmp = new char[64 + p->src.length() + p->dst.length()];
       sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
 #ifndef WIN32  // <slr>
@@ -592,7 +594,7 @@ printf ("~~~> processDCCmd: %d\n", msg->getType());
       cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << endl;
       char* tmp = new char[64 + p->function.length()];
       sprintf(tmp, "starting SPE ... %d %d %s %d.", p->speid, p->client_data_port, p->function.c_str(), p->transid);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
 #ifndef WIN32  // <slr>
@@ -645,7 +647,7 @@ printf ("~~~> processDCCmd: %d\n", msg->getType());
 
       char* tmp = new char[64 + p->filename.length()];
       sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
-      m_SectorLog.insert(tmp);
+      m_SectorLog.insert(tmp, 3);
       delete [] tmp;
 
 #ifndef WIN32  // <slr>
@@ -665,6 +667,25 @@ printf ("~~~> processDCCmd: %d\n", msg->getType());
 
       break;
    }
+
+   default:
+      return -1;
+   }
+
+   return 0;
+}
+
+int Slave::processDBCmd(const string& ip, const int port, int id, SectorMsg* msg)
+{
+   switch (msg->getType())
+   {
+   case 301: // create a new table
+
+   case 302: // add a new attribute
+
+   case 303: // delete an attribute
+
+   case 304: // delete a table
 
    default:
       return -1;
@@ -782,32 +803,32 @@ int Slave::getFileList(const std::string& path, std::vector<std::string>& fileli
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int& change)
 {
    vector<string> serlist;
-   for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   if (change > 0)
    {
-      struct stat s;
-      if (-1 == stat((m_strHomeDir + *i).c_str(), &s))
-         continue;
+      for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
+      {
+         struct stat s;
+         if (-1 == stat ((m_strHomeDir + *i).c_str(), &s))
+            continue;
 
-      SNode sn;
-      sn.m_strName = *i;
-      sn.m_bIsDir = S_ISDIR(s.st_mode) ? 1 : 0;
-      sn.m_llTimeStamp = s.st_mtime;
-      sn.m_llSize = s.st_size;
+         SNode sn;
+         sn.m_strName = *i;
+         sn.m_bIsDir = S_ISDIR(s.st_mode) ? 1 : 0;
+         sn.m_llTimeStamp = s.st_mtime;
+         sn.m_llSize = s.st_size;
 
-      char buf[1024];
-      sn.serialize(buf);
+         char buf[1024];
+         sn.serialize(buf);
 
-      //update local
-      Address addr;
-      addr.m_strIP = "127.0.0.1";
-      addr.m_iPort = 0;
-      m_pLocalFile->update(buf, addr, change);
+         //update local
+         Address addr;
+         addr.m_strIP = "127.0.0.1";
+         addr.m_iPort = 0;
+         m_pLocalFile->update(buf, addr, change);
 
-      serlist.push_back(buf);
+         serlist.push_back(buf);
+      }
    }
-
-   if (serlist.empty())
-      return 0;
 
    SectorMsg msg;
    msg.setType(1);
@@ -1395,6 +1416,6 @@ void Slave::logError(int type, const string& ip, const int& port, const string& 
       break;
    }
 
-   m_SectorLog.insert(tmp);
+   m_SectorLog.insert(tmp, 2);
    delete [] tmp;
 }

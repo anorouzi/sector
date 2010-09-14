@@ -1,6 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS += -I../udt -I../common
+CCFLAGS += -I../common
 
 OBJS = gmp.o message.o prec.o
 

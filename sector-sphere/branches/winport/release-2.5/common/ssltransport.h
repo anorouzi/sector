@@ -41,10 +41,11 @@ written by
 #ifndef __SSL_TRANSPORT_H__
 #define __SSL_TRANSPORT_H__
 
+#include <string>
 #include "openssl/bio.h"
 #include "openssl/ssl.h"
 #include "openssl/err.h"
-#include <string>
+#include "udt.h"
 
 #ifdef WIN32
    #ifndef __MINGW__
@@ -103,7 +104,11 @@ public:
 private:
    SSL_CTX* m_pCTX;
    SSL* m_pSSL;
+#ifndef WIN32
    int m_iSocket;
+#else
+   SOCKET m_iSocket;
+#endif
 
    bool m_bConnected;
 

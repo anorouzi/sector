@@ -93,14 +93,18 @@ int WORDBUCKET_API wordbucket(const SInput* input, SOutput* output, SFile* file)
       // resize these buffers if possible
 
       char item[1024]="";
-      snprintf(item, sizeof(item), "%s %s\n", i->c_str(), input->m_pcUnit);
+      size_t item_len = snprintf(item, sizeof(item), "%s %s\n", i->c_str(), input->m_pcUnit);
       output->m_piBucketID[output->m_iRows] = wordid(i->c_str());
+#ifndef WIN32
       strcpy(output->m_pcResult + output->m_pllIndex[output->m_iRows], item);
+#else
+      strcpy_s(output->m_pcResult + output->m_pllIndex[output->m_iRows], item_len, item);
+#endif
       output->m_iRows ++;
       output->m_pllIndex[output->m_iRows] = output->m_pllIndex[output->m_iRows - 1] + strlen(item) + 1;
    }
 
-   output->m_iResSize = output->m_pllIndex[output->m_iRows];
+   output->m_iResSize = static_cast<int>(output->m_pllIndex[output->m_iRows]);
    wordset.clear();
    return 0;
 }

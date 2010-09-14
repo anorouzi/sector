@@ -38,9 +38,13 @@ written by
    Yunhong Gu, last updated 04/22/2009
 *****************************************************************************/
 
-
-#include "conf.h"
 #include <iostream>
+#include <string>
+#include <cstring>
+#include <cstdlib>
+#include <sys/types.h>
+#include <sys/stat.h>
+
 #ifndef WIN32
     #include <sys/socket.h>
     #include <arpa/inet.h>
@@ -50,12 +54,40 @@ written by
     #include "statfs.h"
     #include "common.h"
 #endif
-#include <cstring>
-#include <cstdlib>
-#include <sys/types.h>
-#include <sys/stat.h>
+
+#include "conf.h"
 
 using namespace std;
+
+int ConfLocation::locate(string& loc)
+{
+   // search for configuration files from 1) $SECTOR_HOME, 2) ../, or 3) /opt/sector
+
+   struct stat t;
+
+   char* system_env = getenv("SECTOR_HOME");
+   if (NULL != system_env)
+      loc = system_env;
+
+   if (stat((loc + "/conf").c_str(), &t) == 0)
+      return 0;
+
+   if (stat("../conf", &t) == 0)
+   {
+      loc = "../";
+   }
+   else if (stat("/opt/sector/conf", &t) == 0)
+   {
+      loc = "/opt/sector";
+   }
+   else
+   {
+      cerr << "cannot locate Sector configurations from either $SECTOR_HOME, ../, or /opt/sector.";
+      return -1;
+   }
+
+   return 0;   
+}
 
 int ConfParser::init(const string& path)
 {
@@ -239,7 +271,11 @@ int MasterConf::init(const string& path)
             m_MetaType = DISK;
       }
       else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
+#ifndef WIN32
          m_llSlaveMinDiskSpace = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llSlaveMinDiskSpace = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
       else if ("LOG_LEVEL" == param.m_strName)
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       else
@@ -298,7 +334,11 @@ int SlaveConf::init(const string& path)
             m_strHomeDir += "/";
       }
       else if ("MAX_DATA_SIZE" == param.m_strName)
+#ifndef WIN32
          m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str()) * 1024 * 1024;
+#else
+         m_llMaxDataSize = _atoi64(param.m_vstrValue[0].c_str()) * 1024 * 1024;
+#endif
       else if ("MAX_SERVICE_INSTANCE" == param.m_strName)
          m_iMaxServiceNum = atoi(param.m_vstrValue[0].c_str());
       else if ("LOCAL_ADDRESS" == param.m_strName)
@@ -372,7 +412,11 @@ int ClientConf::init(const string& path)
       }
       else if ("MAX_CACHE_SIZE" == param.m_strName)
       {
+#ifndef WIN32
          m_llMaxCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llMaxCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
       }
       else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
       {
@@ -445,22 +489,11 @@ bool WildCard::match(const string& card, const string& path)
 
 int Session::loadInfo(const char* conf)
 {
-   string conf_file_path;
-
-   char* system_env = getenv("SECTOR_HOME");
-
-   struct stat t;
-   if ((NULL == conf) || (0 == strlen(conf)) || (stat(conf, &t) < 0))
-   {
-      if (NULL != system_env)
-         conf_file_path = string(system_env) + "/conf/client.conf";
-      else
-         conf_file_path = "../conf/client.conf";
-   }
-   else
-   {
+   string sector_home, conf_file_path;
+   if (ConfLocation::locate(sector_home) < 0)
       conf_file_path = conf;
-   }
+   else
+      conf_file_path = sector_home + "/conf/client.conf";
 
    m_ClientConf.init(conf_file_path);
 
@@ -497,16 +530,12 @@ int Session::loadInfo(const char* conf)
       cin >> m_ClientConf.m_strPassword;
    }
 
+   struct stat t;
    if (stat(m_ClientConf.m_strCertificate.c_str(), &t) < 0)
    {
-      if (NULL != system_env)
+      if (stat((sector_home + "/conf/master_node.cert").c_str(), &t) == 0)
       {
-         if (stat((string(system_env) + "/conf/master_node.cert").c_str(), &t) == 0)
-            m_ClientConf.m_strCertificate = string(system_env) + "/conf/master_node.cert";
-      }
-      else if (stat("../conf/master_node.cert", &t) == 0)
-      {
-         m_ClientConf.m_strCertificate = "../conf/master_node.cert";
+         m_ClientConf.m_strCertificate = sector_home + "/conf/master_node.cert";
       }
       else
       {

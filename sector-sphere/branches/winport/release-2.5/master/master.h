@@ -117,6 +117,7 @@ private:
    int processSysCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    int processFSCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    int processDCCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
+   int processDBCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    int processMCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    int sync(const char* fileinfo, const int& size, const int& type);
    int processSyncCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);

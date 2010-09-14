@@ -39,6 +39,7 @@ written by
 *****************************************************************************/
 
 #include <sector.h>
+#include <common.h>
 #include "clientmgmt.h"
 
 using namespace std;
@@ -46,10 +47,20 @@ using namespace std;
 ClientMgmt::ClientMgmt():
 m_iID(0)
 {
+
+
+
+
+
 }
 
 ClientMgmt::~ClientMgmt()
 {
+
+
+
+
+
 }
 
 Client* ClientMgmt::lookupClient(const int& id)

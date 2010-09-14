@@ -1,3 +1,5 @@
+// Adapted from:
+
 /* Return the canonical absolute name of a given file.
    Copyright (C) 1996, 1997, 1998, 1999, 2000 Free Software Foundation, Inc.
    This file is part of the GNU C Library.

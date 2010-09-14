@@ -46,10 +46,16 @@ using namespace std;
 Routing::Routing():
 m_iKeySpace(32)
 {
+
+
+
 }
 
 Routing::~Routing()
 {
+
+
+
 }
 
 void Routing::init()

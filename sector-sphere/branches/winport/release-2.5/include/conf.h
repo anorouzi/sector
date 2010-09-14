@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/23/2010
+   Yunhong Gu, last updated 07/12/2010
 *****************************************************************************/
 
 
@@ -48,6 +48,7 @@ written by
 #include <vector>
 #include <sys/types.h>
 #include <stdint.h>
+#include "udt.h"
 
 #ifndef WIN32
    #define SECTOR_API
@@ -59,6 +60,12 @@ written by
    #endif
    #pragma warning( disable: 4251 )
 #endif
+
+class SECTOR_API ConfLocation
+{
+public:
+   static int locate(std::string& loc);
+};
 
 struct SECTOR_API Param
 {

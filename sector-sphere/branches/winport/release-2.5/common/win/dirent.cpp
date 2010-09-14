@@ -1,5 +1,26 @@
+// Adapted from:
+
+/* Copyright (C) 1991, 1995, 1996, 1997 Free Software Foundation, Inc.
+   This file is part of the GNU C Library.
+
+   The GNU C Library is free software; you can redistribute it and/or
+   modify it under the terms of the GNU Lesser General Public
+   License as published by the Free Software Foundation; either
+   version 2.1 of the License, or (at your option) any later version.
+
+   The GNU C Library is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+   Lesser General Public License for more details.
+
+   You should have received a copy of the GNU Lesser General Public
+   License along with the GNU C Library; if not, write to the Free
+   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+   02111-1307 USA.  */
+
+//
 // dirent.cpp: emulates POSIX directory readin functions: opendir(), readdir(),
-//           etc. under Win32   
+//           etc. under Win32
 //
 
 #include <windows.h>
@@ -307,14 +328,6 @@ int utimes (const char *filename, const struct timeval times[2])
             NULL);
 
 	if (hFile==INVALID_HANDLE_VALUE) {
-/*
-      if ((res = GetFileAttributes (filename)) != -1 &&
-		(res & FILE_ATTRIBUTE_DIRECTORY))
-	    {
-	      // What we can do with directories more?
-	      return 0;
-	    } 
-*/
 
 		switch(GetLastError()) {
 			case ERROR_FILE_NOT_FOUND:

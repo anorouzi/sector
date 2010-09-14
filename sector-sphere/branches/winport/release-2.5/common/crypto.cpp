@@ -38,19 +38,18 @@ written by
    Yunhong Gu, last updated 01/21/2009
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <unistd.h>
+   #include <sys/time.h>
+#endif
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
-#ifndef WIN32   // <slr>
-    #include <unistd.h>
-    #include <sys/time.h>
-#else
-   #include "common.h"
-#endif
 #include <string.h>
-#include <time.h>
+
+#include "common.h"
 #include "crypto.h"
 
 
@@ -65,10 +64,7 @@ Crypto::~Crypto()
 
 int Crypto::generateKey(unsigned char key[16], unsigned char iv[8])
 {
-   timeval t;
-   gettimeofday(&t, 0);
-
-   srand(t.tv_sec * 1000000 + t.tv_usec);
+   srand(static_cast<unsigned int>(CTimer::getTime()));
 
    for (int i = 0; i < 16; ++ i)
       key[i] = int(255.0 * (double(rand()) / RAND_MAX));
