@@ -458,7 +458,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
          break;
       }
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogStringTag(LogTag::END);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogStringTag(LogTag::END);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
