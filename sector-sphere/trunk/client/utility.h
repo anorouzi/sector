@@ -19,10 +19,49 @@ written by
    Yunhong Gu, last updated 09/14/2010
 *****************************************************************************/
 
+#ifndef WIN32
+   #define SECTOR_API
+#else
+   #ifdef SECTOR_EXPORTS
+      #define SECTOR_API __declspec(dllexport)
+   #else
+      #define SECTOR_API __declspec(dllimport)
+   #endif
+   #pragma warning( disable: 4251 )
+#endif
+
 #include <sector.h>
 
-struct Utility
+class SECTOR_API WildCard
 {
+public:
+   static bool isWildCard(const std::string& path);
+   static bool match(const std::string& card, const std::string& path);
+};
+
+class SECTOR_API Session
+{
+public:
+   int loadInfo(const char* conf = NULL);
+
+public:
+   ClientConf m_ClientConf;
+};
+
+class CmdLineParser
+{
+public:
+   int parse(int argc, char** argv);
+
+public:
+   std::vector<std::string> m_vSFlags;           // --f
+   std::map<std::string, std::string> m_mDFlags; // -f val
+   std::vector<std::string> m_vParams;           // parameter
+};
+
+class Utility
+{
+public:
    static void print_error(int code);
    static int login(Sector& client);
    static int logout(Sector& client);

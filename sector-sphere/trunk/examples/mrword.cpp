@@ -2,13 +2,9 @@
 #include <conf.h>
 #include <sys/time.h>
 #include <iostream>
+#include <utility.h>
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 int main(int argc, char** argv)
 {
@@ -19,21 +15,8 @@ int main(int argc, char** argv)
    }
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    vector<string> files;
    files.insert(files.end(), "/html");
@@ -42,6 +25,7 @@ int main(int argc, char** argv)
    if (input.init(files) < 0)
    {
       cout << "unable to locate input data files. quit.\n";
+      Utility::logout(client);
       return -1;
    }
 
@@ -54,6 +38,7 @@ int main(int argc, char** argv)
    if (myproc->loadOperator("./funcs/mr_word.so") < 0)
    {
       cout << "cannot find mr_word.so.\n";
+      Utility::logout(client);
       return -1;
    }
 
@@ -61,10 +46,11 @@ int main(int argc, char** argv)
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   result = myproc->run_mr(input, output, "mr_word", 0);
+   int result = myproc->run_mr(input, output, "mr_word", 0);
    if (result < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
+      Utility::logout(client);
       return -1;
    }
 
@@ -112,8 +98,7 @@ int main(int argc, char** argv)
    myproc->close();
    client.releaseSphereProcess(myproc);
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }
