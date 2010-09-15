@@ -22,13 +22,9 @@ written by
 #include <iostream>
 #include <sector.h>
 #include <conf.h>
+#include <utility.h>
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 void help()
 {
@@ -69,28 +65,15 @@ int main(int argc, char** argv)
    }
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    string path = *clp.m_vParams.begin();
    bool wc = WildCard::isWildCard(path);
 
    if (!wc)
    {
-      result = client.remove(path);
+      int result = client.remove(path);
 
       if (result == SectorError::E_NOEMPTY)
       {
@@ -99,7 +82,7 @@ int main(int argc, char** argv)
       }
       else if (result < 0)
       {
-         print_error(result);
+         Utility::print_error(result);
       }
    }
    else
@@ -114,9 +97,11 @@ int main(int argc, char** argv)
          orig = orig.substr(p + 1, orig.length() - p);
       }
 
+      int result = 0;
+
       vector<SNode> filelist;
       if ((result = client.list(path, filelist)) < 0)
-         print_error(result);
+         Utility::print_error(result);
 
       bool recursive = false;
 
@@ -129,7 +114,7 @@ int main(int argc, char** argv)
                client.rmr(path + "/" + i->m_strName);
             else
             {
-               result = client.remove(path + "/" + i->m_strName);
+               int result = client.remove(path + "/" + i->m_strName);
 
                if (result == SectorError::E_NOEMPTY)
                {
@@ -138,15 +123,14 @@ int main(int argc, char** argv)
                }
                else if (result < 0)
                {
-                  print_error(result);
+                  Utility::print_error(result);
                }
             }
          }
       }
    }
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }

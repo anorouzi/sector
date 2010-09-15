@@ -25,6 +25,7 @@ written by
 #include <cstdlib>
 #include <sys/time.h>
 #include <iostream>
+#include <utility.h>
 
 using namespace std;
 
@@ -38,11 +39,6 @@ void help()
    cout << "-c: command or program" << endl;
    cout << "-p: parameters (optional)" << endl;
    cout << "-f: file to upload to Sector servers (optional)" << endl;
-}
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
 }
 
 int main(int argc, char** argv)
@@ -118,21 +114,8 @@ int main(int argc, char** argv)
    //}
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    vector<string> files;
    files.insert(files.end(), inpath);
@@ -141,12 +124,14 @@ int main(int argc, char** argv)
    if (input.init(files) < 0)
    {
       cerr << "unable to locate input data files. quit.\n";
+      Utility::logout(client);
       return -1;
    }
 
    if (client.mkdir(outpath) == SectorError::E_PERMISSION)
    {
       cerr << "unable to create output path " << outpath << endl;
+      Utility::logout(client);
       return -1;
    }
 
@@ -156,22 +141,30 @@ int main(int argc, char** argv)
    SphereProcess* myproc = client.createSphereProcess();
 
    if (myproc->loadOperator((string("/tmp/") + cmd + ".so").c_str()) < 0)
+   {
+      cerr << "unable to create Sphere UDF for " << cmd << endl;
+      Utility::logout(client);
       return -1;
+   }
 
    if (upload.length() > 0)
    {
       if (myproc->loadOperator(upload.c_str()) < 0)
+      {
+         cout << "failed to find/upload " << upload << endl;
+         Utility::logout(client);
          return -1;
+      }
    }
 
    timeval t;
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   result = myproc->run(input, output, cmd, 0);
+   int result = myproc->run(input, output, cmd, 0);
    if (result < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
       return -1;
    }
 
@@ -227,7 +220,7 @@ int main(int argc, char** argv)
       result = myproc->run(input2, output2, "streamhash", 0);
       if (result < 0)
       {
-         print_error(result);
+         Utility::print_error(result);
          return -1;
       }
 
@@ -271,8 +264,7 @@ int main(int argc, char** argv)
    myproc->close();
    client.releaseSphereProcess(myproc);
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }

@@ -27,13 +27,9 @@ written by
 #include <iostream>
 #include <sector.h>
 #include <conf.h>
+#include <utility.h>
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 int main(int argc, char** argv)
 {
@@ -48,21 +44,8 @@ int main(int argc, char** argv)
    string option = clp.m_mDFlags.begin()->first;
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    timeval t1, t2;
    gettimeofday(&t1, 0);
@@ -126,8 +109,7 @@ int main(int argc, char** argv)
 
    cerr << "Pipeline accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }

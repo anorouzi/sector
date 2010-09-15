@@ -16,34 +16,14 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 09/14/2010
 *****************************************************************************/
 
-#include <iostream>
 #include <sector.h>
-#include <conf.h>
-#include <utility.h>
 
-using namespace std;
-
-int main(int argc, char** argv)
+struct Utility
 {
-   if (argc != 2)
-   {
-      cerr << "USAGE: mkdir <dir>\n";
-      return -1;
-   }
-
-   Sector client;
-   if (Utility::login(client) < 0)
-      return -1;
-
-   int result = 0;
-
-   if ((result = client.mkdir(argv[1])) < 0)
-      Utility::print_error(result);
-
-   Utility::logout(client);
-
-   return result;
-}
+   static void print_error(int code);
+   static int login(Sector& client);
+   static int logout(Sector& client);
+};

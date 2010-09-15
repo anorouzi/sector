@@ -36,15 +36,9 @@ written by
 #include <iostream>
 #include <sector.h>
 #include <conf.h>
+#include <utility.h>
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-   if (code == SectorError::E_LOCALFILE)
-      perror("");
-}
 
 int download(const char* file, const char* dest, Sector& client)
 {
@@ -116,7 +110,7 @@ int download(const char* file, const char* dest, Sector& client)
    }
 
    cerr << "error happened during downloading " << file << endl;
-   print_error(result);
+   Utility::print_error(result);
 
    return -1;
 }
@@ -155,21 +149,8 @@ int main(int argc, char** argv)
    }
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
-   {
-      cerr << "unable to connect to the server at " << argv[1] << endl;
-      return -1;
-   }
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
-   {
-      cerr << "login failed\n";
-      return -1;
-   }
-
+   if (Utility::login(client) < 0)
+      return 0;
 
    vector<string> fl;
    bool wc = WildCard::isWildCard(argv[1]);
@@ -284,8 +265,7 @@ int main(int argc, char** argv)
       }
    }
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }

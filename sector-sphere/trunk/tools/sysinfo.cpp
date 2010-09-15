@@ -22,13 +22,9 @@ written by
 #include <sector.h>
 #include <conf.h>
 #include <iostream>
+#include <utility.h>
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 string format(const int64_t& val)
 {
@@ -168,31 +164,17 @@ int main(int argc, char** argv)
    }
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    SysStat sys;
-   result = client.sysinfo(sys);
+   int result = client.sysinfo(sys);
    if (result >= 0)
       print(sys);
    else
-      print_error(result);
+      Utility::print_error(result);
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return result;
 }

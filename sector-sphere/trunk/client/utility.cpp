@@ -16,34 +16,44 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 09/14/2010
 *****************************************************************************/
 
-#include <iostream>
-#include <sector.h>
 #include <conf.h>
 #include <utility.h>
+#include <iostream>
 
 using namespace std;
 
-int main(int argc, char** argv)
+void Utility::print_error(int code)
 {
-   if (argc != 2)
-   {
-      cerr << "USAGE: mkdir <dir>\n";
-      return -1;
-   }
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+}
 
-   Sector client;
-   if (Utility::login(client) < 0)
-      return -1;
+int Utility::login(Sector& client)
+{
+   Session s;
+   s.loadInfo("../conf/client.conf");
 
    int result = 0;
 
-   if ((result = client.mkdir(argv[1])) < 0)
-      Utility::print_error(result);
+   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   {
+      print_error(result);
+      return -1;
+   }
+   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
+   {
+      print_error(result);
+      return -1;
+   }
 
-   Utility::logout(client);
+   return 0;
+}
 
-   return result;
+int Utility::logout(Sector& client)
+{
+   client.logout();
+   client.close();
+   return 0;
 }
