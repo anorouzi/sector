@@ -1,66 +1,46 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/25/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
-
 
 #ifndef __SECTOR_MASTER_H__
 #define __SECTOR_MASTER_H__
 #include <vector>
 
-#include "gmp.h"
-#include "transport.h"
-#include "log.h"
-#include "conf.h"
-#include "index.h"
-#include "index2.h"
-#include "ssltransport.h"
-#include "topology.h"
-#include "routing.h"
-#include "slavemgmt.h"
-#include "transaction.h"
-#include "user.h"
-#include "threadpool.h"
+#include <gmp.h>
+#include <log.h>
+#include <conf.h>
+#include <index.h>
+#include <index2.h>
+#include <vector>
+#include <ssltransport.h>
+#include <topology.h>
+#include <routing.h>
+#include <slavemgmt.h>
+#include <transaction.h>
+#include <user.h>
+#include <threadpool.h>
 	
 
 struct SlaveAddr
 {
-   std::string m_strAddr;				// master IP address
+   std::string m_strAddr;				// slave IP address
    std::string m_strBase;				// slave executable "start_slave" path
 };
 
@@ -123,13 +103,16 @@ private:
    int processSyncCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
 
 private:
-   inline void reject(const std::string& ip, const int port, int id, int32_t code);
+   int removeSlave(const int& id, const Address& addr);
 
 private:
+   inline void reject(const std::string& ip, const int port, int id, int32_t code);
+
+private: // replication
 #ifndef WIN32
    static void* replica(void* s);
 #else
-   static DWORD WINAPI replica(void* s);
+   static DWORD WINAPI replica(void* p);
 #endif
 
    CMutex m_ReplicaLock;
@@ -140,8 +123,11 @@ private:
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
    int createReplica(const std::string& src, const std::string& dst);
+   int removeReplica(const std::string& filename, const Address& addr);
 
    int populateSpecialRep(const std::string& conf, std::map<std::string, int>& special);
+
+   int processWriteResults(const std::string& filename, std::map<int, std::string> results);
 
 private:
    CGMP m_GMP;						// GMP messenger
@@ -178,6 +164,10 @@ private:
 private:
    int64_t m_llStartTime;
    int serializeSysStat(char*& buf, int& size);
+
+   #ifdef DEBUG
+   int processDebugCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
+   #endif
 };
 
 #endif

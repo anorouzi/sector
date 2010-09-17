@@ -1,43 +1,26 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/25/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
+
+#include <slavemgmt.h>
 #ifndef WIN32
     #include <unistd.h>
     #include <sys/time.h>
@@ -131,10 +114,9 @@ int SlaveManager::insert(SlaveNode& sn)
    CMutexGuard guard(m_SlaveLock);
 
    sn.m_llLastUpdateTime = CTimer::getTime();
-   sn.m_iRetryNum = 0;
    sn.m_llLastVoteTime = CTimer::getTime();
    sn.m_iStatus = 1;
-
+   m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    m_mSlaveList[sn.m_iNodeID] = sn;
 
    Address addr;
@@ -142,7 +124,6 @@ int SlaveManager::insert(SlaveNode& sn)
    addr.m_iPort = sn.m_iPort;
    m_mAddrList[addr] = sn.m_iNodeID;
 
-   m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
    map<int, Cluster>::iterator pc;
    for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i)
@@ -223,7 +204,7 @@ int SlaveManager::remove(int nodeid)
    return 1;
 }
 
-bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path)
+bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int32_t& id, Address& addr)
 {
    CMutexGuard guard(m_SlaveLock);
 
@@ -237,8 +218,39 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path)
       // if there is overlap between the two storage paths, it means that there is a conflict
       // the new slave should be rejected in this case
 
-      if ((j->find(revised_path) != string::npos) || (revised_path.find(*j) != string::npos))
-         return true;
+      vector<string> dir1;
+      vector<string> dir2;
+      Metadata::parsePath(*j, dir1);
+      Metadata::parsePath(path, dir2);
+
+      int n = (dir1.size() < dir2.size()) ? dir1.size() : dir2.size();
+      bool match = true;
+      for (int i = 0; i < n; ++ i)
+      {
+         if (dir1[i] != dir2[i])
+         {
+            match = false;
+            break;
+         }
+      }
+
+      if (!match)
+         continue;
+
+      //TODO: optimize this search
+      id = -1;
+      for (map<int, SlaveNode>::const_iterator s = m_mSlaveList.begin(); s != m_mSlaveList.end(); ++ s)
+      {
+         if ((s->second.m_strIP == ip) && (s->second.m_strStoragePath == *j))
+         {
+            id = s->first;
+            addr.m_strIP = s->second.m_strIP;
+            addr.m_iPort = s->second.m_iPort;
+            break;
+         }
+      }
+
+      return true;
    }
 
    return false;
@@ -247,7 +259,11 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path)
 int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
    CMutexGuard guard(m_SlaveLock);
+   return choosereplicanode_(loclist, sn, filesize);
+}
 
+int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
+{
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 1);
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
@@ -285,7 +301,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    set<int> candidate;
    for (unsigned int i = 0; i <= m_Topology.m_uiLevel; ++ i)
    {
-      if (avail[i].size() > 0)
+      if (!avail[i].empty())
       {
          candidate = avail[i];
          break;
@@ -310,7 +326,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
    return 1;
 }
  
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
 {
    CMutexGuard guard(m_SlaveLock);
 
@@ -318,14 +334,20 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
    gettimeofday(&t, 0);
    srand(t.tv_usec);
 
+   // clear this in case there is already data in it
+   sl.clear();
+
+   if (m_mSlaveList.empty())
+      return SectorError::E_NODISK;
+
    if (!loclist.empty())
    {
       // find nearest node, if equal distance, choose a random one
-      unsigned int dist = 1000000000;
-      map<unsigned int, vector<int> > dist_vec;
+      int dist = -1;
+      map<int, vector<int> > dist_vec;
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
       {
-         unsigned int d = 1000000000;
+         int d = -1;
 
          // do not choose bad node
          if (m_siBadSlaves.find(*i) == m_siBadSlaves.end())
@@ -333,9 +355,13 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
          dist_vec[d].push_back(*i);
 
-         if (d < dist)
+         if ((d < dist) || (dist < 0))
             dist = d;
       }
+
+      // if no slave node found, return 0
+      if (dist < 0)
+         return SectorError::E_NODISK;
 
       int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
       vector<int>::iterator n = dist_vec[dist].begin();
@@ -345,7 +371,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
       // if this is a READ_ONLY operation, one node is enough
       if ((mode & SF_MODE::WRITE) == 0)
-         return 1;
+         return sl.size();
 
       // the first node will be the closest to the client; the client writes to that node only
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); i ++)
@@ -371,13 +397,17 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
             continue;
 
          // only nodes with more than minimum available disk space are chosen
-         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace + reserve)
             avail.insert(i->first);
       }
 
       int r = 0;
-      if (avail.size() > 0)
+
+      if (!avail.empty())
          r = int(avail.size() * (double(rand()) / RAND_MAX)) % avail.size();
+      else
+         return SectorError::E_NODISK;
+
       set<int>::iterator n = avail.begin();
       for (int i = 0; i < r; ++ i)
          n ++;
@@ -395,13 +425,9 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          set<int> locid;
          for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
             locid.insert(j->m_iNodeID);
-#ifndef WIN32
-         pthread_mutex_unlock(&m_SlaveLock.m_Mutex);
-#else
-         // <slr> OK to lock win32 critical section more than once
-#endif
-         if (chooseReplicaNode(locid, sn, m_llSlaveMinDiskSpace) < 0)
-            continue;
+
+         if (choosereplicanode_(locid, sn, reserve) <= 0)
+            break;
 
          sl.push_back(sn);
       }
@@ -421,7 +447,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
    return chooseReplicaNode(locid, sn, filesize);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
 {
    set<int> locid;
    for (set<Address, AddrComp>::const_iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -429,7 +455,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, client, mode, sl, replica);
+   return chooseIONode(locid, client, mode, sl, replica, reserve);
 }
 
 int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)
@@ -450,6 +476,24 @@ int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)
    }
 
    return sl.size();
+}
+
+int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Address& addr)
+{
+   if (loclist.empty())
+      return -1;
+
+   int64_t min_avail_space = -1;
+
+   for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   {
+      int slave_id = m_mAddrList[*i];
+      SlaveNode sn = m_mSlaveList[slave_id];
+      if ((sn.m_llAvailDiskSpace < min_avail_space) || (min_avail_space < 0))
+         addr = *i;
+   }
+
+   return 0;
 }
 
 int SlaveManager::serializeTopo(char*& buf, int& size)
@@ -501,19 +545,13 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
    }
 
    s->second.m_llLastUpdateTime = CTimer::getTime();
+   s->second.m_llTimeStamp = CTimer::getTime();
    s->second.deserialize(info, len);
-   s->second.m_iRetryNum = 0;
 
    if (s->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
    {
       if (s->second.m_iStatus == 1)
-      {
-         //char text[64];
-         //sprintf(text, "Slave %s has less than minimum available disk space left.", s->second.m_strIP.c_str());
-         //m_SectorLog.insert(text);
-
          s->second.m_iStatus = 2;
-      }
    }
    else
    {
@@ -524,7 +562,7 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
    return 0;
 }
 
-int SlaveManager::increaseRetryCount(const Address& addr)
+int SlaveManager::updateSlaveTS(const Address& addr)
 {
    CMutexGuard guard(m_SlaveLock);
 
@@ -539,11 +577,12 @@ int SlaveManager::increaseRetryCount(const Address& addr)
       return -1;
    }
 
-   s->second.m_iRetryNum ++;
+   s->second.m_llLastUpdateTime = CTimer::getTime();
+
    return 0;
 }
 
-int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost)
+int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, const int64_t& timeout)
 {
    CMutexGuard guard(m_SlaveLock);
 
@@ -566,7 +605,8 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
          bad[i->first].m_iPort = i->second.m_iPort;
       }
 
-      if (i->second.m_iRetryNum > 10)
+      // detect slave timeout
+      if (CTimer::getTime() - i->second.m_llLastUpdateTime >= (uint64_t)timeout)
       {
          lost[i->first].m_strIP = i->second.m_strIP;
          lost[i->first].m_iPort = i->second.m_iPort;
@@ -686,11 +726,16 @@ unsigned int SlaveManager::getNumberOfSlaves()
    return m_mSlaveList.size();
 }
 
-int SlaveManager::serializeClusterInfo(char* buf, int& size)
+int SlaveManager::serializeClusterInfo(char*& buf, int& size)
 {
    CMutexGuard guard(m_SlaveLock);
 
-   char* p = buf;
+   size = 4 + m_Cluster.m_mSubCluster.size() * 40;
+   buf = new char[size];
+
+   *(int32_t*)buf = m_Cluster.m_mSubCluster.size();
+
+   char* p = buf + 4;
    for (map<int, Cluster>::iterator i = m_Cluster.m_mSubCluster.begin(); i != m_Cluster.m_mSubCluster.end(); ++ i)
    {
       *(int32_t*)p = i->second.m_iClusterID;
@@ -703,30 +748,45 @@ int SlaveManager::serializeClusterInfo(char* buf, int& size)
       p += 40;
    }
 
-   size = p - buf;
    return size;
 }
 
-int SlaveManager::serializeSlaveInfo(char* buf, int& size)
+int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
 {
    CMutexGuard guard(m_SlaveLock);
 
-   char* p = buf;
+   size = 4;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      strcpy(p, i->second.m_strIP.c_str());
-      *(int64_t*)(p + 16) = i->second.m_llAvailDiskSpace;
-      *(int64_t*)(p + 24) = i->second.m_llTotalFileSize;
-      *(int64_t*)(p + 32) = i->second.m_llCurrMemUsed;
-      *(int64_t*)(p + 40) = i->second.m_llCurrCPUUsed;
-      *(int64_t*)(p + 48) = i->second.m_llTotalInputData;
-      *(int64_t*)(p + 56) = i->second.m_llTotalOutputData;
-      *(int64_t*)(p + 64) = i->second.m_llTimeStamp;
+      size += i->second.m_strStoragePath.length() + 1;
+   }
+   size += m_mSlaveList.size() * 92;
 
-      p += 72;
+   buf = new char[size];
+
+   *(int32_t*)buf = m_mSlaveList.size();
+
+   char* p = buf + 4;
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      *(int32_t*)p = i->first;
+      strcpy(p + 4, i->second.m_strIP.c_str());
+      *(int32_t*)(p + 20) = i->second.m_iPort;
+      *(int64_t*)(p + 24) = i->second.m_llAvailDiskSpace;
+      *(int64_t*)(p + 32) = i->second.m_llTotalFileSize;
+      *(int64_t*)(p + 40) = i->second.m_llCurrMemUsed;
+      *(int64_t*)(p + 48) = i->second.m_llCurrCPUUsed;
+      *(int64_t*)(p + 56) = i->second.m_llTotalInputData;
+      *(int64_t*)(p + 64) = i->second.m_llTotalOutputData;
+      *(int64_t*)(p + 72) = i->second.m_llTimeStamp;
+      *(int64_t*)(p + 80) = i->second.m_iStatus;
+      *(int64_t*)(p + 84) = i->second.m_viPath[0];
+      *(int64_t*)(p + 88) = i->second.m_strStoragePath.length() + 1;
+      p+= 92;
+      strcpy(p, i->second.m_strStoragePath.c_str());
+      p+= i->second.m_strStoragePath.length() + 1;
    }
 
-   size = p - buf;
    return size;
 }
 
@@ -805,4 +865,40 @@ void SlaveManager::updateclusterio_(Cluster& c, map<string, int64_t>& data_in, m
 
       total += p->second;
    }
+}
+
+int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopath)
+{
+   vector<int> path;
+   if (m_Topology.parseTopo(topopath.c_str(), path) < 0)
+      return -1;
+
+   sl.clear();
+   unsigned int len = path.size();
+
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      if (len > i->second.m_viPath.size())
+         continue;
+
+      bool match = true;
+      for (unsigned int p = 0; p < len; ++ p)
+      {
+         if (path[p] != i->second.m_viPath[p])
+         {
+            match = false;
+            break;
+         }
+      }
+
+      if (match)
+      {
+         Address addr;
+         addr.m_strIP = i->second.m_strIP;
+         addr.m_iPort = i->second.m_iPort;
+         sl[i->first] = addr;
+      }
+   }
+
+   return sl.size();
 }

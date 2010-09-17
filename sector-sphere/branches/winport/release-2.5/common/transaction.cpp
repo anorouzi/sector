@@ -1,47 +1,29 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/17/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 #include <common.h>
 #include "transaction.h"
 
 using namespace std;
+
 
 TransManager::TransManager():
 m_iTransID(1)
@@ -54,7 +36,7 @@ TransManager::~TransManager()
 
 int TransManager::create(const int type, const int key, const int cmd, const string& file, const int mode)
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    Transaction t;
    t.m_iTransID = m_iTransID ++;
@@ -72,7 +54,7 @@ int TransManager::create(const int type, const int key, const int cmd, const str
 
 int TransManager::addSlave(int transid, int slaveid)
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    m_mTransList[transid].m_siSlaveID.insert(slaveid);
 
@@ -81,7 +63,7 @@ int TransManager::addSlave(int transid, int slaveid)
 
 int TransManager::retrieve(int transid, Transaction& trans)
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    map<int, Transaction>::iterator i = m_mTransList.find(transid);
 
@@ -94,7 +76,7 @@ int TransManager::retrieve(int transid, Transaction& trans)
 
 int TransManager::retrieve(int slaveid, vector<int>& trans)
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
    {
@@ -109,7 +91,7 @@ int TransManager::retrieve(int slaveid, vector<int>& trans)
 
 int TransManager::updateSlave(int transid, int slaveid)
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    m_mTransList[transid].m_siSlaveID.erase(slaveid);
    int ret = m_mTransList[transid].m_siSlaveID.size();
@@ -121,7 +103,7 @@ int TransManager::updateSlave(int transid, int slaveid)
 
 int TransManager::getUserTrans(int key, vector<int>& trans)
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
    {
@@ -136,7 +118,16 @@ int TransManager::getUserTrans(int key, vector<int>& trans)
 
 unsigned int TransManager::getTotalTrans()
 {
-   CMutexGuard guard(m_TLLock);
+   CMutexGuard tl(m_TLLock);
 
    return m_mTransList.size();
+}
+
+int TransManager::addWriteResult(int transid, int slaveid, const std::string& result)
+{
+   CMutexGuard tl(m_TLLock);
+
+   m_mTransList[transid].m_mResults[slaveid] = result;
+
+   return 0;
 }

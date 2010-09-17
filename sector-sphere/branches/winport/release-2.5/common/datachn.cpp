@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/17/2009
+   Yunhong Gu [gu@lac.uic.edu], last updated 09/09/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -50,23 +31,36 @@ written by
 
 using namespace std;
 
+ChnInfo::ChnInfo():
+m_pTrans(NULL),
+m_iCount(0),
+m_llTotalQueueSize(0),
+m_bSecKeySet(false)
+{
+}
+
+ChnInfo::~ChnInfo()
+{
+   if (NULL != m_pTrans)
+   {
+      m_pTrans->close();
+      delete m_pTrans;
+      m_pTrans = NULL;
+   }
+
+   for (vector<RcvData>::iterator i = m_vDataQueue.begin(); i != m_vDataQueue.end(); ++ i)
+      delete [] i->m_pcData;
+}
+
 DataChn::DataChn()
 {
 }
 
 DataChn::~DataChn()
 {
+   // remove all allocated data structures, dangling connections, unread buffers, etc.
    for (map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.begin(); i != m_mChannel.end(); ++ i)
    {
-      if (NULL != i->second->m_pTrans)
-      {
-         i->second->m_pTrans->close();
-         delete i->second->m_pTrans;
-      }
-
-      for (vector<RcvData>::iterator j = i->second->m_vDataQueue.begin(); j != i->second->m_vDataQueue.end(); ++ j)
-         delete [] j->m_pcData;
-
       delete i->second;
    }
 
@@ -83,7 +77,8 @@ int DataChn::init(const string& ip, int& port)
    m_iPort = port;
 
    // add itself
-   ChnInfo* c = new ChnInfo(NULL, 1);
+   ChnInfo* c = new ChnInfo;
+   c->m_iCount = 1;
 
    Address addr;
    addr.m_strIP = ip;
@@ -91,6 +86,29 @@ int DataChn::init(const string& ip, int& port)
    m_mChannel[addr] = c;
 
    return port;
+}
+
+int DataChn::garbageCollect()
+{
+   CMutexGuard dg(m_ChnLock);
+
+   vector<Address> tbd;
+
+   // remove broken connections, which mean the peers have already left
+   for (map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.begin(); i != m_mChannel.end(); ++ i)
+   {
+      if ((NULL == i->second->m_pTrans) || i->second->m_pTrans->isConnected())
+         continue;
+
+      delete i->second;
+
+      tbd.push_back(i->first);
+   }
+
+   for (vector<Address>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
+      m_mChannel.erase(*i);
+
+   return 0;
 }
 
 bool DataChn::isConnected(const string& ip, int port)
@@ -102,6 +120,10 @@ bool DataChn::isConnected(const string& ip, int port)
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
       return false;
+
+   // in case that another thread is calling collect(ip, port)
+   // wait here until it is completed
+   CMutexGuard dg(c->m_SndLock);
 
    return ((NULL != c->m_pTrans) && c->m_pTrans->isConnected());
 }
@@ -116,50 +138,55 @@ int DataChn::connect(const string& ip, int port)
    addr.m_strIP = ip;
    addr.m_iPort = port;
 
-   m_ChnLock.acquire();
-   map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.find(addr);
-   if (i != m_mChannel.end())
+   ChnInfo* c = locate(ip, port);
+   if (NULL == c)
    {
-      if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
+      c = new ChnInfo;
+
+      m_ChnLock.acquire();
+      if (m_mChannel.find(addr) == m_mChannel.end())
+         m_mChannel[addr] = c;
+      else
       {
-         m_ChnLock.release();
+         delete c;
+         c = m_mChannel[addr];
+      }
+      m_ChnLock.release();
+   }
+
+   // snd lock is used to prevent two threads from connecting on the same channel at the same time
+   c->m_SndLock.acquire();
+
+   if (NULL != c->m_pTrans)
+   {
+      if (c->m_pTrans->isConnected())
+      {
+         // data channel already exists, increase reference count, and return
+         c->m_iCount ++;
+         c->m_SndLock.release();
          return 0;
       }
-      delete i->second->m_pTrans;
-      i->second->m_pTrans = NULL;
+      else
+      {
+         // the existing data channel is already broken, create a new one
+         delete c->m_pTrans;
+         c->m_pTrans = NULL;
+      }
    }
 
-   ChnInfo* c = NULL;
-   if (i == m_mChannel.end())
-   {
-      c = new ChnInfo(NULL, 0);
-      m_mChannel[addr] = c;
-   }
-   else
-   {
-      c = i->second;
-   }
-   m_ChnLock.release();
-
-   c->m_SndLock.acquire();
-   if ((NULL != c->m_pTrans) && c->m_pTrans->isConnected())
-   {
-      c->m_iCount ++;
-      c->m_SndLock.release();
-      return 0;
-   }
-
-   Transport* t = new Transport;
+   UDTTransport* t = new UDTTransport;
    t->open(m_iPort, true, true);
    int r = t->connect(ip.c_str(), port);
 
-   if (NULL == c->m_pTrans)
+   if (r >= 0)
+   {
+      // new channel, first connection
       c->m_pTrans = t;
+      c->m_iCount = 1;
+   }
    else
    {
-      Transport* tmp = c->m_pTrans;
-      c->m_pTrans = t;
-      delete tmp;
+      delete t;
    }
 
    c->m_SndLock.release();
@@ -180,9 +207,18 @@ int DataChn::remove(const string& ip, int port)
       -- i->second->m_iCount;
       if (0 == i->second->m_iCount)
       {
+         // disconnect
          if ((NULL != i->second->m_pTrans) && i->second->m_pTrans->isConnected())
             i->second->m_pTrans->close();
-         delete i->second->m_pTrans;
+
+         // wait for all send/recv to complete
+         i->second->m_SndLock.acquire();
+         i->second->m_SndLock.release();
+         i->second->m_RcvLock.acquire();
+         i->second->m_RcvLock.release();
+
+         delete i->second;
+
          m_mChannel.erase(i);
       }
    }
@@ -197,12 +233,21 @@ int DataChn::setCryptoKey(const string& ip, int port, unsigned char key[16], uns
    if (NULL == c)
       return -1;
 
+   // crypto key should only be set once for each connection
+   // otherwise, encryption can be wrong due to key reset
+
+   CMutexGuard cg(c->m_SndLock);
+
+   if (c->m_bSecKeySet)
+      return 0;
+
    c->m_pTrans->initCoder(key, iv);
+   c->m_bSecKeySet = true;
 
    return 0;
 }
 
-DataChn::ChnInfo* DataChn::locate(const string& ip, int port)
+ChnInfo* DataChn::locate(const string& ip, int port)
 {
    Address addr;
    addr.m_strIP = ip;
@@ -231,11 +276,16 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
       // send data to self
       RcvData q;
       q.m_iSession = session;
+      q.m_pcData = NULL;
       q.m_iSize = size;
-      q.m_pcData = new char[size];
-      memcpy(q.m_pcData, data, size);
+      if (size > 0)
+      {
+         q.m_pcData = new char[size];
+         memcpy(q.m_pcData, data, size);
+      }
 
       c->m_QueueLock.acquire();
+      c->m_llTotalQueueSize += q.m_iSize;
       c->m_vDataQueue.push_back(q);
       c->m_QueueLock.release();
 
@@ -243,12 +293,18 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
    }
 
    c->m_SndLock.acquire();
+
+   if (NULL == c->m_pTrans)
+   {
+      // no connection
+      c->m_SndLock.release();
+      return -1;
+   }
+
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
-   if (!secure)
-      c->m_pTrans->send(data, size);
-   else
-      c->m_pTrans->sendEx(data, size, true);
+   if (size > 0)
+      c->m_pTrans->sendEx(data, size, secure);
    c->m_SndLock.release();
 
    return size;
@@ -256,11 +312,17 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
 
 int DataChn::recv(const string& ip, int port, int session, char*& data, int& size, bool secure)
 {
+   data = NULL;
+
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
       return -1;
 
-   while ((NULL == c->m_pTrans) || c->m_pTrans->isConnected())
+   bool self = (ip == m_strIP) && (port == m_iPort);
+   if (!self && ((NULL == c->m_pTrans) || !c->m_pTrans->isConnected()))
+      return -1;
+
+   while (true)
    {
        c->m_QueueLock.acquire();
       for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
@@ -269,6 +331,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          {
             size = q->m_iSize;
             data = q->m_pcData;
+            c->m_llTotalQueueSize -= q->m_iSize;
             c->m_vDataQueue.erase(q);
 
             c->m_QueueLock.release();
@@ -280,11 +343,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       if (c->m_RcvLock.trylock() == false)
       {
          // if another thread is receiving data, wait a little while and check the queue again
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
       }
 
@@ -296,6 +355,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          {
             size = q->m_iSize;
             data = q->m_pcData;
+            c->m_llTotalQueueSize -= q->m_iSize;
             c->m_vDataQueue.erase(q);
 
             found = true;
@@ -310,19 +370,23 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
          return size;
       }
 
-      if (NULL == c->m_pTrans)
+      if (self)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
           c->m_RcvLock.release();
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
+      }
+      else if ((NULL == c->m_pTrans) && !c->m_pTrans->isConnected())
+      {
+         // no connection
+         c->m_RcvLock.release();
+         return -1;
       }
 
       RcvData rd;
+      rd.m_pcData = NULL;
+      rd.m_iSize = 0;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
           c->m_RcvLock.release();
@@ -333,20 +397,25 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
           c->m_RcvLock.release();
           return -1;
       }
-      if (!secure)
+
+      if (rd.m_iSize < 0)
       {
-         rd.m_pcData = new char[rd.m_iSize];
-         if (c->m_pTrans->recv(rd.m_pcData, rd.m_iSize) < 0)
-         {
-            delete [] rd.m_pcData;
-            c->m_RcvLock.release();
-            return -1;
-         }
+         // the peer may send a negative size to indicate error, see sendError
+         rd.m_pcData = NULL;
       }
       else
       {
-         rd.m_pcData = new char[rd.m_iSize + 64];
-         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, true) < 0)
+         try
+         {
+            rd.m_pcData = new char[rd.m_iSize];
+         }
+         catch (...)
+         {
+            c->m_RcvLock.release();
+            return -1;
+         }
+
+         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
          {
             delete [] rd.m_pcData;
             c->m_RcvLock.release();
@@ -363,6 +432,8 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       }
 
       c->m_QueueLock.acquire();
+      if (rd.m_iSize > 0)
+         c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       c->m_QueueLock.release();
 
@@ -385,12 +456,17 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
       // send data to self
       RcvData q;
       q.m_iSession = session;
+      q.m_pcData = NULL;
       q.m_iSize = static_cast<int>(size);
-      q.m_pcData = new char[static_cast<size_t>(size)];
-      ifs.seekg(offset);
-      ifs.read(q.m_pcData, size);
+      if (size > 0)
+      {
+         q.m_pcData = new char[static_cast<size_t>(size)];
+         ifs.seekg(offset);
+         ifs.read(q.m_pcData, size);
+      }
 
       c->m_QueueLock.acquire();
+      c->m_llTotalQueueSize += q.m_iSize;
       c->m_vDataQueue.push_back(q);
       c->m_QueueLock.release();
 
@@ -400,7 +476,8 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
    c->m_SndLock.acquire();
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
-   c->m_pTrans->sendfile(ifs, offset, size);
+   if (size > 0)
+      c->m_pTrans->sendfileEx(ifs, offset, size, secure);
    c->m_SndLock.release();
 
    return size;
@@ -412,7 +489,11 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
    if (NULL == c)
       return -1;
 
-   while ((NULL == c->m_pTrans) || c->m_pTrans->isConnected())
+   bool self = (ip == m_strIP) && (port == m_iPort);
+   if (!self && ((NULL == c->m_pTrans) || !c->m_pTrans->isConnected()))
+      return -1;
+
+   while (true)
    {
        c->m_QueueLock.acquire();
       for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
@@ -434,11 +515,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       if (c->m_RcvLock.trylock() == false)
       {
          // if another thread is receiving data, wait a little while and check the queue again
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
       }
 
@@ -466,19 +543,23 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          return size;
       }
 
-      if (NULL == c->m_pTrans)
+      if (self)
       {
          // if this is local recv, just wait for the sender (aka itself) to pass the data
           c->m_RcvLock.release();
-#ifndef WIN32
-         usleep(10);
-#else
-         Sleep(1);
-#endif
+         CTimer::sleep();
          continue;
+      }
+      else if ((NULL == c->m_pTrans) && !c->m_pTrans->isConnected())
+      {
+         // no connection
+         c->m_RcvLock.release();
+         return -1;
       }
 
       RcvData rd;
+      rd.m_pcData = NULL;
+      rd.m_iSize = 0;
       if (c->m_pTrans->recv((char*)&rd.m_iSession, 4) < 0)
       {
           c->m_RcvLock.release();
@@ -489,32 +570,16 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
           c->m_RcvLock.release();
          return -1;
       }
-      if (!secure)
+
+      if (rd.m_iSize < 0)
       {
-         if (session == rd.m_iSession)
-         {
-            if (c->m_pTrans->recvfile(ofs, offset, rd.m_iSize) < 0)
-            {
-                c->m_RcvLock.release();
-               return -1;
-            }
-         }
-         else
-         {
-            rd.m_pcData = new char[rd.m_iSize];
-            if (c->m_pTrans->recv(rd.m_pcData, rd.m_iSize) < 0)
-            {
-               delete [] rd.m_pcData;
-               c->m_RcvLock.release();
-               return -1;
-            }
-         }
+         rd.m_pcData = NULL;
       }
       else
       {
          if (session == rd.m_iSession)
          {
-            if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, true) < 0)
+            if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, secure) < 0)
             {
                 c->m_RcvLock.release();
                return -1;
@@ -522,8 +587,17 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
          }
          else
          {
-            rd.m_pcData = new char[rd.m_iSize + 64];
-            if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, true) < 0)
+            try
+            {
+               rd.m_pcData = new char[rd.m_iSize];
+            }
+            catch (...)
+            {
+                c->m_RcvLock.release();
+               return -1;
+            }
+
+            if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
             {
                delete [] rd.m_pcData;
                c->m_RcvLock.release();
@@ -531,17 +605,21 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
             }
          }
       }
-      c->m_RcvLock.release();
 
       if (session == rd.m_iSession)
       {
          size = rd.m_iSize;
+         c->m_RcvLock.release();
          return size;
       }
 
       c->m_QueueLock.acquire();
+      if (rd.m_iSize > 0)
+         c->m_llTotalQueueSize += rd.m_iSize;
       c->m_vDataQueue.push_back(rd);
       c->m_QueueLock.release();
+
+      c->m_RcvLock.release();
    }
 
    size = 0;
@@ -613,4 +691,9 @@ int DataChn::getSelfAddr(const string& peerip, int peerport, string& localip, in
    localip = inet_ntoa(addr.sin_addr);
    localport = ntohs(addr.sin_port);
    return 0;
+}
+
+int DataChn::sendError(const string& ip, int port, int session)
+{
+   return send(ip, port, session, NULL, -1);
 }

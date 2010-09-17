@@ -1,6 +1,6 @@
 C++ = g++
 CCFLAGS = -I../../include -I../../udt -shared -fPIC -O3 -g
-LDFLAGS = -lstdc++ ../../lib/libcommon.a
+LDFLAGS = -lstdc++ ../../lib/libcommon.a ../../lib/libudt.a
 
 CCFLAGS = -I../../include -I../../udt -shared -fPIC -O3 -g
 LDFLAGS = -lstdc++ ../../lib/libcommon.a -lssl -lcrypto

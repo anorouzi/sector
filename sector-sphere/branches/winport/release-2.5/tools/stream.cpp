@@ -1,3 +1,24 @@
+/*****************************************************************************
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 01/12/2010
+*****************************************************************************/
+
 #include <sector.h>
 #include <conf.h>
 #include <probot.h>
@@ -23,10 +44,15 @@ void help()
    cout << "-f: file to upload to Sector servers (optional)" << endl;
 }
 
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+}
+
 int main(int argc, char** argv)
 {
    CmdLineParser clp;
-   if (clp.parse(argc, argv) <= 0)
+   if (clp.parse(argc, argv) < 0)
    {
       help();
       return 0;
@@ -40,7 +66,7 @@ int main(int argc, char** argv)
    int bucket = 0;
    string upload = "";
 
-   for (map<string, string>::const_iterator i = clp.m_mParams.begin(); i != clp.m_mParams.end(); ++ i)
+   for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
    {
       if (i->first == "i")
          inpath = i->second;
@@ -100,10 +126,17 @@ int main(int argc, char** argv)
    Session s;
    s.loadInfo("../conf/client.conf");
 
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+   int result = 0;
+   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   {
+      print_error(result);
       return -1;
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
+   }
+   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
+   {
+      print_error(result);
       return -1;
+   }
 
    vector<string> files;
    files.insert(files.end(), inpath);
@@ -111,13 +144,13 @@ int main(int argc, char** argv)
    SphereStream input;
    if (input.init(files) < 0)
    {
-      cout << "unable to locate input data files. quit.\n";
+      cerr << "unable to locate input data files. quit.\n";
       return -1;
    }
 
    if (client.mkdir(outpath) == SectorError::E_PERMISSION)
    {
-      cout << "unable to create output path " << outpath << endl;
+      cerr << "unable to create output path " << outpath << endl;
       return -1;
    }
 
@@ -150,9 +183,10 @@ int main(int argc, char** argv)
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   if (myproc->run(input, output, cmd, 0) < 0)
+   result = myproc->run(input, output, cmd, 0);
+   if (result < 0)
    {
-      cout << "failed to find any computing resources." << endl;
+      print_error(result);
       return -1;
    }
 
@@ -174,9 +208,10 @@ int main(int argc, char** argv)
          if (myproc->checkProgress() == 100)
             break;
       }
-
-      if ((outpath.length() == 0) && (res->m_iDataLen > 0))
+      else if ((outpath.length() == 0) && (res->m_iDataLen > 0))
       {
+         // part of result has been returned, display it
+
          cout << "RESULT " << res->m_strOrigFile << endl;
          cout << res->m_pcData << endl;
       }
@@ -204,9 +239,10 @@ int main(int argc, char** argv)
       output2.setOutputPath(outpath, "stream_result");
       output2.init(bucket);
 
-      if (myproc->run(input2, output2, "streamhash", 0) < 0)
+      result = myproc->run(input2, output2, "streamhash", 0);
+      if (result < 0)
       {
-         cout << "failed to find any computing resources." << endl;
+         print_error(result);
          return -1;
       }
 

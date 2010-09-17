@@ -1,46 +1,27 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/07/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 
-#ifndef __SERVER_H__
-#define __SERVER_H__
+#ifndef __SECTOR_SLAVE_H__
+#define __SECTOR_SLAVE_H__
 
 #include "gmp.h"
 #include "datachn.h"
@@ -50,6 +31,7 @@ written by
 #include "log.h"
 #include "sphere.h"
 #include "routing.h"
+#include <transaction.h>
 
 #ifdef WIN32
     #ifdef SLAVE_EXPORTS
@@ -151,12 +133,18 @@ public:
 public:
    void init();
    void refresh();
-
    void updateIO(const std::string& ip, const int64_t& size, const int& type);
-   int serializeIOStat(char* buf, unsigned int size);
+   int serializeIOStat(char*& buf, int& size);
 
 private:
-   CMutex m_StatLock;   
+   CMutex m_StatLock;
+
+public: // io statistics type
+   static const int SYS_IN = 1;
+   static const int SYS_OUT = 2;
+   static const int CLI_IN = 3;
+   static const int CLI_OUT = 4;
+
 };
 
 class SLAVE_API Slave
@@ -169,6 +157,7 @@ public:
    int init(const char* base = NULL);
    int connect();
    void run();
+   void close();
 
 private:
    int processSysCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
@@ -177,6 +166,10 @@ private:
    int processDBCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
    int processMCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
 
+   #ifdef DEBUG
+   int processDebugCmd(const std::string& ip, const int port, int id, SectorMsg* msg);
+   #endif
+
 private:
    struct Param2
    {
@@ -184,17 +177,14 @@ private:
 
       std::string filename;	// filename
       int mode;			// file access mode
-      int writebufsize;		// client write buffer size
 
       std::string master_ip;
       int master_port;
       int transid;		// transaction ID
 
       int key;                  // client key
-      std::string src_ip;	// downlink IP
-      int src_port;		// downlink port
-      std::string dst_ip;	// uplink IP
-      int dst_port;		// uplink port
+      std::string client_ip;	// downlink IP
+      int client_port;		// downlink port
 
       unsigned char crypto_key[16];
       unsigned char crypto_iv[8];
@@ -283,7 +273,7 @@ private:
     static unsigned int WINAPI SPEShufflerEx(void* p5);
 #endif
 
-private:
+private: // Sphere operations
    int SPEReadData(const std::string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
    int sendResultToFile(const SPEResult& result, const std::string& localfile, const int64_t& offset);
    int sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, const SPEDestination& dest);
@@ -302,29 +292,36 @@ private:
    int processData(SInput& input, SOutput& output, SFile& file, SPEResult& result, int buckets, SPHERE_PROCESS process, MR_MAP map, MR_PARTITION partition);
    int deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest);
 
-private:
+   int readSectorFile(const std::string& filename, const int64_t& offset, const int64_t& size, char* buf);
+
+private: // SpaceDB operations
    int createTable(const std::string& name);
    int addTableAttribute(const std::string& name, const std::string& attr);
    int removeTableAttribute(const std::string& name, const std::string& attr);
    int deleteTable(const std::string& name);
 
-private:
+private: // local FS operations
    int createDir(const std::string& path);
    int createSysDir();
    std::string reviseSysCmdPath(const std::string& path);
    int move(const std::string& src, const std::string& dst, const std::string& newname);
 
-private:
-   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int& change = 0);
-   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<std::string>& filelist, const int& change = 0);
+private: // local FS status
+   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int32_t& change = 0);
+   int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<std::string>& filelist, const int32_t& change = 0);
    int reportMO(const std::string& master_ip, const int& master_port, const int32_t& transid);
    int reportSphere(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::vector<Address>* bad = NULL);
 
    int getFileList(const std::string& path, std::vector<std::string>& filelist);
 
-   void logError(int type, const std::string& ip, const int& port, const std::string& name);
-
    int checkBadDest(std::multimap<int64_t, Address>& sndspd, std::vector<Address>& bad);
+
+private: // worker thread, report status, garbage collection, etc.
+#ifndef WIN32
+    static void* worker(void* param);
+#else
+    static unsigned int WINAPI worker(void* p2);
+#endif
 
 private:
    int m_iSlaveID;			// unique ID assigned by the master
@@ -352,6 +349,17 @@ private:
    MOMgmt m_InMemoryObjects;		// in-memory objects
 
    Routing m_Routing;			// master routing module
+
+   TransManager m_TransManager;         // transaction management
+
+private: //slave status
+   bool m_bRunning;			// slave running status; used to terminate the slave when set to false
+
+   CMutex m_RunLock;
+   pthread_cond_t m_RunCond;
+
+   bool m_bDiskHealth;                  // disk health
+   bool m_bNetworkHealth;               // network health
 };
 
 #endif

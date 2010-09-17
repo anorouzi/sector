@@ -1,36 +1,17 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
@@ -51,6 +32,8 @@ written by
 #include "crypto.h"
 #include "common.h"
 #include "client.h"
+#include "fsclient.h"
+#include "dcclient.h"
 
 using namespace std;
 
@@ -93,7 +76,7 @@ int Client::init(const string& server, const int& port)
     if (iResult != 0) 
     {
         printf("WSAStartup failed: %d\n", iResult);
-        return 1;
+        return -1;
     }
 #endif
 
@@ -101,10 +84,7 @@ int Client::init(const string& server, const int& port)
 
    struct addrinfo* result;
    if (getaddrinfo(server.c_str(), NULL, NULL, &result) != 0)
-   {
-      cerr << "incorrect host name.\n";
-      return -1;
-   }
+      return SectorError::E_ADDR;
 
    m_strServerHost = server;
 
@@ -117,19 +97,14 @@ int Client::init(const string& server, const int& port)
 
    Crypto::generateKey(m_pcCryptoKey, m_pcCryptoIV);
 
-   Transport::initialize(); // calls WSAStartup on WIN32 <slr>
+   UDTTransport::initialize();
+
    if (m_GMP.init(0) < 0)
-   {
-      cerr << "unable to init GMP.\n ";
-      return -1;
-   }
+      return SectorError::E_GMP;
 
    int dataport = 0;
    if (m_DataChn.init("", dataport) < 0)
-   {
-      cerr << "unable to init data channel.\n";
-      return -1;
-   }
+      return SectorError::E_DATACHN;
 
    m_bActive = true;
 #ifndef WIN32
@@ -151,7 +126,7 @@ int Client::login(const string& username, const string& password, const char* ce
    if ((cert != NULL) && (0 != strlen(cert)))
       master_cert = cert;
    else if (retrieveMasterInfo(master_cert) < 0)
-      return -1;
+      return SectorError::E_CERTREFUSE;
 
    SSLTransport::init();
 
@@ -163,10 +138,7 @@ int Client::login(const string& username, const string& password, const char* ce
       return result;
 
    if ((result = secconn.connect(m_strServerHost.c_str(), m_iServerPort)) < 0)
-   {
-      cerr << "cannot set up secure connection to the master.\n";
       return result;
-   }
 
    int cmd = 2;
    secconn.send((char*)&cmd, 4);
@@ -273,10 +245,7 @@ int Client::login(const string& serv_ip, const int& serv_port)
       return result;
 
    if ((result = secconn.connect(serv_ip.c_str(), serv_port)) < 0)
-   {
-      cerr << "cannot set up secure connection to the master.\n";
       return result;
-   }
 
    int cmd = 2;
    secconn.send((char*)&cmd, 4);
@@ -358,7 +327,7 @@ int Client::close()
       m_strServerIP = "";
       m_iServerPort = 0;
       m_GMP.close();
-      Transport::release();
+      UDTTransport::release();
 
 #ifdef WIN32
       WSACleanup();
@@ -610,7 +579,7 @@ int Client::sysinfo(SysStat& sys)
 
    deserializeSysStat(sys, msg.getData(), msg.m_iDataLength);
 
-   for (vector<Address>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
+   for (vector<SysStat::MasterStat>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
    {
       if (i->m_strIP.length() == 0)
       {
@@ -618,6 +587,62 @@ int Client::sysinfo(SysStat& sys)
          break;
       }
    }
+
+   return 0;
+}
+
+int Client::shutdown(const int& type, const string& param)
+{
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(8);
+
+   int32_t t = type;
+   if ((t < 0) || (t > 4))
+      return SectorError::E_INVALID;
+
+   msg.setData(0, (char*)&t, 4);
+   int32_t size = param.length() + 1;
+   msg.setData(4, (char*)&size, 4);
+   msg.setData(8, param.c_str(), size);
+
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   if (type == 1)
+   {
+      // shutdown masters
+      msg.setType(9);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize;
+      if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+         return SectorError::E_CONNECTION;
+   }
+
+   return 0;
+}
+
+int Client::fsck(const string& path)
+{
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(9);
+
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
 
    return 0;
 }
@@ -644,7 +669,8 @@ int Client::updateMasters()
          addr.m_strIP = i->second.m_strIP;
          addr.m_iPort = i->second.m_iPort;
          uint32_t key = i->first;
-         
+
+         // reset routing information
          m_Routing.init();
          m_Routing.insert(key, addr);
 
@@ -662,11 +688,12 @@ int Client::updateMasters()
             m_Routing.insert(key, addr);
          }
 
+         // masters updated, no need to query further
          return n + 1;
       }
    }
 
-   return -1;
+   return SectorError::E_MASTER;
 }
 
 #ifndef WIN32
@@ -676,6 +703,8 @@ unsigned int WINAPI Client::keepAlive(void * param)
 #endif
 {
    Client* self = (Client*)param;
+   int64_t last_heart_beat_time = CTimer::getTime();
+   int64_t last_gc_time = CTimer::getTime();
 
    while (self->m_bActive)
    {
@@ -683,26 +712,40 @@ unsigned int WINAPI Client::keepAlive(void * param)
       timeval t;
       gettimeofday(&t, NULL);
       timespec ts;
-      ts.tv_sec  = t.tv_sec + 60 * 10;
+      ts.tv_sec  = t.tv_sec + 1;
       ts.tv_nsec = t.tv_usec * 1000;
 
       self->m_KALock.acquire();
       pthread_cond_timedwait(&self->m_KACond, &self->m_KALock.m_Mutex, &ts);
       self->m_KALock.release();
 #else
-      WaitForSingleObject(self->m_KACond, 600000);
+      WaitForSingleObject(self->m_KACond, 1000);
 #endif
 
       if (!self->m_bActive)
          break;
 
-      vector<Address> ml;
-      {
-         CMutexGuard guard(self->m_MasterSetLock);
+      int64_t currtime = CTimer::getTime();
 
-         for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
-            ml.push_back(*i);
+      //check if there is any write data that needs to be flushed, flush at least once per second
+      self->m_IDLock.acquire();
+      for (map<int, FSClient*>::iterator i = self->m_mFSList.begin(); i != self->m_mFSList.end(); ++ i)
+      {
+         if (currtime - i->second->m_llLastFlushTime > 1000000)
+            i->second->flush();
       }
+      self->m_IDLock.release();
+
+
+      // send a heart beat to masters every 60 seconds
+      if (CTimer::getTime() - last_heart_beat_time < 60000000)
+         continue;
+
+      vector<Address> ml;
+      self->m_MasterSetLock.acquire();
+      for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
+         ml.push_back(*i);
+      self->m_MasterSetLock.release();
 
       for (vector<Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
       {
@@ -712,6 +755,16 @@ unsigned int WINAPI Client::keepAlive(void * param)
          msg.setType(6);
          msg.m_iDataLength = SectorMsg::m_iHdrSize;
          self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
+      }
+
+      last_heart_beat_time = CTimer::getTime();
+
+
+      // clean broken connections, every hour
+      if (CTimer::getTime() - last_gc_time > 3600000000LL)
+      {
+         self->m_DataChn.garbageCollect();
+         last_gc_time = CTimer::getTime();
       }
    }
 
@@ -725,15 +778,14 @@ unsigned int WINAPI Client::keepAlive(void * param)
 int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
 {
    if (size < 52)
-      return -1;
+      return SectorError::E_INVALID;
 
    sys.m_llStartTime = *(int64_t*)buf;
    sys.m_llAvailDiskSpace = *(int64_t*)(buf + 8);
    sys.m_llTotalFileSize = *(int64_t*)(buf + 16);
    sys.m_llTotalFileNum = *(int64_t*)(buf + 24);
-   sys.m_llTotalSlaves = *(int64_t*)(buf + 32);
 
-   char* p = buf + 40;
+   char* p = buf + 32;
    int c = *(int32_t*)p;
    sys.m_vCluster.resize(c);
    p += 4;
@@ -752,29 +804,36 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    int m = *(int32_t*)p;
    p += 4;
    sys.m_vMasterList.resize(m);
-   for (vector<Address>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
+   for (vector<SysStat::MasterStat>::iterator i = sys.m_vMasterList.begin(); i != sys.m_vMasterList.end(); ++ i)
    {
+      i->m_iID = *(int32_t*)p;
+      p += 4;
       i->m_strIP = p;
       p += 16;
       i->m_iPort = *(int32_t*)p;
       p += 4;
    }
 
-   int n = *(int32_t*)p;
+   sys.m_llTotalSlaves = *(int32_t*)p;
    p += 4;
-   sys.m_vSlaveList.resize(n);
+   sys.m_vSlaveList.resize(sys.m_llTotalSlaves);
    for (vector<SysStat::SlaveStat>::iterator i = sys.m_vSlaveList.begin(); i != sys.m_vSlaveList.end(); ++ i)
    {
-      i->m_strIP = p;
-      i->m_llAvailDiskSpace = *(int64_t*)(p + 16);
-      i->m_llTotalFileSize = *(int64_t*)(p + 24);
-      i->m_llCurrMemUsed = *(int64_t*)(p + 32);
-      i->m_llCurrCPUUsed = *(int64_t*)(p + 40);
-      i->m_llTotalInputData = *(int64_t*)(p + 48);
-      i->m_llTotalOutputData = *(int64_t*)(p + 56);
-      i->m_llTimeStamp = *(int64_t*)(p + 64);
+      i->m_iID = *(int32_t*)p;
+      i->m_strIP = p + 4;
+      i->m_iPort = *(int32_t*)(p + 20);
+      i->m_llAvailDiskSpace = *(int64_t*)(p + 24);
+      i->m_llTotalFileSize = *(int64_t*)(p + 32);
+      i->m_llCurrMemUsed = *(int64_t*)(p + 40);
+      i->m_llCurrCPUUsed = *(int64_t*)(p + 48);
+      i->m_llTotalInputData = *(int64_t*)(p + 56);
+      i->m_llTotalOutputData = *(int64_t*)(p + 64);
+      i->m_llTimeStamp = *(int64_t*)(p + 72);
+      i->m_iStatus = *(int64_t*)(p + 80);
+      i->m_iClusterID = *(int64_t*)(p + 84);
+      i->m_strDataDir = p + 92;
 
-      p += 72;
+      p += 92 + i->m_strDataDir.length() + 1;
    }
 
    return 0;
@@ -783,12 +842,13 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
 int Client::lookup(const string& path, Address& serv_addr)
 {
    if (m_Routing.lookup(path, serv_addr) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (login(serv_addr.m_strIP, serv_addr.m_iPort) < 0)
    {
-      if (updateMasters() < 0)
-         return -1;
+      int result = updateMasters();
+      if (result < 0)
+         return result;
 
        m_Routing.lookup(path, serv_addr);
        return login(serv_addr.m_strIP, serv_addr.m_iPort);
@@ -800,12 +860,13 @@ int Client::lookup(const string& path, Address& serv_addr)
 int Client::lookup(const int32_t& key, Address& serv_addr)
 {
    if (m_Routing.lookup(key, serv_addr) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    if (login(serv_addr.m_strIP, serv_addr.m_iPort) < 0)
    {
-      if (updateMasters() < 0)
-         return -1;
+      int result = updateMasters();
+      if (result < 0)
+         return result;
 
        m_Routing.lookup(key, serv_addr);
        return login(serv_addr.m_strIP, serv_addr.m_iPort);
@@ -819,7 +880,7 @@ int Client::retrieveMasterInfo(string& certfile)
    TCPTransport t;
    t.open(NULL, 0);
    if (t.connect(m_strServerIP.c_str(), m_iServerPort - 1) < 0)
-      return -1;
+      return SectorError::E_CONNECTION;
 
    certfile = "";
 #ifndef WIN32
@@ -834,7 +895,43 @@ int Client::retrieveMasterInfo(string& certfile)
    t.close();
 
    if (recvsize <= 0)
-      return -1;
+      return SectorError::E_BROKENPIPE;
 
    return 0;
 }
+
+#if defined(DEBUG) || defined (_DEBUG)
+int Client::sendDebugCode(const int32_t& slave_id, const int32_t& code)
+{
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(code);
+   int32_t type = 0;
+   msg.setData(0, (char*)&type, 4);
+   msg.setData(4, (char*)&slave_id, 4);
+   return m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg);
+}
+
+int Client::sendDebugCode(const string& slave_addr, const int32_t& code)
+{
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_CONNECTION;
+
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(code);
+   int32_t type = 1;
+   msg.setData(0, (char*)&type, 4);
+   string ip = slave_addr.substr(0, slave_addr.find(':'));
+   int32_t port = atoi(slave_addr.substr(slave_addr.find(':') + 1, slave_addr.length() - ip.length() - 1).c_str());
+   msg.setData(4, ip.c_str(), ip.length() + 1);
+   msg.setData(68, (char*)&port, 4);
+
+   return m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg);
+}
+#endif

@@ -69,12 +69,13 @@ m_iLength(0)
 {
    m_iSession = g_iSession;
 
-   CMutexGuard guard (g_IDLock);
+   g_IDLock.acquire();
 
    m_iID = g_iID ++;
    if (g_iID == g_iMaxID)
       g_iID = 1;
 
+   g_IDLock.release();
 }
 
 CGMPMessage::CGMPMessage(const CGMPMessage& msg):
@@ -95,8 +96,7 @@ m_iLength(0)
 
 CGMPMessage::~CGMPMessage()
 {
-   if (NULL != m_pcData)
-      delete [] m_pcData;
+   delete [] m_pcData;
 }
 
 void CGMPMessage::pack(const char* data, const int& len, const int32_t& info)
@@ -105,12 +105,10 @@ void CGMPMessage::pack(const char* data, const int& len, const int32_t& info)
 
    if (len > 0)
    {
-      if (NULL != m_pcData)
-         delete [] m_pcData;
-
-      m_iLength = len;
+      delete [] m_pcData;
       m_pcData = new char[len];
       memcpy(m_pcData, data, len);
+      m_iLength = len;
    }
    else
       m_iLength = 0;
@@ -169,6 +167,8 @@ CGMP::~CGMP()
 
 int CGMP::init(const int& port)
 {
+   UDT::startup();
+
    if (port != 0)
       m_iPort = port - 1;
    else
@@ -245,6 +245,8 @@ int CGMP::close()
    #ifdef WIN32
       WSACleanup();
    #endif
+
+   UDT::cleanup();
 
    return 1;
 }
@@ -350,7 +352,7 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
 
 int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 {
-   Transport t;
+   UDTTransport t;
    if (t.open(m_iUDTReusePort, false, true) < 0)
       return -1;
 
@@ -566,14 +568,14 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
    int32_t& session = header[1];
    int32_t& id = header[2];
    int32_t& info = header[3];
-   char* buf = new char [1456];
+   char* buf = new char [m_iMaxUDPMsgSize];
 
 #ifndef WIN32
    iovec vec[2];
    vec[0].iov_base = header;
    vec[0].iov_len = 16;
    vec[1].iov_base = buf;
-   vec[1].iov_len = 1456;
+   vec[1].iov_len = m_iMaxUDPMsgSize;
 
    msghdr mh;
    mh.msg_name = &addr;
@@ -588,7 +590,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
    vec[0].buf = (char*)header;
    vec[0].len = 16;
    vec[1].buf = buf;
-   vec[1].len = 1456;
+   vec[1].len = m_iMaxUDPMsgSize;
 #endif
 
    int32_t ack[4];
@@ -694,16 +696,19 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
 
       if (0 == info)
       {
-          {
-            CMutexGuard guard (self->m_RcvQueueLock);
+         #ifndef WIN32
+            self->m_RcvQueueLock.acquire();
             self->m_qRcvQueue.push(rec);
             qsize += self->m_qRcvQueue.size();
-          }
-#ifndef WIN32
-          pthread_cond_signal(&self->m_RcvQueueCond);
-#else
-          SetEvent(self->m_RcvQueueCond);
-#endif
+            self->m_RcvQueueLock.release();
+            pthread_cond_signal(&self->m_RcvQueueCond);
+         #else
+            self->m_RcvQueueLock.acquire();
+            self->m_qRcvQueue.push(rec);
+            qsize += self->m_qRcvQueue.size();
+            self->m_RcvQueueLock.release();
+            SetEvent(self->m_RcvQueueCond);
+         #endif
       }
       else
       {
@@ -742,7 +747,7 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 {
    CGMP* self = (CGMP*)s;
 
-   Transport t;
+   UDTTransport t;
    sockaddr_in addr;
    int namelen = sizeof(sockaddr_in);
 

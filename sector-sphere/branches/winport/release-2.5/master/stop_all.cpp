@@ -1,5 +1,6 @@
 #include <conf.h>
 #include <cstdlib>
+#include <cstring>
 #include <string.h>
 #include <string>
 #include <fstream>
@@ -9,6 +10,16 @@ using namespace std;
 
 int main()
 {
+   cout << "Warning! This command will terminate this master and all slave nodes with extreme prejudice. If you need a graceful shutdown, use ./tools/sector_shutdown.\n";
+   cout << "Do you want to continue? Y/N:";
+   char answer;
+   cin >> answer;
+   if ((answer != 'Y') && (answer != 'y'))
+   {
+      cout << "aborted.\n";
+      return -1;
+   }
+
 #ifndef WIN32
    system("killall -9 start_master");
 #else

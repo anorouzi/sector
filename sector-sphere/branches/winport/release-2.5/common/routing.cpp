@@ -1,44 +1,26 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/19/2010
+   Yunhong Gu, last updated 08/23/2010
 *****************************************************************************/
 
 #include "common.h"
+#include <cstring>
 #include "routing.h"
 
 using namespace std;
@@ -210,9 +192,32 @@ int Routing::getNumOfMasters()
    return m_mAddressList.size();
 }
 
-void Routing::getListOfMasters(std::map<uint32_t, Address>& al)
+void Routing::getListOfMasters(map<uint32_t, Address>& al)
 {
    CMutexGuard rg(m_Lock);
 
    al = m_mAddressList;
+}
+
+int Routing::serializeMasterInfo(char*& buf, int& size)
+{
+   CMutexGuard rg(m_Lock);
+
+   size = 4 + m_mAddressList.size() * 24;
+   buf = new char[size];
+
+   *(int32_t*)buf = m_mAddressList.size();
+
+   char* p = buf + 4;
+   for (map<uint32_t, Address>::iterator i = m_mAddressList.begin(); i != m_mAddressList.end(); ++ i)
+   {
+      *(int32_t*)p = i->first;
+      p += 4;
+      strncpy(p, i->second.m_strIP.c_str(), 16);
+      p += 16;
+      *(int32_t*)p = i->second.m_iPort;
+      p += 4;
+   }
+
+   return size;
 }

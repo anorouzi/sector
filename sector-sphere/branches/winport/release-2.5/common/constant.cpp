@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/15/2009
+   Yunhong Gu, last updated 08/16/2010
 *****************************************************************************/
 
 #include <sector.h>
@@ -48,30 +29,45 @@ map<int, string> SectorError::s_mErrorMsg;
 int SectorError::init()
 {
    s_mErrorMsg.clear();
-   s_mErrorMsg[-1] = "unknown error.";
-   s_mErrorMsg[-1001] = "permission is not allowed for the operation on the specified file/dir.";
-   s_mErrorMsg[-1002] = "file/dir already exists.";
-   s_mErrorMsg[-1003] = "file/dir does not exist.";
-   s_mErrorMsg[-1004] = "file/dir is busy.";
-   s_mErrorMsg[-1005] = "a failure happens on the local file system.";
-   s_mErrorMsg[-1006] = "directory is not empty.";
-   s_mErrorMsg[-1007] = "directory does not exist or not a directory.";
-   s_mErrorMsg[-1008] = "this file is not openned yet for IO operations.";
-   s_mErrorMsg[-2000] = "security check (certificate/account/password/acl) failed.";
-   s_mErrorMsg[-2001] = "no certificate found or wrong certificate.";
-   s_mErrorMsg[-2002] = "the account does not exist.";
-   s_mErrorMsg[-2003] = "the password is incorrect.";
-   s_mErrorMsg[-2004] = "the request is from an illegal IP address.";
-   s_mErrorMsg[-2005] = "failed to initialize SSL CTX.";
-   s_mErrorMsg[-2006] = "no response from security server.";
-   s_mErrorMsg[-2007] = "client timeout and was kicked out by server.";
-   s_mErrorMsg[-3000] = "connection fails.";
-   s_mErrorMsg[-4000] = "no enough resource (memory/disk) is available.";
-   s_mErrorMsg[-5000] = "a timeout event happened.";
-   s_mErrorMsg[-6000] = "at least one parameter is invalid.";
-   s_mErrorMsg[-6001] = "the operation is not supported.";
-   s_mErrorMsg[-7001] = "at least one bucket process has failed.";
-   s_mErrorMsg[-7002] = "no sphere process is running.";
+   s_mErrorMsg[+E_UNKNOWN] = "unknown error.";
+   s_mErrorMsg[+E_PERMISSION] = "permission is not allowed for the operation on the specified file/dir.";
+   s_mErrorMsg[+E_EXIST] = "file/dir already exists.";
+   s_mErrorMsg[+E_NOEXIST] = "file/dir does not exist.";
+   s_mErrorMsg[+E_BUSY] = "file/dir is busy.";
+   s_mErrorMsg[+E_LOCALFILE] = "a failure happens on the local file system.";
+   s_mErrorMsg[+E_NOEMPTY] = "directory is not empty.";
+   s_mErrorMsg[+E_NOTDIR] = "directory does not exist or not a directory.";
+   s_mErrorMsg[+E_FILENOTOPEN] = "this file is not openned yet for IO operations.";
+   s_mErrorMsg[+E_NOREPLICA] = "all replicas have been lost.";
+   s_mErrorMsg[+E_SECURITY] = "security check (certificate/account/password/acl) failed.";
+   s_mErrorMsg[+E_NOCERT] = "no certificate found or wrong certificate.";
+   s_mErrorMsg[+E_ACCOUNT] = "the account does not exist.";
+   s_mErrorMsg[+E_PASSWORD] = "the password is incorrect.";
+   s_mErrorMsg[+E_ACL] = "the request is from an illegal IP address.";
+   s_mErrorMsg[+E_INITCTX] = "failed to initialize SSL CTX.";
+   s_mErrorMsg[+E_NOSECSERV] = "no response from security server.";
+   s_mErrorMsg[+E_EXPIRED] = "client timeout and was kicked out by server.";
+   s_mErrorMsg[+E_AUTHORITY] = "no authority to run the command.";
+   s_mErrorMsg[+E_ADDR] = "invalid network address.";
+   s_mErrorMsg[+E_GMP] = "unable to initailize GMP.";
+   s_mErrorMsg[+E_DATACHN] = "unable to initialize data channel.";
+   s_mErrorMsg[+E_CERTREFUSE] = "unable to retrieve master certificate";
+   s_mErrorMsg[+E_MASTER] = "all masters have been lost";
+   s_mErrorMsg[+E_CONNECTION] = "connection fails.";
+   s_mErrorMsg[+E_BROKENPIPE] = "data connection has been lost";
+   s_mErrorMsg[+E_TIMEOUT] = "message recv timeout";
+   s_mErrorMsg[+E_RESOURCE] = "no enough resource (memory/disk) is available.";
+   s_mErrorMsg[+E_NODISK] = "no enough disk space.";
+   s_mErrorMsg[+E_VERSION] = "incompatible version between client and master.";
+   s_mErrorMsg[+E_INVALID] = "at least one parameter is invalid.";
+   s_mErrorMsg[+E_SUPPORT] = "the operation is not supported.";
+   s_mErrorMsg[+E_CANCELED] = "operation was canceled.";
+   s_mErrorMsg[+E_BUCKETFAIL] = "at least one bucket process has failed.";
+   s_mErrorMsg[+E_NOPROCESS] = "no sphere process is running.";
+   s_mErrorMsg[+E_MISSINGINPUT] = "at least one input file cannot be located.";
+   s_mErrorMsg[+E_NOINDEX] = "missing index files.";
+   s_mErrorMsg[+E_ALLSPEFAIL] = "all SPE has failed.";
+   s_mErrorMsg[+E_NOBUCKET] = "cannot locate any bucket.";
 
    return s_mErrorMsg.size();
 }

@@ -170,7 +170,6 @@
     <ClCompile Include="..\..\master\master.cpp" />
     <ClCompile Include="..\..\master\slavemgmt.cpp" />
     <ClCompile Include="..\..\master\stop_all.cpp" />
-    <ClCompile Include="..\..\master\transaction.cpp" />
     <ClCompile Include="..\..\master\user.cpp" />
   </ItemGroup>
   <ItemGroup>

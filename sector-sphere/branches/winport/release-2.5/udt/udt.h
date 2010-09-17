@@ -51,7 +51,6 @@ written by
    #ifdef __MINGW__
       #include <ws2tcpip.h>
    #endif
-   #pragma warning( disable: 4251 )
 #endif
 #include <fstream>
 #include <set>

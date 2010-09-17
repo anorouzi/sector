@@ -1,42 +1,33 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/22/2009
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
+
+#ifndef WIN32
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+   #include <unistd.h>
+#else
+    #include <direct.h>
+    #include "statfs.h"
+    #include "common.h"
+#endif
 
 #include <iostream>
 #include <string>
@@ -44,16 +35,6 @@ written by
 #include <cstdlib>
 #include <sys/types.h>
 #include <sys/stat.h>
-
-#ifndef WIN32
-    #include <sys/socket.h>
-    #include <arpa/inet.h>
-    #include <unistd.h>
-#else
-    #include <direct.h>
-    #include "statfs.h"
-    #include "common.h"
-#endif
 
 #include "conf.h"
 
@@ -104,7 +85,7 @@ int ConfParser::init(const string& path)
       char buf[1024];
       m_ConfFile.getline(buf, 1024);
 
-      if (strlen(buf) == 0)
+      if ('\0' == *buf)
          continue;
 
       //skip comments
@@ -173,12 +154,13 @@ int ConfParser::getNextParam(Param& param)
       {
          strcpy(buf, m_ptrLine->c_str());
 
-         if ((strlen(buf) == 0) || ('\t' != buf[0]))
+         if (('\0' == *buf) || ('\t' != *buf))
             break;
 
          str = buf;
          if (NULL == (str = getToken(str, token)))
          {
+            //TODO: line count is incorrect, doesn't include # and blank lines
             cerr << "Configuration file parsing error at line " << m_iLineCount << ": " << buf << endl;
             return -1;
          }
@@ -217,12 +199,24 @@ char* ConfParser::getToken(char* str, string& token)
    return p;
 }
 
+
+MasterConf::MasterConf():
+m_iServerPort(0),
+m_strSecServIP(),
+m_iSecServPort(0),
+m_iMaxActiveUser(1024),
+m_strHomeDir("./"),
+m_iReplicaNum(1),
+m_MetaType(MEMORY),
+m_iSlaveTimeOut(300),
+m_llSlaveMinDiskSpace(10000000000LL),
+m_iClientTimeOut(600),
+m_iLogLevel(1)
+{
+}
+
 int MasterConf::init(const string& path)
 {
-   m_iServerPort = 6000;
-   m_llSlaveMinDiskSpace = 10000000000LL;
-   m_iLogLevel = 1;
-
    ConfParser parser;
    Param param;
 
@@ -239,10 +233,10 @@ int MasterConf::init(const string& path)
       else if ("SECURITY_SERVER" == param.m_strName)
       {
          char buf[128];
-         strcpy(buf, param.m_vstrValue[0].c_str());
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
 
          unsigned int i = 0;
-         for (; i < strlen(buf); ++ i)
+         for (unsigned int n = strlen(buf); i < n; ++ i)
          {
             if (buf[i] == ':')
                break;
@@ -270,16 +264,32 @@ int MasterConf::init(const string& path)
          else if ("DISK" == param.m_vstrValue[0])
             m_MetaType = DISK;
       }
+      else if ("SLAVE_TIMEOUT" == param.m_strName)
+      {
+         m_iSlaveTimeOut = atoi(param.m_vstrValue[0].c_str());
+         if (m_iSlaveTimeOut < 120)
+            m_iSlaveTimeOut = 120;
+      }
       else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
+      {
 #ifndef WIN32
          m_llSlaveMinDiskSpace = atoll(param.m_vstrValue[0].c_str()) * 1000000;
 #else
          m_llSlaveMinDiskSpace = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
 #endif
+      }
+      else if ("CLIENT_TIMEOUT" == param.m_strName)
+      {
+         m_iClientTimeOut = atoi(param.m_vstrValue[0].c_str());
+      }
       else if ("LOG_LEVEL" == param.m_strName)
+      {
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
+      }
       else
+      {
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
+      }
    }
 
    parser.close();
@@ -287,16 +297,21 @@ int MasterConf::init(const string& path)
    return 0;
 }
 
+SlaveConf::SlaveConf():
+m_strMasterHost(),
+m_iMasterPort(6000),
+m_strHomeDir("./"),
+m_llMaxDataSize(-1),
+m_iMaxServiceNum(64),
+m_strLocalIP(),
+m_strPublicIP(),
+m_iClusterID(0),
+m_MetaType(MEMORY)
+{
+}
 
 int SlaveConf::init(const string& path)
 {
-   m_strMasterHost = "";
-   m_iMasterPort = 0;
-   m_llMaxDataSize = -1;
-   m_iMaxServiceNum = 2;
-   m_strLocalIP = "";
-   m_strPublicIP = "";
-   
    ConfParser parser;
    Param param;
 
@@ -311,10 +326,10 @@ int SlaveConf::init(const string& path)
       if ("MASTER_ADDRESS" == param.m_strName)
       {
          char buf[128];
-         strcpy(buf, param.m_vstrValue[0].c_str());
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
 
          unsigned int i = 0;
-         for (; i < strlen(buf); ++ i)
+         for (unsigned int n = strlen(buf); i < n; ++ i)
          {
             if (buf[i] == ':')
                break;
@@ -334,11 +349,13 @@ int SlaveConf::init(const string& path)
             m_strHomeDir += "/";
       }
       else if ("MAX_DATA_SIZE" == param.m_strName)
+      {
 #ifndef WIN32
          m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str()) * 1024 * 1024;
 #else
          m_llMaxDataSize = _atoi64(param.m_vstrValue[0].c_str()) * 1024 * 1024;
 #endif
+      }
       else if ("MAX_SERVICE_INSTANCE" == param.m_strName)
          m_iMaxServiceNum = atoi(param.m_vstrValue[0].c_str());
       else if ("LOCAL_ADDRESS" == param.m_strName)
@@ -361,16 +378,20 @@ int SlaveConf::init(const string& path)
    return 0;
 }
 
+ClientConf::ClientConf():
+m_strUserName(),
+m_strPassword(),
+m_strMasterIP(),
+m_iMasterPort(6000),
+m_strCertificate(),
+m_llMaxCacheSize(10000000),
+m_iFuseReadAheadBlock(1000000),
+m_llMaxWriteCacheSize(10000000)
+{
+}
+
 int ClientConf::init(const string& path)
 {
-   m_strUserName = "";
-   m_strPassword = "";
-   m_strMasterIP = "";
-   m_iMasterPort = 0;
-   m_strCertificate = "";
-   m_llMaxCacheSize = 10000000;
-   m_iFuseReadAheadBlock = 1000000;
-
    ConfParser parser;
    Param param;
 
@@ -385,10 +406,10 @@ int ClientConf::init(const string& path)
       if ("MASTER_ADDRESS" == param.m_strName)
       {
          char buf[128];
-         strcpy(buf, param.m_vstrValue[0].c_str());
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
 
          unsigned int i = 0;
-         for (; i < strlen(buf); ++ i)
+         for (unsigned int n = strlen(buf); i < n; ++ i)
          {
             if (buf[i] == ':')
                break;
@@ -421,6 +442,14 @@ int ClientConf::init(const string& path)
       else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
       {
          m_iFuseReadAheadBlock = atoi(param.m_vstrValue[0].c_str()) * 1000000;
+      }
+      else if ("MAX_READ_CACHE_SIZE" == param.m_strName)
+      {
+#ifndef WIN32
+         m_llMaxWriteCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llMaxWriteCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
       }
       else
          cerr << "unrecongnized client.conf parameter: " << param.m_strName << endl;
@@ -504,10 +533,10 @@ int Session::loadInfo(const char* conf)
       cin >> addr;
 
       char buf[128];
-      strcpy(buf, addr.c_str());
+      strncpy(buf, addr.c_str(), 128);
 
       unsigned int i = 0;
-      for (; i < strlen(buf); ++ i)
+      for (unsigned int n = strlen(buf); i < n; ++ i)
       {
          if (buf[i] == ':')
             break;
@@ -549,7 +578,9 @@ int Session::loadInfo(const char* conf)
 
 int CmdLineParser::parse(int argc, char** argv)
 {
-   m_mParams.clear();
+   m_vSFlags.clear();
+   m_mDFlags.clear();
+   m_vParams.clear();
 
    bool dash = false;
    string key;
@@ -557,18 +588,35 @@ int CmdLineParser::parse(int argc, char** argv)
    {
       if (argv[i][0] == '-')
       {
-         dash = true;
-         key = argv[i] + 1;
+         if ((strlen(argv[i]) >= 2) && (argv[i][1] == '-'))
+         {
+            // --f
+            m_vSFlags.push_back(argv[i] + 2);
+            dash = false;
+         }
+         else
+         {
+            // -f [val]
+            dash = true;
+            key = argv[i] + 1;
+            m_mDFlags[key] = "";
+         }
       }
       else
       {
          if (!dash)
-            return -1;
-
-         m_mParams[key] = argv[i];
+         {
+            // param
+            m_vParams.push_back(argv[i]);
+         }
+         else
+         {
+            // -f val
+            m_mDFlags[key] = argv[i];
+            dash = false;
+         }
       }
    }
 
-   return m_mParams.size();
+   return 0;
 }
-

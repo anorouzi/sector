@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/25/2010
+   Yunhong Gu, last updated 07/25/2010
 *****************************************************************************/
 
 
@@ -281,6 +281,14 @@ void CTimer::waitForEvent()
    #endif
 }
 
+void CTimer::sleep()
+{
+   #ifndef WIN32
+      usleep(10);
+   #else
+      Sleep(1);
+   #endif
+}
 
 #ifdef _WIN32
 
@@ -528,24 +536,25 @@ CGuard::~CGuard()
    #endif
 }
 
-void CGuard::enterCS(pthread_mutex_t& lock)
+// TODO: move this to a CondEvent class
+void CGuard::createCond(pthread_cond_t& cond)
 {
    #ifndef WIN32
-      pthread_mutex_lock(&lock);
+      pthread_cond_init(&cond, NULL);
    #else
-      WaitForSingleObject(lock, INFINITE);
+      cond = CreateEvent(NULL, false, false, NULL);
    #endif
 }
 
-void CGuard::leaveCS(pthread_mutex_t& lock)
+void CGuard::releaseCond(pthread_cond_t& cond)
 {
    #ifndef WIN32
-      pthread_mutex_unlock(&lock);
+      pthread_cond_destroy(&cond);
    #else
-      ReleaseMutex(lock);
+      CloseHandle(cond);
    #endif
-}
 
+}
 
 //
 CUDTException::CUDTException(int major, int minor, int err):

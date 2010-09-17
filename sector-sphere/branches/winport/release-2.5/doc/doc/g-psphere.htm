@@ -62,8 +62,14 @@ temp.init(256);</div>
   &nbsp;&nbsp;&nbsp;&nbsp;if (myproc.checkProgress() == 100)<br />
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;break;<br />
     &nbsp;&nbsp;}<br />
+	&nbsp;&nbsp;else<br />
+	&nbsp;&nbsp;{<br />
+	&nbsp;&nbsp;&nbsp;&nbsp;//process results here<br />
+	&nbsp;&nbsp;}<br />
 }</div>
 
+<p>Or, simply wait for the process to complete if the no result is sent back. </p>
+<div class="code">myproc.waitForCompletion(); </div>
 <p><strong>Disconnect and Logout the System </strong></p>
 <p>When the application does not need to access Sector any more, it should logout the user and disconnect from the system. </p>
 <div class="code"> client.logout();<br />

@@ -19,6 +19,7 @@
 
 <p><b>master.conf</b></p>
 <p>A copy of the master configuration file can be found below. The SECTOR_PORT is the port number on which the Sector master will listen to requests from clients. Note that although you only specify one port number here, Sector will actually use two consecutive numbers. For example, if you use port 6000, Sector will use both ports 6000 and 6001. The SECURITY_SERVER is the address of the security server in the format of &lt;ip:port&gt; or &lt;domain_name:port&gt;. The option &quot;REPLICA_NUM&quot; specifies the number of replicas of each file in the system. Finally, you also need to specify a directory to which Sector can store temporary files under the option &quot;DATA_DIRECTORY&quot;. If the directory does not exist, Sector will create it automatically, provided that the master program has write permission to the directory. There are more options in the configuration file and the explanation for each option is also included immediately above the option name.</p>
+<p>While this configuration specifies a system wide replication number for all files, users may use ./conf/<strong>replica.conf</strong> to specify a different replication number of particular files and directories. </p>
 <p>In the configuration file, <span class="style1">the option value must be preceded by a &quot;TAB&quot; character.</span> The &quot;#&quot; character can be used for comment lines. </p>
 <div class="code">
 #SECTOR server port number<br />
@@ -33,21 +34,10 @@
   REPLICA_NUM<br />
   &nbsp;&nbsp;&nbsp;&nbsp;2<br />
 <br>
-  #maximum active users<br />
-  MAX_ACTIVE_USER<br />
-  &nbsp;&nbsp;&nbsp;&nbsp;128<br />
-<br>
   #data directory, for the master to store temporary system data<br />
   #this is different from the slave data directory and will not be used to store data files<br />
   DATA_DIRECTORY<br />
-  &nbsp;&nbsp;&nbsp;&nbsp;/home/u2/yunhong/work/data/<br />
-<br>
-  #slave node timeout, in seconds<br />
-  #if the slave does not send response within the time specified here,<br />
-  #it will be removed and the master will try to restart it<br />
-  #SLAVE_TIMEOUT<br />
-  #&nbsp;&nbsp;&nbsp;&nbsp;60
-</div>
+  &nbsp;&nbsp;&nbsp;&nbsp;/home/u2/yunhong/work/data/</div>
 
 <p><strong>topology.conf </strong></p>
 <p>Sector assumes that the slave nodes are computers in one or more clusters, while clusters can be allocated in one or more data centers, and so on. This is a multi-level hierarchical topology. The position of each IP range is represented by &quot;/L1/L2/.../Ln&quot; is an n-level structure and L1 is the first level. For example, in a 2-level topology, &quot;/1/2&quot; means the 2nd cluster in the 1st data center. The number of levels for each IP address or IP address range must be equal. </p>
@@ -69,16 +59,15 @@
 
 <p><strong>slaves.list</strong></p>
 <p>When using &quot;start_all&quot; and &quot;stop_all&quot; to start and stop all slaves automatically from the master node, the list of slave information must be specified in the &quot;slaves.list&quot; configuration file. In this text file, each line represents one slave in the following format: </p>
-<p>&lt;user name&gt;@&lt;ip address&gt; &lt;location of the sector slave program on the node&gt; </p>
-<div class="code">gu@192.168.136.8 /home/generichome/gu/sector-test/slave/<br />
-  gu@192.168.136.9 /home/generichome/gu/sector-test/slave/<br />
-  gu@192.168.136.13 /home/generichome/gu/sector-test/slave<br />
-  gu@192.168.136.14 /home/generichome/gu/sector-test/slave<br />
-  gu@192.168.136.15 /home/generichome/gu/sector-test/slave<br />
-  gu@192.168.136.16 /home/generichome/gu/sector-test/slave/
-</div>
+<p>&lt;user name&gt;@&lt;ip address&gt; &lt;location of the sector home - i.e., $SECTOR_HOME - on the node&gt; </p>
+<div class="code">gu@192.168.136.8 /home/generichome/gu/sector-test/<br />
+  gu@192.168.136.9 /home/generichome/gu/sector-test/<br />
+  gu@192.168.136.13 /home/generichome/gu/sector-test/<br />
+  gu@192.168.136.14 /home/generichome/gu/sector-test/<br />
+  gu@192.168.136.15 /home/generichome/gu/sector-test/<br />
+  gu@192.168.136.16 /home/generichome/gu/sector-test/</div>
 
-<p>&nbsp;</p>
+<p>Note that the &lt;user name&gt; is the Linux user account on the corresponding slave node. It is NOT the Sector user account.</p>
 
 </body>
 </html>

@@ -1,7 +1,12 @@
 #include "slave.h"
+#include <iostream>
+
+using namespace std;
 
 int main(int argc, char** argv)
 {
+   cout << SectorVersion << endl;
+
    Slave s;
 
    int res;
@@ -18,6 +23,8 @@ int main(int argc, char** argv)
       return -1;
 
    s.run();
+
+   s.close();
 
    return 1;
 }

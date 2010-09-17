@@ -9,7 +9,9 @@ else
 endif
 LDFLAGS += -lssl -lcrypto
 
-all: testfs testdc wordcount text.idx mrsort mrword funcs
+APP = testfs testdc wordcount text.idx mrsort mrword
+
+all: $(APP) funcs
 
 testfs: testfs.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
@@ -36,8 +38,7 @@ _always_check_:
 	true
 
 clean:
-	rm -f *.o *.so *.a testfs testdc wordcount text.idx mrsort mrword
-	rm -f ./funcs/*.so
+	rm -f *.o *.so *.a $(APP) ./funcs/*.so
 
 install:
 	

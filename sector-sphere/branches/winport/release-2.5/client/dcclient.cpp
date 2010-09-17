@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/12/2010
+   Yunhong Gu, last updated 08/05/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -106,14 +87,21 @@ int SphereStream::init(const int& num)
    if (num <= 0)
       return 0;
 
-   m_vFiles.clear();
-   m_vFiles.resize(num);
-   m_vSize.clear();
-   m_vSize.resize(num);
-   m_vRecNum.clear();
-   m_vRecNum.resize(num);
-   m_vLocation.clear();
-   m_vLocation.resize(num);
+   try
+   {
+      m_vFiles.clear();
+      m_vFiles.resize(num);
+      m_vSize.clear();
+      m_vSize.resize(num);
+      m_vRecNum.clear();
+      m_vRecNum.resize(num);
+      m_vLocation.clear();
+      m_vLocation.resize(num);
+   }
+   catch (...)
+   {
+      return SectorError::E_RESOURCE;
+   }
 
    m_piLocID = new int32_t[num];
 
@@ -245,10 +233,10 @@ int DCClient::loadOperator(const char* library)
    return 0;
 }
 
-int DCClient::loadOperator(SPE& s)
+int DCClient::loadOperator(const string& ip, const int port, const int dataport, const int session)
 {
    char addr[128];
-   sprintf(addr, "%s:%d", s.m_strIP.c_str(), s.m_iPort);
+   sprintf(addr, "%s:%d", ip.c_str(), port);
 
    int num = 0;
    for (map<string, OP>::iterator i = m_mOP.begin(); i != m_mOP.end(); ++ i)
@@ -256,13 +244,13 @@ int DCClient::loadOperator(SPE& s)
       if (i->second.m_sUploaded.find(addr) == i->second.m_sUploaded.end())
          ++ num;
    }
-   m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&num, 4);
+   m_pClient->m_DataChn.send(ip, dataport, session, (char*)&num, 4);
 
    for (map<string, OP>::iterator i = m_mOP.begin(); i != m_mOP.end(); ++ i)
    {
       if (i->second.m_sUploaded.find(addr) == i->second.m_sUploaded.end())
       {
-         m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, i->second.m_strLibrary.c_str(), i->second.m_strLibrary.length() + 1);
+         m_pClient->m_DataChn.send(ip, dataport, session, i->second.m_strLibrary.c_str(), i->second.m_strLibrary.length() + 1);
 
          ifstream lib;
          lib.open(i->second.m_strLibPath.c_str(), ios::in | ios::binary);
@@ -270,11 +258,18 @@ int DCClient::loadOperator(SPE& s)
          lib.read(buf, i->second.m_iSize);
          lib.close();
 
-         m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, buf, i->second.m_iSize);
+         m_pClient->m_DataChn.send(ip, dataport, session, buf, i->second.m_iSize);
 
          // this library will not be uploaded again during the current client session
          i->second.m_sUploaded.insert(addr);
       }
+   }
+
+   if (num > 0)
+   {
+      // wait for library transfer to complete
+      int32_t confirm;
+      m_pClient->m_DataChn.recv4(ip, dataport, session, confirm);
    }
 
    return num;
@@ -303,8 +298,9 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    m_mBucket.clear();
    m_mSPE.clear();
 
-   if (prepareInput() < 0)
-      return -1;
+   int result = prepareInput();
+   if (result < 0)
+      return result;
 
    cout << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
 
@@ -315,35 +311,30 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
 
    Address serv;
    m_pClient->m_Routing.getPrimaryMaster(serv);
-   if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
-   {
-      cerr << "unable to locate any SPE.\n";
-      return -1;
-   }
+   if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_CONNECTION;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)msg.getData();
 
    m_iSPENum = (msg.m_iDataLength - 4) / 72;
    if (0 == m_iSPENum)
-   {
-      cerr << "no available SPE found.\n";
       return SectorError::E_RESOURCE;
-   }
 
-   prepareSPE(msg.getData());
+   result = prepareSPE(msg.getData());
+   if (result < 0)
+      return result;
 
-   if (segmentData() <= 0)
-   {
-      cerr << "data segmentation error.\n";
-      return -1;
-   }
+   result = segmentData();
+   if (result <= 0)
+      return result;
 
    if (m_iOutputType == -1)
       m_pOutput->init(m_mpDS.size());
 
-   if (prepareOutput(msg.getData()) < 0)
-   {
-      cerr << "fail to locate any shufflers.\n";
-      return -1;
-   }
+   result = prepareOutput(msg.getData());
+   if (result < 0)
+      return result;
 
    m_iProgress = 0;
    m_iAvgRunTime = -1;
@@ -426,6 +417,9 @@ unsigned int WINAPI DCClient::run(void * param)
       if (self->m_pClient->m_GMP.recvfrom(ip, port, tmp, &msg, false) < 0)
          continue;
 
+      //TODO: due to one GMP limitation, one client can only execute one sphere process at each time
+      //can be solved with individual GMP, or enhance GMP with session
+
       int32_t speid = *(int32_t*)(msg.getData());
 
       map<int, SPE>::iterator s = self->m_mSPE.find(speid);
@@ -485,9 +479,13 @@ unsigned int WINAPI DCClient::run(void * param)
 
    self->m_dRunningProgress = 0;
 
-   // disconnect all SPEs and close all Shufflers
+   // release all SPEs and close all Shufflers
    for (map<int, SPE>::iterator i = self->m_mSPE.begin(); i != self->m_mSPE.end(); ++ i)
-      self->m_pClient->m_DataChn.remove(i->second.m_strIP, i->second.m_iDataPort);
+   {
+      // an offset of -1 will tell the SPE to release itself
+      int64_t cmd = -1;
+      self->m_pClient->m_DataChn.send(i->second.m_strIP, i->second.m_iDataPort, i->second.m_iSession, (char*)&cmd, 8);
+   }
 
    for(map<int, BUCKET>::iterator i = self->m_mBucket.begin(); i != self->m_mBucket.end(); ++ i)
    {
@@ -513,7 +511,6 @@ unsigned int WINAPI DCClient::run(void * param)
       if (b == self->m_mBucket.end())
          continue;
       b->second.m_iProgress = 100;
-      self->m_pClient->m_DataChn.remove(b->second.m_strIP, b->second.m_iDataPort);
 
 #ifndef WIN32
       pthread_cond_signal(&self->m_ResCond);
@@ -521,6 +518,9 @@ unsigned int WINAPI DCClient::run(void * param)
       SetEvent(self->m_ResCond);
 #endif
    }
+
+   // some buckets may be left empty because no value was sent to them. remove these from the output stream
+   self->postProcessOutput();
 
    // set totalSPE = 0, so that read() will return error immediately
    if (self->m_iProgress < 100)
@@ -578,6 +578,19 @@ int DCClient::checkSPE()
             if (0 != d->second->m_iStatus)
                continue;
 
+            if (!m_bDataMove)
+            {
+               // if a file is processed via pass by filename, it must be processed on its original location
+               // also, this depends on if the source data is allowed to move
+               if (d->second->m_pLoc->find(sn) != d->second->m_pLoc->end())
+               {
+                  dss = d;
+                  break;
+               }
+               else
+                  continue;
+            }
+
             unsigned int dist = m_pClient->m_Topology.distance(sn, *(d->second->m_pLoc));
 
             if (dist < MinDist)
@@ -600,14 +613,6 @@ int DCClient::checkSPE()
                   // process data file with the slower progress first
                }
             }
-         }
-
-         if ((MinDist != 0) && !m_bDataMove)
-         {
-            // if a file is processed via pass by filename, it must be processed on its original location
-            // also, this depends on if the source data is allowed to move
-
-            dss = m_mpDS.end();
          }
 
          if (dss != m_mpDS.end())
@@ -639,7 +644,6 @@ int DCClient::checkSPE()
 
             // dismiss this SPE and release its job
             s->second.m_iStatus = -1;
-            m_pClient->m_DataChn.remove(s->second.m_strIP, s->second.m_iDataPort);
             m_iTotalSPE --;
 
             m_DSLock.acquire();
@@ -700,8 +704,9 @@ int DCClient::startSPE(SPE& s, DS* d)
    if (0 == s.m_iStatus)
    {
       // start an SPE at real time
-      if (connectSPE(s) < 0)
-         return SectorError::E_CONNECTION;
+      int result = connectSPE(s);
+      if (result < 0)
+         return result;
    }
 
    s.m_pDS = d;
@@ -736,10 +741,10 @@ int DCClient::checkProgress()
       return SectorError::E_NOPROCESS;
 
    if ((0 == m_iTotalSPE) && (m_iProgress < m_iTotalDS))
-      return SectorError::E_RESOURCE;
+      return SectorError::E_ALLSPEFAIL;
 
    if (!m_bBucketHealth)
-      return SectorError::E_BUCKET;
+      return SectorError::E_BUCKETFAIL;
 
    int progress;
 
@@ -764,6 +769,9 @@ int DCClient::checkReduceProgress()
    if (!m_bOpened)
       return SectorError::E_NOPROCESS;
 
+   if (!m_bBucketHealth)
+      return SectorError::E_BUCKETFAIL;
+
    if (m_mBucket.empty())
       return 100;
 
@@ -787,23 +795,19 @@ int DCClient::waitForCompletion()
 
    while (true)
    {
+      int progress = checkProgress();
       SphereResult* res = NULL;
-      int progress = 0;
 
       if (read(res) <= 0)
       {
-         progress = checkProgress();
-
          if (progress < 0)
-         {
-            cerr << "all SPEs failed\n";
-            return -1;
-         }
+            return SectorError::E_ALLSPEFAIL;
          else if (progress == 100)
-            return 0;
+            break;
       }
       else
       {
+         // users not interested in the result content, delete it
          delete res;
          res = NULL;
       }
@@ -815,6 +819,10 @@ int DCClient::waitForCompletion()
          t1 = t2;
       }
    }
+
+   // wait for the sphere process to clean up
+   m_RunLock.acquire();
+   m_RunLock.release();
 
    return 0;
 }
@@ -829,7 +837,7 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
    while (0 == m_iAvailRes)
    {
       if (!wait || (0 == m_iTotalSPE))
-         return -1;
+         return SectorError::E_ALLSPEFAIL;
 
       if (m_iProgress == m_iTotalDS)
          return 0;
@@ -847,10 +855,10 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       m_ResLock.release();
 
       if (retcode == ETIMEDOUT)
-         return SectorError::E_TIMEDOUT;
+         return SectorError::E_TIMEOUT;
 #else
       if (WaitForSingleObject(m_ResCond, 10000) == WAIT_TIMEOUT)
-         return SectorError::E_TIMEDOUT;
+         return SectorError::E_TIMEOUT;
 #endif
    }
 
@@ -891,7 +899,7 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
      return 1;
    }
 
-   return -1;
+   return SectorError::E_CANCELED;
 }
 
 int DCClient::dataInfo(const vector<string>& files, vector<string>& info)
@@ -938,8 +946,11 @@ int DCClient::dataInfo(const vector<string>& files, vector<string>& info)
 int DCClient::prepareInput()
 {
    // if input data is already initilized or no data to be initialized, return immediately
-   if ((m_pInput->m_iStatus == 1) || m_pInput->m_vOrigInput.empty())
+   if (m_pInput->m_iStatus == 1)
       return 0;
+
+   if (m_pInput->m_vOrigInput.empty())
+      return SectorError::E_INVALID;
 
    vector<string> datainfo;
    int res = dataInfo(m_pInput->m_vOrigInput, datainfo);
@@ -948,7 +959,7 @@ int DCClient::prepareInput()
 
    m_pInput->m_iFileNum = datainfo.size();
    if (0 == m_pInput->m_iFileNum)
-      return 0;
+      return  SectorError::E_INVALID;
 
    m_pInput->m_iStatus = -1;
 
@@ -1011,7 +1022,7 @@ int DCClient::prepareInput()
       // retrieve all the locations
       while (true)
       {
-         if (strlen(p) == 0)
+         if ('\0' == *p)
             break;
 
          Address addr;
@@ -1084,12 +1095,9 @@ int DCClient::connectSPE(SPE& s)
    Address serv;
    m_pClient->m_Routing.getPrimaryMaster(serv);
    if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
-   {
-      cerr << "failed to connect SPE " << s.m_strIP << " " << s.m_iPort << endl;
-      return -1;
-   }
+      return SectorError::E_CONNECTION;
 
-   s.m_iSession = *(int*)msg.getData();
+   s.m_iSession = *(int32_t*)msg.getData();
 
    m_pClient->m_DataChn.connect(s.m_strIP, s.m_iDataPort);
 
@@ -1107,7 +1115,7 @@ int DCClient::connectSPE(SPE& s)
    else if (m_iOutputType < 0)
       m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, m_pOutputLoc, strlen(m_pOutputLoc) + 1);
 
-   loadOperator(s);
+   loadOperator(s.m_strIP, s.m_iPort, s.m_iDataPort, s.m_iSession);
 
    s.m_iStatus = 1;
 
@@ -1122,7 +1130,7 @@ int DCClient::segmentData()
       for (int i = 0; i < m_pInput->m_iFileNum; ++ i)
       {
          if (m_pInput->m_vLocation[i].empty())
-            return -1;
+            return SectorError::E_MISSINGINPUT;
 
          DS* ds = new DS;
          ds->m_iID = seq ++;
@@ -1177,7 +1185,7 @@ int DCClient::segmentData()
                continue;
 
             if (m_pInput->m_vLocation[i].empty())
-               return -1;
+               return SectorError::E_MISSINGINPUT;
 
             DS* ds = new DS;
             ds->m_iID = seq ++;
@@ -1203,7 +1211,7 @@ int DCClient::segmentData()
    else
    {
       cerr << "You have specified the number of records to be processed each time, but there is no record index found.\n";
-      return -1;
+      return SectorError::E_NOINDEX;
    }
 
    return m_mpDS.size();
@@ -1251,8 +1259,16 @@ int DCClient::prepareOutput(const char* spenodes)
          cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
          Address serv;
          m_pClient->m_Routing.getPrimaryMaster(serv);
-         if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
+         if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
             continue;
+
+         if (msg.getType() < 0)
+         {
+            if (*(int32_t*)msg.getData() == SectorError::E_PERMISSION)
+               break;
+            else
+               continue;
+         }
 
          BUCKET b;
          b.m_iID = i;
@@ -1267,10 +1283,14 @@ int DCClient::prepareOutput(const char* spenodes)
 
          // set up data connection, not for data transfter, but for keep-alive
          m_pClient->m_DataChn.connect(b.m_strIP, b.m_iDataPort);
+
+         // upload library files for MapReduce processing
+         if (m_iProcType == 1)
+            loadOperator(b.m_strIP, b.m_iPort, b.m_iDataPort, b.m_iSession);
       }
 
       if (m_mBucket.empty())
-         return -1;
+         return SectorError::E_NOBUCKET;
 
       m_pOutputLoc = new char[m_mBucket.size() * 80];
       int l = 0;
@@ -1342,6 +1362,37 @@ int DCClient::prepareOutput(const char* spenodes)
       m_pOutputLoc = new char[strlen(localname) + 1];
       memcpy(m_pOutputLoc, localname, strlen(localname) + 1);
    }
+
+   return m_pOutput->m_iFileNum;
+}
+
+int DCClient::postProcessOutput()
+{
+   vector<string> files;
+   vector<int64_t> size;
+   vector<int64_t> recnum;
+   vector<set<Address, AddrComp> > location;
+
+   for (int i = 0; i < m_pOutput->m_iFileNum; ++ i)
+   {
+      if (m_pOutput->m_vSize[i] > 0)
+      {
+         files.push_back(m_pOutput->m_vFiles[i]);
+         size.push_back(m_pOutput->m_vSize[i]);
+         recnum.push_back(m_pOutput->m_vRecNum[i]);
+         location.push_back(m_pOutput->m_vLocation[i]);
+      }
+   }
+
+   m_pOutput->m_vFiles = files;
+   m_pOutput->m_vSize = size;
+   m_pOutput->m_vRecNum = recnum;
+   m_pOutput->m_vLocation = location;
+
+   m_pOutput->m_iFileNum = m_pOutput->m_vFiles.size();
+
+   delete [] m_pOutput->m_piLocID;
+   m_pOutput->m_piLocID = NULL;
 
    return m_pOutput->m_iFileNum;
 }

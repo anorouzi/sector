@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/08/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 
@@ -78,21 +59,22 @@ public:	// list and lookup operations
    virtual int lookup(const std::string& path, std::set<Address, AddrComp>& addr) = 0;
 
 public:	// update operations
-   virtual int create(const std::string& path, bool isdir = false) = 0;
+   virtual int create(const SNode& node) = 0;
    virtual int move(const std::string& oldpath, const std::string& newpath, const std::string& newname = "") = 0;
    virtual int remove(const std::string& path, bool recursive = false) = 0;
+   virtual int addReplica(const std::string& path, const int64_t& ts, const int64_t& size, const Address& addr) = 0;
+   virtual int removeReplica(const std::string& path, const Address& addr) = 0;
 
       // Functionality:
-      //    update the information of a file. e.g., new size, time, or replica.
+      //    update the timestamp and size information of a file
       // Parameters:
-      //    [1] fileinfo: serialized file info
-      //    [2] addr: location of the replica to be updated
-      //    [3] type: update type, size/time update or new replica
+      //    1) [in] path: file or dir name, full path
+      //    2) [in] ts: timestamp
+      //    3) [in] size: file size, when it is negative, ignore it and only update timestamp
       // Returned value:
-      //    number of replicas of the file, or -1 on error.
+      //    0 success, -1 error.
 
-   virtual int update(const std::string& fileinfo, const Address& addr, const int& type) = 0;
-   virtual int utime(const std::string& path, const int64_t& ts) = 0;
+   virtual int update(const std::string& path, const int64_t& ts, const int64_t& size = -1) = 0;
 
 public:	// lock/unlock
    virtual int lock(const std::string& path, int user, int mode);
@@ -120,7 +102,7 @@ public:	// medadata and file system operations
    virtual int64_t getTotalDataSize(const std::string& path) = 0;
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
-   virtual int getUnderReplicated(const std::string& path, std::vector<std::string>& replica, const unsigned int& thresh, const std::map<std::string, int>& special) = 0;
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special) = 0;
 
 public:
    static int parsePath(const std::string& path, std::vector<std::string>& result);
@@ -135,6 +117,11 @@ protected:
       std::set<int> m_sWriteLock;
    };
    std::map<std::string, LockSet> m_mLock;
+
+private:
+   static bool initLC();
+   static bool m_pbLegalChar[256];
+   static bool m_bInit;
 };
 
 #endif

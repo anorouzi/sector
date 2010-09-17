@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/23/2010
+   Yunhong Gu, last updated 08/23/2010
 *****************************************************************************/
 
 #include <string.h>
@@ -46,8 +27,10 @@ using namespace std;
 
 Cache::Cache():
 m_llCacheSize(0),
+m_iBlockNum(0),
 m_llMaxCacheSize(10000000),
-m_llMaxCacheTime(10000000)
+m_llMaxCacheTime(10000000),
+m_iMaxCacheBlocks(32)
 {
 
 
@@ -73,7 +56,13 @@ int Cache::setMaxCacheTime(const int64_t mt)
    return 0;
 }
 
-void Cache::update(const std::string& path, const int64_t& ts, const int64_t& size, bool first)
+int Cache::setMaxCacheBlocks(const int num)
+{
+   m_iMaxCacheBlocks = num;
+   return 0;
+}
+
+void Cache::update(const string& path, const int64_t& ts, const int64_t& size, bool first)
 {
    CMutexGuard sg(m_Lock);
 
@@ -92,17 +81,8 @@ void Cache::update(const std::string& path, const int64_t& ts, const int64_t& si
       return;
    }
 
-   // the file has been changed by others, remove all cache data
    if ((s->second.m_llTimeStamp != ts) || (s->second.m_llSize != size))
    {
-      map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
-      if (c != m_mCacheBlocks.end())
-      {
-         for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
-            delete [] i->m_pcBlock;
-         m_mCacheBlocks.erase(c);
-      }
-
       s->second.m_bChange = true;
       s->second.m_llTimeStamp = ts;
       s->second.m_llSize = size;
@@ -113,7 +93,7 @@ void Cache::update(const std::string& path, const int64_t& ts, const int64_t& si
       s->second.m_iCount ++;
 }
 
-void Cache::remove(const std::string& path)
+void Cache::remove(const string& path)
 {
    CMutexGuard sg(m_Lock);
 
@@ -124,7 +104,20 @@ void Cache::remove(const std::string& path)
 
    if (-- s->second.m_iCount == 0)
    {
-      if (m_mCacheBlocks.find(path) == m_mCacheBlocks.end())
+      map<string, list<CacheBlock> > ::iterator c = m_mCacheBlocks.find(path);
+      if (c != m_mCacheBlocks.end())
+      {
+         for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
+         {
+            delete [] i->m_pcBlock;
+            i->m_pcBlock = NULL;
+            m_llCacheSize -= i->m_llSize;
+            -- m_iBlockNum;
+         }
+
+         m_mCacheBlocks.erase(c);
+      }
+
       m_mOpenedFiles.erase(s);
    }
 }
@@ -147,7 +140,7 @@ int Cache::stat(const string& path, SNode& attr)
    return 1;
 }
 
-int Cache::insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size)
+int Cache::insert(char* block, const string& path, const int64_t& offset, const int64_t& size, const bool& write)
 {
    CMutexGuard sg(m_Lock);
 
@@ -163,21 +156,59 @@ int Cache::insert(char* block, const std::string& path, const int64_t& offset, c
    cb.m_llCreateTime = CTimer::getTime();
    cb.m_llLastAccessTime = CTimer::getTime();
    cb.m_pcBlock = block;
+   cb.m_bWrite = write;
 
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
 
-   if (c == m_mCacheBlocks.end())
-      m_mCacheBlocks[path].push_front(cb);
-   else
-      c->second.push_back(cb);
+   try
+   {
+      if (c == m_mCacheBlocks.end())
+         m_mCacheBlocks[path].push_front(cb);
+      else
+         c->second.push_front(cb);
+   }
+   catch (...)
+   {
+      return -1;
+   }
 
    m_llCacheSize += cb.m_llSize;
+   ++ m_iBlockNum;
+
+   if (write)
+   {
+      //write invalidates all caches overlap with this block
+      // TODO: optimize this
+      c = m_mCacheBlocks.find(path);
+      if (c != m_mCacheBlocks.end())
+      {
+         for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end();)
+         {
+            if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset) && !i->m_bWrite)
+            {
+               list<CacheBlock>::iterator j = i;
+               ++ i;
+               delete [] j->m_pcBlock;
+               j->m_pcBlock = NULL;
+               m_llCacheSize -= j->m_llSize;
+               -- m_iBlockNum;
+               c->second.erase(j);
+            }
+            else
+            {
+               ++ i;
+            }
+         }
+      }
+   }
+
+   // remove old caches to limit memory usage
    shrink();
 
    return 0;
 }
 
-int64_t Cache::read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size)
+int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const int64_t& size)
 {
    CMutexGuard sg(m_Lock);
 
@@ -196,10 +227,14 @@ int64_t Cache::read(const std::string& path, char* buf, const int64_t& offset, c
       {
          memcpy(buf, i->m_pcBlock + offset - i->m_llOffset, int(size));
          i->m_llLastAccessTime = CTimer::getTime();
-         // update the file's last access time; it must be equal to the block's last access time
+         // update the file's last access time; it must equal to the block's last access time
          s->second.m_llLastAccessTime = i->m_llLastAccessTime;
          return static_cast<int>(size);
       }
+
+      // search should not go further if an overlap block is found, due to possible write conflict (multiple writes on the same block)
+      if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset))
+         break;
    }
 
    return 0;
@@ -207,7 +242,7 @@ int64_t Cache::read(const std::string& path, char* buf, const int64_t& offset, c
 
 int Cache::shrink()
 {
-   if (m_llCacheSize < m_llMaxCacheSize)
+   if ((m_llCacheSize < m_llMaxCacheSize) && (m_iBlockNum < m_iMaxCacheBlocks))
       return 0;
 
    string last_file = "";
@@ -228,23 +263,80 @@ int Cache::shrink()
    }
 
    // find the block with the earliest lass access time
-   // currently we assume all blocks have equal size, so removing one block is enough for a new block
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
+
+   if (c == m_mCacheBlocks.end())
+   {
+      // this should not happen
+      return 0;
+   }
+
    latest_time = CTimer::getTime();
-   list<CacheBlock>::iterator d = c->second.begin();
+   list<CacheBlock>::iterator d = c->second.end();
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
    {
-      if (i->m_llLastAccessTime < latest_time)
+      // write cache MUST NOT be removed until the write is cleared
+      if ((i->m_llLastAccessTime < latest_time) && !i->m_bWrite)
       {
          latest_time = i->m_llLastAccessTime;
          d = i;
       }
    }
 
+   if (d == c->second.end())
+      return 0;
+
    delete [] d->m_pcBlock;
    d->m_pcBlock = NULL;
    m_llCacheSize -= d->m_llSize;
+   -- m_iBlockNum;
    c->second.erase(d);
 
    return 0;
 }
+
+char* Cache::retrieve(const string& path, const int64_t& offset, const int64_t& size)
+{
+   CMutexGuard sg(m_Lock);
+
+   map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
+   if (s == m_mOpenedFiles.end())
+      return NULL;
+
+   map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
+   if (c == m_mCacheBlocks.end())
+      return NULL;
+
+   for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
+   {
+      if ((offset == i->m_llOffset) && (size == i->m_llSize))
+         return i->m_pcBlock;
+   }
+
+   return NULL;
+}
+
+int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& size)
+{
+   CMutexGuard sg(m_Lock);
+
+   map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
+   if (s == m_mOpenedFiles.end())
+      return 0;
+
+   map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(path);
+   if (c == m_mCacheBlocks.end())
+      return 0;
+
+   for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
+   {
+      if ((offset == i->m_llOffset) && (size == i->m_llSize))
+      {
+         i->m_bWrite = false;
+         return 0;
+      }
+   }
+
+   return 0;
+}
+

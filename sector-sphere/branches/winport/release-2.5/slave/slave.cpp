@@ -1,43 +1,23 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/12/2010
+   Yunhong Gu, last updated 09/10/2010
 *****************************************************************************/
-
 
 #ifndef WIN32
     #include <netdb.h>
@@ -64,11 +44,11 @@ written by
 #endif
 
 #include "slave.h"
-#include <iostream>
 #include <dirent.h>
 
 #include "ssltransport.h"
-#include "common.h"
+#include <common.h>
+#include <iostream>
 
 using namespace std;
 
@@ -76,14 +56,20 @@ Slave::Slave():
 m_iSlaveID(-1),
 m_iDataPort(0),
 m_iLocalPort(0),
+m_iMasterPort(0),
 m_strBase("./"),
-m_pLocalFile(NULL)
+m_pLocalFile(NULL),
+m_bRunning(false),
+m_bDiskHealth(true),
+m_bNetworkHealth(true)
 {
+   CGuard::createCond(m_RunCond);
 }
 
 Slave::~Slave()
 {
    delete m_pLocalFile;
+   CGuard::releaseCond(m_RunCond);
 }
 
 int Slave::init(const char* base)
@@ -103,8 +89,6 @@ int Slave::init(const char* base)
       return -1;
    }
 
-   Transport::initialize(); // call WSAStartup on Win32 <slr>
-
    // obtain master IP address
    m_strMasterHost = m_SysConfig.m_strMasterHost;
    struct hostent* masterip = gethostbyname(m_strMasterHost.c_str());
@@ -116,6 +100,8 @@ int Slave::init(const char* base)
    char buf[64]="";
    m_strMasterIP = udt_inet_ntop(AF_INET, masterip->h_addr_list[0], buf, 64);
    m_iMasterPort = m_SysConfig.m_iMasterPort;
+
+   UDTTransport::initialize();
 
    // init GMP
    m_GMP.init(0);
@@ -138,10 +124,10 @@ int Slave::init(const char* base)
 #ifndef WIN32
    string cmd ("cp "  + m_strBase + "/slave/sphere/*.so " + m_strHomeDir + "/.sphere/perm/");
 #else
-   string dosbase = m_strBase;
-   string doshomedir = m_strHomeDir;
-   string cmd ("copy /Y /V \"" + unix_to_win_path(dosbase) + \
-       "\\slave\\sphere\\*.dll\" \""  + unix_to_win_path(doshomedir) + "\\.sphere\\perm\\\"");
+   string winbasedir = m_strBase;
+   string winhomedir = m_strHomeDir;
+   string cmd ("copy /Y /V \"" + unix_to_win_path(winbasedir) + \
+       "\\slave\\sphere\\*.dll\" \""  + unix_to_win_path(winhomedir) + "\\.sphere\\perm\\\"");
 #endif
    system(cmd.c_str());
 
@@ -324,12 +310,22 @@ void Slave::run()
 
    cout << "slave process: " << "GMP " << m_iLocalPort << " DATA " << m_DataChn.getPort() << endl;
 
-   while (true)
+   m_bRunning = true;
+
+   pthread_t worker_thread;
+#ifndef WIN32  // <slr>
+   pthread_create(&worker_thread, NULL, worker, this);
+#else
+    unsigned int ThreadID;
+    worker_thread = (HANDLE)_beginthreadex(NULL, 0, worker, this, NULL, &ThreadID);
+#endif
+
+   while (m_bRunning)
    {
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
          break;
 
-      cout << "recv cmd " << ip << " " << port << " type " << msg->getType() << endl;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "recv cmd " << ip << " " << port << " type " << msg->getType() << LogStringTag(LogTag::END);
 
       // a slave only accepts commands from the masters
       Address addr;
@@ -360,12 +356,31 @@ void Slave::run()
          processMCmd(ip, port, id, msg);
          break;
 
+      #ifdef DEBUG
+         processDebugCmd(ip, port, id, msg);
+         break;
+      #endif
+
       default:
          break;
       }
    }
 
    delete msg;
+
+#ifndef WIN32
+   pthread_join(worker_thread, NULL);
+#else
+   WaitForSingleObject(worker_thread, INFINITE);
+#endif
+
+   // TODO: check and cancel all file&spe threads
+
+   cout << "slave is stopped by master\n";
+}
+
+void Slave::close()
+{
 }
 
 int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* msg)
@@ -374,34 +389,24 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
    {
    case 1: // probe
    {
-      // calculate total available disk size
-      struct statfs slavefs;
-      statfs(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
-      m_SlaveStat.m_llAvailSize = (int64_t)slavefs.f_bfree * slavefs.f_bsize;
-      m_SlaveStat.m_llDataSize = m_pLocalFile->getTotalDataSize("/");
-
-      m_SlaveStat.refresh();
-
-      msg->setData(0, (char*)&(m_SlaveStat.m_llTimeStamp), 8);
-      msg->setData(8, (char*)&m_SlaveStat.m_llAvailSize, 8);
-      msg->setData(16, (char*)&m_SlaveStat.m_llDataSize, 8);
-      msg->setData(24, (char*)&(m_SlaveStat.m_llCurrMemUsed), 8);
-      msg->setData(32, (char*)&(m_SlaveStat.m_llCurrCPUUsed), 8);
-      msg->setData(40, (char*)&(m_SlaveStat.m_llTotalInputData), 8);
-      msg->setData(48, (char*)&(m_SlaveStat.m_llTotalOutputData), 8);
-
-      int size = (m_SlaveStat.m_mSysIndInput.size() + m_SlaveStat.m_mSysIndOutput.size() + m_SlaveStat.m_mCliIndInput.size() + m_SlaveStat.m_mCliIndOutput.size()) * 24 + 16;
-      char* buf = new char[size];
-      m_SlaveStat.serializeIOStat(buf, size);
-      msg->setData(56, buf, size);
-      delete [] buf;
       m_GMP.sendto(ip, port, id, msg);
       break;
    }
 
-   case 3: // stop
+   case 8: // stop
    {
       // stop the slave node
+
+      m_bRunning = false;
+
+#ifndef WIN32
+      m_RunLock.acquire();
+      pthread_cond_signal(&m_RunCond);
+      m_RunLock.release();
+#else
+      SetEvent(m_RunCond);
+#endif
+
       break;
    }
 
@@ -419,10 +424,10 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
    case 103: // mkdir
    {
       createDir(msg->getData());
-      char* tmp = new char[64 + strlen(msg->getData())];
-      sprintf(tmp, "created new directory %s.", msg->getData());
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      // TODO: update metatdata
+
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "created new directory " << msg->getData() << LogStringTag(LogTag::END);
+
       break;
    }
 
@@ -434,6 +439,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
       move(src, dst, newname);
+
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogStringTag(LogTag::END);
+
       break;
    }
 
@@ -458,10 +466,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 #endif
       system(sysrm.c_str());
 
-      char* tmp = new char[64 + strlen(path)];
-      sprintf(tmp, "removed directory %s.", path);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file " << path << " is deleted." << LogStringTag(LogTag::END);
 
       break;
    }
@@ -475,34 +480,41 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       ut.modtime = *(int64_t*)(msg->getData() + strlen(path) + 1);;
       utime((m_strHomeDir + path).c_str(), &ut);
 
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file " << path << " timestamp changed " << LogStringTag(LogTag::END);
+
       break;
    }
 
    case 110: // open file
    {
-      cout << "===> start file server " << ip << " " << port << endl;
-
       Param2* p = new Param2;
       p->serv_instance = this;
-      p->src_ip = msg->getData();
-      p->src_port = *(int*)(msg->getData() + 64);
-      p->dst_ip = msg->getData() + 68;
-      p->dst_port = *(int*)(msg->getData() + 132);
+      p->client_ip = msg->getData();
+      p->client_port = *(int*)(msg->getData() + 64);
       p->key = *(int*)(msg->getData() + 136);
       p->mode = *(int*)(msg->getData() + 140);
-      p->writebufsize = *(int*)(msg->getData() + 144);
-      p->transid = *(int*)(msg->getData() + 148);
-      memcpy(p->crypto_key, msg->getData() + 152, 16);
-      memcpy(p->crypto_iv, msg->getData() + 168, 8);
-      p->filename = msg->getData() + 176;
+      p->transid = *(int*)(msg->getData() + 144);
+      memcpy(p->crypto_key, msg->getData() + 148, 16);
+      memcpy(p->crypto_iv, msg->getData() + 164, 8);
+      p->filename = msg->getData() + 172;
 
       p->master_ip = ip;
       p->master_port = port;
 
-      char* tmp = new char[64 + p->filename.length()];
-      sprintf(tmp, "opened file %s from %s:%d.", p->filename.c_str(), p->src_ip.c_str(), p->src_port);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      // the slave must also lock the file IO. Because there are multiple master servers,
+      // if one master is down, locks on this file may be lost when another master take over control of the file.
+      if (m_pLocalFile->lock(p->filename, p->key, p->mode) < 0)
+      {
+         msg->setType(-msg->getType());
+         msg->m_iDataLength = SectorMsg::m_iHdrSize;
+         m_GMP.sendto(ip, port, id, msg);
+         delete p;
+         break;
+      }
+
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogStringTag(LogTag::END);
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
 #ifndef WIN32  // <slr>
       pthread_t file_handler;
@@ -532,10 +544,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      char* tmp = new char[64 + p->src.length() + p->dst.length()];
-      sprintf(tmp, "created replica %s %s.", p->src.c_str(), p->dst.c_str());
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "creating replica " << p->src << " " << p->dst << LogStringTag(LogTag::END);
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
 #ifndef WIN32  // <slr>
       pthread_t replica_handler;
@@ -591,11 +602,9 @@ printf ("~~~> processDCCmd: %d\n", msg->getType());
       p->master_ip = ip;
       p->master_port = port;
 
-      cout << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << endl;
-      char* tmp = new char[64 + p->function.length()];
-      sprintf(tmp, "starting SPE ... %d %d %s %d.", p->speid, p->client_data_port, p->function.c_str(), p->transid);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << LogStringTag(LogTag::END);
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
 #ifndef WIN32  // <slr>
       pthread_t spe_handler;
@@ -645,10 +654,9 @@ printf ("~~~> processDCCmd: %d\n", msg->getType());
       p->master_ip = ip;
       p->master_port = port;
 
-      char* tmp = new char[64 + p->filename.length()];
-      sprintf(tmp, "starting SPE Bucket... %s %d %d %d.", p->filename.c_str(), p->key, p->type, p->transid);
-      m_SectorLog.insert(tmp, 3);
-      delete [] tmp;
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "starting SPE Bucket ... " << p->filename << " " << p->key << " " << p->type << " " << p->transid << LogStringTag(LogTag::END);
+
+      m_TransManager.addSlave(p->transid, m_iSlaveID);
 
 #ifndef WIN32  // <slr>
       pthread_t spe_shuffler;
@@ -726,16 +734,41 @@ int Slave::processMCmd(const string& ip, const int port, int id, SectorMsg* msg)
    return 0;
 }
 
-int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int& change)
+#ifdef DEBUG
+int Slave::processDebugCmd(const string& ip, const int port, int id, SectorMsg* msg)
+{
+   switch (msg->getType())
+   {
+   case 9901: // enable pseudo disk error
+      m_bDiskHealth = false;
+      break;
+
+   case 9902: // enable pseudo network error
+      m_bNetworkHealth = false;
+      break;
+
+   default:
+      return -1;
+   }
+
+   return 0;
+}
+#endif
+
+int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const string& filename, const int32_t& change)
 {
    vector<string> filelist;
-   if (getFileList(filename, filelist) <= 0)
-      return 0;
+
+   if (change > 0)
+   {
+      if (getFileList(filename, filelist) <= 0)
+         return 0;
+   }
 
    return report(master_ip, master_port, transid, filelist, change);
 }
 
-int Slave::getFileList(const std::string& path, std::vector<std::string>& filelist)
+int Slave::getFileList(const string& path, vector<string>& filelist)
 {
    string abs_path = m_strHomeDir + path;
    struct stat s;
@@ -800,10 +833,10 @@ int Slave::getFileList(const std::string& path, std::vector<std::string>& fileli
    return filelist.size();
 }
 
-int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int& change)
+int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int32_t& change)
 {
    vector<string> serlist;
-   if (change > 0)
+   if (change != FileChangeType::FILE_UPDATE_NO)
    {
       for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
@@ -817,16 +850,22 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
          sn.m_llTimeStamp = s.st_mtime;
          sn.m_llSize = s.st_size;
 
-         char buf[1024];
-         sn.serialize(buf);
-
-         //update local
          Address addr;
          addr.m_strIP = "127.0.0.1";
          addr.m_iPort = 0;
-         m_pLocalFile->update(buf, addr, change);
+         sn.m_sLocation.insert(addr);
 
+         if (change == FileChangeType::FILE_UPDATE_WRITE)
+            m_pLocalFile->update(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize);
+         else if (change == FileChangeType::FILE_UPDATE_NEW)
+            m_pLocalFile->create(sn);
+         else if (change == FileChangeType::FILE_UPDATE_REPLICA)
+            m_pLocalFile->create(sn);
+
+         char* buf = NULL;
+         sn.serialize(buf);
          serlist.push_back(buf);
+         delete [] buf;
       }
    }
 
@@ -847,8 +886,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
       pos += bufsize + 4;
    }
 
-   cout << "report " << master_ip << " " << master_port << " " << num << endl;
-
+   //TODO: if the current master is down, try a different master
    if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
 
@@ -858,7 +896,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
    return 1;
 }
 
-int Slave::reportMO(const std::string& master_ip, const int& master_port, const int32_t& transid)
+int Slave::reportMO(const string& master_ip, const int& master_port, const int32_t& transid)
 {
    vector<MemObj> tba;
    vector<string> tbd;
@@ -876,9 +914,10 @@ int Slave::reportMO(const std::string& master_ip, const int& master_port, const 
          sn.m_llTimeStamp = i->m_llCreationTime;
          sn.m_llSize = 8;
 
-         char buf[1024];
+         char* buf = NULL;
          sn.serialize(buf);
          serlist.push_back(buf);
+         delete [] buf;
       }
 
       SectorMsg msg;
@@ -941,8 +980,6 @@ int Slave::reportSphere(const string& master_ip, const int& master_port, const i
       msg.setData(12 + 68 * i, (*bad)[i].m_strIP.c_str(), (*bad)[i].m_strIP.length() + 1);
       msg.setData(12 + 68 * i + 64, (char*)&((*bad)[i].m_iPort), 4);
    }
-
-   cout << "reportSphere " << master_ip << " " << master_port << " " << transid << endl;
 
    if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
       return -1;
@@ -1025,7 +1062,6 @@ int Slave::createSysDir()
        return -1;
 #endif
 
-#ifndef WIN32
    test = opendir((m_strHomeDir + ".log").c_str());
    if (NULL == test)
    {
@@ -1034,17 +1070,19 @@ int Slave::createSysDir()
    }
    closedir(test);
 
-   system(string("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
+#ifndef WIN32
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
+   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
+
 #else
    // remove subdir tree
-   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".log\"";
-   system(cmd.c_str());
+   //cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".log\"";
+   //system(cmd.c_str());
    // creat subdir
-   if (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0)
-       return -1;
+   //if (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0)
+   //    return -1;
 #endif
 
-#ifndef WIN32
    test = opendir((m_strHomeDir + ".sphere").c_str());
    if (NULL == test)
    {
@@ -1052,15 +1090,17 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
+#ifndef WIN32
+   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
+   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
 
-   system(string("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
 #else
    // remove subdir tree
-   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".sphere\"";
-   system(cmd.c_str());
+   //cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".sphere\"";
+   //system(cmd.c_str());
    // creat subdir
-   if (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0)
-       return -1;
+   //if (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0)
+   //    return -1;
 #endif
 
    test = opendir((m_strHomeDir + ".sphere/perm").c_str());
@@ -1295,7 +1335,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
 
    map<string, int64_t>::iterator a;
 
-   if (type == 0)
+   if (type == SYS_IN)
    {
       map<string, int64_t>::iterator a = m_mSysIndInput.find(ip);
       if (a == m_mSysIndInput.end())
@@ -1307,7 +1347,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalInputData += size;
    }
-   else if (type == 1)
+   else if (type == SYS_OUT)
    {
       map<string, int64_t>::iterator a = m_mSysIndOutput.find(ip);
       if (a == m_mSysIndOutput.end())
@@ -1319,7 +1359,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalOutputData += size;
    }
-   else if (type == 2)
+   else if (type == CLI_IN)
    {
       map<string, int64_t>::iterator a = m_mCliIndInput.find(ip);
       if (a == m_mCliIndInput.end())
@@ -1331,7 +1371,7 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalInputData += size;
    }
-   else if (type == 3)
+   else if (type == CLI_OUT)
    {
       map<string, int64_t>::iterator a = m_mCliIndOutput.find(ip);
       if (a == m_mCliIndOutput.end())
@@ -1346,10 +1386,10 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
 
 }
 
-int SlaveStat::serializeIOStat(char* buf, unsigned int size)
+int SlaveStat::serializeIOStat(char*& buf, int& size)
 {
-   if (size < (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16)
-      return -1;
+   size = (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
+   buf = new char[size];
 
    CMutexGuard guard (m_StatLock);
 
@@ -1393,29 +1433,90 @@ int SlaveStat::serializeIOStat(char* buf, unsigned int size)
    return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
 }
 
-void Slave::logError(int type, const string& ip, const int& port, const string& name)
+#ifndef WIN32
+void* Slave::worker(void* param)
+#else
+unsigned int WINAPI Slave::worker(void* param)
+#endif
 {
-   char* tmp = new char[64 + name.length()];
+   Slave* self = (Slave*)param;
 
-   switch (type)
+   int64_t last_report_time = CTimer::getTime();
+   int64_t last_gc_time = CTimer::getTime();
+
+   while (self->m_bRunning)
    {
-   case 1:
-      sprintf(tmp, "failed to connect to file client %s:%d %s.", ip.c_str(), port, name.c_str());
-      break;
+#ifndef WIN32
+      timeval t;
+      gettimeofday(&t, NULL);
+      timespec ts;
+      ts.tv_sec  = t.tv_sec + 30;
+      ts.tv_nsec = t.tv_usec * 1000;
 
-   case 2:
-      sprintf(tmp, "failed to connect spe client %s:%d %s.", ip.c_str(), port, name.c_str());
-      break;
+      self->m_RunLock.acquire();
+      pthread_cond_timedwait(&self->m_RunCond, &self->m_RunLock.m_Mutex, &ts);
+      self->m_RunLock.release();
+#else
+      WaitForSingleObject(self->m_RunCond, 30000);
+#endif
 
-   case 3:
-      sprintf(tmp, "failed to load spe library %s:%d %s.", ip.c_str(), port, name.c_str());
-      break;
+      // report to master every half minute
+      if (CTimer::getTime() - last_report_time < 30000000)
+         continue;
 
-   default:
-      sprintf(tmp, "unknown error.");
-      break;
+      // calculate total available disk size
+      struct statfs64 slavefs;
+      statfs64(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+      self->m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
+      self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
+
+      // users may limit the maximum disk size used by Sector
+      if (self->m_SysConfig.m_llMaxDataSize > 0)
+      {
+         int64_t avail_limit = self->m_SysConfig.m_llMaxDataSize - self->m_SlaveStat.m_llDataSize;
+         if (avail_limit < 0)
+            avail_limit = 0;
+         if (avail_limit < self->m_SlaveStat.m_llAvailSize)
+            self->m_SlaveStat.m_llAvailSize = avail_limit;
+      }
+
+      self->m_SlaveStat.refresh();
+
+      SectorMsg msg;
+      msg.setType(10);
+      msg.setKey(0);
+      msg.setData(0, (char*)&(self->m_SlaveStat.m_llTimeStamp), 8);
+      msg.setData(8, (char*)&(self->m_SlaveStat.m_llAvailSize), 8);
+      msg.setData(16, (char*)&(self->m_SlaveStat.m_llDataSize), 8);
+      msg.setData(24, (char*)&(self->m_SlaveStat.m_llCurrMemUsed), 8);
+      msg.setData(32, (char*)&(self->m_SlaveStat.m_llCurrCPUUsed), 8);
+      msg.setData(40, (char*)&(self->m_SlaveStat.m_llTotalInputData), 8);
+      msg.setData(48, (char*)&(self->m_SlaveStat.m_llTotalOutputData), 8);
+
+      char* buf = NULL;
+      int size = 0;
+      self->m_SlaveStat.serializeIOStat(buf, size);
+      msg.setData(56, buf, size);
+      delete [] buf;
+
+      map<uint32_t, Address> al;
+      self->m_Routing.getListOfMasters(al);
+
+      for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
+      {
+         int id = 0;
+         self->m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, id, &msg);
+      }
+
+      last_report_time = CTimer::getTime();
+
+      // clean broken data channels every hour
+      if (CTimer::getTime() - last_gc_time > 3600000000LL)
+      {
+         self->m_DataChn.garbageCollect();
+         last_gc_time = CTimer::getTime();
+      }
    }
 
-   m_SectorLog.insert(tmp, 2);
-   delete [] tmp;
+   return NULL;
 }

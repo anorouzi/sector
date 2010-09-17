@@ -25,8 +25,7 @@ int64_t read <br />
 (<br />
 &nbsp;&nbsp;&nbsp;char* <span class="style2">buf</span>, <br />
 &nbsp;&nbsp;&nbsp;const int64_t&amp; <span class="style2">size</span><br />
-);<br />
-</div>
+);</div>
 
 <h5>Parameters</h5>
 
@@ -41,13 +40,27 @@ int64_t read <br />
 <table width="100%" border="1" cellpadding="2" cellspacing="0" bordercolor="#CCCCCC">
   <tr>
     <td width="17%" class="table_headline"><strong>Error Name</strong></td>
-    <td width="17%" class="table_headline"><strong>Error Code</strong></td>
     <td width="83%" class="table_headline"><strong>Comment</strong></td>
   </tr>
   <tr>
-    <td>&nbsp;</td>
-    <td>&nbsp;</td>
-    <td>&nbsp;</td>
+    <td>E_FILENOTOPEN</td>
+    <td>The file has not been opened </td>
+  </tr>
+  <tr>
+    <td>E_INVALID</td>
+    <td>Invalid parameters</td>
+  </tr>
+  <tr>
+    <td>E_NOREPLICA</td>
+    <td>All replicas have been lost; cannot recover</td>
+  </tr>
+  <tr>
+    <td>E_CONNECTION</td>
+    <td>Connections to all slaves have been lost</td>
+  </tr>
+  <tr>
+    <td>E_PERMISSION</td>
+    <td>No permission to read</td>
   </tr>
 </table>
 <h5>Description</h5>

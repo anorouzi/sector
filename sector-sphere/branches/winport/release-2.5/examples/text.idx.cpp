@@ -6,6 +6,11 @@
 
 using namespace std;
 
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+}
+
 int main(int argc, char** argv)
 {
    if (argc != 2)
@@ -19,10 +24,17 @@ int main(int argc, char** argv)
    Session s;
    s.loadInfo("../conf/client.conf");
 
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+   int result = 0;
+   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   {
+      print_error(result);
       return -1;
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
+   }
+   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
+   {
+      print_error(result);
       return -1;
+   }
 
    vector<string> files;
    files.insert(files.end(), argv[1]);
@@ -40,15 +52,19 @@ int main(int argc, char** argv)
    SphereProcess* myproc = client.createSphereProcess();
 
    if (myproc->loadOperator("./funcs/gen_idx" SECTOR_DYNLIB_EXT) < 0)
+   {
+      cout << "cannot find gen_idx.so.\n";
       return -1;
+   }
 
    timeval t;
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   if (myproc->run(input, output, "gen_idx", 0) < 0)
+   result = myproc->run(input, output, "gen_idx", 0);
+   if (result < 0)
    {
-      cout << "failed to find any computing resources." << endl;
+      print_error(result);
       return -1;
    }
 

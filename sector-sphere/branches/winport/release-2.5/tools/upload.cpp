@@ -1,3 +1,24 @@
+/*****************************************************************************
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 01/12/2010
+*****************************************************************************/
+
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,8 +43,32 @@
 
 using namespace std;
 
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+}
+
 int upload(const char* file, const char* dst, Sector& client)
 {
+   //check if file already exists
+
+   struct stat64 st;
+   if (stat64(file, &st) < 0)
+   {
+      cout << "cannot locate source file " << file << endl;
+      return -1;
+   }
+
+   SNode attr;
+   if (client.stat(dst, attr) >= 0)
+   {
+      if (attr.m_llSize == st.st_size)
+      {
+         cout << "destination file " << dst << " exists on Sector FS. skip.\n";
+         return 0;
+      }
+   }
+
    CTimer timer;
    uint64_t t1 = timer.getTime();  // returns time in microseconds (usecs)
 
@@ -33,30 +78,33 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   int result = f->open(dst, SF_MODE::WRITE);
-   if (result < 0)
+   int r = f->open(dst, SF_MODE::WRITE, "", s.st_size);
+   if (r < 0)
    {
-      cout << "ERROR: code " << result << " " << SectorError::getErrorMsg(result) << endl;
+      cerr << "unable to open file " << dst << endl;
+      print_error(r);
       return -1;
    }
 
-   bool finish = true;
-   if (f->upload(file) < 0LL)
-      finish = false;
+   int64_t result = f->upload(file);
 
    f->close();
    client.releaseSectorFile(f);
 
-   if (finish)
+   if (result >= 0)
    {
       float throughput = s.st_size * 8.0f / 1000000.0f / ((timer.getTime() - t1) / 1000000.0f);
 
       cout << "Uploading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
    }
    else
+   {
       cout << "Uploading failed! Please retry. " << endl << endl;
+      print_error(result);
+      return -1;
+   }
 
-   return 1;
+   return 0;
 }
 
 int getFileList(const string& path, vector<string>& fl)
@@ -106,7 +154,7 @@ int main(int argc, char** argv)
 {
    if (3 != argc)
    {
-      cout << "usage: upload <src file/dir> <dst dir>" << endl;
+      cerr << "usage: upload <src file/dir> <dst dir>" << endl;
       return 0;
    }
 
@@ -115,11 +163,17 @@ int main(int argc, char** argv)
    Session s;
    s.loadInfo("../conf/client.conf");
 
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
+   int result = 0;
+   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   {
+      print_error(result);
       return -1;
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
+   }
+   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
+   {
+      print_error(result);
       return -1;
-
+   }
 
    vector<string> fl;
    string path = argv[1];
@@ -132,7 +186,7 @@ int main(int argc, char** argv)
       struct stat st;
       if (stat(path.c_str(), &st) < 0)
       {
-         cout << "ERROR: source file does not exist.\n";
+         cerr << "ERROR: source file does not exist.\n";
          return -1;
       }
       getFileList(path.c_str(), fl);
@@ -169,7 +223,6 @@ int main(int argc, char** argv)
       }
    }
 
-
    string olddir;
    string input_path = argv[1];
 #ifdef WIN32
@@ -194,9 +247,11 @@ int main(int argc, char** argv)
    int r = client.stat(newdir, attr);
    if ((r < 0) || (!attr.m_bIsDir))
    {
-      cout << "destination directory on Sector does not exist.\n";
+      cerr << "destination directory on Sector does not exist.\n";
       return -1;
    }
+
+   bool success = true;
 
    for (vector<string>::const_iterator i = fl.begin(); i != fl.end(); ++ i)
    {
@@ -213,11 +268,14 @@ int main(int argc, char** argv)
       if (S_ISDIR(s.st_mode))
          client.mkdir(dst);
       else
-         upload(i->c_str(), dst.c_str(), client);
+      {
+         if (upload(i->c_str(), dst.c_str(), client) < 0)
+            success = false;
+      }
    }
 
    client.logout();
    client.close();
 
-   return 1;
+   return success ? 0 : -1;
 }

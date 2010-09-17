@@ -1,3 +1,24 @@
+/*****************************************************************************
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 01/12/2010
+*****************************************************************************/
+
 #ifdef WIN32
    #include <windows.h>
    #include "dirent.h"
@@ -13,13 +34,23 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#ifndef WIN32
+    #include <sys/vfs.h>
+#endif
 #include <iostream>
-#include <sector.h>
-#include <conf.h>
+#include "sector.h"
+#include "conf.h"
 
 #include "common.h"
 
 using namespace std;
+
+void print_error(int code)
+{
+   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
+   if (code == SectorError::E_LOCALFILE)
+      perror("");
+}
 
 int download(const char* file, const char* dest, Sector& client)
 {
@@ -29,7 +60,7 @@ int download(const char* file, const char* dest, Sector& client)
    SNode attr;
    if (client.stat(file, attr) < 0)
    {
-      cout << "ERROR: cannot locate file " << file << endl;
+      cerr << "ERROR: cannot locate file " << file << endl;
       return -1;
    }
 
@@ -46,7 +77,7 @@ int download(const char* file, const char* dest, Sector& client)
 
    if (f->open(file) < 0)
    {
-      cout << "unable to locate file" << endl;
+      cerr << "unable to locate file " << file << endl;
       return -1;
    }
 
@@ -62,21 +93,22 @@ int download(const char* file, const char* dest, Sector& client)
    else
       localpath = string(dest) + string(file + sn + 1);
 
-   bool finish = true;
-   if (f->download(localpath.c_str(), true) < 0LL)
-      finish = false;
+   int64_t result = f->download(localpath.c_str(), true);
 
    f->close();
    client.releaseSectorFile(f);
 
-   if (finish)
+   if (result >= 0)
    {
       float throughput = size * 8.0f / 1000000.0f / ((timer.getTime() - t1) / 1000000.0f);
 
       cout << "Downloading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 
-      return 1;
+      return 0;
    }
+
+   cerr << "error happened during downloading " << file << endl;
+   print_error(result);
 
    return -1;
 }
@@ -110,7 +142,7 @@ int main(int argc, char** argv)
 {
    if (argc != 3)
    {
-      cout << "USAGE: download <src file/dir> <local dir>\n";
+      cerr << "USAGE: download <src file/dir> <local dir>\n";
       return -1;
    }
 
@@ -121,12 +153,12 @@ int main(int argc, char** argv)
 
    if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
    {
-      cout << "unable to connect to the server at " << argv[1] << endl;
+      cerr << "unable to connect to the server at " << argv[1] << endl;
       return -1;
    }
    if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
    {
-      cout << "login failed\n";
+      cerr << "login failed\n";
       return -1;
    }
 
@@ -138,7 +170,7 @@ int main(int argc, char** argv)
       SNode attr;
       if (client.stat(argv[1], attr) < 0)
       {
-         cout << "ERROR: source file does not exist.\n";
+         cerr << "ERROR: source file does not exist.\n";
          return -1;
       }
       getFileList(argv[1], fl, client);
@@ -159,7 +191,7 @@ int main(int argc, char** argv)
       vector<SNode> filelist;
       int r = client.list(path, filelist);
       if (r < 0)
-         cout << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+         cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
 
       for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
@@ -176,7 +208,7 @@ int main(int argc, char** argv)
    int r = stat(newdir.c_str(), &st);
    if ((r < 0) || !S_ISDIR(st.st_mode))
    {
-      cout << "ERROR: destination directory does not exist.\n";
+      cerr << "ERROR: destination directory does not exist.\n";
       return -1;
    }
 
@@ -218,7 +250,7 @@ int main(int argc, char** argv)
 
                if ((-1 == ::mkdir(substr.c_str(), S_IRWXU)) && (errno != EEXIST))
                {
-                  cout << "ERROR: unable to create local directory " << substr << endl;
+                  cerr << "ERROR: unable to create local directory " << substr << endl;
                   return -1;
                }
             }
@@ -226,16 +258,28 @@ int main(int argc, char** argv)
 
          if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
          {
-            cout << "ERROR: unable to create local directory " << localdir << endl;
-            return -1;
+            cerr << "ERROR: unable to create local directory " << localdir << endl;
+            break;
          }
       }
 
-      download(i->c_str(), localdir.c_str(), client);
+      if (download(i->c_str(), localdir.c_str(), client) < 0)
+      {
+         // calculate total available disk size
+         struct statfs64 dstinfo;
+         statfs64(newdir.c_str(), &dstinfo);
+         int64_t availdisk = dstinfo.f_bfree * dstinfo.f_bsize;
+
+         if (availdisk <= 0)
+         {
+            cerr << "insufficient local disk space. quit.\n";
+            break;
+         }
+      }
    }
 
    client.logout();
    client.close();
 
-   return 1;
+   return 0;
 }

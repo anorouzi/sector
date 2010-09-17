@@ -53,7 +53,7 @@ int MR_WORD_API mr_word_map(const SInput* input, SOutput* output, SFile* file)
          continue;
 
       char* token = NULL;
-      char* end = buffer + strlen(buffer);
+      char* end = buffer + strlen(buffer) + 1;
       bool tag = false;
       for (char* p = buffer; p != end; ++ p)
       {

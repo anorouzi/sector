@@ -1,48 +1,32 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/27/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 #include <common.h>
 #include <string.h>
 #include <meta.h>
-
+#include <iostream>
 using namespace std;
+
+bool Metadata::m_pbLegalChar[256];
+bool Metadata::m_bInit = Metadata::initLC();
 
 Metadata::Metadata()
 {
@@ -103,11 +87,10 @@ int Metadata::parsePath(const string& path, vector<string>& result)
 
    char* token = new char[path.length() + 1];
    int tc = 0;
-   for (unsigned int i = 0, n = path.length(); i < n; ++ i)
-   {
-      // check invalid/special charactor such as * ; , etc.
 
-      if (path.c_str()[i] == '/')
+   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
+   {
+      if (*p == '/')
       {
          if (tc > 0)
          {
@@ -117,7 +100,16 @@ int Metadata::parsePath(const string& path, vector<string>& result)
          }
       }
       else
-        token[tc ++] = path.c_str()[i];
+      {
+         // check legal characters
+         if (!m_pbLegalChar[int(*p)])
+         {
+            delete [] token;
+            return -1;
+         }
+
+         token[tc ++] = *p;
+      }
    }
 
    if (tc > 0)
@@ -148,6 +140,13 @@ string Metadata::revisePath(const string& path)
       }
       else
       {
+         // check legal characters
+         if (!m_pbLegalChar[int(*p)])
+         {
+            delete [] newpath;
+            return "";
+         }
+
          *np++ = *p;
          slash = false;
       }
@@ -161,4 +160,46 @@ string Metadata::revisePath(const string& path)
    delete [] newpath;
 
    return tmp;
+}
+
+bool Metadata::initLC()
+{
+   for (int i = 0; i < 256; ++ i)
+   {
+      m_pbLegalChar[i] = false;
+   }
+
+   m_pbLegalChar[32] = true; // Space
+   m_pbLegalChar[39] = true; // ' 
+   m_pbLegalChar[40] = true; // (
+   m_pbLegalChar[41] = true; // )
+   m_pbLegalChar[43] = true; // +
+   m_pbLegalChar[45] = true; // -
+   m_pbLegalChar[46] = true; // .
+
+   // 0 - 9
+   for (int i = 48; i <= 57; ++ i)
+   {
+      m_pbLegalChar[i] = true;
+   }
+
+   m_pbLegalChar[64] = true; // @
+
+   // A - Z
+   for (int i = 65; i <= 90; ++ i)
+   {
+      m_pbLegalChar[i] = true;
+   }
+
+   m_pbLegalChar[95] = true; // _
+
+   // a - z
+   for (int i = 97; i <= 122; ++ i)
+   {
+      m_pbLegalChar[i] = true;
+   }
+
+   m_pbLegalChar[126] = true; // ~
+
+   return true;
 }

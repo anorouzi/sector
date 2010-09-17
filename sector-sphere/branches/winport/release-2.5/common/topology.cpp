@@ -1,66 +1,41 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 11/11/2009
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
 
-
-
-
-
-
-#include <topology.h>
-
-#include <sys/types.h>
 #ifndef WIN32
-    #include <unistd.h>
-    #include <sys/time.h>
-    #include <sys/socket.h>
-    #include <arpa/inet.h>
+   #include <unistd.h>
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+   #include <sys/time.h>
 #endif
+#include <sys/types.h>
 #include <fstream>
-#include <iostream>
 #include <cstring>
 #include <cstdlib>
 
+#include "topology.h"
 #include "common.h"
 
 using namespace std;
+
 
 SlaveNode::SlaveNode():
 m_iNodeID(-1),
@@ -77,7 +52,6 @@ m_llCurrCPUUsed(0),
 m_llTotalInputData(0),
 m_llTotalOutputData(0),
 m_llLastUpdateTime(0),
-m_iRetryNum(0),
 m_iStatus(1),
 m_llLastVoteTime(-1)
 {
@@ -159,18 +133,18 @@ int Topology::init(const char* topoconf)
       return 0;
    }
 
-   char line[128];
+   char line[256];
    while (!ifs.eof())
    {
-      ifs.getline(line, 128);
+      ifs.getline(line, 256);
 
-      if ((strlen(line) == 0) || (line[0] == '#'))
+      if (('\0' == *line) || ('#' == *line))
          continue;
 
       // 192.168.136.0/24	/1/1
 
       unsigned int p = 0;
-      for (; p < strlen(line); ++ p)
+      for (unsigned int n = strlen(line); p < n; ++ p)
       {
          if ((line[p] == ' ') || (line[p] == '\t'))
             break;
@@ -330,7 +304,7 @@ int Topology::deserialize(const char* buf, const int& size)
 
 int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
 {
-   char buf[128];
+   char* buf = new char[strlen(ip) + 128];
    unsigned int i = 0;
    for (unsigned int n = strlen(ip); i < n; ++ i)
    {
@@ -343,7 +317,10 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
 
    in_addr addr;
    if (udt_inet_pton(AF_INET, buf, &addr) < 0)
+   {
+      delete [] buf;
       return -1;
+   }
 
 
 
@@ -369,18 +346,22 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
    unsigned int bit = strtol(buf, &p, 10);
 
    if ((p == buf) || (bit > 32) || (bit < 0))
+   {
+      delete [] buf;
       return -1;
+   }
 
    mask <<= (32 - bit);
 
+   delete [] buf;
    return 0;
 }
 
 int Topology::parseTopo(const char* topo, vector<int>& tm)
 {
-   char buf[32];
-   strncpy(buf, topo, 32);
-   int size = strlen(buf);
+   int size = strlen(topo);
+   char* buf = new char [size + 32];
+   strcpy(buf, topo);
 
    for (int i = 0; i < size; ++ i)
    {
@@ -388,11 +369,22 @@ int Topology::parseTopo(const char* topo, vector<int>& tm)
          buf[i] = '\0';
    }
 
+   tm.clear();
+
    for (int i = 0; i < size; )
    {
+      while ((buf[i] == '\0') && (i < size))
+         ++ i;
+
+      if (i >= size)
+         break;
+
+      //TODO, check atoi value
       tm.insert(tm.end(), atoi(buf + i));
       i += strlen(buf + i) + 1;
    }
+
+   delete [] buf;
 
    return tm.size();
 }

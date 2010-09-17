@@ -1,9 +1,9 @@
-#include <conf.h>
 #include <cstdlib>
 #include <string.h>
 #include <string>
 #include <fstream>
 #include <iostream>
+#include "conf.h"
 
 #ifdef WIN32
     #include <Windows.h>

@@ -173,9 +173,12 @@
     <ClInclude Include="..\..\common\tcptransport.h" />
     <ClInclude Include="..\..\common\threadpool.h" />
     <ClInclude Include="..\..\common\topology.h" />
+    <ClInclude Include="..\..\common\transaction.h" />
     <ClInclude Include="..\..\common\transport.h" />
+    <ClInclude Include="..\..\common\udttransport.h" />
     <ClInclude Include="..\..\common\win\dirent.h" />
     <ClInclude Include="..\..\common\win\statfs.h" />
+    <ClInclude Include="..\..\common\writelog.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\common\conf.cpp" />
@@ -192,15 +195,17 @@
     <ClCompile Include="..\..\common\snode.cpp" />
     <ClCompile Include="..\..\common\sphere.cpp" />
     <ClCompile Include="..\..\common\ssltransport.cpp" />
-    <ClCompile Include="..\..\common\sysstat.cpp" />
     <ClCompile Include="..\..\common\tcptransport.cpp" />
     <ClCompile Include="..\..\common\threadpool.cpp" />
     <ClCompile Include="..\..\common\topology.cpp" />
+    <ClCompile Include="..\..\common\transaction.cpp" />
     <ClCompile Include="..\..\common\transport.cpp" />
+    <ClCompile Include="..\..\common\udttransport.cpp" />
     <ClCompile Include="..\..\common\win\access.cpp" />
     <ClCompile Include="..\..\common\win\canonicalize.cpp" />
     <ClCompile Include="..\..\common\win\dirent.cpp" />
     <ClCompile Include="..\..\common\win\statfs.cpp" />
+    <ClCompile Include="..\..\common\writelog.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

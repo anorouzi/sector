@@ -1,41 +1,22 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+   http://www.apache.org/licenses/LICENSE-2.0
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
-
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
 *****************************************************************************/
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 06/01/2010
+   Yunhong Gu, last updated 09/02/2010
 *****************************************************************************/
 
 
@@ -83,9 +64,10 @@ int Index::list(const string& path, vector<string>& filelist)
          if (depth != dir.size())
             return SectorError::E_NOEXIST;
 
-         char buf[4096];
-         s->second.serialize(buf);
-         filelist.insert(filelist.end(), buf);
+         char* buf = NULL;
+         if (s->second.serialize(buf) >= 0)
+            filelist.insert(filelist.end(), buf);
+         delete [] buf;
          return 1;
       }
 
@@ -96,9 +78,10 @@ int Index::list(const string& path, vector<string>& filelist)
    filelist.clear();
    for (map<string, SNode>::iterator i = currdir->begin(); i != currdir->end(); ++ i)
    {
-      char buf[4096];
-      i->second.serialize(buf);
-      filelist.insert(filelist.end(), buf);
+      char* buf = NULL;
+      if (i->second.serialize(buf) >= 0)
+         filelist.insert(filelist.end(), buf);
+      delete [] buf;
    }
 
    return filelist.size();
@@ -216,12 +199,12 @@ int Index::lookup(const string& path, set<Address, AddrComp>& addr)
    return addr.size();
 }
 
-int Index::create(const string& path, bool isdir)
+int Index::create(const SNode& node)
 {
    CMutexGuard mg(m_MetaLock);
 
    vector<string> dir;
-   if (parsePath(path, dir) <= 0)
+   if (parsePath(node.m_strName.c_str(), dir) <= 0)
       return -3;
 
    if (dir.empty())
@@ -231,6 +214,7 @@ int Index::create(const string& path, bool isdir)
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
+   string filename;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
       s = currdir->find(*d);
@@ -244,6 +228,8 @@ int Index::create(const string& path, bool isdir)
          (*currdir)[*d] = n;
          s = currdir->find(*d);
 
+         filename = *d;
+
          found = false;
       }
       currdir = &(s->second.m_mDirectory);
@@ -253,7 +239,9 @@ int Index::create(const string& path, bool isdir)
    if (found)
       return -1;
 
-   s->second.m_bIsDir = isdir;
+   // node initially contains full path name, revise it to file name only
+   s->second = node;
+   s->second.m_strName = filename;
 
    return 0;
 }
@@ -359,23 +347,14 @@ int Index::remove(const string& path, bool recursive)
    return 0;
 }
 
-int Index::update(const string& fileinfo, const Address& loc, const int& type)
+int Index::addReplica(const string& path, const int64_t& ts, const int64_t& size, const Address& addr)
 {
    CMutexGuard mg(m_MetaLock);
 
-   SNode sn;
-   sn.deserialize(fileinfo.c_str());
-   sn.m_sLocation.insert(loc);
-
    vector<string> dir;
-   parsePath(sn.m_strName.c_str(), dir);
-
+   parsePath(path.c_str(), dir);
    if (dir.empty())
       return -1;
-
-   string filename = *(dir.rbegin());
-   sn.m_strName = filename;
-   dir.erase(dir.begin() + dir.size() - 1);
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
@@ -384,72 +363,48 @@ int Index::update(const string& fileinfo, const Address& loc, const int& type)
       s = currdir->find(*d);
       if (s == currdir->end())
       {
-         if ((type == 3) || (type == 2))
-         {
-            // this is for new files only
-            return -1;
-         }
-
-         SNode n;
-         n.m_strName = *d;
-         n.m_bIsDir = true;
-         n.m_llTimeStamp = sn.m_llTimeStamp;
-         n.m_llSize = 0;
-         (*currdir)[*d] = n;
-         s = currdir->find(*d);
+         // file does not exist, return error
+         return SectorError::E_NOEXIST;
       }
-
-      s->second.m_llTimeStamp = sn.m_llTimeStamp;
-
       currdir = &(s->second.m_mDirectory);
    }
 
-   s = currdir->find(filename);
-   if (s == currdir->end())
-   {
-      if ((type == 3) || (type == 2))
-      {
-         // this is for new files only
-         return -1;
-      }
+   if ((s->second.m_llSize != size) || (s->second.m_llTimeStamp != ts))
+      return -1;
 
-      (*currdir)[filename] = sn;
-      return 1;
-   }
-   else
-   {
-      if ((type == 1) || (type == 2))
-      {
-         // modification to an existing copy
-         // this maybe a new file and the master already registered the file when it is created, so it is treated as an existing file too
-	 if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
-         {
-            s->second.m_llSize = sn.m_llSize;
-            s->second.m_llTimeStamp = sn.m_llTimeStamp;
-            s->second.m_sLocation.insert(loc);
-         }
+   s->second.m_sLocation.insert(addr);
 
-         return s->second.m_sLocation.size();
-      }
-
-      if (type == 3)
-      {
-         // a new replica
-         if (s->second.m_sLocation.find(loc) != s->second.m_sLocation.end())
-            return -1;
-
-         if ((s->second.m_llSize != sn.m_llSize) || (s->second.m_llTimeStamp != sn.m_llTimeStamp))
-            return -1;
-
-         s->second.m_sLocation.insert(loc);
-         return s->second.m_sLocation.size();
-      }
-   }
-
-   return -1;
+   return 0;
 }
 
-int Index::utime(const string& path, const int64_t& ts)
+int Index::removeReplica(const string& path, const Address& addr)
+{
+   CMutexGuard mg(m_MetaLock);
+
+   vector<string> dir;
+   parsePath(path.c_str(), dir);
+   if (dir.empty())
+      return -1;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+      {
+         // file does not exist, return error
+         return SectorError::E_NOEXIST;
+      }
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   s->second.m_sLocation.erase(addr);
+
+   return 0;
+}
+
+int Index::update(const string& path, const int64_t& ts, const int64_t& size)
 {
    CMutexGuard mg(m_MetaLock);
 
@@ -470,7 +425,12 @@ int Index::utime(const string& path, const int64_t& ts)
       currdir = &(s->second.m_mDirectory);
    }
 
+   // sometime it may be necessary to update timestamp only. In this case size should be set to <0.
+   if (size >= 0)
+      s->second.m_llSize = size;
+
    s->second.m_llTimeStamp = ts;
+
    return 1;
 }
 
@@ -674,7 +634,7 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
    return collectDataInfo(file, *currdir, result);
 }
 
-int Index::getUnderReplicated(const string& path, vector<string>& replica, const unsigned int& thresh, const map<string, int>& special)
+int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
 {
    CMutexGuard mg(m_MetaLock);
 
@@ -693,7 +653,7 @@ int Index::getUnderReplicated(const string& path, vector<string>& replica, const
       currdir = &(s->second.m_mDirectory);
    }
 
-   return getUnderReplicated(path, *currdir, replica, thresh, special);
+   return checkReplica(path, *currdir, under, over, thresh, special);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -702,9 +662,9 @@ int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
-      char* buf = new char[i->first.length() + 64];
-      i->second.serialize(buf);
-      ofs << level << " " << buf << endl;
+      char* buf = NULL;
+      if (i->second.serialize(buf) >= 0)
+         ofs << level << " " << buf << endl;
       delete [] buf;
 
       if (i->second.m_bIsDir)
@@ -980,7 +940,7 @@ int Index::collectDataInfo(const string& path, map<string, SNode>& currdir, vect
    return result.size();
 }
 
-int Index::getUnderReplicated(const string& path, map<string, SNode>& currdir, vector<string>& replica, const unsigned int& thresh, const map<string, int>& special)
+int Index::checkReplica(const string& path, map<string, SNode>& currdir, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
@@ -1027,13 +987,15 @@ int Index::getUnderReplicated(const string& path, map<string, SNode>& currdir, v
             curr_rep_num = i->second.m_sLocation.size();
 
          if (curr_rep_num < d)
-           replica.push_back(abs_path);
+           under.push_back(abs_path);
+         else if (curr_rep_num > d)
+           over.push_back(abs_path);
       }
       else
-         getUnderReplicated(abs_path, i->second.m_mDirectory, replica, thresh, special);
+         checkReplica(abs_path, i->second.m_mDirectory, under, over, thresh, special);
    }
 
-   return replica.size();
+   return 0;
 }
 
 int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string>& filelist)
@@ -1048,4 +1010,3 @@ int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string
 
    return filelist.size();
 }
-
