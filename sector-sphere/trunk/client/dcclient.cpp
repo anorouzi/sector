@@ -426,6 +426,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
 
       int progress = *(int32_t*)(msg.getData() + 4);
       s->second.m_LastUpdateTime = CTimer::getTime();
+
       if (progress < 0)
       {
          cerr << "SPE PROCESSING ERROR " << ip << " " << port << endl;
@@ -455,10 +456,18 @@ DWORD WINAPI DCClient::run(LPVOID param)
          SetEvent(self->m_ResCond);
 #endif
 
+         if (progress == -2)
+         {
+            // error occured to this SPE
+            s->second.m_iStatus = -1;
+         }
+
          continue;
       }
+
       if (progress > s->second.m_iProgress)
          s->second.m_iProgress = progress;
+
       if (progress < 100)
          continue;
 

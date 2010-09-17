@@ -107,6 +107,7 @@ void* Slave::fileHandler(void* p)
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
 cout << "debug output: file command " << cmd << endl;
+
       switch (cmd)
       {
       case 1: // read
