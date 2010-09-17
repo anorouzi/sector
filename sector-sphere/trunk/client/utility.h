@@ -30,6 +30,7 @@ written by
    #pragma warning( disable: 4251 )
 #endif
 
+#include <conf.h>
 #include <sector.h>
 
 class SECTOR_API WildCard
