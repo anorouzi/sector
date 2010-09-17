@@ -27,7 +27,7 @@ all: libcommon.so libcommon.a
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libcommon.so: $(OBJS)
-	$(C++) -shared -o $@ $^
+	$(C++) -shared -o $@ $^ $(LDFLAGS)
 
 libcommon.a: $(OBJS)
 	ar -rcs $@ $^

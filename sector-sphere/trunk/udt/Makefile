@@ -11,7 +11,7 @@ all: libudt.so libudt.a
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libudt.so: $(OBJS)
-	$(C++) -shared -o $@ $^
+	$(C++) -shared -o $@ $^ $(LDFLAGS)
 
 libudt.a: $(OBJS)
 	ar -rcs $@ $^
