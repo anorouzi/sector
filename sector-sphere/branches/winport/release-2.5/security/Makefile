@@ -16,7 +16,7 @@ all: libsecurity.so libsecurity.a sserver ssl_cert_gen
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libsecurity.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -Wl,--build-id -L../lib -ludt -lcommon -lssl -lcrypto
+	$(C++) -shared -o $@ $^ -L../lib -ludt -lcommon -lssl -lcrypto
 
 libsecurity.a: $(OBJS)
 	ar -rcs $@ $^
@@ -32,4 +32,4 @@ clean:
 
 install:
 	mv libsecurity.so libsecurity.a ../lib
-	./ssl_cert_gen security
+	LD_LIBRARY_PATH=../lib ./ssl_cert_gen security

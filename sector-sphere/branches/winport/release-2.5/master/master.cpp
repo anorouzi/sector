@@ -2704,7 +2704,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       timespec to;
       to.tv_sec = currtime.tv_sec + 60;
       to.tv_nsec = currtime.tv_usec * 1000;
-      pthread_cond_timedwait(&self->m_ReplicaCond, &self->m_ReplicaLock, &to);
+      pthread_cond_timedwait(&self->m_ReplicaCond, &self->m_ReplicaLock.m_Mutex, &to);
 #else
       WaitForSingleObject(self->m_ReplicaCond, 60000);
 #endif

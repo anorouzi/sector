@@ -16,7 +16,7 @@ all: libmaster.so libmaster.a start_master start_all stop_all
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libmaster.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -Wl,--build-id -L../lib  -lrpc -lsecurity -lcommon -ludt -lssl -lcrypto
+	$(C++) -shared -o $@ $^ -L../lib  -lrpc -lsecurity -lcommon -ludt -lssl -lcrypto
 
 libmaster.a: $(OBJS)
 	ar -rcs $@ $^
@@ -35,4 +35,4 @@ clean:
 
 install:
 	mv libmaster.so libmaster.a ../lib
-	../security/ssl_cert_gen master
+	LD_LIBRARY_PATH=../lib ../security/ssl_cert_gen master

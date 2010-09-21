@@ -452,10 +452,10 @@ unsigned int WINAPI DCClient::run(void * param)
          ++ self->m_iProgress;
 
 #ifndef WIN32
-         pthread_mutex_lock(&self->m_ResLock);
+         self->m_ResLock.acquire();
          ++ self->m_iAvailRes;
          pthread_cond_signal(&self->m_ResCond);
-         pthread_mutex_unlock(&self->m_ResLock);
+         self->m_ResLock.release();
 #else
          ++ self->m_iAvailRes;
          SetEvent(self->m_ResCond);
@@ -665,10 +665,10 @@ int DCClient::checkSPE()
                ++ m_iProgress;
 
 #ifndef WIN32
-               pthread_mutex_lock(&m_ResLock);
+               m_ResLock.acquire();
                ++ m_iAvailRes;
                pthread_cond_signal(&m_ResCond);
-               pthread_mutex_unlock(&m_ResLock);
+               m_ResLock.release();
 #else
                ++ m_iAvailRes;
                SetEvent(m_ResCond);
@@ -860,7 +860,7 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       timeout.tv_nsec = now.tv_usec * 1000;
 
       m_ResLock.acquire();
-      int retcode = pthread_cond_timedwait(&m_ResCond, &m_ResLock, &timeout);
+      int retcode = pthread_cond_timedwait(&m_ResCond, &m_ResLock.m_Mutex, &timeout);
       m_ResLock.release();
 
       if (retcode == ETIMEDOUT)
@@ -1462,10 +1462,10 @@ int DCClient::readResult(SPE* s)
    ++ m_iProgress;
 
 #ifndef WIN32
-   pthread_mutex_lock(&m_ResLock);
+   m_ResLock.acquire();
    ++ m_iAvailRes;
    pthread_cond_signal(&m_ResCond);
-   pthread_mutex_unlock(&m_ResLock);
+   m_ResLock.release();
 #else
    ++ m_iAvailRes;
    SetEvent(m_ResCond);
