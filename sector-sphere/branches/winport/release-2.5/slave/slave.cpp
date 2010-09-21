@@ -127,7 +127,7 @@ int Slave::init(const char* base)
    string winbasedir = m_strBase;
    string winhomedir = m_strHomeDir;
    string cmd ("copy /Y /V \"" + unix_to_win_path(winbasedir) + \
-       "\\slave\\sphere\\*.dll\" \""  + unix_to_win_path(winhomedir) + "\\.sphere\\perm\\\"");
+       "\\bin\\sphere\\*.dll\" \""  + unix_to_win_path(winhomedir) + "\\.sphere\\perm\\\"");
 #endif
    system(cmd.c_str());
 

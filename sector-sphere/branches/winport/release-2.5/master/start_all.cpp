@@ -28,7 +28,7 @@ int main()
    // NOTE: there is NO 'nohup' option in start cmd
    // TODO: Add options to run master as a NT service (i.e., use srvany), requires admin rights.
    // or would ssh work?
-   string cmd = string("start " + sector_home + "/master/start_master.exe > NULL");
+   string cmd = string("start " + sector_home + "/bin/start_master.exe > NULL");
 #endif
    system(cmd.c_str());
 
@@ -98,7 +98,11 @@ int main()
       addr = addr.substr(0, addr.find(' '));
 
       //TODO: source .bash_profile to include more environments variables
+#ifndef WIN32
       system((string("ssh ") + addr + " \"" + base + "/slave/start_slave " + base + " &> /dev/null &\" &").c_str());
+#else
+      system((string("ssh ") + addr + " \"" + base + "/bin/start_slave " + base + " &> /dev/null &\" &").c_str());
+#endif
 
       cout << "start slave at " << addr << endl;
    }

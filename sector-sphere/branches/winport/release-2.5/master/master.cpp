@@ -429,8 +429,13 @@ int Master::run()
             m_SectorLog.insert(("Restart slave " + sa->second.m_strAddr + " " + sa->second.m_strBase).c_str());
 
             // kill and restart the slave
+#ifndef WIN32
             system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
             system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+#else
+            system((string("ssh ") + sa->second.m_strAddr + " taskkill /F /IM start_master.exe").c_str());
+            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/bin/start_slave " + sa->second.m_strBase + " &> NULL &\"").c_str());
+#endif
          }
       }
 

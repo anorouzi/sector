@@ -49,6 +49,12 @@ int ConfLocation::locate(string& loc)
    char* system_env = getenv("SECTOR_HOME");
    if (NULL != system_env)
       loc = system_env;
+#ifdef WIN32
+    win_to_unix_path (loc);
+#ifdef _DEBUG
+    printf ("Config: %s\n", (loc + "/conf").c_str());
+#endif
+#endif
 
    if (stat((loc + "/conf").c_str(), &t) == 0)
       return 0;
