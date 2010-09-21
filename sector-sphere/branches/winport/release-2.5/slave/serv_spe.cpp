@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/16/2010
 *****************************************************************************/
 
 #include <slave.h>
@@ -242,39 +242,40 @@ void SPEDestination::reset(const int& buckets)
    delete (Param4*)p;
 
    SectorMsg msg;
+   bool init_success = true;
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect " << ip << " " << dataport << LogStringTag(LogTag::END);
 
    if (self->m_DataChn.connect(ip, dataport) < 0)
    {
       self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "failed to connect to spe client " << ip << ":" << ctrlport << " " << function << LogStringTag(LogTag::END);
-      return NULL;
+      init_success = false;
    }
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "connected." << LogStringTag(LogTag::END);
 
    // read outupt parameters
-   int buckets;
+   int buckets = 0;
    if (self->m_DataChn.recv4(ip, dataport, transid, buckets) < 0)
-      return NULL;
+      init_success = false;
 
    SPEDestination dest;
    if (buckets > 0)
    {
       if (self->m_DataChn.recv4(ip, dataport, transid, dest.m_iLocNum) < 0)
-         return NULL;
+         init_success = false;
       int len = dest.m_iLocNum * 80;
       if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
-         return NULL;
+         init_success = false;
       len = buckets * 4;
       if (self->m_DataChn.recv(ip, dataport, transid, (char*&)dest.m_piLocID, len) < 0)
-         return NULL;
+         init_success = false;
    }
    else if (buckets < 0)
    {
-      int32_t len;
+      int32_t len = 0;
       if (self->m_DataChn.recv(ip, dataport, transid, dest.m_pcOutputLoc, len) < 0)
-         return NULL;
+         init_success = false;
       dest.m_strLocalFile = dest.m_pcOutputLoc;
    }
    dest.init(buckets);
@@ -290,18 +291,23 @@ void SPEDestination::reset(const int& buckets)
    if (NULL == lh)
    {
       self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "failed to open SPE library " << ip << ":" << ctrlport << " " << function << LogStringTag(LogTag::END);
-      return NULL;
+      init_success = false;
    }
 
-   if (type == 0) {
-      if (self->getSphereFunc(lh, function, process) != 0 )
-          return NULL;
-   } else if (type == 1) {
-      if (self->getMapFunc(lh, function, map, partition) != 0 )
-          return NULL;
-   } else
-      return NULL;
-
+   if (type == 0)
+   {
+      if (self->getSphereFunc(lh, function, process) < 0)
+         init_success = false;
+   }
+   else if (type == 1)
+   {
+      if (self->getMapFunc(lh, function, map, partition) < 0)
+         init_success = false;
+   }
+   else
+   {
+      init_success = false;
+   }
 
    timeval t1, t2, t3, t4;
    gettimeofday(&t1, 0);
@@ -313,7 +319,7 @@ void SPEDestination::reset(const int& buckets)
    result.init(buckets);
 
    // processing...
-   while (true)
+   while (init_success)
    {
       char* dataseg = NULL;
       int size = 0;
@@ -545,26 +551,40 @@ void SPEDestination::reset(const int& buckets)
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
-
-   self->closeLibrary(lh);
-
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "comp server closed " << ip << " " << ctrlport << " " << duration << LogStringTag(LogTag::END);
 
    delete [] param;
 
-   multimap<int64_t, Address> sndspd;
-   for (int i = 0; i < dest.m_iLocNum; ++ i)
-   {
-      Address addr;
-      addr.m_strIP = dest.m_pcOutputLoc + i * 80;
-      addr.m_iPort = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 64);
-      int dataport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 68);
-      int64_t spd = self->m_DataChn.getRealSndSpeed(addr.m_strIP, dataport);
-      if (spd > 0)
-         sndspd.insert(pair<int64_t, Address>(spd, addr));
-   }
    vector<Address> bad;
-   self->checkBadDest(sndspd, bad);
+
+   if (init_success)
+   {
+      self->closeLibrary(lh);
+
+      multimap<int64_t, Address> sndspd;
+      for (int i = 0; i < dest.m_iLocNum; ++ i)
+      {
+         Address addr;
+         addr.m_strIP = dest.m_pcOutputLoc + i * 80;
+         addr.m_iPort = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 64);
+         int dataport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 68);
+         int64_t spd = self->m_DataChn.getRealSndSpeed(addr.m_strIP, dataport);
+         if (spd > 0)
+            sndspd.insert(pair<int64_t, Address>(spd, addr));
+      }
+      vector<Address> bad;
+      self->checkBadDest(sndspd, bad);
+   }
+   else
+   {
+      // this SPE failed to initialize. send the error to the client
+      // send error code -2 
+      int progress = -2;
+      msg.setData(4, (char*)&progress, 4);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
+      int id = 0;
+      self->m_GMP.sendto(ip.c_str(), ctrlport, id, &msg);
+   }
 
    self->reportSphere(master_ip, master_port, transid, &bad);
 
@@ -590,47 +610,58 @@ void SPEDestination::reset(const int& buckets)
    int bucketnum = ((Param5*)p)->bucketnum;
    CGMP* gmp = ((Param5*)p)->gmp;
    string function = ((Param5*)p)->function;
+   int bucketid = ((Param5*)p)->bucketid;
    const int key = ((Param5*)p)->key;
    const int type = ((Param5*)p)->type;
+   string master_ip = ((Param5*)p)->master_ip;
+   int master_port = ((Param5*)p)->master_port;
+
+   queue<Bucket>* bq = NULL;
+   CMutex * bqlock = NULL;
+   pthread_cond_t* bqcond = NULL;
+   int64_t* pendingSize = NULL;
+   pthread_t shufflerex;
+
+   bool init_success = true;
 
    //set up data connection, for keep-alive purpose
    if (self->m_DataChn.connect(client_ip, client_data_port) < 0)
-      return NULL;
+   {
+      init_success = false;
+   }
+   else
+   {
+      // read library files for MapReduce, no need for Sphere UDF
+      if (type == 1)
+         self->acceptLibrary(key, client_ip, client_data_port, transid);
 
-   // read library files for MapReduce, no need for Sphere UDF
-   if (type == 1)
-      self->acceptLibrary(key, client_ip, client_data_port, transid);
-
-   queue<Bucket>* bq = new queue<Bucket>;
-   CMutex * bqlock = new CMutex();
-
-   pthread_cond_t* bqcond = new pthread_cond_t;
-#ifndef WIN32   // <slr>
-   pthread_cond_init(bqcond, NULL);
+      bq = new queue<Bucket>;
+      bqlock = new CMutex();
+      bqcond = new pthread_cond_t;
+#ifndef WIN32
+      pthread_cond_init(bqcond, NULL);
 #else
-   *bqcond = CreateEvent(NULL, false, false, NULL);
+      *bqcond = CreateEvent(NULL, false, false, NULL);
 #endif
-   int64_t* pendingSize = new int64_t;
-   *pendingSize = 0;
+      pendingSize = new int64_t;
+      *pendingSize = 0;
 
-   ((Param5*)p)->bq = bq;
-   ((Param5*)p)->bqlock = bqlock;
-   ((Param5*)p)->bqcond = bqcond;
-   ((Param5*)p)->pending = pendingSize;
+      ((Param5*)p)->bq = bq;
+      ((Param5*)p)->bqlock = bqlock;
+      ((Param5*)p)->bqcond = bqcond;
+      ((Param5*)p)->pending = pendingSize;
 
 #ifndef WIN32
-   pthread_t ex;
-   pthread_create(&ex, NULL, SPEShufflerEx, p);
-   pthread_detach(ex);
+      pthread_create(&shufflerex, NULL, SPEShufflerEx, p);
 #else
-   unsigned int ThreadID;
-   HANDLE hThread = (HANDLE)_beginthreadex(NULL, 0, SPEShufflerEx, p, NULL, &ThreadID);
-   CloseHandle (hThread);
+      unsigned int ThreadID;
+      shufflerex = (HANDLE)_beginthreadex(NULL, 0, SPEShufflerEx, p, NULL, &ThreadID);
 #endif
 
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogStringTag(LogTag::END);
+   }
 
-   while (true)
+   while (init_success)
    {
       string speip;
       int speport;
@@ -695,8 +726,40 @@ void SPEDestination::reset(const int& buckets)
       }
    }
 
+   if (init_success)
+   {
+#ifndef WIN32
+      pthread_join(shufflerex, NULL);
+#else
+      WaitForSingleObject(shufflerex, INFINITE);
+#endif
+
+      //pthread_mutex_destroy(bqlock); // CMutex destructor takes care of this <slr>
+#ifndef WIN32
+      pthread_cond_destroy(bqcond);
+#else
+      CloseHandle(*bqcond);
+#endif
+      delete bqlock;
+      delete bqcond;
+      delete pendingSize;
+
+      SectorMsg msg;
+      msg.setType(1); // success, return result
+      msg.setData(0, (char*)&(bucketid), 4);
+      int progress = 100;
+      msg.setData(4, (char*)&progress, 4);
+      msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
+      int id = 0;
+      self->m_GMP.sendto(client_ip.c_str(), client_port, id, &msg);
+
+      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "bucket completed 100 " << client_ip << " " << client_port << LogStringTag(LogTag::END);
+   }
+
    gmp->close();
    delete gmp;
+
+   self->reportSphere(master_ip, master_port, transid);
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
@@ -712,22 +775,18 @@ void SPEDestination::reset(const int& buckets)
 {
    Slave* self = ((Param5*)p)->serv_instance;
    int transid = ((Param5*)p)->transid;
-   string client_ip = ((Param5*)p)->client_ip;
-   int client_port = ((Param5*)p)->client_ctrl_port;
-   //int client_data_port = ((Param5*)p)->client_data_port;
    string path = ((Param5*)p)->path;
    string localfile = ((Param5*)p)->filename;
    int bucketnum = ((Param5*)p)->bucketnum;
-   int bucketid = ((Param5*)p)->bucketid;
    const int key = ((Param5*)p)->key;
    const int type = ((Param5*)p)->type;
    string function = ((Param5*)p)->function;
+   string master_ip = ((Param5*)p)->master_ip;
+   int master_port = ((Param5*)p)->master_port;
    queue<Bucket>* bq = ((Param5*)p)->bq;
    CMutex * bqlock = ((Param5*)p)->bqlock;
    pthread_cond_t* bqcond = ((Param5*)p)->bqcond;
    int64_t* pendingSize = ((Param5*)p)->pending;
-   string master_ip = ((Param5*)p)->master_ip;
-   int master_port = ((Param5*)p)->master_port;
    delete (Param5*)p;
 
    self->createDir(path);
@@ -826,15 +885,6 @@ void SPEDestination::reset(const int& buckets)
       self->m_SlaveStat.updateIO(speip, b.totalsize, +SlaveStat::SYS_IN);
    }
 
-#ifndef WIN32
-   pthread_cond_destroy(bqcond);
-#else
-   CloseHandle(*bqcond);
-#endif
-   delete bqlock;
-   delete bqcond;
-   delete pendingSize;
-
    // sort and reduce
    if (type == 1)
    {
@@ -862,7 +912,6 @@ void SPEDestination::reset(const int& buckets)
       }
    }
 
-
    // report sphere output files
    char* tmp = new char[path.length() + localfile.length() + 64];
    vector<string> filelist;
@@ -876,19 +925,6 @@ void SPEDestination::reset(const int& buckets)
    delete [] tmp;
 
    self->report(master_ip, master_port, transid, filelist, 1);
-
-   self->reportSphere(master_ip, master_port, transid);
-
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "bucket completed 100 " << client_ip << " " << client_port << LogStringTag(LogTag::END);
-
-   SectorMsg msg;
-   msg.setType(1); // success, return result
-   msg.setData(0, (char*)&(bucketid), 4);
-   int progress = 100;
-   msg.setData(4, (char*)&progress, 4);
-   msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
-   int id = 0;
-   self->m_GMP.sendto(client_ip.c_str(), client_port, id, &msg);
 
    return NULL;
 }
@@ -1143,6 +1179,9 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
 
 int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& process)
 {
+   if (NULL == lh)
+      return -1;
+
    process = (SPHERE_PROCESS)dlsym(lh, function.c_str());
    if (NULL == process)
    {
@@ -1155,6 +1194,9 @@ int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& proce
 
 int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITION& partition)
 {
+   if (NULL == lh)
+      return -1;
+
    map = (MR_MAP)dlsym(lh, (function + "_map").c_str());
 
    partition = (MR_PARTITION)dlsym(lh, (function + "_partition").c_str());
@@ -1169,6 +1211,9 @@ int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITIO
 
 int Slave::getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, MR_REDUCE& reduce)
 {
+   if (NULL == lh)
+      return -1;
+
    reduce = (MR_REDUCE)dlsym(lh, (function + "_reduce").c_str());
 
    compare = (MR_COMPARE)dlsym(lh, (function + "_compare").c_str());
@@ -1184,6 +1229,9 @@ int Slave::getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, 
 
 int Slave::closeLibrary(void* lh)
 {
+   if (NULL == lh)
+      return -1;
+
    return dlclose(lh);
 }
 
@@ -1487,11 +1535,11 @@ int Slave::readSectorFile(const string& filename, const int64_t& offset, const i
       return -1;
 
    char* tmp = NULL;
-   int recvsize = size;
+   int recvsize = static_cast<int>(size);
    if (m_DataChn.recv(srcip, srcport, session, tmp, recvsize) < 0)
       return -1;
    if (recvsize == size)
-      memcpy(buf, tmp, size);
+      memcpy(buf, tmp, static_cast<size_t>(size));
    delete [] tmp;
 
    // file close command: 5
@@ -1505,5 +1553,5 @@ int Slave::readSectorFile(const string& filename, const int64_t& offset, const i
    if (recvsize != size)
       return -1;
 
-   return size;
+   return static_cast<int>(size);
 }

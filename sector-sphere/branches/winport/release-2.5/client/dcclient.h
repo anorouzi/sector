@@ -24,7 +24,7 @@ written by
 
 #include "client.h"
 
-class DCClient
+class SECTOR_API DCClient
 {
 friend class Client;
 

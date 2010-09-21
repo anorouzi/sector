@@ -10,7 +10,7 @@ all: librpc.so librpc.a
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 librpc.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -lcommon -lssl -lcrypto -ludt -L../lib
+	$(C++) -shared -o $@ $^ $(LDFLAGS)
 
 librpc.a: $(OBJS)
 	ar -rcs $@ $^

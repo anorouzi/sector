@@ -23,13 +23,9 @@ written by
 #include <iostream>
 #include <sector.h>
 #include <conf.h>
+#include <utility.h>
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 void help()
 {
@@ -52,7 +48,7 @@ int main(int argc, char** argv)
    int result = 0;
    if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
       return -1;
    }
 
@@ -65,7 +61,7 @@ int main(int argc, char** argv)
 
    if ((result = client.login("root", passwd, s.m_ClientConf.m_strCertificate.c_str())) < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
       return -1;
    }
 
@@ -94,7 +90,7 @@ int main(int argc, char** argv)
    }
 
    if (result < 0)
-      print_error(result);
+      Utility::print_error(result);
    else if (result >= 0)
       cout << "shutdown is successful. If you only shut down part of the system, run sector_sysinfo to check\n";
 

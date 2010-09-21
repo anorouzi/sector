@@ -354,6 +354,7 @@ public:
    static const int E_NOINDEX = -7004;          // missing index file
    static const int E_ALLSPEFAIL = -7005;       // All SPE has failed
    static const int E_NOBUCKET = -7006;         // cannot locate any bucket
+   static const int E_UDFLIBFAIL = -7007;       // UDF library failure; incompatible to the slave system
 
 public: // internal error
    static const int E_ROUTING = -101;           // incorrect master node to handle the request

@@ -26,7 +26,7 @@ written by
 #define FUSE_USE_VERSION 26
 
 #include <sector.h>
-#include <conf.h>
+#include <utility.h>
 #include <fuse.h>
 #include <fuse/fuse_opt.h>
 #include <stdio.h>

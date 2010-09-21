@@ -30,7 +30,7 @@ written by
     #include "dirent.h"
     #include "statfs.h"
 #endif
-
+#include <iostream>
 using namespace std;
 
 #ifndef WIN32
@@ -117,6 +117,7 @@ using namespace std;
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
+cout << "debug output: file command " << cmd << endl;
 
       switch (cmd)
       {

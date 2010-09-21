@@ -1,16 +1,12 @@
 #include <iostream>
 #include <cmath>
+#include <utility.h>
 
 #include "sector.h"
 #include "conf.h"
 #include "common.h"
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 int main(int argc, char** argv)
 {
@@ -21,21 +17,8 @@ int main(int argc, char** argv)
    }
 
    Sector client;
-
-   Session se;
-   se.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(se.m_ClientConf.m_strMasterIP, se.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(se.m_ClientConf.m_strUserName, se.m_ClientConf.m_strPassword, se.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    // remove result of last run
    client.rmr("/test/sorted");
@@ -53,6 +36,7 @@ int main(int argc, char** argv)
    if (s.init(files) < 0)
    {
       cout << "unable to locate input data files. quit.\n";
+      Utility::logout(client);
       return -1;
    }
 
@@ -65,11 +49,13 @@ int main(int argc, char** argv)
    if (myproc->loadOperator("./funcs/sorthash" SECTOR_DYNLIB_EXT) < 0)
    {
       cout << "no sorthash.so found\n";
+      Utility::logout(client);
       return -1;
    }
    if (myproc->loadOperator("./funcs/sort" SECTOR_DYNLIB_EXT) < 0)
    {
       cout << "no sort.so found\n";
+      Utility::logout(client);
       return -1;
    }
 
@@ -77,10 +63,11 @@ int main(int argc, char** argv)
    gettimeofday(&t, 0);
    cout << "start time " << t.tv_sec << endl;
 
-   result = myproc->run(s, temp, "sorthash", 1, (char*)&N, 4);
+   int result = myproc->run(s, temp, "sorthash", 1, (char*)&N, 4);
    if (result < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
+      Utility::logout(client);
       return -1;
    }
 
@@ -96,7 +83,8 @@ int main(int argc, char** argv)
    result = myproc->run(temp, output, "sort", 0, NULL, 0);
    if (result < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
+      Utility::logout(client);
       return -1;
    }
 
@@ -110,8 +98,7 @@ int main(int argc, char** argv)
    myproc->close();
    client.releaseSphereProcess(myproc);
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }

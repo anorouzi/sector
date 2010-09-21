@@ -35,7 +35,7 @@ written by
 class FSClient;
 class DCClient;
 
-class Client
+class SECTOR_API Client
 {
 friend class FSClient;
 friend class DCClient;

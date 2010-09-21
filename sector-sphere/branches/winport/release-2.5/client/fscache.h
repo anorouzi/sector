@@ -31,7 +31,7 @@ written by
    #include <pthread.h>
 #endif
 
-struct InfoBlock
+struct SECTOR_API InfoBlock
 {
    int m_iCount;		// number of reference
    int m_bChange;		// if the file has been changed
@@ -40,7 +40,7 @@ struct InfoBlock
    int64_t m_llLastAccessTime;	// last access time
 };
 
-struct CacheBlock
+struct SECTOR_API CacheBlock
 {
    int64_t m_llOffset;                  // cache block offset
    int64_t m_llSize;                    // cache size
@@ -51,7 +51,7 @@ struct CacheBlock
    bool m_bWrite;			// if this block is being written
 };
 
-class Cache
+class SECTOR_API Cache
 {
 public:
    Cache();

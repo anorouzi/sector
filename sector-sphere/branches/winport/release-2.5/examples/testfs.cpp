@@ -1,16 +1,12 @@
 
 #include <iostream>
+#include <utility.h>
 
 #include "sector.h"
 #include "conf.h"
 #include "common.h"
 
 using namespace std;
-
-void print_error(int code)
-{
-   cerr << "ERROR: " << code << " " << SectorError::getErrorMsg(code) << endl;
-}
 
 int main(int argc, char** argv)
 {
@@ -21,21 +17,8 @@ int main(int argc, char** argv)
    }
 
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
-   {
-      print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
-      return -1;
-   }
 
    client.rmr("test");
    client.mkdir("test");
@@ -48,6 +31,7 @@ int main(int argc, char** argv)
    if (guide->open("tmp/guide.dat", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)
    {
       cout << "error to open seed file." << endl;
+      Utility::logout(client);
       return -1;
    }
    int32_t* id = new int32_t[fn];
@@ -59,6 +43,7 @@ int main(int argc, char** argv)
    if (guide->open("tmp/guide.dat.idx", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)
    {
       cout << "error to open seed index." << endl;
+      Utility::logout(client);
       return -1;
    }
    int64_t* idx = new int64_t[fn + 1];
@@ -79,6 +64,7 @@ int main(int argc, char** argv)
    if (input.init(files) < 0)
    {
       cout << "unable to locate input data files. quit.\n";
+      Utility::logout(client);
       return -1;
    }
 
@@ -89,6 +75,7 @@ int main(int argc, char** argv)
    if (myproc->loadOperator("./funcs/randwriter" SECTOR_DYNLIB_EXT) < 0)
    {
       cout << "unable to load operator. quit\n";
+      Utility::logout(client);
       return -1;
    }
 
@@ -100,10 +87,11 @@ int main(int argc, char** argv)
    cout << "start time " << t.tv_sec << endl;
 
    string target = "test/sort_input";
-   result = myproc->run(input, output, "randwriter", -1, target.c_str(), target.length() + 1);
+   int result = myproc->run(input, output, "randwriter", -1, target.c_str(), target.length() + 1);
    if (result < 0)
    {
-      print_error(result);
+      Utility::print_error(result);
+      Utility::logout(client);
       return -1;
    }
 
@@ -133,8 +121,7 @@ int main(int argc, char** argv)
 
    client.rmr("tmp");
 
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
-   return 1;
+   return 0;
 }

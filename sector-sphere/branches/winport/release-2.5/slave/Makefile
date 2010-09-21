@@ -16,7 +16,7 @@ all: libslave.so libslave.a start_slave sphere
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libslave.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -L../lib -lrpc -lsecurity -lcommon -ludt -lssl -lcrypto
+	$(C++) -shared -o $@ $^ -Wl,--build-id -L../lib -lrpc -lsecurity -lcommon -ludt -lssl -lcrypto
 
 libslave.a: $(OBJS)
 	ar -rcs $@ $^

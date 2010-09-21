@@ -1,6 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS += -I../udt
+CCFLAGS += -I../client
 
 ifeq ($(STATIC), 1)
    LDFLAGS += ../lib/libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libcommon.a ../lib/libudt.a -lssl -lcrypto

@@ -89,7 +89,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\client;$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
     <Link>
@@ -106,7 +106,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\client;$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
     <Link>
@@ -125,7 +125,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\client;$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
     <Link>
@@ -146,7 +146,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\client;$(SolutionDir)\..\tools;$(SolutionDir)\..\slave;$(SolutionDir)\..\include;$(SolutionDir)\..\udt;$(SolutionDir)\..\gmp;$(SolutionDir)\..\security;$(SolutionDir)\..\common;$(SolutionDir)\..\common/win;$(OPENSSL_ROOT)\include</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
     <Link>

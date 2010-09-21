@@ -16,7 +16,7 @@ all: libsecurity.so libsecurity.a sserver ssl_cert_gen
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libsecurity.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -L../lib -ludt -lcommon -lssl -lcrypto
+	$(C++) -shared -o $@ $^ -Wl,--build-id -L../lib -ludt -lcommon -lssl -lcrypto
 
 libsecurity.a: $(OBJS)
 	ar -rcs $@ $^
@@ -25,7 +25,7 @@ sserver: sserver.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 ssl_cert_gen: ssl_cert_gen.cpp
-	$(C++) $^ -o $@ -lssl -lstdc++  $(LDFLAGS)
+	$(C++) $^ -o $@ -lssl -lstdc++ $(LDFLAGS)
 
 clean:
 	rm -f *.o *.so *.a sserver ssl_cert_gen

@@ -2,7 +2,7 @@ include ../Makefile.common
 
 CCFLAGS += -I../udt -I../gmp -I../common -I../security
 
-OBJS = fscache.o client.o fsclient.o dcclient.o clientmgmt.o
+OBJS = fscache.o client.o fsclient.o dcclient.o clientmgmt.o utility.o
 
 all: libclient.so libclient.a
 
@@ -10,7 +10,7 @@ all: libclient.so libclient.a
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libclient.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -L../lib  -lrpc -lcommon -lsecurity -ludt -lssl -lcrypto
+	$(C++) -shared -o $@ $^ $(LDFLAGS)
 
 libclient.a: $(OBJS)
 	ar -rcs $@ $^
