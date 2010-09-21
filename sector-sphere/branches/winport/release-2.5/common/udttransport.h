@@ -23,7 +23,7 @@ written by
 #ifndef __UDT_TRANSPORT_H__
 #define __UDT_TRANSPORT_H__
 
-#include <udt.h>
+#include "udt.h"
 #include "crypto.h"
 
 class COMMON_API UDTTransport

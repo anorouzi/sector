@@ -78,7 +78,9 @@ written by
     typedef HANDLE pthread_cond_t;
     typedef DWORD pthread_key_t;
 
-    #define pthread_self    GetCurrentThreadId
+    inline pthread_t pthread_self(void) {
+        return reinterpret_cast<pthread_t>(GetCurrentThreadId());
+    }
 
     extern UDT_API void usleep (long usec);
 

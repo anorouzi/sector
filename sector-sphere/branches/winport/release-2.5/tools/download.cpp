@@ -247,8 +247,8 @@ int main(int argc, char** argv)
       if (download(i->c_str(), localdir.c_str(), client) < 0)
       {
          // calculate total available disk size
-         struct statfs64 dstinfo;
-         statfs64(newdir.c_str(), &dstinfo);
+         struct statfs dstinfo;
+         statfs(newdir.c_str(), &dstinfo);
          int64_t availdisk = dstinfo.f_bfree * dstinfo.f_bsize;
 
          if (availdisk <= 0)

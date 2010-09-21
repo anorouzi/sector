@@ -5,7 +5,7 @@ CCFLAGS += -I../client
 ifeq ($(STATIC), 1)
    LDFLAGS += ../lib/libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libcommon.a ../lib/libudt.a 
 else
-   LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
+   LDFLAGS += -L../lib -lclient -lcommon -lsecurity -lrpc -ludt 
 endif
 LDFLAGS += -lssl -lcrypto
 

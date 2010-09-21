@@ -10,7 +10,7 @@ all: libclient.so libclient.a
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libclient.so: $(OBJS)
-	$(C++) -shared -o $@ $^ $(LDFLAGS)
+	$(C++) -shared -o $@ $^ $(LDFLAGS) -L../lib -lrpc -ludt -lcommon -lcrypto -lssl
 
 libclient.a: $(OBJS)
 	ar -rcs $@ $^

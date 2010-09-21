@@ -48,8 +48,8 @@ int upload(const char* file, const char* dst, Sector& client)
 {
    //check if file already exists
 
-   struct stat64 st;
-   if (stat64(file, &st) < 0)
+   struct stat st;
+   if (stat(file, &st) < 0)
    {
       cout << "cannot locate source file " << file << endl;
       return -1;
@@ -180,8 +180,8 @@ int main(int argc, char** argv)
       bool wc = WildCard::isWildCard(path.c_str());
       if (!wc)
       {
-         struct stat64 st;
-         if (stat64(argv[i], &st) < 0)
+         struct stat st;
+         if (stat(argv[i], &st) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
             return -1;
@@ -255,8 +255,8 @@ int main(int argc, char** argv)
          else
             dst = newdir + "/" + dst;
 
-         struct stat64 s;
-         if (stat64(i->c_str(), &s) < 0)
+         struct stat s;
+         if (stat(i->c_str(), &s) < 0)
             continue;
 
          if (S_ISDIR(s.st_mode))

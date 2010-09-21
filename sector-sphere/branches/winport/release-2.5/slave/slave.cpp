@@ -1465,8 +1465,8 @@ unsigned int WINAPI Slave::worker(void* param)
          continue;
 
       // calculate total available disk size
-      struct statfs64 slavefs;
-      statfs64(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+      struct statfs slavefs;
+      statfs (self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
       self->m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
 

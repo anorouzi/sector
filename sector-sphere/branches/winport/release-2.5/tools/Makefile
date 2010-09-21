@@ -5,8 +5,9 @@ CCFLAGS += -I../client
 ifeq ($(STATIC), 1)
    LDFLAGS += ../lib/libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libcommon.a ../lib/libudt.a -lssl -lcrypto
 else
-   LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient -lssl -lcrypto
+   LDFLAGS += -L../lib -lclient -lsecurity -lrpc -ludt -lcommon -lssl -lcrypto
 endif
+
 
 EXE = sector_download sector_upload sector_ls sector_rm sector_mkdir sector_stat sector_sysinfo sector_mv sector_cp sector_pipe sector_shutdown sphere_stream
 

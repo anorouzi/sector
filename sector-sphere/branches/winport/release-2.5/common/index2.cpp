@@ -224,8 +224,8 @@ int Index2::lookup(const string& path, set<Address, AddrComp>& addr)
 
 int Index2::create(const SNode& node)
 {
-   struct stat64 s;
-   if (stat64((m_strMetaPath + "/" + node.m_strName).c_str(), &s) >= 0)
+   struct stat s;
+   if (stat((m_strMetaPath + "/" + node.m_strName).c_str(), &s) >= 0)
       return SectorError::E_EXIST;
 
    string tmp = node.m_strName;
