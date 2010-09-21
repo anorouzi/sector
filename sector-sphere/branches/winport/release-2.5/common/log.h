@@ -111,7 +111,7 @@ private:
 
    CMutex m_LogLock;
 
-   std::map<void *, LogString> m_mStoredString;
+   std::map<pthread_t, LogString> m_mStoredString;
 };
 
 #endif

@@ -96,7 +96,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
    else if (tag.m_iTag == LogTag::END)
    {
       pthread_t key = pthread_self();
-      map<void *, LogString>::iterator i = m_mStoredString.find(key);
+      map<pthread_t, LogString>::iterator i = m_mStoredString.find(key);
       if (i != m_mStoredString.end())
       {
          insert_((i->second.m_strLog + "\n").c_str(), i->second.m_iLevel);
@@ -112,7 +112,7 @@ SectorLog& SectorLog::operator<<(const std::string& message)
    CMutexGuard lg(m_LogLock);
 
    pthread_t key = pthread_self();
-   map<void *, LogString>::iterator i = m_mStoredString.find(key);
+   map<pthread_t, LogString>::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
    {
       i->second.m_strLog += message;
@@ -126,7 +126,7 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
    CMutexGuard lg(m_LogLock);
 
    pthread_t key = pthread_self();
-   map<void *, LogString>::iterator i = m_mStoredString.find(key);
+   map<pthread_t, LogString>::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
    {
       char buf[64];
