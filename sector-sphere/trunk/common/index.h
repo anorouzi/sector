@@ -60,6 +60,7 @@ public:
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
    virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special);
+   virtual int getSlaveMeta(Metadata* branch, const Address& addr);
 
 private:
    int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
@@ -72,6 +73,7 @@ private:
    int collectDataInfo(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& result);
    int checkReplica(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special);
    int list_r(std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist);
+   int getSlaveMeta(std::map<std::string, SNode>& currdir, std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr);
 
 private:
    std::map<std::string, SNode> m_mDirectory;

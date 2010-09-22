@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/11/2010
+   Yunhong Gu, last updated 09/21/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -2518,15 +2518,27 @@ void* Master::replica(void* s)
 
       vector<string> over_replicated;
 
+      pthread_mutex_lock(&self->m_ReplicaLock);
+
       // check replica, create or remove replicas if necessary
       if (self->m_vstrToBeReplicated.empty())
       {
          map<string, int> special;
          self->populateSpecialRep(self->m_strSectorHome + "/conf/replica.conf", special);
          self->m_pMetadata->checkReplica("/", self->m_vstrToBeReplicated, over_replicated, self->m_SysConfig.m_iReplicaNum, special);
-      }
 
-      pthread_mutex_lock(&self->m_ReplicaLock);
+         // create replicas for files on slaves without enough disk space
+         // so that some files can be removed from these nodes
+         map<int64_t, Address> lowdisk;
+         self->m_SlaveManager.checkStorageBalance(lowdisk);
+         for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
+         {
+            vector<string> path;
+            self->chooseDataToMove(path, i->second, i->first);
+            for (vector<string>::iterator i = path.begin(); i != path.end(); ++ i)
+               self->m_vstrToBeReplicated.push_back(*i);
+         }
+      }
 
       vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
 
@@ -2556,6 +2568,9 @@ void* Master::replica(void* s)
       // remove those already been replicated
       self->m_vstrToBeReplicated.erase(self->m_vstrToBeReplicated.begin(), r);
 
+      pthread_mutex_unlock(&self->m_ReplicaLock);
+
+
       // over replication should be erased at a longer period, we use 1 hour 
       if (CTimer::getTime() - last_replica_erase_time < 3600*1000000LL)
          over_replicated.clear();
@@ -2578,13 +2593,15 @@ void* Master::replica(void* s)
          self->removeReplica(*i, addr);
       }
 
+
+      // wait for 60 seconds until next check
+      pthread_mutex_lock(&self->m_ReplicaLock);
       timeval currtime;
       gettimeofday(&currtime, NULL);
       timespec to;
       to.tv_sec = currtime.tv_sec + 60;
       to.tv_nsec = currtime.tv_usec * 1000;
       pthread_cond_timedwait(&self->m_ReplicaCond, &self->m_ReplicaLock, &to);
-
       pthread_mutex_unlock(&self->m_ReplicaLock);
    }
 
@@ -2907,5 +2924,61 @@ int Master::processWriteResults(const string& filename, map<int, string> results
          removeReplica(filename, *i);
    }
 
+   return 0;
+}
+
+int Master::chooseDataToMove(vector<string>& path, const Address& addr, const int64_t& target_size)
+{
+   Metadata* branch;
+   if (m_SysConfig.m_MetaType == MEMORY)
+      branch = new Index;
+   else
+   {
+      // not supported yet
+      return 0;
+   }
+
+   // find all files on this particular slave
+   m_pMetadata->getSlaveMeta(branch, addr);
+
+   int64_t total_size = 0;
+   queue<SNode> dataqueue;
+
+   vector<string> datalist;
+   branch->list("/", datalist);
+   for (vector<string>::iterator i = datalist.begin(); i != datalist.end(); ++ i)
+   {
+      SNode sn;
+      sn.deserialize(i->c_str());
+      dataqueue.push(sn);
+   }
+
+   // add files to move until the total size reaches target_size
+   while (!dataqueue.empty())
+   {
+      SNode node = dataqueue.front();
+      dataqueue.pop();
+
+      if (node.m_bIsDir)
+      {
+         branch->list(node.m_strName, datalist);
+         for (vector<string>::iterator i = datalist.begin(); i != datalist.end(); ++ i)
+         {
+            SNode s;
+            s.deserialize(i->c_str());
+            s.m_strName = node.m_strName + "/" + s.m_strName;
+            dataqueue.push(s);
+         }
+      }
+      else
+      {
+         path.push_back(node.m_strName);
+         total_size += node.m_llSize;
+         if (total_size > target_size)
+            break;
+      }
+   }
+
+   delete branch;
    return 0;
 }

@@ -867,6 +867,8 @@ void SlaveManager::updateclusterio_(Cluster& c, map<string, int64_t>& data_in, m
 
 int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopath)
 {
+   CGuard sg(m_SlaveLock);
+
    vector<int> path;
    if (m_Topology.parseTopo(topopath.c_str(), path) < 0)
       return -1;
@@ -899,4 +901,37 @@ int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopa
    }
 
    return sl.size();
+}
+
+int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
+{
+   CGuard sg(m_SlaveLock);
+
+   if (m_mSlaveList.empty())
+      return 0;
+
+   lowdisk.clear();
+
+   uint64_t size = 0;
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+      size += i->second.m_llAvailDiskSpace;
+
+   int64_t avg = size / m_mSlaveList.size();
+
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      if (i->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
+      {
+         int64_t target;
+         if (avg > m_llSlaveMinDiskSpace)
+            target = avg  - i->second.m_llAvailDiskSpace;
+         else
+            target = m_llSlaveMinDiskSpace  - i->second.m_llAvailDiskSpace;
+
+         lowdisk[target].m_strIP = i->second.m_strIP;
+         lowdisk[target].m_iPort = i->second.m_iPort;
+      }
+   }
+
+   return lowdisk.size();
 }

@@ -16,7 +16,7 @@ all: libmaster.so libmaster.a start_master start_all stop_all
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libmaster.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -Wl,--build-id
+	$(C++) -shared -o $@ $^
 
 libmaster.a: $(OBJS)
 	ar -rcs $@ $^

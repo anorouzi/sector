@@ -16,14 +16,14 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/22/2010
 *****************************************************************************/
 
 
 #include <writelog.h>
 #include <slave.h>
 #include <utime.h>
-#include <iostream>
+
 using namespace std;
 
 void* Slave::fileHandler(void* p)
@@ -106,7 +106,6 @@ void* Slave::fileHandler(void* p)
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
-cout << "debug output: file command " << cmd << endl;
 
       switch (cmd)
       {
@@ -584,7 +583,10 @@ void* Slave::copy(void* p)
       {
          int64_t block = (torecv < unit) ? torecv : unit;
          if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
-            unlink((self->m_strHomeDir + ".tmp" + dst_path).c_str());
+         {
+            success = false;
+            break;
+         }
 
          recd += block;
          torecv -= block;
@@ -626,7 +628,7 @@ void* Slave::copy(void* p)
    // if the file has been modified during the replication, remove this replica
    int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
    if (self->report(master_ip, master_port, transid, dst, type) < 0)
-      system(("rm " + rhome + rfile).c_str());
+      unlink((rhome + rfile).c_str());
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

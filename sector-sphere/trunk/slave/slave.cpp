@@ -24,6 +24,7 @@ written by
 #include <dirent.h>
 #include <netdb.h>
 #include <sys/vfs.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 #include <sys/times.h>
 #include <utime.h>
@@ -1190,9 +1191,9 @@ void* Slave::worker(void* param)
          continue;
 
       // calculate total available disk size
-      struct statfs64 slavefs;
-      statfs64(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
-      self->m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
+      struct statvfs64 slavefs;
+      statvfs64(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+      self->m_SlaveStat.m_llAvailSize = slavefs.f_bavail * slavefs.f_bsize;
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
 
       // users may limit the maximum disk size used by Sector

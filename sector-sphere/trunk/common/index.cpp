@@ -654,6 +654,14 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
    return checkReplica(path, *currdir, under, over, thresh, special);
 }
 
+int Index::getSlaveMeta(Metadata* branch, const Address& addr)
+{
+   CGuard mg(m_MetaLock);
+
+   vector<string> path;
+   return getSlaveMeta(m_mDirectory, path, ((Index*)branch)->m_mDirectory, addr);
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////
 
 int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
@@ -1007,4 +1015,44 @@ int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string
    }
 
    return filelist.size();
+}
+
+int Index::getSlaveMeta(map<string, SNode>& currdir, vector<string>& path, map<string, SNode>& target, const Address& addr)
+{
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      if (!i->second.m_bIsDir)
+      {
+         if (i->second.m_sLocation.find(addr) != i->second.m_sLocation.end());
+         {
+            map<string, SNode>* currdir = &target;
+            for (vector<string>::iterator d = path.begin(); d != path.end(); ++ d)
+            {
+               map<string, SNode>::iterator s = currdir->find(*d);
+               if (s == currdir->end())
+               {
+                  SNode n;
+                  n.m_strName = *d;
+                  n.m_bIsDir = true;
+                  n.m_llTimeStamp = time(NULL);
+                  n.m_llSize = 0;
+                  (*currdir)[*d] = n;
+                  s = currdir->find(*d);
+               }
+
+               currdir = &(s->second.m_mDirectory);
+            }
+
+            (*currdir)[i->first] = i->second;
+         }
+      }
+      else
+      {
+         path.push_back(i->first);
+         getSlaveMeta(i->second.m_mDirectory, path, target, addr);
+         path.erase(path.begin() + path.size() - 1);
+      }
+   }
+
+   return 0;
 }

@@ -113,6 +113,8 @@ private: // replication
 
    int processWriteResults(const std::string& filename, std::map<int, std::string> results);
 
+   int chooseDataToMove(std::vector<std::string>& path, const Address& addr, const int64_t& target_size);
+
 private:
    CGMP m_GMP;						// GMP messenger
 

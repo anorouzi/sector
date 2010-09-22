@@ -55,7 +55,7 @@ written by
 #include <cmath>
 #include "queue.h"
 #include "core.h"
-#include <iostream>
+
 using namespace std;
 
 
@@ -586,7 +586,6 @@ void CUDT::connect(const sockaddr* serv_addr)
       // avoid sending too many requests, at most 1 request per 250ms
       if (CTimer::getTime() - last_req_time > 250000)
       {
-cout << "udt connect send req\n";
          req.serialize(reqdata, m_iPayloadSize);
          request.setLength(CHandShake::m_iContentSize);
          m_pSndQueue->sendto(serv_addr, request);
@@ -597,7 +596,6 @@ cout << "udt connect send req\n";
       response.setLength(m_iPayloadSize);
       if (m_pRcvQueue->recvfrom(m_SocketID, response) > 0)
       {
-cout << "udt connect recv res\n";
          if (m_bRendezvous && ((0 == response.getFlag()) || (1 == response.getType())) && (NULL != tmp))
          {
             // a data packet or a keep-alive packet comes, which means the peer side is already connected

@@ -1,5 +1,6 @@
 version 2.5
 
+automatic storage re-balancing
 start sector slave when slave node is full
 fix a bug that causes client to hang during concurrent IO from the same client
 log system improved

@@ -16,7 +16,7 @@ all: libsecurity.so libsecurity.a sserver ssl_cert_gen
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libsecurity.so: $(OBJS)
-	$(C++) -shared -o $@ $^ -Wl,--build-id
+	$(C++) -shared -o $@ $^
 
 libsecurity.a: $(OBJS)
 	ar -rcs $@ $^
