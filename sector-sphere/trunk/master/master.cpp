@@ -2527,6 +2527,7 @@ void* Master::replica(void* s)
          self->populateSpecialRep(self->m_strSectorHome + "/conf/replica.conf", special);
          self->m_pMetadata->checkReplica("/", self->m_vstrToBeReplicated, over_replicated, self->m_SysConfig.m_iReplicaNum, special);
 
+         /*
          // create replicas for files on slaves without enough disk space
          // so that some files can be removed from these nodes
          map<int64_t, Address> lowdisk;
@@ -2538,6 +2539,7 @@ void* Master::replica(void* s)
             for (vector<string>::iterator i = path.begin(); i != path.end(); ++ i)
                self->m_vstrToBeReplicated.push_back(*i);
          }
+         */
       }
 
       vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
