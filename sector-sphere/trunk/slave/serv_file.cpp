@@ -453,6 +453,11 @@ void* Slave::copy(void* p)
    int master_port = ((Param3*)p)->master_port;
    delete (Param3*)p;
 
+   if (src.c_str()[0] == '\0')
+      src = "/" + src;
+   if (dst.c_str()[0] == '\0')
+      dst = "/" + dst;
+
    SNode tmp;
    if (self->m_pLocalFile->lookup(src.c_str(), tmp) >= 0)
    {
@@ -464,12 +469,20 @@ void* Slave::copy(void* p)
       string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
       string rsrc = self->reviseSysCmdPath(src);
       string rdst = self->reviseSysCmdPath(dst);
-      system(("cp " + rhome + src + " " + rhome + rdst).c_str());
+      system(("cp " + rhome + rsrc + " " + rhome + rdst).c_str());
 
       // if the file has been modified during the replication, remove this replica
-      int type = (src == dst) ? 3 : 1;
+      int type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
+
+      struct stat64 s;
+      if (stat64((self->m_strHomeDir + dst).c_str(), &s) < 0)
+         type = +FileChangeType::FILE_UPDATE_NO;
+
       if (self->report(master_ip, master_port, transid, dst, type) < 0)
          system(("rm " + rhome + rdst).c_str());
+
+      // clear this transaction
+      self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
 
       return NULL;
    }
@@ -521,7 +534,7 @@ void* Slave::copy(void* p)
       msg.setType(110);
       msg.setKey(0);
 
-      int32_t mode = 1;
+      int32_t mode = SF_MODE::READ;
       msg.setData(0, (char*)&mode, 4);
       int64_t reserve = 0;
       msg.setData(4, (char*)&reserve, 8);
@@ -618,17 +631,19 @@ void* Slave::copy(void* p)
       // move from temporary dir to the real dir when the copy is completed
       self->createDir(dst.substr(0, dst.rfind('/')));
       system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
+
+      // if the file has been modified during the replication, remove this replica
+      int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
+      if (self->report(master_ip, master_port, transid, dst, type) < 0)
+         unlink((rhome + rfile).c_str());
    }
    else
    {
       // failed, remove all temporary files
       system(("rm -rf " + rhome + ".tmp" + rfile).c_str());
-   }
 
-   // if the file has been modified during the replication, remove this replica
-   int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
-   if (self->report(master_ip, master_port, transid, dst, type) < 0)
-      unlink((rhome + rfile).c_str());
+      self->report(master_ip, master_port, transid, "", +FileChangeType::FILE_UPDATE_NO);
+   }
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

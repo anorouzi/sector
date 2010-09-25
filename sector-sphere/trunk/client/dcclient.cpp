@@ -710,7 +710,11 @@ int DCClient::startSPE(SPE& s, DS* d)
       // start an SPE at real time
       int result = connectSPE(s);
       if (result < 0)
+      {
+         // if failed, tag this SPE as bad, so that it will not be tried again (waste time)
+         s.m_iStatus = -1;
          return result;
+      }
    }
 
    s.m_pDS = d;

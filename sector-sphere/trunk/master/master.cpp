@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/21/2010
+   Yunhong Gu, last updated 09/23/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -1537,6 +1537,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       string src = msg->getData() + 4;
       string dst = msg->getData() + 4 + src.length() + 1 + 4;
+
+      src = Metadata::revisePath(src);
+      dst = Metadata::revisePath(dst);
+
       string uplevel = dst.substr(0, dst.rfind('/') + 1);
       string sublevel = dst + src.substr(src.rfind('/'), src.length());
 
@@ -1635,8 +1639,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
+      string filename = Metadata::revisePath(msg->getData());
+
       int rwx = SF_MODE::WRITE;
-      if (!user->match(msg->getData(), rwx))
+      if (!user->match(filename, rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "delete", msg->getData(), "REJECT", "", 8);
@@ -1644,7 +1650,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
 
       SNode attr;
-      int n = m_pMetadata->lookup(msg->getData(), attr);
+      int n = m_pMetadata->lookup(filename, attr);
 
       if (n < 0)
       {
@@ -1654,15 +1660,13 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       else if (attr.m_bIsDir)
       {
          vector<string> fl;
-         if (m_pMetadata->list(msg->getData(), fl) > 0)
+         if (m_pMetadata->list(filename, fl) > 0)
          {
             // directory not empty
             reject(ip, port, id, SectorError::E_NOEMPTY);
             break;
          }
       }
-
-      string filename = msg->getData();
 
       if (!attr.m_bIsDir)
       {
@@ -1699,6 +1703,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       string src = msg->getData() + 4;
       string dst = msg->getData() + 4 + src.length() + 1 + 4;
+      src = Metadata::revisePath(src);
+      dst = Metadata::revisePath(dst);
       string uplevel = dst.substr(0, dst.find('/'));
       string sublevel = dst + src.substr(src.rfind('/'), src.length());
 
@@ -1761,7 +1767,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
          string target = *i;
          target.replace(0, rep.length(), dst);
-         m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), src + "\t" + target);
+         m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), *i + "\t" + target);
       }
       if (!m_vstrToBeReplicated.empty())
          pthread_cond_signal(&m_ReplicaCond);
@@ -1826,7 +1832,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int64_t reserve = *(int64_t*)(msg->getData() + 4);
       int32_t dataport = *(int32_t*)(msg->getData() + 12);
       string hintip = msg->getData() + 16;
-      string path = msg->getData() + 80;
+      string path = Metadata::revisePath(msg->getData() + 80);
 
       if (!m_Routing.match(path.c_str(), m_iRouterKey))
       {
@@ -2952,6 +2958,7 @@ int Master::chooseDataToMove(vector<string>& path, const Address& addr, const in
    {
       SNode sn;
       sn.deserialize(i->c_str());
+      sn.m_strName = "/" + sn.m_strName;
       dataqueue.push(sn);
    }
 

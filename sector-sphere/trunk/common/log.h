@@ -23,6 +23,7 @@ written by
 #ifndef __SECTOR_LOG_H__
 #define __SECTOR_LOG_H__
 
+#include <udt.h>
 #include <pthread.h>
 #include <fstream>
 #include <map>

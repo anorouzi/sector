@@ -398,6 +398,10 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       string dst = msg->getData() + src.length() + 1;
       string newname = msg->getData() + src.length() + 1 + dst.length() + 1;
 
+      src = Metadata::revisePath(src);
+      dst = Metadata::revisePath(dst);
+      newname = Metadata::revisePath(newname);
+
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
       move(src, dst, newname);
 
@@ -408,7 +412,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
    case 105: // remove dir/file
    {
-      char* path = msg->getData();
+      string path = Metadata::revisePath(msg->getData());
       m_pLocalFile->remove(path, true);
       string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
       system(sysrm.c_str());
