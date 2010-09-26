@@ -25,7 +25,7 @@ fi
 
 test_0() {
         echo test0 > $TMP/$tfile
-        $RM /$tfile 
+        $RM /$tfile 2>/dev/null 
         $UPLOAD $TMP/$tfile /
         $LS / | grep $tfile || error "failed: did not find $tfile"
         $RM /$tfile 
@@ -35,6 +35,7 @@ test_0() {
 run_test 0 "upload .../file ; ls..../file rm .../file =============="
 
 test_1() {
+        $RM --f /$tdir 2>/dev/null
         $MKDIR $tdir
         $LS / | grep $tdir || error "failed: did not find $tdir"
         $RM /$tdir 
@@ -44,6 +45,9 @@ run_test 1 "mkdir .../dir ; ls..../dir rm .../dir =============="
 
 test_2() {
         echo test0 > $TMP/$tfile
+        $RM /$tfile  2>/dev/null 
+        $RM /${tfile}_1  2>/dev/null 
+        $RM --f /$tdir  2>/dev/null 
         $UPLOAD $TMP/$tfile /
         $MKDIR $tdir
         $MV /$tfile /${tfile}_1 || error "failed: mv failed "
@@ -54,8 +58,8 @@ run_test 2 "upload .../file ; mv..file /dir rm .../dir =============="
 
 test_3() {
         echo test0 > $TMP/$tfile
-        $RM /$tfile
-        $RM /${tfile}_1
+        $RM /$tfile  2>/dev/null 
+        $RM /${tfile}_1 2>/dev/null
         $UPLOAD $TMP/$tfile /
         $MV /$tfile /${tfile}_1
         $DOWNLOAD /${tfile}_1 $TMP/
@@ -67,8 +71,8 @@ run_test 3 "upload .../file ; download .../file compare =============="
 
 test_4() {
         echo test0 > $TMP/$tfile
-        $RM /$tfile
-        $RM /${tdir}/${tfile}
+        $RM /$tfile 2>/dev/null
+        $RM  --f /${tdir} 2>/dev/null
         $UPLOAD $TMP/$tfile /
         $MKDIR /$tdir
         $COPY /$tfile /${tdir}
@@ -79,5 +83,5 @@ test_4() {
 }
 run_test 4 "upload ...tfile, copy ...tfile /tdir, download tdir/tfile tfile_download, diff tfile_download tfile..."
 
-cleanup
+check_and_cleanup_sector
 

@@ -80,7 +80,7 @@ int Master::init()
    m_SlaveManager.setSlaveMinDiskSpace(m_SysConfig.m_llSlaveMinDiskSpace);
    m_SlaveManager.serializeTopo(m_pcTopoData, m_iTopoDataSize);
 
-   // check local directories, create them is not exist
+   // check local directories, create them if not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
    system((string("rm -rf ") + m_strHomeDir).c_str());
    DIR* test = opendir(m_strHomeDir.c_str());
