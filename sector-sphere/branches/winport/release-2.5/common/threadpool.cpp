@@ -26,50 +26,33 @@ using namespace std;
 
 ThreadJobQueue::ThreadJobQueue()
 {
-#ifndef WIN32   // <slr>
-   pthread_cond_init(&m_QueueCond, NULL);
-#else
-   m_QueueCond = CreateEvent(NULL, false, false, NULL);
-#endif
 }
 
 ThreadJobQueue::~ThreadJobQueue()
 {
-#ifndef WIN32
-   pthread_cond_destroy(&m_QueueCond);
-#else
-   CloseHandle(m_QueueCond);
-#endif
 }
 
 int ThreadJobQueue::push(void* param)
 {
-   CMutexGuard guard (m_QueueLock);
+   CGuard guard (m_QueueLock);
 
    m_qJobs.push(param);
-#ifndef WIN32
-   pthread_cond_signal(&m_QueueCond);
-#else
-   SetEvent(m_QueueCond);
-#endif
+
+   m_QueueCond.signal();
 
    return 0;
 }
 
 void* ThreadJobQueue::pop()
 {
-   CMutexGuard guard (m_QueueLock);
+   CGuard guard (m_QueueLock);
 
    while (m_qJobs.empty())
-#ifndef WIN32
-      pthread_cond_wait(&m_QueueCond, &m_QueueLock.m_Mutex);
-#else
    {
       m_QueueLock.release();
-      WaitForSingleObject(m_QueueCond, INFINITE);
+      m_QueueCond.wait();
       m_QueueLock.acquire();
    }
-#endif
 
    void* param = m_qJobs.front();
    m_qJobs.pop();

@@ -58,43 +58,32 @@ typedef unsigned long long int __fsfilcnt64_t;
 
 struct statfsx
   {
-    unsigned int f_type;           /* type of filesystem (see fsinfo.h) */
-    unsigned int f_bsize;               /* file system block size */    
-    unsigned long int f_frsize;    /* fragment size: fundamental filesystem block */
-    unsigned long int f_iosize;    /* optimal transfer block size */
+    unsigned int f_type;            /* type of filesystem (see fsinfo.h) */
+    unsigned int f_bsize;           /* file system block size */    
+    unsigned long int f_frsize;     /* fragment size: fundamental filesystem block */
+    unsigned long int f_iosize;     /* optimal transfer block size */
 #ifndef __USE_FILE_OFFSET64
-    __fsblkcnt_t f_blocks;              /* total number of blocks on file system
-in units of f_frsize */             
-    __fsblkcnt_t f_bfree;               /* total number of free blocks */      
-                                     
-    __fsblkcnt_t f_bavail;              /* number of free blocks available to non-privileged
-process */              
-    __fsfilcnt_t f_files;          /* total number of file serial numbers */
-    __fsfilcnt_t f_ffree;          /* total number of free file serial numbers
-*/
-    __fsfilcnt_t f_favail;         /* number of file serial numbers available
-to non-privileged process */
+    __fsblkcnt_t f_blocks;          /* total number of blocks on file system in units of f_frsize */             
+    __fsblkcnt_t f_bfree;           /* total number of free blocks */      
+    __fsblkcnt_t f_bavail;          /* number of free blocks available to non-privileged process */              
+    __fsfilcnt_t f_files;           /* total number of file serial numbers */
+    __fsfilcnt_t f_ffree;           /* total number of free file serial numbers */
+    __fsfilcnt_t f_favail;          /* number of file serial numbers available to non-privileged process */
 #else                                        
-    __fsblkcnt64_t f_blocks;       /* total number of blocks on file system
-in units of f_frsize */
-    __fsblkcnt64_t f_bfree;             /* total number of free blocks */    
-                          
-    __fsblkcnt64_t f_bavail;       /* number of free blocks available to non-privileged
-process */ 
-    __fsfilcnt64_t f_files;        /* total number of file serial numbers */
-                             
-    __fsfilcnt64_t f_ffree;        /* total number of free file serial numbers
-*/                         
-    __fsfilcnt64_t f_favail;  /* number of file serial numbers available to
-non-privileged process */
+    __fsblkcnt64_t f_blocks;        /* total number of blocks on file system in units of f_frsize */
+    __fsblkcnt64_t f_bfree;         /* total number of free blocks */    
+    __fsblkcnt64_t f_bavail;        /* number of free blocks available to non-privileged process */ 
+    __fsfilcnt64_t f_files;         /* total number of file serial numbers */
+    __fsfilcnt64_t f_ffree;         /* total number of free file serial numbers */                         
+    __fsfilcnt64_t f_favail;        /* number of file serial numbers available to non-privileged process */
 #endif
-    __fsid_t f_fsid;                    /* file system id */
-    __uid_t     f_owner;       /* user that mounted the filesystem */
-    unsigned long int f_flag; /* bit mask of f_flag values */
-    char f_fstypename[MFSNAMELEN]; /* fs type name */
-    char f_mntonname[MNAMELEN];   /* directory on which mounted */
-    char f_mntfromname[MNAMELEN];/* mounted filesystem */
-    unsigned int f_namelen;             /* maximum filename length */
+    __fsid_t f_fsid;                /* file system id */
+    __uid_t     f_owner;            /* user that mounted the filesystem */
+    unsigned long int f_flag;       /* bit mask of f_flag values */
+    char f_fstypename[MFSNAMELEN];  /* fs type name */
+    char f_mntonname[MNAMELEN];     /* directory on which mounted */
+    char f_mntfromname[MNAMELEN];   /* mounted filesystem */
+    unsigned int f_namelen;         /* maximum filename length */
   };
 
 #ifdef __USE_LARGEFILE64
@@ -104,18 +93,12 @@ struct statfsx64
     unsigned int f_bsize;               /* file system block size */ 
     unsigned long int f_frsize;    /* fragment size: fundamental filesystem block */
     unsigned long int f_iosize;    /* optimal transfer block size */
-    __fsblkcnt64_t f_blocks;       /* total number of blocks on file system
-in units of f_frsize */
-    __fsblkcnt64_t f_bfree;             /* total number of free blocks */    
-                          
-    __fsblkcnt64_t f_bavail;       /* number of free blocks available to non-privileged
-process */ 
-    __fsblkcnt64_t f_files;             /* total number of file serial numbers
-*/                       
-    __fsblkcnt64_t f_ffree;             /* total number of free file serial numbers
-*/                  
-    __fsfilcnt_t f_favail;         /* number of file serial numbers available
-to non-privileged process */
+    __fsblkcnt64_t f_blocks;   /* total number of blocks on file system in units of f_frsize */
+    __fsblkcnt64_t f_bfree;    /* total number of free blocks */    
+    __fsblkcnt64_t f_bavail;   /* number of free blocks available to non-privileged process */ 
+    __fsfilcnt64_t f_files;    /* total number of file serial numbers */
+    __fsfilcnt64_t f_ffree;    /* total number of free file serial numbers */                         
+    __fsfilcnt64_t f_favail;   /* number of file serial numbers available to non-privileged process */
     __fsid_t f_fsid;                    /* file system id */         
     __uid_t     f_owner;       /* user that mounted the filesystem */
     unsigned long int f_flag; /* bit mask of f_flag values */
@@ -162,6 +145,46 @@ struct statfs64 {         /* Same as struct statfs */
    long      f_spare[6];
 };
 
+
+struct statvfs {
+    unsigned long  f_bsize;    /* file system block size */
+    unsigned long  f_frsize;   /* fragment size */
+#ifndef __USE_FILE_OFFSET64
+    __fsblkcnt_t f_blocks;     /* total number of blocks on file system in units of f_frsize */             
+    __fsblkcnt_t f_bfree;      /* total number of free blocks */      
+    __fsblkcnt_t f_bavail;     /* number of free blocks available to non-privileged process */              
+    __fsfilcnt_t f_files;      /* total number of file serial numbers */
+    __fsfilcnt_t f_ffree;      /* total number of free file serial numbers */
+    __fsfilcnt_t f_favail;     /* number of file serial numbers available to non-privileged process */
+#else                                        
+    __fsblkcnt64_t f_blocks;   /* total number of blocks on file system in units of f_frsize */
+    __fsblkcnt64_t f_bfree;    /* total number of free blocks */    
+    __fsblkcnt64_t f_bavail;   /* number of free blocks available to non-privileged process */ 
+    __fsfilcnt64_t f_files;    /* total number of file serial numbers */
+    __fsfilcnt64_t f_ffree;    /* total number of free file serial numbers */                         
+    __fsfilcnt64_t f_favail;   /* number of file serial numbers available to non-privileged process */
+#endif
+    __fsid_t       f_fsid;           /* file system id */
+    unsigned long  f_flag;     /* mount flags */
+    unsigned long  f_namemax;  /* maximum filename length */
+    unsigned long  f_spare[6];
+};
+
+struct statvfs64 {
+    unsigned long  f_bsize;    /* file system block size */
+    unsigned long  f_frsize;   /* fragment size */
+    __fsblkcnt64_t f_blocks;   /* total number of blocks on file system in units of f_frsize */
+    __fsblkcnt64_t f_bfree;    /* total number of free blocks */    
+    __fsblkcnt64_t f_bavail;   /* number of free blocks available to non-privileged process */ 
+    __fsfilcnt64_t f_files;    /* total number of file serial numbers */
+    __fsfilcnt64_t f_ffree;    /* total number of free file serial numbers */                         
+    __fsfilcnt64_t f_favail;   /* number of file serial numbers available to non-privileged process */
+    __fsid_t       f_fsid;     /* file system id */
+    unsigned long  f_flag;     /* mount flags */
+    unsigned long  f_namemax;  /* maximum filename length */
+    unsigned long  f_spare[6];
+};
+
 #define ST_RDONLY 0x01 /* read-only file system */
 #define ST_NOSUID 0x02 /* does not support setuid/setgid */
 #define ST_NOTRUNC 0x04 /* does not truncate long file names */
@@ -175,6 +198,17 @@ inline int statfs (const char *file, struct statfs *buf) {
 
 inline int statfs64 (const char *file, struct statfs64 *buf) {
     return __statfs64 (file, buf);
+}   
+
+extern "C" COMMON_API int __statvfs (const char *file, struct statvfs *buf);
+extern "C" COMMON_API int __statvfs64 (const char *file, struct statvfs64 *buf);
+
+inline int statvfs (const char *file, struct statvfs *buf) {
+    return __statvfs (file, buf);
+}   
+
+inline int statvfs64 (const char *file, struct statvfs64 *buf) {
+    return __statvfs64 (file, buf);
 }   
 
 /* access */

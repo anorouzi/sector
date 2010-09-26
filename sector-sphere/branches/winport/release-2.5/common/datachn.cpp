@@ -90,7 +90,7 @@ int DataChn::init(const string& ip, int& port)
 
 int DataChn::garbageCollect()
 {
-   CMutexGuard dg(m_ChnLock);
+   CGuard dg(m_ChnLock);
 
    vector<Address> tbd;
 
@@ -123,7 +123,7 @@ bool DataChn::isConnected(const string& ip, int port)
 
    // in case that another thread is calling collect(ip, port)
    // wait here until it is completed
-   CMutexGuard dg(c->m_SndLock);
+   CGuard dg(c->m_SndLock);
 
    return ((NULL != c->m_pTrans) && c->m_pTrans->isConnected());
 }
@@ -236,7 +236,7 @@ int DataChn::setCryptoKey(const string& ip, int port, unsigned char key[16], uns
    // crypto key should only be set once for each connection
    // otherwise, encryption can be wrong due to key reset
 
-   CMutexGuard cg(c->m_SndLock);
+   CGuard cg(c->m_SndLock);
 
    if (c->m_bSecKeySet)
       return 0;

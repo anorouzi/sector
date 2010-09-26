@@ -255,7 +255,7 @@ private:
 
       std::queue<Bucket>* bq;	// job queue for bucket data delivery
       CMutex * bqlock;
-      pthread_cond_t* bqcond;
+      CCond  * bqcond;
       int64_t* pending;		// pending incoming data size
    };
 
@@ -356,7 +356,7 @@ private: //slave status
    bool m_bRunning;			// slave running status; used to terminate the slave when set to false
 
    CMutex m_RunLock;
-   pthread_cond_t m_RunCond;
+   CCond  m_RunCond;
 
    bool m_bDiskHealth;                  // disk health
    bool m_bNetworkHealth;               // network health

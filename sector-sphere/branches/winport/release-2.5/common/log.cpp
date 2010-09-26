@@ -84,7 +84,7 @@ void SectorLog::setLevel(const int level)
 
 SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 {
-   CMutexGuard lg(m_LogLock);
+   CGuard lg(m_LogLock);
 
    if (tag.m_iTag == LogTag::START)
    {
@@ -109,7 +109,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 
 SectorLog& SectorLog::operator<<(const std::string& message)
 {
-   CMutexGuard lg(m_LogLock);
+   CGuard lg(m_LogLock);
 
    pthread_t key = pthread_self();
    map<pthread_t, LogString>::iterator i = m_mStoredString.find(key);
@@ -123,7 +123,7 @@ SectorLog& SectorLog::operator<<(const std::string& message)
 
 SectorLog& SectorLog::operator<<(const int64_t& val)
 {
-   CMutexGuard lg(m_LogLock);
+   CGuard lg(m_LogLock);
 
    pthread_t key = pthread_self();
    map<pthread_t, LogString>::iterator i = m_mStoredString.find(key);
@@ -162,7 +162,7 @@ void SectorLog::insert_(const char* text, const int level)
 
 void SectorLog::insert(const char* text, const int level)
 {
-   CMutexGuard lg(m_LogLock);
+   CGuard lg(m_LogLock);
    insert_(text, level);
 }
 

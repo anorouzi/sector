@@ -60,6 +60,7 @@ public:
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
    virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special);
+   virtual int getSlaveMeta(Metadata* branch, const Address& addr) {return 0;}
 
 private:
    int serialize(std::ofstream& ofs, const std::string& currdir, int level);

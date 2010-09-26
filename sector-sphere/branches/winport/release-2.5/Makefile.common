@@ -1,9 +1,9 @@
 C++ = g++
 
 DEBUG = 1
-STATIC = 0
+STATIC = 1
 
-CCFLAGS = -I. -I../include -I../udt
+CCFLAGS = -I. -I../include -I../udt -D_GNU_SOURCE=1 -D_FILE_OFFSET_BITS=64 -D__USE_FILE_OFFSET64
 LDFLAGS = -lstdc++ -lpthread -lssl -L.
 
 ifeq ($(DEBUG), 1)

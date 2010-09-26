@@ -66,7 +66,6 @@ public:
    int updateSlaveList(std::vector<Address>& sl, int64_t& last_update_time);
    int updateSlaveInfo(const Address& addr, const char* info, const int& len);
    int updateSlaveTS(const Address& addr);
-   int increaseRetryCount(const Address& addr);
    int checkBadAndLost(std::map<int, Address>& bad, std::map<int, Address>& lost, const int64_t& timeout);
    int serializeSlaveList(char*& buf, int& size);
    int deserializeSlaveList(int num, const char* buf, int size);
@@ -78,6 +77,7 @@ public:
    int serializeClusterInfo(char*& buf, int& size);
    int serializeSlaveInfo(char*& buf, int& size);
    int getSlaveListByRack(std::map<int, Address>& sl, const std::string& topopath);
+   int checkStorageBalance(std::map<int64_t, Address>& lowdisk);
 
 public:
    uint64_t getTotalDiskSpace();

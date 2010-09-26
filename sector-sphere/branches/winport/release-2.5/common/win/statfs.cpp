@@ -279,7 +279,57 @@ __statfs64 (const char *file, struct statfs64 *buf)
 	return res;
 }
 
-//weak_alias (__statfs64, statfs64)
+/* Return information about the filesystem on which FILE resides.  */
+int __statvfs (const char *file, struct statvfs *buf)
+{
+	struct statfsx64 xbuf;
+	int res;
+	res = __statfsx64(file, &xbuf);
+	buf->f_bsize = xbuf.f_bsize;
+	buf->f_frsize = xbuf.f_frsize;
+	buf->f_blocks = xbuf.f_blocks;
+	buf->f_bfree = xbuf.f_bfree;
+	buf->f_bavail = xbuf.f_bavail;
+	buf->f_files = xbuf.f_files;
+	buf->f_ffree = xbuf.f_ffree;
+	buf->f_favail = xbuf.f_favail;
+	buf->f_fsid = xbuf.f_fsid;
+	buf->f_flag = xbuf.f_flag;
+	buf->f_namemax = xbuf.f_namelen;
+	buf->f_spare[0] = 0;
+	buf->f_spare[1] = 0;
+	buf->f_spare[2] = 0;
+	buf->f_spare[3] = 0;
+	buf->f_spare[4] = 0;
+	buf->f_spare[5] = 0;
+	return res;
+}
+
+/* Return information about the filesystem on which FILE resides.  */
+int __statvfs64 (const char *file, struct statvfs64 *buf)
+{
+	struct statfsx64 xbuf;
+	int res;
+	res = __statfsx64(file, &xbuf);
+	buf->f_bsize = xbuf.f_bsize;
+	buf->f_frsize = xbuf.f_frsize;
+	buf->f_blocks = xbuf.f_blocks;
+	buf->f_bfree = xbuf.f_bfree;
+	buf->f_bavail = xbuf.f_bavail;
+	buf->f_files = xbuf.f_files;
+	buf->f_ffree = xbuf.f_ffree;
+	buf->f_favail = xbuf.f_favail;
+	buf->f_fsid = xbuf.f_fsid;
+	buf->f_flag = xbuf.f_flag;
+	buf->f_namemax = xbuf.f_namelen;
+	buf->f_spare[0] = 0;
+	buf->f_spare[1] = 0;
+	buf->f_spare[2] = 0;
+	buf->f_spare[3] = 0;
+	buf->f_spare[4] = 0;
+	buf->f_spare[5] = 0;
+	return res;
+}
 
 
 

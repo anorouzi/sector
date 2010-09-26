@@ -92,7 +92,7 @@ public:	// medadata and file system operations
       // Parameters:
       //    1) [in] path: merge into this director, usually "/"
       //    2) [in, out] branch: new metadata to be included; excluded/conflict metadata will be left, while others will be removed
-      //    0) [in] replica: number of replicas
+      //    3) [in] replica: number of replicas
       // Returned value:
       //    0 on success, or -1 on error.
 
@@ -103,6 +103,8 @@ public:	// medadata and file system operations
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
    virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special) = 0;
+
+   virtual int getSlaveMeta(Metadata* branch, const Address& addr) = 0;
 
 public:
    static int parsePath(const std::string& path, std::vector<std::string>& result);

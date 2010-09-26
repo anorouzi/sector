@@ -174,24 +174,12 @@ m_bDataMove(true)
    m_bBucketHealth = true;
 
    m_bOpened = false;
-
-#ifndef WIN32
-   pthread_cond_init(&m_ResCond, NULL);
-#else
-   m_ResCond = CreateEvent(NULL, false, false, NULL);
-#endif
 }
 
 DCClient::~DCClient()
 {
    delete [] m_pcParam;
    delete [] m_pOutputLoc;
-
-#ifndef WIN32
-   pthread_cond_destroy(&m_ResCond);
-#else
-   CloseHandle(m_ResCond);
-#endif
 }
 
 int DCClient::loadOperator(const char* library)
@@ -451,15 +439,10 @@ unsigned int WINAPI DCClient::run(void * param)
 
          ++ self->m_iProgress;
 
-#ifndef WIN32
          self->m_ResLock.acquire();
          ++ self->m_iAvailRes;
-         pthread_cond_signal(&self->m_ResCond);
+         self->m_ResCond.signal();
          self->m_ResLock.release();
-#else
-         ++ self->m_iAvailRes;
-         SetEvent(self->m_ResCond);
-#endif
 
          if (progress == -2)
          {
@@ -521,11 +504,7 @@ unsigned int WINAPI DCClient::run(void * param)
          continue;
       b->second.m_iProgress = 100;
 
-#ifndef WIN32
-      pthread_cond_signal(&self->m_ResCond);
-#else
-      SetEvent(self->m_ResCond);
-#endif
+      self->m_ResCond.signal();
    }
 
    // some buckets may be left empty because no value was sent to them. remove these from the output stream
@@ -664,15 +643,10 @@ int DCClient::checkSPE()
 
                ++ m_iProgress;
 
-#ifndef WIN32
                m_ResLock.acquire();
                ++ m_iAvailRes;
-               pthread_cond_signal(&m_ResCond);
+               m_ResCond.signal();
                m_ResLock.release();
-#else
-               ++ m_iAvailRes;
-               SetEvent(m_ResCond);
-#endif
             }
             else
                s->second.m_pDS->m_iStatus = 0;
@@ -851,24 +825,10 @@ int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
       if (m_iProgress == m_iTotalDS)
          return 0;
 
-#ifndef WIN32
-      struct timeval now;
-      struct timespec timeout;
-
-      gettimeofday(&now, 0);
-      timeout.tv_sec = now.tv_sec + 10;
-      timeout.tv_nsec = now.tv_usec * 1000;
-
-      m_ResLock.acquire();
-      int retcode = pthread_cond_timedwait(&m_ResCond, &m_ResLock.m_Mutex, &timeout);
-      m_ResLock.release();
-
-      if (retcode == ETIMEDOUT)
+      bool timedout = false;
+      m_ResCond.wait(10000, &timedout);
+      if (timedout)
          return SectorError::E_TIMEOUT;
-#else
-      if (WaitForSingleObject(m_ResCond, 10000) == WAIT_TIMEOUT)
-         return SectorError::E_TIMEOUT;
-#endif
    }
 
    m_DSLock.acquire();
@@ -1461,15 +1421,10 @@ int DCClient::readResult(SPE* s)
    s->m_iStatus = 1;
    ++ m_iProgress;
 
-#ifndef WIN32
    m_ResLock.acquire();
    ++ m_iAvailRes;
-   pthread_cond_signal(&m_ResCond);
+   m_ResCond.signal();
    m_ResLock.release();
-#else
-   ++ m_iAvailRes;
-   SetEvent(m_ResCond);
-#endif
 
    return 0;
 }

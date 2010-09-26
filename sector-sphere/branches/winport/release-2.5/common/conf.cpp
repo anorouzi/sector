@@ -24,6 +24,9 @@ written by
    #include <arpa/inet.h>
    #include <unistd.h>
 #else
+    #define _WIN32_IE 0x501
+    #include <shlobj.h>
+
     #include <direct.h>
     #include "statfs.h"
     #include "common.h"
@@ -46,11 +49,19 @@ int ConfLocation::locate(string& loc)
 
    struct stat t;
 
+#ifndef WIN32
    char* system_env = getenv("SECTOR_HOME");
    if (NULL != system_env)
       loc = system_env;
-#ifdef WIN32
-    win_to_unix_path (loc);
+#else
+   char system_env[MAX_PATH+1]="";
+   size_t req_size = 0;
+   errno_t err = getenv_s (&req_size, system_env, "SECTOR_HOME");
+   if (err == 0 && system_env[0] != '\0')
+      loc = system_env;
+
+   win_to_unix_path (loc);
+
 #ifdef _DEBUG
     printf ("Config: %s\n", (loc + "/conf").c_str());
 #endif
@@ -63,10 +74,12 @@ int ConfLocation::locate(string& loc)
    {
       loc = "../";
    }
+#ifndef WIN32
    else if (stat("/opt/sector/conf", &t) == 0)
    {
       loc = "/opt/sector";
    }
+#endif
    else
    {
       cerr << "cannot locate Sector configurations from either $SECTOR_HOME, ../, or /opt/sector.";
@@ -256,7 +269,33 @@ int MasterConf::init(const string& path)
          m_iMaxActiveUser = atoi(param.m_vstrValue[0].c_str());
       else if ("DATA_DIRECTORY" == param.m_strName)
       {
-         m_strHomeDir = param.m_vstrValue[0];
+        m_strHomeDir = param.m_vstrValue[0];
+#ifdef WIN32
+        win_to_unix_path (m_strHomeDir);
+
+        struct stat t;
+        if (stat(m_strHomeDir.c_str(), &t) != 0) 
+        {
+            char szPath[MAX_PATH]="";
+            if (SUCCEEDED(SHGetFolderPath(NULL, 
+                                         CSIDL_COMMON_APPDATA | CSIDL_FLAG_CREATE, 
+                                         NULL, 
+                                         SHGFP_TYPE_DEFAULT, 
+                                         szPath)))
+            {
+                m_strHomeDir.assign (szPath);
+                char first = param.m_vstrValue[0][0];
+                if (first != '/' && first != '\\')
+                    m_strHomeDir += "\\";
+                m_strHomeDir.append(param.m_vstrValue[0]);
+                win_to_unix_path (m_strHomeDir);
+            }
+        }
+
+#ifdef _DEBUG
+         printf ("DATA_DIRECTORY: %s\n", m_strHomeDir.c_str());
+#endif
+#endif
          char last = m_strHomeDir.c_str()[m_strHomeDir.length() - 1];
          if (last != '/' && last != '\\')
             m_strHomeDir += "/";
@@ -349,7 +388,30 @@ int SlaveConf::init(const string& path)
       {
          m_strHomeDir = param.m_vstrValue[0];
 #ifdef WIN32
-         win_to_unix_path (m_strHomeDir);
+        win_to_unix_path (m_strHomeDir);
+
+        struct stat t;
+        if (stat(m_strHomeDir.c_str(), &t) != 0) 
+        {
+            char szPath[MAX_PATH]="";
+            if (SUCCEEDED(SHGetFolderPath(NULL, 
+                                         CSIDL_COMMON_APPDATA | CSIDL_FLAG_CREATE, 
+                                         NULL, 
+                                         SHGFP_TYPE_DEFAULT, 
+                                         szPath)))
+            {
+                m_strHomeDir.assign (szPath);
+                char first = param.m_vstrValue[0][0];
+                if (first != '/' && first != '\\')
+                    m_strHomeDir += "\\";
+                m_strHomeDir.append(param.m_vstrValue[0]);
+                win_to_unix_path (m_strHomeDir);
+            }
+        }
+
+#ifdef _DEBUG
+         printf ("DATA_DIRECTORY: %s\n", m_strHomeDir.c_str());
+#endif
 #endif
          if (m_strHomeDir.c_str()[m_strHomeDir.length() - 1] != '/')
             m_strHomeDir += "/";

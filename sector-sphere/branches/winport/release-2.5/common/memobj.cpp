@@ -35,7 +35,7 @@ MOMgmt::~MOMgmt()
 
 int MOMgmt::add(const string& name, void* loc, const string& user)
 {
-   CMutexGuard molock(m_MOLock);
+   CGuard molock(m_MOLock);
 
    string revised_name = Metadata::revisePath(name);
 
@@ -71,7 +71,7 @@ int MOMgmt::add(const string& name, void* loc, const string& user)
 
 void* MOMgmt::retrieve(const string& name)
 {
-   CMutexGuard molock(m_MOLock);
+   CGuard molock(m_MOLock);
 
    string revised_name = Metadata::revisePath(name);
 
@@ -86,7 +86,7 @@ void* MOMgmt::retrieve(const string& name)
 
 int MOMgmt::remove(const string& name)
 {
-   CMutexGuard molock(m_MOLock);
+   CGuard molock(m_MOLock);
 
    string revised_name = Metadata::revisePath(name);
 
@@ -103,7 +103,7 @@ int MOMgmt::remove(const string& name)
 
 int MOMgmt::update(vector<MemObj>& tba, vector<string>& tbd)
 {
-   CMutexGuard molock(m_MOLock);
+   CGuard molock(m_MOLock);
 
    tba = m_vTBA;
    m_vTBA.clear();

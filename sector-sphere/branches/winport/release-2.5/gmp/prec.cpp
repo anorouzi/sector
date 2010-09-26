@@ -61,7 +61,7 @@ CPeerManagement::~CPeerManagement()
 
 void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
 {
-   CMutexGuard recguard(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    if (rtt > 0)
    {
@@ -137,7 +137,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
 
 int CPeerManagement::getRTT(const string& ip)
 {
-   CMutexGuard recguard(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    map<string, int>::iterator t = m_mRTT.find(ip);
    if (t != m_mRTT.end())
@@ -148,7 +148,7 @@ int CPeerManagement::getRTT(const string& ip)
 
 void CPeerManagement::clearRTT(const string& ip)
 {
-   CMutexGuard recguard(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
    m_mRTT.erase(ip);
 }
 
@@ -159,7 +159,7 @@ int CPeerManagement::flowControl(const string& ip, const int& port, const int& s
    pr.m_iPort = port;
    pr.m_iSession = session;
 
-   CMutexGuard recguard(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
    if (i == m_sPeerRec.end())
@@ -225,7 +225,7 @@ int CPeerManagement::addRecentPR(const CPeerRecord& pr)
 
 bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)
 {
-   CMutexGuard recguard(m_PeerRecLock);
+   CGuard recguard(m_PeerRecLock);
 
    int key = hash(ip, port, session, id);
 

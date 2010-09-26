@@ -38,7 +38,7 @@ Metadata::~Metadata()
 
 int Metadata::lock(const string& path, int user, int mode)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    if (mode & SF_MODE::WRITE)
    {
@@ -58,7 +58,7 @@ int Metadata::lock(const string& path, int user, int mode)
 
 int Metadata::unlock(const string& path, int user, int mode)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    map<string, LockSet>::iterator i = m_mLock.find(path);
 
@@ -182,6 +182,10 @@ bool Metadata::initLC()
    {
       m_pbLegalChar[i] = true;
    }
+
+#ifdef WIN32
+   m_pbLegalChar[58] = true; // :
+#endif
 
    m_pbLegalChar[64] = true; // @
 

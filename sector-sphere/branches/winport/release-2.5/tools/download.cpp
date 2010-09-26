@@ -36,6 +36,7 @@ written by
 #include <errno.h>
 #ifndef WIN32
     #include <sys/vfs.h>
+    #include <sys/statvfs.h>
 #endif
 #include <iostream>
 #include "sector.h"
@@ -247,9 +248,9 @@ int main(int argc, char** argv)
       if (download(i->c_str(), localdir.c_str(), client) < 0)
       {
          // calculate total available disk size
-         struct statfs dstinfo;
-         statfs(newdir.c_str(), &dstinfo);
-         int64_t availdisk = dstinfo.f_bfree * dstinfo.f_bsize;
+         struct statvfs dstinfo;
+         statvfs(newdir.c_str(), &dstinfo);
+         int64_t availdisk = dstinfo.f_bavail * dstinfo.f_bsize;
 
          if (availdisk <= 0)
          {

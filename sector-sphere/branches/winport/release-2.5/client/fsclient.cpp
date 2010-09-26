@@ -22,7 +22,7 @@ written by
 
 #include <common.h>
 #include <fsclient.h>
-#include <iostream>
+
 using namespace std;
 
 FSClient* Client::createFSClient()
@@ -150,11 +150,8 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
       addr.m_strIP = msg.getData() + offset;
       addr.m_iPort = *(int32_t*)(msg.getData() + offset + 64);
       offset += 68;
-cout << "connecting " << addr.m_strIP << " " << addr.m_iPort << " " << m_strFileName << endl;
       if (m_pClient->m_DataChn.connect(addr.m_strIP, addr.m_iPort) >= 0)
          m_vReplicaAddress.push_back(addr);
-      else
-         cout << "connection failed\n";
    }
 
    while (m_bWrite && !m_vReplicaAddress.empty() && (organizeChainOfWrite() < 0)) {}
@@ -269,7 +266,7 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    if (size > 0x7FFFFFFF)
       return SectorError::E_INVALID;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    m_llCurReadPos = offset;
 
@@ -354,7 +351,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    if (size > 0x7FFFFFF)
       return SectorError::E_INVALID;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    m_llCurWritePos = offset;
 
@@ -432,7 +429,7 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    int64_t offset;
    fstream ofs;
@@ -513,7 +510,7 @@ int64_t FSClient::upload(const char* localpath, const bool& cont)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    fstream ifs;
    ifs.open(localpath, ios::in | ios::binary);
@@ -564,7 +561,7 @@ int FSClient::flush()
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    return flush_();
 }
@@ -574,7 +571,7 @@ int FSClient::close()
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    flush_();
 
@@ -606,7 +603,7 @@ int64_t FSClient::seekp(int64_t off, int pos)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    switch (pos)
    {
@@ -637,7 +634,7 @@ int64_t FSClient::seekg(int64_t off, int pos)
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CMutexGuard fg(m_FileLock);
+   CGuard fg(m_FileLock);
 
    switch (pos)
    {

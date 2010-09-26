@@ -36,7 +36,7 @@ TransManager::~TransManager()
 
 int TransManager::create(const int type, const int key, const int cmd, const string& file, const int mode)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    Transaction t;
    t.m_iTransID = m_iTransID ++;
@@ -54,7 +54,7 @@ int TransManager::create(const int type, const int key, const int cmd, const str
 
 int TransManager::addSlave(int transid, int slaveid)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    m_mTransList[transid].m_siSlaveID.insert(slaveid);
 
@@ -63,7 +63,7 @@ int TransManager::addSlave(int transid, int slaveid)
 
 int TransManager::retrieve(int transid, Transaction& trans)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    map<int, Transaction>::iterator i = m_mTransList.find(transid);
 
@@ -76,7 +76,7 @@ int TransManager::retrieve(int transid, Transaction& trans)
 
 int TransManager::retrieve(int slaveid, vector<int>& trans)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
    {
@@ -91,7 +91,7 @@ int TransManager::retrieve(int slaveid, vector<int>& trans)
 
 int TransManager::updateSlave(int transid, int slaveid)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    m_mTransList[transid].m_siSlaveID.erase(slaveid);
    int ret = m_mTransList[transid].m_siSlaveID.size();
@@ -103,7 +103,7 @@ int TransManager::updateSlave(int transid, int slaveid)
 
 int TransManager::getUserTrans(int key, vector<int>& trans)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
    {
@@ -118,14 +118,14 @@ int TransManager::getUserTrans(int key, vector<int>& trans)
 
 unsigned int TransManager::getTotalTrans()
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    return m_mTransList.size();
 }
 
 int TransManager::addWriteResult(int transid, int slaveid, const std::string& result)
 {
-   CMutexGuard tl(m_TLLock);
+   CGuard tl(m_TLLock);
 
    m_mTransList[transid].m_mResults[slaveid] = result;
 

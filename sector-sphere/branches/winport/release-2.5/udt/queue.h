@@ -209,8 +209,8 @@ private:
 
    CMutex m_ListLock;
 
-   CMutex* m_pWindowLock;
-   pthread_cond_t* m_pWindowCond;
+   //CMutex* m_pWindowLock;
+   CCond* m_pWindowCond;
 
    CTimer* m_pTimer;
 
@@ -406,10 +406,10 @@ private:
    CTimer* m_pTimer;			// Timing facility
 
    CMutex m_WindowLock;
-   pthread_cond_t m_WindowCond;
+   CCond  m_WindowCond;
 
    volatile bool m_bClosing;		// closing the worker
-   pthread_cond_t m_ExitCond;
+   CCond m_ExitCond;
 
 private:
    CSndQueue(const CSndQueue&);
@@ -470,8 +470,8 @@ private:
 
    int m_iPayloadSize;                  // packet payload size
 
-   volatile bool m_bClosing;            // closing the workder
-   //pthread_cond_t m_ExitCond;
+   volatile bool m_bClosing;            // closing the worker
+   //CCond m_ExitCond;
 
 private:
    int setListener(const CUDT* u);
@@ -493,7 +493,7 @@ private:
 
    std::map<int32_t, std::queue<CPacket*> > m_mBuffer;	// temporary buffer for rendezvous connection request
    CMutex m_PassLock;
-   pthread_cond_t m_PassCond;
+   CCond m_PassCond;
 
 private:
    CRcvQueue(const CRcvQueue&);

@@ -48,20 +48,10 @@ m_iCount(0),
 m_bActive(false),
 m_iID(0)
 {
-#ifndef WIN32   // <slr>
-   pthread_cond_init(&m_KACond, NULL);
-#else
-   m_KACond = CreateEvent(NULL, false, false, NULL);
-#endif
 }
 
 Client::~Client()
 {
-#ifndef WIN32
-   pthread_cond_destroy(&m_KACond);
-#else
-   CloseHandle(m_KACond);
-#endif
 }
 
 int Client::init(const string& server, const int& port)
@@ -83,15 +73,26 @@ int Client::init(const string& server, const int& port)
    m_ErrorInfo.init();
 
    struct addrinfo* result;
-   if (getaddrinfo(server.c_str(), NULL, NULL, &result) != 0)
+   // Setup the hints address info structure
+   // which is passed to the getaddrinfo() function
+   struct addrinfo aiHints;
+   memset(&aiHints, 0, sizeof(aiHints));
+   aiHints.ai_family = AF_INET;
+   aiHints.ai_socktype = SOCK_STREAM;
+   aiHints.ai_protocol = IPPROTO_TCP;
+
+   if (getaddrinfo(server.c_str(), NULL, &aiHints, &result) != 0)
       return SectorError::E_ADDR;
 
    m_strServerHost = server;
 
    char hostip[NI_MAXHOST];
-   getnameinfo((sockaddr *)result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, NI_NUMERICHOST);
+   int err = getnameinfo((sockaddr *)result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, NI_NUMERICHOST);
    m_strServerIP = hostip;
    freeaddrinfo(result);
+   if (err != 0) {
+      return SectorError::E_ADDR;
+   }
 
    m_iServerPort = port;
 
@@ -189,7 +190,7 @@ int Client::login(const string& username, const string& password, const char* ce
    m_Routing.insert(key, addr);
 
    {
-       CMutexGuard guard(m_MasterSetLock);
+       CGuard guard(m_MasterSetLock);
        m_sMasters.insert(addr);
    }
 
@@ -227,7 +228,7 @@ int Client::login(const string& serv_ip, const int& serv_port)
    addr.m_iPort = serv_port;
 
    {
-      CMutexGuard guard(m_MasterSetLock);
+      CGuard guard(m_MasterSetLock);
       if (m_sMasters.find(addr) != m_sMasters.end())
          return 0;
    }
@@ -279,7 +280,7 @@ int Client::login(const string& serv_ip, const int& serv_port)
    SSLTransport::destroy();
 
    {
-       CMutexGuard guard(m_MasterSetLock);
+       CGuard guard(m_MasterSetLock);
        m_sMasters.insert(addr);
    }
 
@@ -288,7 +289,7 @@ int Client::login(const string& serv_ip, const int& serv_port)
 
 int Client::logout()
 {
-    CMutexGuard guard(m_MasterSetLock);
+    CGuard guard(m_MasterSetLock);
 
     for (set<Address, AddrComp>::iterator i = m_sMasters.begin(); i != m_sMasters.end(); ++ i)
     {
@@ -311,15 +312,11 @@ int Client::close()
       if (m_iKey > 0)
          logout();
 
-   #ifndef WIN32
-      pthread_mutex_lock(&m_KALock.m_Mutex);
       m_bActive = false;
-      pthread_cond_signal(&m_KACond);
-      pthread_mutex_unlock(&m_KALock.m_Mutex);
+      m_KACond.signal();
+#ifndef WIN32
       pthread_join(m_KeepAlive, NULL);
 #else
-      m_bActive = false;
-      SetEvent(m_KACond);
       WaitForSingleObject(m_KeepAlive, INFINITE);
 #endif
 
@@ -708,19 +705,7 @@ unsigned int WINAPI Client::keepAlive(void * param)
 
    while (self->m_bActive)
    {
-#ifndef WIN32
-      timeval t;
-      gettimeofday(&t, NULL);
-      timespec ts;
-      ts.tv_sec  = t.tv_sec + 1;
-      ts.tv_nsec = t.tv_usec * 1000;
-
-      self->m_KALock.acquire();
-      pthread_cond_timedwait(&self->m_KACond, &self->m_KALock.m_Mutex, &ts);
-      self->m_KALock.release();
-#else
-      WaitForSingleObject(self->m_KACond, 1000);
-#endif
+      self->m_KACond.wait(1000);
 
       if (!self->m_bActive)
          break;

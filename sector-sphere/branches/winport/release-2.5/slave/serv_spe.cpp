@@ -618,7 +618,7 @@ void SPEDestination::reset(const int& buckets)
 
    queue<Bucket>* bq = NULL;
    CMutex * bqlock = NULL;
-   pthread_cond_t* bqcond = NULL;
+   CCond  * bqcond = NULL;
    int64_t* pendingSize = NULL;
    pthread_t shufflerex;
 
@@ -637,12 +637,7 @@ void SPEDestination::reset(const int& buckets)
 
       bq = new queue<Bucket>;
       bqlock = new CMutex();
-      bqcond = new pthread_cond_t;
-#ifndef WIN32
-      pthread_cond_init(bqcond, NULL);
-#else
-      *bqcond = CreateEvent(NULL, false, false, NULL);
-#endif
+      bqcond = new CCond();
       pendingSize = new int64_t;
       *pendingSize = 0;
 
@@ -677,13 +672,9 @@ void SPEDestination::reset(const int& buckets)
          b.totalnum = -1;
          b.totalsize = 0;
          {
-             CMutexGuard guard (*bqlock);
+             CGuard guard (*bqlock);
              bq->push(b);
-#ifndef WIN32
-             pthread_cond_signal(bqcond);
-#else
-             SetEvent(*bqcond);
-#endif
+             bqcond->signal();
          }
          break;
       }
@@ -714,14 +705,10 @@ void SPEDestination::reset(const int& buckets)
             self->m_DataChn.connect(speip, b.src_dataport);
 
          {
-             CMutexGuard guard (*bqlock);
+             CGuard guard (*bqlock);
              bq->push(b);
              *pendingSize += b.totalsize;
-#ifndef WIN32
-             pthread_cond_signal(bqcond);
-#else
-             SetEvent(*bqcond);
-#endif
+             bqcond->signal();
          }
       }
    }
@@ -734,12 +721,6 @@ void SPEDestination::reset(const int& buckets)
       WaitForSingleObject(shufflerex, INFINITE);
 #endif
 
-      //pthread_mutex_destroy(bqlock); // CMutex destructor takes care of this <slr>
-#ifndef WIN32
-      pthread_cond_destroy(bqcond);
-#else
-      CloseHandle(*bqcond);
-#endif
       delete bqlock;
       delete bqcond;
       delete pendingSize;
@@ -785,7 +766,7 @@ void SPEDestination::reset(const int& buckets)
    int master_port = ((Param5*)p)->master_port;
    queue<Bucket>* bq = ((Param5*)p)->bq;
    CMutex * bqlock = ((Param5*)p)->bqlock;
-   pthread_cond_t* bqcond = ((Param5*)p)->bqcond;
+   CCond * bqcond = ((Param5*)p)->bqcond;
    int64_t* pendingSize = ((Param5*)p)->pending;
    delete (Param5*)p;
 
@@ -818,18 +799,15 @@ void SPEDestination::reset(const int& buckets)
    {
       Bucket b;
       {
-          CMutexGuard guard (*bqlock);
+          CGuard guard (*bqlock);
 
           while (bq->empty())
-#ifndef WIN32
-             pthread_cond_wait(bqcond, &bqlock->m_Mutex);
-#else
           {
              bqlock->release();
-             WaitForSingleObject(*bqcond, INFINITE);
+             bqcond->wait();
              bqlock->acquire();
           }
-#endif
+
           b = bq->front();
           bq->pop();
           *pendingSize -= b.totalsize;

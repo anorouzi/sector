@@ -145,7 +145,7 @@ void CSndBuffer::addBuffer(const char* data, const int& len, const int& ttl, con
    m_pLastBlock = s;
 
    {
-       CMutexGuard guard (m_BufLock);
+       CGuard guard (m_BufLock);
        m_iCount += size;
    }
 
@@ -185,7 +185,7 @@ int CSndBuffer::addBufferFromFile(fstream& ifs, const int& len)
    }
 
    {
-       CMutexGuard guard (m_BufLock);
+       CGuard guard (m_BufLock);
        m_pLastBlock = s;
        m_iCount += size;
    }
@@ -210,7 +210,7 @@ int CSndBuffer::readData(char** data, int32_t& msgno)
 
 int CSndBuffer::readData(char** data, const int offset, int32_t& msgno, int& msglen)
 {
-   CMutexGuard bufferguard(m_BufLock);
+   CGuard bufferguard(m_BufLock);
 
    Block* p = m_pFirstBlock;
 
@@ -246,7 +246,7 @@ int CSndBuffer::readData(char** data, const int offset, int32_t& msgno, int& msg
 
 void CSndBuffer::ackData(const int& offset)
 {
-   CMutexGuard bufferguard(m_BufLock);
+   CGuard bufferguard(m_BufLock);
 
    for (int i = 0; i < offset; ++ i)
       m_pFirstBlock = m_pFirstBlock->m_pNext;

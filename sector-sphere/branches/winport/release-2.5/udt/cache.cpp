@@ -98,7 +98,7 @@ CCache::~CCache()
 
 void CCache::update(const sockaddr* addr, const int& ver, CInfoBlock* ib)
 {
-   CMutexGuard cacheguard(m_Lock);
+   CGuard cacheguard(m_Lock);
 
    CInfoBlock* newib = new CInfoBlock;
    convert(addr, ver, newib->m_piIP);
@@ -131,7 +131,7 @@ void CCache::update(const sockaddr* addr, const int& ver, CInfoBlock* ib)
 
 int CCache::lookup(const sockaddr* addr, const int& ver, CInfoBlock* ib)
 {
-   CMutexGuard cacheguard(m_Lock);
+   CGuard cacheguard(m_Lock);
 
    convert(addr, ver, ib->m_piIP);
    ib->m_iIPversion = ver;

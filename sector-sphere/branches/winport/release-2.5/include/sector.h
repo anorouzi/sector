@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/29/2010
+   Yunhong Gu, last updated 09/22/2010
 *****************************************************************************/
 
 
@@ -45,7 +45,7 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.5 build 09/08/2010.";
+const std::string SectorVersion = "Sector version 2.5 build 09/22/2010.";
 
 
 struct Address

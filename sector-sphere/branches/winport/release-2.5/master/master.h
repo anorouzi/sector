@@ -116,7 +116,7 @@ private: // replication
 #endif
 
    CMutex m_ReplicaLock;
-   pthread_cond_t m_ReplicaCond;
+   CCond  m_ReplicaCond;
 
    // string format: <src file>,<dst file>
    std::vector<std::string> m_vstrToBeReplicated;	// list of files to be replicated/copied
@@ -128,6 +128,8 @@ private: // replication
    int populateSpecialRep(const std::string& conf, std::map<std::string, int>& special);
 
    int processWriteResults(const std::string& filename, std::map<int, std::string> results);
+
+   int chooseDataToMove(std::vector<std::string>& path, const Address& addr, const int64_t& target_size);
 
 private:
    CGMP m_GMP;						// GMP messenger

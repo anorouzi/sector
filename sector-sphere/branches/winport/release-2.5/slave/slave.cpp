@@ -22,6 +22,7 @@ written by
 #ifndef WIN32
     #include <netdb.h>
     #include <sys/vfs.h>
+    #include <sys/statvfs.h>
     #include <unistd.h>
     #include <sys/times.h>
     #include <utime.h>
@@ -63,13 +64,11 @@ m_bRunning(false),
 m_bDiskHealth(true),
 m_bNetworkHealth(true)
 {
-   CGuard::createCond(m_RunCond);
 }
 
 Slave::~Slave()
 {
    delete m_pLocalFile;
-   CGuard::releaseCond(m_RunCond);
 }
 
 int Slave::init(const char* base)
@@ -89,6 +88,8 @@ int Slave::init(const char* base)
       return -1;
    }
 
+   UDTTransport::initialize();  // gethostbyname() requires call to WSAStartup() <slr>
+
    // obtain master IP address
    m_strMasterHost = m_SysConfig.m_strMasterHost;
    struct hostent* masterip = gethostbyname(m_strMasterHost.c_str());
@@ -101,7 +102,7 @@ int Slave::init(const char* base)
    m_strMasterIP = udt_inet_ntop(AF_INET, masterip->h_addr_list[0], buf, 64);
    m_iMasterPort = m_SysConfig.m_iMasterPort;
 
-   UDTTransport::initialize();
+   //UDTTransport::initialize();
 
    // init GMP
    m_GMP.init(0);
@@ -399,13 +400,7 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
 
       m_bRunning = false;
 
-#ifndef WIN32
-      m_RunLock.acquire();
-      pthread_cond_signal(&m_RunCond);
-      m_RunLock.release();
-#else
-      SetEvent(m_RunCond);
-#endif
+      m_RunCond.signal();
 
       break;
    }
@@ -1030,11 +1025,7 @@ int Slave::createSysDir()
          currpath += *i;
          if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
             return -1;
-#ifndef WIN32
          currpath += "/";
-#else
-         currpath += "\\";
-#endif
       }
    } else {
       closedir(test);
@@ -1331,7 +1322,7 @@ void SlaveStat::refresh()
 
 void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
 {
-   CMutexGuard guard (m_StatLock);
+   CGuard guard (m_StatLock);
 
    map<string, int64_t>::iterator a;
 
@@ -1391,7 +1382,7 @@ int SlaveStat::serializeIOStat(char*& buf, int& size)
    size = (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
    buf = new char[size];
 
-   CMutexGuard guard (m_StatLock);
+   CGuard guard (m_StatLock);
 
    char* p = buf;
    *(int32_t*)p = m_mSysIndInput.size();
@@ -1446,28 +1437,16 @@ unsigned int WINAPI Slave::worker(void* param)
 
    while (self->m_bRunning)
    {
-#ifndef WIN32
-      timeval t;
-      gettimeofday(&t, NULL);
-      timespec ts;
-      ts.tv_sec  = t.tv_sec + 30;
-      ts.tv_nsec = t.tv_usec * 1000;
-
-      self->m_RunLock.acquire();
-      pthread_cond_timedwait(&self->m_RunCond, &self->m_RunLock.m_Mutex, &ts);
-      self->m_RunLock.release();
-#else
-      WaitForSingleObject(self->m_RunCond, 30000);
-#endif
+      self->m_RunCond.wait(30000);
 
       // report to master every half minute
       if (CTimer::getTime() - last_report_time < 30000000)
          continue;
 
       // calculate total available disk size
-      struct statfs slavefs;
-      statfs (self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
-      self->m_SlaveStat.m_llAvailSize = slavefs.f_bfree * slavefs.f_bsize;
+      struct statvfs slavefs;
+      statvfs(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+      self->m_SlaveStat.m_llAvailSize = slavefs.f_bavail * slavefs.f_bsize;
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
 
       // users may limit the maximum disk size used by Sector

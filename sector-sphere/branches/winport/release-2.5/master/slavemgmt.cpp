@@ -111,7 +111,7 @@ int SlaveManager::setSlaveMinDiskSpace(const int64_t& byteSize)
 
 int SlaveManager::insert(SlaveNode& sn)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    sn.m_llLastUpdateTime = CTimer::getTime();
    sn.m_llLastVoteTime = CTimer::getTime();
@@ -151,7 +151,7 @@ int SlaveManager::insert(SlaveNode& sn)
 
 int SlaveManager::remove(int nodeid)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    map<int, SlaveNode>::iterator sn = m_mSlaveList.find(nodeid);
 
@@ -206,7 +206,7 @@ int SlaveManager::remove(int nodeid)
 
 bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int32_t& id, Address& addr)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    map<string, set<string> >::iterator i = m_mIPFSInfo.find(ip);
    if (i == m_mIPFSInfo.end())
@@ -258,7 +258,7 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
 
 int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
    return choosereplicanode_(loclist, sn, filesize);
 }
 
@@ -328,7 +328,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
  
 int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    timeval t;
    gettimeofday(&t, 0);
@@ -498,7 +498,7 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
 
 int SlaveManager::serializeTopo(char*& buf, int& size)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    buf = NULL;
    size = m_Topology.getTopoDataSize();
@@ -510,7 +510,7 @@ int SlaveManager::serializeTopo(char*& buf, int& size)
 
 int SlaveManager::updateSlaveList(vector<Address>& sl, int64_t& last_update_time)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    if (last_update_time < m_llLastUpdateTime)
    {
@@ -531,7 +531,7 @@ int SlaveManager::updateSlaveList(vector<Address>& sl, int64_t& last_update_time
 
 int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const int& len)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    map<Address, int, AddrComp>::iterator a = m_mAddrList.find(addr);
    if (a == m_mAddrList.end())
@@ -564,7 +564,7 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
 
 int SlaveManager::updateSlaveTS(const Address& addr)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    map<Address, int, AddrComp>::iterator a = m_mAddrList.find(addr);
    if (a == m_mAddrList.end())
@@ -584,7 +584,7 @@ int SlaveManager::updateSlaveTS(const Address& addr)
 
 int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, const int64_t& timeout)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    bad.clear();
    lost.clear();
@@ -618,7 +618,7 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
 
 int SlaveManager::serializeSlaveList(char*& buf, int& size)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    buf = new char [(4 + 4 + 64 + 4 + 4) * m_mSlaveList.size()];
 
@@ -669,7 +669,7 @@ int SlaveManager::deserializeSlaveList(int num, const char* buf, int size)
 
 int SlaveManager::getSlaveID(const Address& addr)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    map<Address, int, AddrComp>::const_iterator i = m_mAddrList.find(addr);
 
@@ -681,7 +681,7 @@ int SlaveManager::getSlaveID(const Address& addr)
 
 int SlaveManager::getSlaveAddr(const int& id, Address& addr)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    map<int, SlaveNode>::iterator i = m_mSlaveList.find(id);
 
@@ -696,7 +696,7 @@ int SlaveManager::getSlaveAddr(const int& id, Address& addr)
 
 int SlaveManager::voteBadSlaves(const Address& voter, int num, const char* buf)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    int vid = m_mAddrList[voter];
    for (int i = 0; i < num; ++ i)
@@ -714,21 +714,21 @@ int SlaveManager::voteBadSlaves(const Address& voter, int num, const char* buf)
 
 unsigned int SlaveManager::getNumberOfClusters()
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    return m_Cluster.m_mSubCluster.size();
 }
 
 unsigned int SlaveManager::getNumberOfSlaves()
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    return m_mSlaveList.size();
 }
 
 int SlaveManager::serializeClusterInfo(char*& buf, int& size)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    size = 4 + m_Cluster.m_mSubCluster.size() * 40;
    buf = new char[size];
@@ -753,7 +753,7 @@ int SlaveManager::serializeClusterInfo(char*& buf, int& size)
 
 int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    size = 4;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
@@ -792,7 +792,7 @@ int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
 
 uint64_t SlaveManager::getTotalDiskSpace()
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    uint64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
@@ -803,7 +803,7 @@ uint64_t SlaveManager::getTotalDiskSpace()
 
 void SlaveManager::updateClusterStat()
 {
-   CMutexGuard guard(m_SlaveLock);
+   CGuard guard(m_SlaveLock);
 
    updateclusterstat_(m_Cluster);
 }
@@ -869,6 +869,8 @@ void SlaveManager::updateclusterio_(Cluster& c, map<string, int64_t>& data_in, m
 
 int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopath)
 {
+   CGuard sg(m_SlaveLock);
+
    vector<int> path;
    if (m_Topology.parseTopo(topopath.c_str(), path) < 0)
       return -1;
@@ -901,4 +903,37 @@ int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopa
    }
 
    return sl.size();
+}
+
+int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
+{
+   CGuard sg(m_SlaveLock);
+
+   if (m_mSlaveList.empty())
+      return 0;
+
+   lowdisk.clear();
+
+   uint64_t size = 0;
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+      size += i->second.m_llAvailDiskSpace;
+
+   int64_t avg = size / m_mSlaveList.size();
+
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+   {
+      if (i->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
+      {
+         int64_t target;
+         if (avg > m_llSlaveMinDiskSpace)
+            target = avg  - i->second.m_llAvailDiskSpace;
+         else
+            target = m_llSlaveMinDiskSpace  - i->second.m_llAvailDiskSpace;
+
+         lowdisk[target].m_strIP = i->second.m_strIP;
+         lowdisk[target].m_iPort = i->second.m_iPort;
+      }
+   }
+
+   return lowdisk.size();
 }

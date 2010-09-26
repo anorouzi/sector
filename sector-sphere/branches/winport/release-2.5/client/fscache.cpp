@@ -64,7 +64,7 @@ int Cache::setMaxCacheBlocks(const int num)
 
 void Cache::update(const string& path, const int64_t& ts, const int64_t& size, bool first)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
 
@@ -95,7 +95,7 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
 
 void Cache::remove(const string& path)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
 
@@ -124,7 +124,7 @@ void Cache::remove(const string& path)
 
 int Cache::stat(const string& path, SNode& attr)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
 
@@ -142,7 +142,7 @@ int Cache::stat(const string& path, SNode& attr)
 
 int Cache::insert(char* block, const string& path, const int64_t& offset, const int64_t& size, const bool& write)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
    if (s == m_mOpenedFiles.end())
@@ -210,7 +210,7 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
 
 int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const int64_t& size)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
    if (s == m_mOpenedFiles.end())
@@ -297,7 +297,7 @@ int Cache::shrink()
 
 char* Cache::retrieve(const string& path, const int64_t& offset, const int64_t& size)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
    if (s == m_mOpenedFiles.end())
@@ -318,7 +318,7 @@ char* Cache::retrieve(const string& path, const int64_t& offset, const int64_t& 
 
 int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& size)
 {
-   CMutexGuard sg(m_Lock);
+   CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
    if (s == m_mOpenedFiles.end())

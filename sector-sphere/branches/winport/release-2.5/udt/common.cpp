@@ -67,20 +67,10 @@ m_ullSchedTime(),
 m_TickCond(),
 m_TickLock()
 {
-   #ifndef WIN32
-      pthread_cond_init(&m_TickCond, NULL);
-   #else
-      m_TickCond = CreateEvent(NULL, false, false, NULL);
-   #endif
 }
 
 CTimer::~CTimer()
 {
-   #ifndef WIN32
-      pthread_cond_destroy(&m_TickCond);
-   #else
-      CloseHandle(m_TickCond);
-   #endif
 }
 
 void CTimer::rdtsc(uint64_t &x)
@@ -175,26 +165,7 @@ void CTimer::sleepto(const uint64_t& nexttime)
             __asm__ volatile ("nop; nop; nop; nop; nop;");
          #endif
       #else
-         #ifndef WIN32
-            timeval now;
-            timespec timeout;
-            gettimeofday(&now, 0);
-            if (now.tv_usec < 990000)
-            {
-               timeout.tv_sec = now.tv_sec;
-               timeout.tv_nsec = (now.tv_usec + 10000) * 1000;
-            }
-            else
-            {
-               timeout.tv_sec = now.tv_sec + 1;
-               timeout.tv_nsec = (now.tv_usec + 10000 - 1000000) * 1000;
-            }
-            pthread_mutex_lock(&m_TickLock.m_Mutex);
-            pthread_cond_timedwait(&m_TickCond, &m_TickLock.m_Mutex, &timeout);
-            pthread_mutex_unlock(&m_TickLock.m_Mutex);
-         #else
-            WaitForSingleObject(m_TickCond, 1);
-         #endif
+         m_TickCond.wait(1000);
       #endif
 
       rdtsc(t);
@@ -211,11 +182,7 @@ void CTimer::interrupt()
 
 void CTimer::tick()
 {
-   #ifndef WIN32
-      pthread_cond_signal(&m_TickCond);
-   #else
-      SetEvent(m_TickCond);
-   #endif
+    m_TickCond.signal();
 }
 
 uint64_t CTimer::getTime()
@@ -479,82 +446,9 @@ void CTimer::sleep()
 
 #endif
 
-/*
-CSignal::CSignal() {
-}
-
-CSignal::~CSignal() {
-}
-
-bool CSignal::raise() {
-}
-
-bool CSignal::wait(unsigned secs, unsigned long msecs) 
-{
-#ifndef WIN32
-      timeval t;
-      gettimeofday(&t, NULL);
-      timespec ts;
-      ts.tv_sec  = t.tv_sec + 60 * 10;
-      ts.tv_nsec = t.tv_usec * 1000;
-
-      pthread_mutex_lock(&self->m_KALock);
-      pthread_cond_timedwait(&self->m_KACond, &self->m_KALock, &ts);
-      pthread_mutex_unlock(&self->m_KALock);
-#else
-      WaitForSingleObject(m_Signal, msecs);    // <slr>
-#endif
-}
-
-*/
-
 // <slr>
 //---------------------------------------------------------------------------
 
-//
-// Automatically lock in constructor
-CGuard::CGuard(pthread_mutex_t& lock):
-m_Mutex(lock),
-m_iLocked()
-{
-   #ifndef WIN32
-      m_iLocked = pthread_mutex_lock(&m_Mutex);
-   #else
-      m_iLocked = WaitForSingleObject(m_Mutex, INFINITE);
-   #endif
-}
-
-// Automatically unlock in destructor
-CGuard::~CGuard()
-{
-   #ifndef WIN32
-      if (0 == m_iLocked)
-         pthread_mutex_unlock(&m_Mutex);
-   #else
-      if (WAIT_FAILED != m_iLocked)
-         ReleaseMutex(m_Mutex);
-   #endif
-}
-
-// TODO: move this to a CondEvent class
-void CGuard::createCond(pthread_cond_t& cond)
-{
-   #ifndef WIN32
-      pthread_cond_init(&cond, NULL);
-   #else
-      cond = CreateEvent(NULL, false, false, NULL);
-   #endif
-}
-
-void CGuard::releaseCond(pthread_cond_t& cond)
-{
-   #ifndef WIN32
-      pthread_cond_destroy(&cond);
-   #else
-      CloseHandle(cond);
-   #endif
-
-}
 
 //
 CUDTException::CUDTException(int major, int minor, int err):

@@ -129,7 +129,7 @@ int ClientMgmt::insertDC(DCClient* d)
 
 int ClientMgmt::removeClient(const int& id)
 {
-    CMutexGuard guard(m_CLock);
+    CGuard guard(m_CLock);
     
     g_ClientMgmt.m_mClients.erase(id);
 
@@ -138,7 +138,7 @@ int ClientMgmt::removeClient(const int& id)
 
 int ClientMgmt::removeFS(const int& id)
 {
-    CMutexGuard guard(m_FSLock);
+    CGuard guard(m_FSLock);
 
     g_ClientMgmt.m_mSectorFiles.erase(id);
 
@@ -147,7 +147,7 @@ int ClientMgmt::removeFS(const int& id)
 
 int ClientMgmt::removeDC(const int& id)
 {
-    CMutexGuard guard(m_DCLock);
+    CGuard guard(m_DCLock);
     
     g_ClientMgmt.m_mSphereProcesses.erase(id);
 

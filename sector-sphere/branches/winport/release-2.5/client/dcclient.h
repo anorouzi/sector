@@ -123,7 +123,7 @@ private:
    bool m_bBucketHealth;			// if all bucket nodes are alive; unable to recover from bucket failure
 
    CMutex m_ResLock;
-   pthread_cond_t m_ResCond;
+   CCond  m_ResCond;
 
    int m_iMinUnitSize;				// minimum data segment size
    int m_iMaxUnitSize;				// maximum data segment size, must be smaller than physical memory

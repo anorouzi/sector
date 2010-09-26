@@ -45,7 +45,7 @@ Index::~Index()
 
 int Index::list(const string& path, vector<string>& filelist)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -89,7 +89,7 @@ int Index::list(const string& path, vector<string>& filelist)
 
 int Index::list_r(const string& path, vector<string>& filelist)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -115,7 +115,7 @@ int Index::list_r(const string& path, vector<string>& filelist)
 
 int Index::lookup(const string& path, SNode& attr)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -159,7 +159,7 @@ int Index::lookup(const string& path, SNode& attr)
 
 int Index::lookup(const string& path, set<Address, AddrComp>& addr)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
@@ -201,7 +201,7 @@ int Index::lookup(const string& path, set<Address, AddrComp>& addr)
 
 int Index::create(const SNode& node)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(node.m_strName.c_str(), dir) <= 0)
@@ -248,7 +248,7 @@ int Index::create(const SNode& node)
 
 int Index::move(const string& oldpath, const string& newpath, const string& newname)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> olddir;
    if (parsePath(oldpath, olddir) <= 0)
@@ -309,7 +309,7 @@ int Index::move(const string& oldpath, const string& newpath, const string& newn
 
 int Index::remove(const string& path, bool recursive)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) <= 0)
@@ -349,7 +349,7 @@ int Index::remove(const string& path, bool recursive)
 
 int Index::addReplica(const string& path, const int64_t& ts, const int64_t& size, const Address& addr)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    parsePath(path.c_str(), dir);
@@ -379,7 +379,7 @@ int Index::addReplica(const string& path, const int64_t& ts, const int64_t& size
 
 int Index::removeReplica(const string& path, const Address& addr)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    parsePath(path.c_str(), dir);
@@ -406,7 +406,7 @@ int Index::removeReplica(const string& path, const Address& addr)
 
 int Index::update(const string& path, const int64_t& ts, const int64_t& size)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    parsePath(path, dir);
@@ -436,7 +436,7 @@ int Index::update(const string& path, const int64_t& ts, const int64_t& size)
 
 int Index::serialize(const string& path, const string& dstfile)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -465,7 +465,7 @@ int Index::serialize(const string& path, const string& dstfile)
 
 int Index::deserialize(const string& path, const string& srcfile,  const Address* addr)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -494,7 +494,7 @@ int Index::deserialize(const string& path, const string& srcfile,  const Address
 
 int Index::scan(const string& datadir, const string& metadir)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(metadir, dir) < 0)
@@ -518,7 +518,7 @@ int Index::scan(const string& datadir, const string& metadir)
 
 int Index::merge(const string& path, Metadata* meta, const unsigned int& replica)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    merge(m_mDirectory, ((Index*)meta)->m_mDirectory, replica);
 
@@ -527,7 +527,7 @@ int Index::merge(const string& path, Metadata* meta, const unsigned int& replica
 
 int Index::substract(const string& path, const Address& addr)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -551,7 +551,7 @@ int Index::substract(const string& path, const Address& addr)
 
 int64_t Index::getTotalDataSize(const string& path)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -573,7 +573,7 @@ int64_t Index::getTotalDataSize(const string& path)
 
 int64_t Index::getTotalFileNum(const string& path)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -595,7 +595,7 @@ int64_t Index::getTotalFileNum(const string& path)
 
 int Index::collectDataInfo(const string& file, vector<string>& result)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(file, dir) <= 0)
@@ -636,7 +636,7 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
 
 int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
 {
-   CMutexGuard mg(m_MetaLock);
+   CGuard mg(m_MetaLock);
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
@@ -654,6 +654,14 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
    }
 
    return checkReplica(path, *currdir, under, over, thresh, special);
+}
+
+int Index::getSlaveMeta(Metadata* branch, const Address& addr)
+{
+   CGuard mg(m_MetaLock);
+
+   vector<string> path;
+   return getSlaveMeta(m_mDirectory, path, ((Index*)branch)->m_mDirectory, addr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -1009,4 +1017,44 @@ int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string
    }
 
    return filelist.size();
+}
+
+int Index::getSlaveMeta(map<string, SNode>& currdir, vector<string>& path, map<string, SNode>& target, const Address& addr)
+{
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      if (!i->second.m_bIsDir)
+      {
+         if (i->second.m_sLocation.find(addr) != i->second.m_sLocation.end())
+         {
+            map<string, SNode>* currdir = &target;
+            for (vector<string>::iterator d = path.begin(); d != path.end(); ++ d)
+            {
+               map<string, SNode>::iterator s = currdir->find(*d);
+               if (s == currdir->end())
+               {
+                  SNode n;
+                  n.m_strName = *d;
+                  n.m_bIsDir = true;
+                  n.m_llTimeStamp = time(NULL);
+                  n.m_llSize = 0;
+                  (*currdir)[*d] = n;
+                  s = currdir->find(*d);
+               }
+
+               currdir = &(s->second.m_mDirectory);
+            }
+
+            (*currdir)[i->first] = i->second;
+         }
+      }
+      else
+      {
+         path.push_back(i->first);
+         getSlaveMeta(i->second.m_mDirectory, path, target, addr);
+         path.erase(path.begin() + path.size() - 1);
+      }
+   }
+
+   return 0;
 }

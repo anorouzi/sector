@@ -4,10 +4,12 @@
     <LocalDebuggerCommandArguments>"$(SolutionDir)sector-sphere.sdf" /</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerEnvironment>SECTOR_HOME=$(SolutionDir)\..</LocalDebuggerEnvironment>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LocalDebuggerCommandArguments>"$(OutDir)\common.pdb" /</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerEnvironment>SECTOR_HOME=$(SolutionDir)\..</LocalDebuggerEnvironment>
   </PropertyGroup>
 </Project>

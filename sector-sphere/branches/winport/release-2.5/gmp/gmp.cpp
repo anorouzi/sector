@@ -134,35 +134,12 @@ int32_t CGMPMessage::initSession()
 
 CGMP::CGMP()
 {
-   #ifndef WIN32
-      pthread_cond_init(&m_SndQueueCond, NULL);
-      pthread_cond_init(&m_RcvQueueCond, NULL);
-      pthread_cond_init(&m_ResQueueCond, NULL);
-      pthread_cond_init(&m_RTTCond, NULL);
-   #else
-      m_SndQueueCond = CreateEvent(NULL, false, false, NULL);
-      m_RcvQueueCond = CreateEvent(NULL, false, false, NULL);
-      m_ResQueueCond = CreateEvent(NULL, false, false, NULL);
-      m_RTTCond = CreateEvent(NULL, false, false, NULL);
-   #endif
-
    m_bInit = false;
    m_bClosed = false;
 }
 
 CGMP::~CGMP()
 {
-   #ifndef WIN32
-      pthread_cond_destroy(&m_SndQueueCond);
-      pthread_cond_destroy(&m_RcvQueueCond);
-      pthread_cond_destroy(&m_ResQueueCond);
-      pthread_cond_destroy(&m_RTTCond);
-   #else
-      CloseHandle(m_SndQueueCond);
-      CloseHandle(m_RcvQueueCond);
-      CloseHandle(m_ResQueueCond);
-      CloseHandle(m_RTTCond);
-   #endif
 }
 
 int CGMP::init(const int& port)
@@ -223,28 +200,27 @@ int CGMP::close()
 
    m_UDTSocket.close();
 
-   #ifndef WIN32
-      ::close(m_UDPSocket);
+#ifndef WIN32
+   ::close(m_UDPSocket);
+#else
+   ::closesocket(m_UDPSocket);
+#endif
 
-      pthread_mutex_lock(&m_SndQueueLock.m_Mutex);
-      pthread_cond_signal(&m_SndQueueCond);
-      pthread_mutex_unlock(&m_SndQueueLock.m_Mutex);
+   m_SndQueueCond.signal();
 
-      pthread_join(m_SndThread, NULL);
-      pthread_join(m_RcvThread, NULL);
-      pthread_join(m_UDTRcvThread, NULL);
-   #else
-      ::closesocket(m_UDPSocket);
+#ifndef WIN32
+   pthread_join(m_SndThread, NULL);
+   pthread_join(m_RcvThread, NULL);
+   pthread_join(m_UDTRcvThread, NULL);
+#else
+   WaitForSingleObject(m_SndThread, INFINITE);
+   WaitForSingleObject(m_RcvThread, INFINITE);
+   WaitForSingleObject(m_UDTRcvThread, INFINITE);
+#endif
 
-      SetEvent(m_SndQueueCond);
-      WaitForSingleObject(m_SndThread, INFINITE);
-      WaitForSingleObject(m_RcvThread, INFINITE);
-      WaitForSingleObject(m_UDTRcvThread, INFINITE);
-   #endif
-
-   #ifdef WIN32
-      WSACleanup();
-   #endif
+#ifdef WIN32
+   WSACleanup();
+#endif
 
    UDT::cleanup();
 
@@ -285,7 +261,7 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
       rec->m_llTimeStamp = CTimer::getTime();
 
       {
-        CMutexGuard guard (m_SndQueueLock);
+        CGuard guard (m_SndQueueLock);
         m_lSndQueue.push_back(rec);
       }
    }
@@ -386,30 +362,12 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
 
    while (!m_bClosed && m_qRcvQueue.empty() && !timeout)
    {
-      #ifndef WIN32
-         if (block)
-            pthread_cond_wait(&m_RcvQueueCond, &m_RcvQueueLock.m_Mutex);
-         else
-         {
-            timeval now;
-            timespec expiretime;
-            gettimeofday(&now, 0);
-            expiretime.tv_sec = now.tv_sec + 1;
-            expiretime.tv_nsec = now.tv_usec * 1000;
-            if (pthread_cond_timedwait(&m_RcvQueueCond, &m_RcvQueueLock.m_Mutex, &expiretime) != 0)
-               timeout = true;
-         }
-      #else
-         m_RcvQueueLock.release();
-         if (block)
-            WaitForSingleObject(m_RcvQueueCond, INFINITE);
-         else
-         {
-            if (WaitForSingleObject(m_RcvQueueCond, 1000) == WAIT_TIMEOUT)
-               timeout = true;
-         }
-         m_RcvQueueLock.acquire();
-      #endif
+      m_RcvQueueLock.release();
+      if (block)
+         m_RcvQueueCond.wait();
+      else
+         m_RcvQueueCond.wait(1000, &timeout);
+      m_RcvQueueLock.acquire();
    }
 
    if (m_bClosed || timeout)
@@ -447,18 +405,7 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg)
 
    if (m == m_mResQueue.end())
    {
-      #ifndef WIN32
-         timeval now;
-         timespec timeout;
-         gettimeofday(&now, 0);
-         timeout.tv_sec = now.tv_sec + 1;
-         timeout.tv_nsec = now.tv_usec * 1000;
-         pthread_cond_timedwait(&m_ResQueueCond, &m_ResQueueLock.m_Mutex, &timeout);
-      #else
-         m_ResQueueLock.release();
-         WaitForSingleObject(m_ResQueueCond, 1000);
-         m_ResQueueLock.acquire();
-      #endif
+      m_ResQueueCond.wait(1000);
 
       m = m_mResQueue.find(id);
    }
@@ -499,19 +446,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
 
    while (!self->m_bClosed)
    {
-      #ifndef WIN32
-         timespec timeout;
-         timeval now;
-         gettimeofday(&now, 0);
-         timeout.tv_sec = now.tv_sec + 1;
-         timeout.tv_nsec = now.tv_usec * 1000;
-         {
-             CMutexGuard guard (self->m_SndQueueLock);
-             pthread_cond_timedwait(&self->m_SndQueueCond, &self->m_SndQueueLock.m_Mutex, &timeout);
-         }
-      #else
-         WaitForSingleObject(self->m_SndQueueCond, 1000);
-      #endif
+      self->m_SndQueueCond.wait(1000);
 
       vector<CMsgRecord*> udtsend;
       udtsend.clear();
@@ -630,11 +565,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
                      if (NULL != udt_inet_ntop(AF_INET, &(addr.sin_addr), ip, 64))
                          self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), CGMPMessage::g_iSession, -1, rtt, info);
 
-                  #ifndef WIN32
-                     pthread_cond_signal(&self->m_RTTCond);
-                  #else
-                     SetEvent(self->m_RTTCond);
-                  #endif
+                  self->m_RTTCond.signal();
 
                   delete (*i)->m_pMsg;
                   delete (*i);
@@ -696,31 +627,19 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
 
       if (0 == info)
       {
-         #ifndef WIN32
-            self->m_RcvQueueLock.acquire();
-            self->m_qRcvQueue.push(rec);
-            qsize += self->m_qRcvQueue.size();
-            self->m_RcvQueueLock.release();
-            pthread_cond_signal(&self->m_RcvQueueCond);
-         #else
-            self->m_RcvQueueLock.acquire();
-            self->m_qRcvQueue.push(rec);
-            qsize += self->m_qRcvQueue.size();
-            self->m_RcvQueueLock.release();
-            SetEvent(self->m_RcvQueueCond);
-         #endif
+         self->m_RcvQueueLock.acquire();
+         self->m_qRcvQueue.push(rec);
+         qsize += self->m_qRcvQueue.size();
+         self->m_RcvQueueLock.release();
+         self->m_RcvQueueCond.signal();
       }
       else
       {
           {
-            CMutexGuard guard (self->m_ResQueueLock);
+            CGuard guard (self->m_ResQueueLock);
             self->m_mResQueue[info] = rec;
           }
-#ifndef WIN32
-            pthread_cond_signal(&self->m_ResQueueCond);
-#else
-            SetEvent(self->m_ResQueueCond);
-#endif
+          self->m_ResQueueCond.signal();
       }
 
       ack[2] = id;
@@ -728,13 +647,8 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
       ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
    }
 
-   #ifndef WIN32
-      pthread_cond_signal(&self->m_RcvQueueCond);
-      pthread_cond_signal(&self->m_ResQueueCond);
-   #else
-      SetEvent(self->m_RcvQueueCond);
-      SetEvent(self->m_ResQueueCond);
-   #endif
+   self->m_RcvQueueCond.signal();
+   self->m_ResQueueCond.signal();
 
    return NULL;
 }
@@ -814,36 +728,23 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
       if (0 == header[3])
       {
           {
-              CMutexGuard guard (self->m_RcvQueueLock);
+              CGuard guard (self->m_RcvQueueLock);
               self->m_qRcvQueue.push(rec);
           }
-         #ifndef WIN32
-            pthread_cond_signal(&self->m_RcvQueueCond);
-         #else
-            SetEvent(self->m_RcvQueueCond);
-         #endif
+          self->m_RcvQueueCond.signal();
       }
       else
       {
           {
-              CMutexGuard guard (self->m_ResQueueLock);
+              CGuard guard (self->m_ResQueueLock);
               self->m_mResQueue[header[3]] = rec;
           }
-         #ifndef WIN32
-            pthread_cond_signal(&self->m_ResQueueCond);
-         #else
-            SetEvent(self->m_ResQueueCond);
-         #endif
+          self->m_ResQueueCond.signal();
       }
    }
 
-   #ifndef WIN32
-      pthread_cond_signal(&self->m_RcvQueueCond);
-      pthread_cond_signal(&self->m_ResQueueCond);
-   #else
-      SetEvent(self->m_RcvQueueCond);
-      SetEvent(self->m_ResQueueCond);
-   #endif
+   self->m_RcvQueueCond.signal();
+   self->m_ResQueueCond.signal();
 
    return NULL;
 }
@@ -970,23 +871,11 @@ int CGMP::rtt(const string& ip, const int& port, const bool& clear)
    rec->m_llTimeStamp = CTimer::getTime();
 
    {
-       CMutexGuard guard (m_SndQueueLock);
+       CGuard guard (m_SndQueueLock);
        m_lSndQueue.push_back(rec);
    }
 
-   #ifndef WIN32
-      timeval now;
-      timespec timeout;
-      gettimeofday(&now, 0);
-      timeout.tv_sec = now.tv_sec + 1;
-      timeout.tv_nsec = now.tv_usec * 1000;
-      {
-          CMutexGuard guard (m_RTTLock);
-          pthread_cond_timedwait(&m_RTTCond, &m_RTTLock.m_Mutex, &timeout);
-      }
-   #else
-      WaitForSingleObject(m_RTTCond, 1000);
-   #endif
+   m_RTTCond.wait(1000);
 
    return m_PeerHistory.getRTT(ip);
 }

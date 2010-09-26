@@ -78,8 +78,8 @@ public:
    std::set<UDTSOCKET>* m_pQueuedSockets;    // set of connections waiting for accept()
    std::set<UDTSOCKET>* m_pAcceptSockets;    // set of accept()ed connections
 
-   pthread_cond_t m_AcceptCond;              // used to block "accept" call
-   CMutex m_AcceptLock;             // mutex associated to m_AcceptCond
+   CCond  m_AcceptCond;                      // used to block "accept" call
+   CMutex m_AcceptLock;                      // mutex associated to m_AcceptCond
 
    unsigned int m_uiBackLog;                 // maximum number of connections in queue
 
@@ -225,8 +225,8 @@ private:
 
 private:
    volatile bool m_bClosing;
-   CMutex m_GCStopLock;
-   pthread_cond_t m_GCStopCond;
+
+   CCond  m_GCStopCond;
 
    CMutex m_InitLock;
    bool m_bGCStatus;					// if the GC thread is working (true)

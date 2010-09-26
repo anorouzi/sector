@@ -72,7 +72,7 @@ CSndLossList::~CSndLossList()
 
 int CSndLossList::insert(const int32_t& seqno1, const int32_t& seqno2)
 {
-   CMutexGuard listguard(m_ListLock);
+   CGuard listguard(m_ListLock);
 
    if (0 == m_iLength)
    {
@@ -244,7 +244,7 @@ int CSndLossList::insert(const int32_t& seqno1, const int32_t& seqno2)
 
 void CSndLossList::remove(const int32_t& seqno)
 {
-   CMutexGuard listguard(m_ListLock);
+   CGuard listguard(m_ListLock);
 
    if (0 == m_iLength)
       return;
@@ -356,7 +356,7 @@ void CSndLossList::remove(const int32_t& seqno)
 
 int CSndLossList::getLossLength()
 {
-   CMutexGuard listguard(m_ListLock);
+   CGuard listguard(m_ListLock);
 
    return m_iLength;
 }
@@ -366,7 +366,7 @@ int32_t CSndLossList::getLostSeq()
    if (0 == m_iLength)
      return -1;
 
-   CMutexGuard listguard(m_ListLock);
+   CGuard listguard(m_ListLock);
 
    if (0 == m_iLength)
      return -1;

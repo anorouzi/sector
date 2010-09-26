@@ -46,6 +46,7 @@ written by
    #include <sys/time.h>
    #include <sys/uio.h>
    #include <pthread.h>
+   #include <errno.h>
 #else
    #include <windows.h>
 #endif
@@ -126,31 +127,34 @@ written by
 class UDT_API CMutex
 {
 public:
+#ifndef WIN32
+    friend class CCond;
+#endif
     CMutex()
     {
 #ifndef WIN32   // TODO: add error checking
-       pthread_mutex_init(&m_Mutex, NULL);
+       pthread_mutex_init(&m_lock, NULL);
 #else
-       ::InitializeCriticalSection (&m_Mutex);
+       ::InitializeCriticalSection (&m_lock);
 #endif
     }
 
     ~CMutex()
     {
 #ifndef WIN32
-        pthread_mutex_destroy(&m_Mutex);
+        pthread_mutex_destroy(&m_lock);
 #else
-        ::DeleteCriticalSection (&m_Mutex);
+        ::DeleteCriticalSection (&m_lock);
 #endif
     }
 
     inline bool acquire() {
         bool locked = true;
 #ifndef WIN32
-        int iret = pthread_mutex_lock(&m_Mutex);
+        int iret = pthread_mutex_lock(&m_lock);
         locked = (iret == 0);
 #else
-        ::EnterCriticalSection(&m_Mutex);
+        ::EnterCriticalSection(&m_lock);
 #endif
         return locked;
     }
@@ -158,10 +162,10 @@ public:
     inline bool release() {
         bool unlocked = true;
 #ifndef WIN32
-        int iret = pthread_mutex_unlock(&m_Mutex);
+        int iret = pthread_mutex_unlock(&m_lock);
         unlocked = (iret == 0);
 #else
-        ::LeaveCriticalSection(&m_Mutex);
+        ::LeaveCriticalSection(&m_lock);
 #endif
         return unlocked;
     }
@@ -169,68 +173,157 @@ public:
     inline bool trylock() {
         bool locked = false;
 #ifndef WIN32
-        int iret = pthread_mutex_trylock(&m_Mutex);
+        int iret = pthread_mutex_trylock(&m_lock);
         locked = (iret == 0);
 #else
-        BOOL result = ::TryEnterCriticalSection (&m_Mutex);
+        BOOL result = ::TryEnterCriticalSection (&m_lock);
         locked = (result == TRUE);
 #endif
         return locked;
     }
 
 
-#ifdef WIN32
 private:
-   CRITICAL_SECTION m_Mutex;           // mutex to be protected
+#ifdef WIN32
+   CRITICAL_SECTION m_lock;           // mutex to be protected
 
 #else
-   pthread_mutex_t m_Mutex;            // allow public access for now, to use with pthread_cond_t 
-private:
+   pthread_mutex_t m_lock;            // allow public access for now, to use with pthread_cond_t 
 #endif
 
    CMutex& operator=(const CMutex&);
 };
 
-class CMutexGuard
+class CGuard
 {
 public:
     // Automatically lock in constructor
-    CMutexGuard(CMutex& mutex)
-    : m_Mutex(mutex) {
-        m_Locked = m_Mutex.acquire();
+    CGuard(CMutex& mutex)
+    : m_lock(mutex) {
+        m_Locked = m_lock.acquire();
     }
 
     // Automatically unlock in destructor
-    ~CMutexGuard()    {
+    ~CGuard()    {
         if (m_Locked) {
-            m_Mutex.release();
+            m_lock.release();
             m_Locked = false;
         }
     }
 
 private:
-   CMutex& m_Mutex;            // Alias name of the mutex to be protected
+   CMutex& m_lock;            // Alias name of the mutex to be protected
    bool m_Locked;              // Locking status
 
-   CMutexGuard& operator=(const CMutexGuard&);
+   CGuard& operator=(const CGuard&);
 };
 
-/*
-class CSignal
+
+class CCond
 {
 public:
-   CSignal();
-   ~CSignal();
+    CCond() {
+#ifndef WIN32
+        pthread_cond_init(&m_Cond, NULL);
+#else
+        m_Cond = ::CreateEvent(NULL, false, false, NULL);
+#endif
+    }
 
-   bool raise();
-   bool wait (unsigned secs, unsigned long msecs);
+    ~CCond() {
+#ifndef WIN32
+        pthread_cond_destroy(&m_Cond);
+#else
+        ::CloseHandle(m_Cond);
+#endif
+    }
+
+    bool signal() {
+#ifndef WIN32
+        m_Mutex.acquire();
+        int rc = pthread_cond_signal(&m_Cond);
+        m_Mutex.release();
+        return (rc == 0);
+   #else
+        return (::SetEvent(m_Cond) == TRUE);
+#endif
+    }
+
+    bool broadcast() {
+#ifndef WIN32
+        m_Mutex.acquire();
+        int rc = pthread_cond_broadcast(&m_Cond);
+        m_Mutex.release();
+        return (rc == 0);
+   #else
+        return (::SetEvent(m_Cond) == TRUE);
+#endif
+    }
+
+#ifndef WIN32
+    #define ONE_MILLION	1000000
+    inline timeval& adjust (timeval & t)
+    {
+        if (t.tv_usec < 0) {
+            t.tv_usec += ONE_MILLION ;
+            t.tv_sec -- ;
+        } else if (t.tv_usec > ONE_MILLION) {
+            t.tv_usec -= ONE_MILLION ;
+            t.tv_sec ++ ;
+        }
+        return t;
+    }
+#endif
+
+    bool wait () {  // wait forever
+#ifndef WIN32
+        m_Mutex.acquire();
+        int rc = pthread_cond_wait(&m_Cond, &m_Mutex.m_lock);
+        m_Mutex.release();
+        return (rc == 0);
+#else
+        DWORD dw = WaitForSingleObject(m_Cond, INFINITE);
+        return (dw == WAIT_OBJECT_0);
+#endif
+    }
+
+    bool wait (unsigned long msecs, bool * timedout = NULL) {
+#ifndef WIN32
+        timeval t;
+        gettimeofday(&t, NULL);
+        t.tv_sec += (msecs / 1000);
+        t.tv_usec += (msecs % 1000);
+        adjust (t);
+        // Convert from timeval to timespec
+        timespec ts;
+        ts.tv_sec  = t.tv_sec;
+        ts.tv_nsec = t.tv_usec * 1000;   // convert micro-seconds to nano-seconds
+
+        m_Mutex.acquire();
+        int rc = pthread_cond_timedwait(&m_Cond, &m_Mutex.m_lock, &ts);
+        m_Mutex.release();
+        if (timedout)
+            *timedout = (rc == ETIMEDOUT);
+        return (rc == 0);
+#else
+        DWORD dw = WaitForSingleObject(m_Cond, msecs);
+        if (timedout)
+            *timedout = (dw == WAIT_TIMEOUT);
+        return (dw == WAIT_OBJECT_0);
+#endif
+    }
 
 private:
-   pthread_cond_t m_Signal;      // condition to be protected
+#ifndef WIN32
+   pthread_cond_t m_Cond;
+   CMutex m_Mutex;
+#else
+   HANDLE m_Cond;
+#endif
 
-   CSignal& operator=(const CSignal&);
+   CCond& operator=(const CCond&);
 };
-*/
+
 
 // <slr>
 
@@ -340,7 +433,7 @@ public:
 private:
    uint64_t m_ullSchedTime;             // next schedulled time
 
-   pthread_cond_t m_TickCond;
+   CCond m_TickCond;
    CMutex m_TickLock;
 
    static pthread_cond_t m_EventCond;
@@ -351,30 +444,6 @@ private:
 private:
    static uint64_t s_ullCPUFrequency;	// CPU frequency : clock cycles per microsecond
    static uint64_t readCPUFrequency();
-};
-
-
-class UDT_API CGuard
-{
-public:
-   CGuard(pthread_mutex_t& lock);
-   ~CGuard();
-
-public:
-   static void enterCS(pthread_mutex_t& lock);
-   static void leaveCS(pthread_mutex_t& lock);
-
-   static void createMutex(pthread_mutex_t& lock);
-   static void releaseMutex(pthread_mutex_t& lock);
-
-   static void createCond(pthread_cond_t& cond);
-   static void releaseCond(pthread_cond_t& cond);
-
-private:
-   pthread_mutex_t& m_Mutex;            // Alias name of the mutex to be protected
-   int m_iLocked;                       // Locking status
-
-   CGuard& operator=(const CGuard&);
 };
 
 

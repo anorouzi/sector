@@ -175,13 +175,12 @@ private:
 #endif
 
    CMutex m_SndQueueLock;
-   pthread_cond_t m_SndQueueCond;
+   CCond  m_SndQueueCond;
    CMutex m_RcvQueueLock;
-   pthread_cond_t m_RcvQueueCond;
+   CCond  m_RcvQueueCond;
    CMutex m_ResQueueLock;
-   pthread_cond_t m_ResQueueCond;
-   CMutex m_RTTLock;
-   pthread_cond_t m_RTTCond;
+   CCond  m_ResQueueCond;
+   CCond  m_RTTCond;
 
 private:
    int m_iPort;

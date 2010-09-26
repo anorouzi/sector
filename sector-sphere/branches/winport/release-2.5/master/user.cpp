@@ -171,7 +171,7 @@ UserManager::~UserManager()
 
 int UserManager::insert(User* u)
 {
-   CMutexGuard guard(m_Lock);
+   CGuard guard(m_Lock);
 
    m_mActiveUsers[u->m_iKey] = u;
    return 0;
@@ -179,7 +179,7 @@ int UserManager::insert(User* u)
 
 int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
 {
-  CMutexGuard guard(m_Lock);
+  CGuard guard(m_Lock);
 
    iu.clear();
 
@@ -201,7 +201,7 @@ int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
 
 int UserManager::serializeUsers(int& num, vector<char*>& buf, vector<int>& size)
 {
-  CMutexGuard guard(m_Lock);
+  CGuard guard(m_Lock);
 
    buf.clear();
    size.clear();
@@ -226,7 +226,7 @@ int UserManager::serializeUsers(int& num, vector<char*>& buf, vector<int>& size)
 
 User* UserManager::lookup(int key)
 {
-  CMutexGuard guard(m_Lock);
+  CGuard guard(m_Lock);
 
    map<int, User*>::iterator i = m_mActiveUsers.find(key);
    if (i == m_mActiveUsers.end())
@@ -237,7 +237,7 @@ User* UserManager::lookup(int key)
 
 int UserManager::remove(int key)
 {
-  CMutexGuard guard(m_Lock);
+  CGuard guard(m_Lock);
 
    map<int, User*>::iterator i = m_mActiveUsers.find(key);
    if (i == m_mActiveUsers.end())

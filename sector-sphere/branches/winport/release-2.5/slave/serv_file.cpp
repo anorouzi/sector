@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/22/2010
 *****************************************************************************/
 
 
@@ -30,7 +30,7 @@ written by
     #include "dirent.h"
     #include "statfs.h"
 #endif
-#include <iostream>
+
 using namespace std;
 
 #ifndef WIN32
@@ -117,7 +117,6 @@ using namespace std;
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
-cout << "debug output: file command " << cmd << endl;
 
       switch (cmd)
       {
@@ -612,7 +611,10 @@ cout << "debug output: file command " << cmd << endl;
       {
          int64_t block = (torecv < unit) ? torecv : unit;
          if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
-            unlink((self->m_strHomeDir + ".tmp" + dst_path).c_str());
+         {
+            success = false;
+            break;
+         }
 
          recd += block;
          torecv -= block;
@@ -657,15 +659,8 @@ cout << "debug output: file command " << cmd << endl;
 
    // if the file has been modified during the replication, remove this replica
    int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
-   if (self->report(master_ip, master_port, transid, dst, type) < 0) {
-#ifndef WIN32
-      string cmd ("rm " + rhome + rfile);
-#else
-      string cmd ("del /F /Q \"");
-      cmd.append(unix_to_win_path(rhome)).append(unix_to_win_path(rfile)).append("\"");
-#endif
-      system(cmd.c_str());
-   }
+   if (self->report(master_ip, master_port, transid, dst, type) < 0)
+      unlink((rhome + rfile).c_str());
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

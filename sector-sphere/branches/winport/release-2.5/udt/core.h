@@ -339,13 +339,11 @@ private: // Receiving related data
 private: // synchronization: mutexes and conditions
    CMutex m_ConnectionLock;            // used to synchronize connection operation
 
-   pthread_cond_t m_SendBlockCond;              // used to block "send" call
-   CMutex m_SendBlockLock;             // lock associated to m_SendBlockCond
+   CCond  m_SendBlockCond;             // used to block "send" call
 
    CMutex m_AckLock;                   // used to protected sender's loss list when processing ACK
 
-   pthread_cond_t m_RecvDataCond;               // used to block "recv" when there is no data
-   CMutex m_RecvDataLock;              // lock associated to m_RecvDataCond
+   CCond  m_RecvDataCond;              // used to block "recv" when there is no data
 
    CMutex m_SendLock;                  // used to synchronize "send" call
    CMutex m_RecvLock;                  // used to synchronize "recv" call

@@ -11,7 +11,7 @@ Group: System Environment/Daemons
 License: BSD
 Source: sector.2.5.tar.gz
 BuildRoot: %{_tmppath}/%{name}-root
-BuildPrereq: libstdc++-devel, openssl-devel,fuse-libs,fuse-devel
+BuildPrereq: libstdc++-devel, openssl-devel, fuse-libs, fuse-devel
 Requires: openssl
 
 Summary: Distributed data processing engine
@@ -118,6 +118,7 @@ install -m 0644 Makefile.common $RPM_BUILD_ROOT/opt/sector
 /usr/local/bin/sector_mv
 /usr/local/bin/sector_pipe
 /usr/local/bin/sector_rm
+/usr/local/bin/sector_shutdown
 /usr/local/bin/sector_stat
 /usr/local/bin/sector_sysinfo
 /usr/local/bin/sector_upload

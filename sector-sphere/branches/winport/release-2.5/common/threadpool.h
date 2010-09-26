@@ -56,7 +56,7 @@ private:
    std::queue<void*> m_qJobs;
 
    CMutex m_QueueLock;
-   pthread_cond_t m_QueueCond;
+   CCond m_QueueCond;
 };
 
 #endif

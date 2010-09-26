@@ -48,7 +48,7 @@ void Routing::init()
 
 int Routing::insert(const uint32_t& key, const Address& node)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    if (m_mAddressList.find(key) != m_mAddressList.end())
       return -1;
@@ -73,7 +73,7 @@ int Routing::insert(const uint32_t& key, const Address& node)
 
 int Routing::remove(const uint32_t& key)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    map<uint32_t, Address>::iterator k = m_mAddressList.find(key);
    if (k == m_mAddressList.end())
@@ -95,7 +95,7 @@ int Routing::remove(const uint32_t& key)
 
 int Routing::lookup(const uint32_t& key, Address& node)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    if (m_vFingerTable.empty())
       return -1;
@@ -115,7 +115,7 @@ int Routing::lookup(const string& path, Address& node)
 
 int Routing::getEntityID(const string& path)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    uint32_t key = DHash::hash(path.c_str(), m_iKeySpace);
 
@@ -127,7 +127,7 @@ int Routing::getEntityID(const string& path)
 
 int Routing::getRouterID(const uint32_t& key)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    int pos = 0;
    for (vector<uint32_t>::const_iterator i = m_vFingerTable.begin(); i != m_vFingerTable.end(); ++ i)
@@ -141,7 +141,7 @@ int Routing::getRouterID(const uint32_t& key)
 
 int Routing::getRouterID(const Address& node)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    for (map<uint32_t, Address>::iterator i = m_mAddressList.begin(); i != m_mAddressList.end(); ++ i)
    {
@@ -154,7 +154,7 @@ int Routing::getRouterID(const Address& node)
 
 bool Routing::match(const uint32_t& cid, const uint32_t& key)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    if (m_vFingerTable.empty())
       return false;
@@ -164,7 +164,7 @@ bool Routing::match(const uint32_t& cid, const uint32_t& key)
 
 bool Routing::match(const char* path, const uint32_t& key)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    if (m_vFingerTable.empty())
       return false;
@@ -176,7 +176,7 @@ bool Routing::match(const char* path, const uint32_t& key)
 
 int Routing::getPrimaryMaster(Address& node)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    if (m_mAddressList.empty())
       return -1;
@@ -187,21 +187,21 @@ int Routing::getPrimaryMaster(Address& node)
 
 int Routing::getNumOfMasters()
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    return m_mAddressList.size();
 }
 
 void Routing::getListOfMasters(map<uint32_t, Address>& al)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    al = m_mAddressList;
 }
 
 int Routing::serializeMasterInfo(char*& buf, int& size)
 {
-   CMutexGuard rg(m_Lock);
+   CGuard rg(m_Lock);
 
    size = 4 + m_mAddressList.size() * 24;
    buf = new char[size];
