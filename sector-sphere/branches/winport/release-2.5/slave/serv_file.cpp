@@ -468,6 +468,11 @@ using namespace std;
    int master_port = ((Param3*)p)->master_port;
    delete (Param3*)p;
 
+   if (src.c_str()[0] == '\0')
+      src = "/" + src;
+   if (dst.c_str()[0] == '\0')
+      dst = "/" + dst;
+
    SNode tmp;
    if (self->m_pLocalFile->lookup(src.c_str(), tmp) >= 0)
    {
@@ -481,14 +486,19 @@ using namespace std;
       string rdst = self->reviseSysCmdPath(dst);
 
 #ifndef WIN32
-      string cmd ("cp " + rhome + src + " " + rhome + rdst);
+      string cmd ("cp " + rhome + rsrc + " " + rhome + rdst);
 #else
-      string cmd ("copy /Y /V \"" + rhome + src + "\" \"" + rhome + rdst + "\"");
+      string cmd ("copy /Y /V \"" + rhome + rsrc + "\" \"" + rhome + rdst + "\"");
 #endif
       system(cmd.c_str());
 
       // if the file has been modified during the replication, remove this replica
-      int type = (src == dst) ? 3 : 1;
+      int type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
+
+      struct stat64 s;
+      if (stat64((self->m_strHomeDir + dst).c_str(), &s) < 0)
+         type = +FileChangeType::FILE_UPDATE_NO;
+
       if (self->report(master_ip, master_port, transid, dst, type) < 0) {
 #ifndef WIN32
          string cmd ("rm " + rhome + rdst);
@@ -498,6 +508,9 @@ using namespace std;
 #endif
          system(cmd.c_str());
       }
+
+      // clear this transaction
+      self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
 
       return NULL;
    }
@@ -549,7 +562,7 @@ using namespace std;
       msg.setType(110);
       msg.setKey(0);
 
-      int32_t mode = 1;
+      int32_t mode = SF_MODE::READ;
       msg.setData(0, (char*)&mode, 4);
       int64_t reserve = 0;
       msg.setData(4, (char*)&reserve, 8);
@@ -646,6 +659,11 @@ using namespace std;
       // move from temporary dir to the real dir when the copy is completed
       self->createDir(dst.substr(0, dst.rfind('/')));
       system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
+
+      // if the file has been modified during the replication, remove this replica
+      int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
+      if (self->report(master_ip, master_port, transid, dst, type) < 0)
+         unlink((rhome + rfile).c_str());
    }
    else
    {
@@ -655,12 +673,9 @@ using namespace std;
 #else
       system(("del /F /Q \"" + rhome + ".tmp" + rfile + "\"").c_str());
 #endif
-   }
 
-   // if the file has been modified during the replication, remove this replica
-   int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
-   if (self->report(master_ip, master_port, transid, dst, type) < 0)
-      unlink((rhome + rfile).c_str());
+      self->report(master_ip, master_port, transid, "", +FileChangeType::FILE_UPDATE_NO);
+   }
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

@@ -305,6 +305,7 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
    c->m_pTrans->send((char*)&size, 4);
    if (size > 0)
       c->m_pTrans->sendEx(data, size, secure);
+
    c->m_SndLock.release();
 
    return size;
@@ -474,10 +475,19 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
    }
 
    c->m_SndLock.acquire();
+
+   if (NULL == c->m_pTrans)
+   {
+      // no connection
+      c->m_SndLock.release();
+      return -1;
+   }
+
    c->m_pTrans->send((char*)&session, 4);
    c->m_pTrans->send((char*)&size, 4);
    if (size > 0)
       c->m_pTrans->sendfileEx(ifs, offset, size, secure);
+
    c->m_SndLock.release();
 
    return size;
@@ -579,6 +589,9 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       {
          if (session == rd.m_iSession)
          {
+            //TODO: if recvfile returns error, following recv will crash
+            //recvfile should be removed in future version, and maybe messaging mode can be considered
+
             if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, secure) < 0)
             {
                 c->m_RcvLock.release();

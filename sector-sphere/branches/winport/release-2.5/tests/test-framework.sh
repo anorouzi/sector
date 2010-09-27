@@ -27,7 +27,7 @@ init_test_env() {
         export DSH=${DSH:-"ssh"}
         export SECTOR_HOST=${SECTOR_HOST:-`hostname`}
         export TEST_FAILED=false
-
+        export I_MOUNTED=${I_MOUNTED:-"no"}
         export SLAVE_COUNT=${SLAVE_COUNT:-"3"}
 
         export SLAVE1_IP=${SLAVE1_IP:-"$SECTOR_HOST"}
@@ -56,8 +56,10 @@ init_test_env() {
 setup() {
          echo "start security server..."
          nohup $START_SECURITY > /dev/null &
+         sleep 1
          echo "start master ...\n"
          nohup $START_MASTER > /dev/null &
+         sleep 1
          for i in `seq 1 $SLAVE_COUNT`; do
                 local SLAVE_CONF=SLAVE${i}_CONF
                 echo "start slave $i ...\n"
@@ -75,6 +77,7 @@ setup() {
 check_and_setup_sector() {
          if ! ps aux | grep start_master | grep -v grep 1>&2 > /dev/null; then
                 setup
+                export I_MOUNTED=yes
          fi 
 }
 
@@ -91,10 +94,11 @@ cleanup() {
 
 check_and_cleanup_sector() {
          if ps aux | grep start_master | grep -v grep; then
-                cleanup 
+                if [ "$I_MOUNTED" = "yes" ]; then
+                        cleanup
+                fi 
          fi 
 }
-
 
 read_only() {
          local readonly_slave=$1
