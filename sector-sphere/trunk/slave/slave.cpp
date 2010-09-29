@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/10/2010
+   Yunhong Gu, last updated 09/28/2010
 *****************************************************************************/
 
 #include "slave.h"
@@ -778,7 +778,11 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
          sn.m_sLocation.insert(addr);
 
          if (change == FileChangeType::FILE_UPDATE_WRITE)
-            m_pLocalFile->update(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize);
+         {
+            // file may be created on write; in this case, create a new meta entry instead of update non-existing one
+            if (m_pLocalFile->update(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize) < 0)
+               m_pLocalFile->create(sn);
+         }
          else if (change == FileChangeType::FILE_UPDATE_NEW)
             m_pLocalFile->create(sn);
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)

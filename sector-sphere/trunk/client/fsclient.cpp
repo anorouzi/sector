@@ -129,6 +129,8 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
    if (mode & 8)
       m_llCurWritePos = m_llSize;
 
+   //TODO: handle TRUNC
+
    // receiving all replica nodes
    int32_t slave_num = *(int32_t*)(msg.getData() + 20);
    int offset = 24;

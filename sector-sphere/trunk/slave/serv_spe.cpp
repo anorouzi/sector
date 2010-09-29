@@ -863,7 +863,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    }
    else
    {
-      if (readSectorFile(datafile, index[0], index[totalrows] - index[0], block) < 0)
+      if (readSectorFile(datafile, index[0], size, block) < 0)
          return -1;
    }
 
