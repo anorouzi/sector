@@ -346,6 +346,7 @@ void Slave::run()
 
 void Slave::close()
 {
+   UDTTransport::release();
 }
 
 int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* msg)
