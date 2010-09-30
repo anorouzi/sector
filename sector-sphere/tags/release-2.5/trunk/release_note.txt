@@ -1,0 +1,24 @@
+version 2.5
+
+automatic storage re-balancing
+start sector slave when slave node is full
+fix a bug that causes client to hang during concurrent IO from the same client
+log system improved
+fix sector_download bug when local disk is full
+fix udt recvfile bug
+fix reopen on read error bug
+improve write fault tolerance (handle slave node down during a write)
+slave can now restart immediately
+Windows client support
+Improved small write performance
+Improved file update report performance from slave to master (ignore unchanged files)
+mapreduce loadoperator bug fix
+correct the return values (1 -> 0) for Sector tools
+
+version 2.4
+
+support $SECTOR_HOME so that Sector tools can be run anywhere
+master certificate now is an option at the client side
+fix the client read cache memory leak bug
+renamed all Sector tools with a "sector_" prefix to avoid confliction with system commands
+documentation is updated
