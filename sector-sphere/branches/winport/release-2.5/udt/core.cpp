@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/17/2010
+   Yunhong Gu, last updated 09/23/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -638,10 +638,10 @@ void CUDT::connect(const sockaddr* serv_addr)
                   response.setLength(-1);
                }
             }
-
-            // new response should be sent out immediately
-            last_req_time = 0;
          }
+
+         // new request/response should be sent out immediately on receving a response
+         last_req_time = 0;
       }
 
       if (response.getLength() > 0)
@@ -742,6 +742,10 @@ void CUDT::connect(const sockaddr* serv_addr)
 
    // remove from rendezvous queue
    m_pRcvQueue->m_pRendezvousQueue->remove(m_SocketID);
+
+   // acknowledde any waiting epolls to read/write
+   s_UDTUnited.m_EPoll.enable_read(m_SocketID, m_sPollID);
+   s_UDTUnited.m_EPoll.enable_write(m_SocketID, m_sPollID);
 }
 
 void CUDT::connect(const sockaddr* peer, CHandShake* hs)
@@ -936,7 +940,12 @@ int CUDT::send(const char* data, const int& len)
                m_SendBlockCond.wait();
          }
          else 
-            m_SendBlockCond.wait((unsigned long)m_iSndTimeOut); 
+         {
+            uint64_t exptime = CTimer::getTime() + m_iSndTimeOut * 1000ULL;
+
+            while (!m_bBroken && m_bConnected && !m_bClosing && (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize()) && (CTimer::getTime() < exptime))
+               m_SendBlockCond.wait((unsigned long)((exptime - CTimer::getTime()) / 1000));
+         }
 
          // check the connection status
          if (m_bBroken || m_bClosing)
@@ -962,6 +971,12 @@ int CUDT::send(const char* data, const int& len)
 
    // insert this socket to snd list if it is not on the list yet
    m_pSndQueue->m_pSndUList->update(this, false);
+
+   if (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize())
+   {
+      // write is not available any more
+      s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
+   }
 
    return size;
 }
@@ -1014,7 +1029,15 @@ int CUDT::recv(char* data, const int& len)
    else if ((m_bBroken || m_bClosing) && (0 == m_pRcvBuffer->getRcvDataSize()))
       throw CUDTException(2, 1, 0);
 
-   return m_pRcvBuffer->readBuffer(data, len);
+   int res = m_pRcvBuffer->readBuffer(data, len);
+
+   if (m_pRcvBuffer->getRcvDataSize() <= 0)
+   {
+      // read is not available any more
+      s_UDTUnited.m_EPoll.disable_read(m_SocketID, m_sPollID);
+   }
+
+   return res;
 }
 
 int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool& inorder)
@@ -1049,7 +1072,12 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
                m_SendBlockCond.wait();
          }
          else
-            m_SendBlockCond.wait((unsigned long)m_iSndTimeOut);
+         {
+            uint64_t exptime = CTimer::getTime() + m_iSndTimeOut * 1000ULL;
+
+            while (!m_bBroken && m_bConnected && !m_bClosing && ((m_iSndBufSize - m_pSndBuffer->getCurrBufSize()) * m_iPayloadSize < len) && (CTimer::getTime() < exptime))
+               m_SendBlockCond.wait((unsigned long)((exptime - CTimer::getTime()) / 1000));
+         }
 
          // check the connection status
          if (m_bBroken || m_bClosing)
@@ -1071,6 +1099,12 @@ int CUDT::sendmsg(const char* data, const int& len, const int& msttl, const bool
 
    // insert this socket to the snd list if it is not on the list yet
    m_pSndQueue->m_pSndUList->update(this, false);
+
+   if (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize())
+   {
+      // write is not available any more
+      s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
+   }
 
    return len;   
 }
@@ -1130,6 +1164,12 @@ int CUDT::recvmsg(char* data, const int& len)
          throw CUDTException(2, 2, 0);
    } while ((0 == res) && !timeout);
 
+   if (m_pRcvBuffer->getRcvMsgNum() <= 0)
+   {
+      // read is not available any more
+      s_UDTUnited.m_EPoll.disable_read(m_SocketID, m_sPollID);
+   }
+
    return res;
 }
 
@@ -1164,7 +1204,10 @@ int64_t CUDT::sendfile(fstream& ifs, const int64_t& offset, const int64_t& size,
    // sending block by block
    while (tosend > 0)
    {
-      if (ifs.bad() || ifs.fail() || ifs.eof())
+      if (ifs.fail())
+         throw CUDTException(4, 4);
+
+      if (ifs.eof())
          break;
 
       unitsize = int((tosend >= block) ? block : tosend);
@@ -1185,6 +1228,12 @@ int64_t CUDT::sendfile(fstream& ifs, const int64_t& offset, const int64_t& size,
 
       // insert this socket to snd list if it is not on the list yet
       m_pSndQueue->m_pSndUList->update(this, false);
+   }
+
+   if (m_iSndBufSize <= m_pSndBuffer->getCurrBufSize())
+   {
+      // write is not available any more
+      s_UDTUnited.m_EPoll.disable_write(m_SocketID, m_sPollID);
    }
 
    return size - tosend;
@@ -1222,8 +1271,8 @@ int64_t CUDT::recvfile(fstream& ofs, const int64_t& offset, const int64_t& size,
    // receiving... "recvfile" is always blocking
    while (torecv > 0)
    {
-      if (ofs.bad() || ofs.fail())
-         break;
+      if (ofs.fail())
+         throw CUDTException(4, 4);
 
       while (!m_bBroken && m_bConnected && !m_bClosing && (0 == m_pRcvBuffer->getRcvDataSize()))
          m_RecvDataCond.wait();
@@ -1237,6 +1286,12 @@ int64_t CUDT::recvfile(fstream& ofs, const int64_t& offset, const int64_t& size,
       recvsize = m_pRcvBuffer->readBufferToFile(ofs, unitsize);
 
       torecv -= recvsize;
+   }
+
+   if (m_pRcvBuffer->getRcvDataSize() <= 0)
+   {
+      // read is not available any more
+      s_UDTUnited.m_EPoll.disable_read(m_SocketID, m_sPollID);
    }
 
    return size - torecv;
@@ -1377,6 +1432,9 @@ void CUDT::sendCtrl(const int& pkttype, void* lparam, void* rparam, const int& s
          // signal a waiting "recv" call if there is any data available
          if (m_bSynRecving)
             m_RecvDataCond.signal();
+
+         // acknowledde any waiting epolls to read
+         s_UDTUnited.m_EPoll.enable_read(m_SocketID, m_sPollID);
       }
       else if (ack == m_iRcvLastAck)
       {
@@ -1614,6 +1672,9 @@ void CUDT::processCtrl(CPacket& ctrlpkt)
 
       if (m_bSynSending)
          m_SendBlockCond.signal();
+
+      // acknowledde any waiting epolls to write
+      s_UDTUnited.m_EPoll.enable_write(m_SocketID, m_sPollID);
 
       // insert this socket to snd list if it is not on the list yet
       m_pSndQueue->m_pSndUList->update(this, false);
@@ -2094,6 +2155,11 @@ int CUDT::listen(sockaddr* addr, CPacket& packet)
             packet.m_iID = id;
             m_pSndQueue->sendto(addr, packet);
          }
+         else
+         {
+            // a mew connection has been created, enable epoll for read 
+            s_UDTUnited.m_EPoll.enable_read(m_SocketID, m_sPollID);
+         }
       }
    }
 
@@ -2163,6 +2229,9 @@ void CUDT::checkTimers()
 
          releaseSynch();
 
+         // a broken socket can be "write" to learn the error
+         s_UDTUnited.m_EPoll.enable_write(m_SocketID, m_sPollID);
+
          CTimer::triggerEvent();
 
          return;
@@ -2200,4 +2269,14 @@ void CUDT::checkTimers()
       CTimer::rdtsc(m_ullNextEXPTime);
       m_ullNextEXPTime += m_ullEXPInt;
    }
+}
+
+void CUDT::addEPoll(const int eid)
+{
+   m_sPollID.insert(eid);
+}
+
+void CUDT::removeEPoll(const int eid)
+{
+   m_sPollID.erase(eid);
 }

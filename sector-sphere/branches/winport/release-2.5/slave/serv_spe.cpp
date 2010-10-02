@@ -945,7 +945,7 @@ int Slave::SPEReadData(const string& datafile, const int64_t& offset, int& size,
    }
    else
    {
-      if (readSectorFile(datafile, index[0], index[totalrows] - index[0], block) < 0)
+      if (readSectorFile(datafile, index[0], size, block) < 0)
          return -1;
    }
 
@@ -1138,8 +1138,7 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
 #else
    const char * ext = ".dll";
 #endif
-   lh = dlopen((m_strHomeDir + ".sphere/" + path + "/" + lib + ext).c_str(), RTLD_LAZY | RTLD_DEEPBIND);
-
+   lh = dlopen((m_strHomeDir + ".sphere/" + path + "/" + lib + ".so").c_str(), RTLD_LAZY);
    if (NULL == lh)
    {
       // if no user uploaded lib, check permanent lib

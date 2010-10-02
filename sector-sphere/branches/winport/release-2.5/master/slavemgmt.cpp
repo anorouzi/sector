@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 09/26/2010
 *****************************************************************************/
 
 
@@ -130,7 +130,8 @@ int SlaveManager::insert(SlaveNode& sn)
    {
       pc = sc->find(*i);
       pc->second.m_iTotalNodes ++;
-      pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace;
+      if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
       pc->second.m_llTotalFileSize += sn.m_llTotalFileSize;
 
       sc = &(pc->second.m_mSubCluster);
@@ -176,7 +177,8 @@ int SlaveManager::remove(int nodeid)
       }
 
       pc->second.m_iTotalNodes --;
-      pc->second.m_llAvailDiskSpace -= sn->second.m_llAvailDiskSpace;
+      if (sn->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         pc->second.m_llAvailDiskSpace -= sn->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
       pc->second.m_llTotalFileSize -= sn->second.m_llTotalFileSize;
 
       sc = &(pc->second.m_mSubCluster);
@@ -397,7 +399,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
             continue;
 
          // only nodes with more than minimum available disk space are chosen
-         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace + reserve)
+         if (i->second.m_llAvailDiskSpace > (m_llSlaveMinDiskSpace + reserve))
             avail.insert(i->first);
       }
 
@@ -467,7 +469,7 @@ int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)
          continue;
 
       // only nodes with more than minimum available disk space are chosen
-      if (i->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
+      if (i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace)
          continue;
 
       sl.push_back(i->second);
@@ -548,16 +550,10 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
    s->second.m_llTimeStamp = CTimer::getTime();
    s->second.deserialize(info, len);
 
-   if (s->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
-   {
-      if (s->second.m_iStatus == 1)
-         s->second.m_iStatus = 2;
-   }
+   if (s->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace)
+      s->second.m_iStatus = 2; // disk full
    else
-   {
-      if (s->second.m_iStatus == 2)
-         s->second.m_iStatus = 1;
-   }
+      s->second.m_iStatus = 1; // normal
 
    return 0;
 }
@@ -740,7 +736,8 @@ int SlaveManager::serializeClusterInfo(char*& buf, int& size)
    {
       *(int32_t*)p = i->second.m_iClusterID;
       *(int32_t*)(p + 4) = i->second.m_iTotalNodes;
-      *(int64_t*)(p + 8) = i->second.m_llAvailDiskSpace;
+      if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         *(int64_t*)(p + 8) = i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
       *(int64_t*)(p + 16) = i->second.m_llTotalFileSize;
       *(int64_t*)(p + 24) = i->second.m_llTotalInputData;
       *(int64_t*)(p + 32) = i->second.m_llTotalOutputData;
@@ -772,7 +769,10 @@ int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
       *(int32_t*)p = i->first;
       strcpy(p + 4, i->second.m_strIP.c_str());
       *(int32_t*)(p + 20) = i->second.m_iPort;
-      *(int64_t*)(p + 24) = i->second.m_llAvailDiskSpace;
+      int64_t avail_size = 0;
+      if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         avail_size = i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
+      *(int64_t*)(p + 24) = avail_size;
       *(int64_t*)(p + 32) = i->second.m_llTotalFileSize;
       *(int64_t*)(p + 40) = i->second.m_llCurrMemUsed;
       *(int64_t*)(p + 48) = i->second.m_llCurrCPUUsed;
@@ -796,7 +796,10 @@ uint64_t SlaveManager::getTotalDiskSpace()
 
    uint64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
-      size += i->second.m_llAvailDiskSpace;
+   {
+      if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+         size += i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
+   }
 
    return size;
 }
@@ -821,7 +824,8 @@ void SlaveManager::updateclusterstat_(Cluster& c)
 
       for (set<int>::iterator i = c.m_sNodes.begin(); i != c.m_sNodes.end(); ++ i)
       {
-         c.m_llAvailDiskSpace += m_mSlaveList[*i].m_llAvailDiskSpace;
+         if (m_mSlaveList[*i].m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+            c.m_llAvailDiskSpace += m_mSlaveList[*i].m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
          c.m_llTotalFileSize += m_mSlaveList[*i].m_llTotalFileSize;
          updateclusterio_(c, m_mSlaveList[*i].m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
          updateclusterio_(c, m_mSlaveList[*i].m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
@@ -840,7 +844,8 @@ void SlaveManager::updateclusterstat_(Cluster& c)
       {
          updateclusterstat_(i->second);
 
-         c.m_llAvailDiskSpace += i->second.m_llAvailDiskSpace;
+         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+            c.m_llAvailDiskSpace += i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
          c.m_llTotalFileSize += i->second.m_llTotalFileSize;
          updateclusterio_(c, i->second.m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
          updateclusterio_(c, i->second.m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
@@ -920,15 +925,19 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
 
    int64_t avg = size / m_mSlaveList.size();
 
+   //TODO: using "target" value as key may cause certain low disk node to be ignored.
+   // such node may be included again in the next round of check.
+   // a better method can be used in the future.
+
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      if (i->second.m_llAvailDiskSpace < m_llSlaveMinDiskSpace)
+      if (i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace)
       {
          int64_t target;
          if (avg > m_llSlaveMinDiskSpace)
             target = avg  - i->second.m_llAvailDiskSpace;
          else
-            target = m_llSlaveMinDiskSpace  - i->second.m_llAvailDiskSpace;
+            target = m_llSlaveMinDiskSpace - i->second.m_llAvailDiskSpace;
 
          lowdisk[target].m_strIP = i->second.m_strIP;
          lowdisk[target].m_iPort = i->second.m_iPort;

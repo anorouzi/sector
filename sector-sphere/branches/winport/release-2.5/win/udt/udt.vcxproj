@@ -160,6 +160,7 @@
     <ClCompile Include="..\..\udt\channel.cpp" />
     <ClCompile Include="..\..\udt\common.cpp" />
     <ClCompile Include="..\..\udt\core.cpp" />
+    <ClCompile Include="..\..\udt\epoll.cpp" />
     <ClCompile Include="..\..\udt\list.cpp" />
     <ClCompile Include="..\..\udt\md5.cpp" />
     <ClCompile Include="..\..\udt\packet.cpp" />
@@ -174,6 +175,7 @@
     <ClInclude Include="..\..\udt\channel.h" />
     <ClInclude Include="..\..\udt\common.h" />
     <ClInclude Include="..\..\udt\core.h" />
+    <ClInclude Include="..\..\udt\epoll.h" />
     <ClInclude Include="..\..\udt\list.h" />
     <ClInclude Include="..\..\udt\md5.h" />
     <ClInclude Include="..\..\udt\packet.h" />

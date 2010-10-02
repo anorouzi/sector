@@ -22,6 +22,8 @@ int main(int argc, char** argv)
 
    client.rmr("test");
    client.mkdir("test");
+   client.remove("/tmp/guide.dat");
+   client.remove("/tmp/guide.dat.idx");
 
    SysStat sys;
    client.sysinfo(sys);

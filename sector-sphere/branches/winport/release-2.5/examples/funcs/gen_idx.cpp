@@ -20,7 +20,6 @@ extern "C"
 int GEN_IDX_API gen_idx(const SInput* input, SOutput* output, SFile* file)
 {
    string textfile = file->m_strHomeDir + input->m_pcUnit;
-
    cout << "generating index for text file " << textfile << endl;
 
    string idxfile = textfile + ".idx";

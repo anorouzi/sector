@@ -495,8 +495,8 @@ using namespace std;
       // if the file has been modified during the replication, remove this replica
       int type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
 
-      struct stat64 s;
-      if (stat64((self->m_strHomeDir + dst).c_str(), &s) < 0)
+      struct stat s;
+      if (stat((self->m_strHomeDir + dst).c_str(), &s) < 0)
          type = +FileChangeType::FILE_UPDATE_NO;
 
       if (self->report(master_ip, master_port, transid, dst, type) < 0) {

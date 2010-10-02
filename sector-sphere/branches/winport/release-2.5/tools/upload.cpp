@@ -74,7 +74,11 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   int r = f->open(dst, SF_MODE::WRITE, "", s.st_size);
+   int64_t reserve = s.st_size;
+   if (reserve <= 0)
+      reserve = 1;
+
+   int r = f->open(dst, SF_MODE::WRITE, "", reserve);
    if (r < 0)
    {
       cerr << "unable to open file " << dst << endl;
@@ -105,8 +109,8 @@ int upload(const char* file, const char* dst, Sector& client)
 
 int getFileList(const string& pathname, vector<string>& fl)
 {
-#ifdef WIN32
    string path = pathname;
+#ifdef WIN32
    win_to_unix_path (path);
 #endif
    fl.push_back(path);
