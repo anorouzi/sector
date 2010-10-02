@@ -572,7 +572,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
 int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg)
 {
-printf ("~~~> processDCCmd: %d\n", msg->getType());
+#if defined(_DEBUG) || defined(DEBUG)
+    printf ("~~~> processDCCmd: %d\n", msg->getType());
+#endif
    switch (msg->getType())
    {
    case 203: // processing engine
@@ -1053,8 +1055,9 @@ int Slave::createSysDir()
    cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".metadata\"";
    system(cmd.c_str());
    // creat subdir
-   if (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0)
-       return -1;
+   if (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0) {
+         return -1;
+   }
 #endif
 
    test = opendir((m_strHomeDir + ".log").c_str());
@@ -1066,9 +1069,7 @@ int Slave::createSysDir()
    closedir(test);
 
 #ifndef WIN32
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
    //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
-
 #else
    // remove subdir tree
    //cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".log\"";
@@ -1086,9 +1087,7 @@ int Slave::createSysDir()
    }
    closedir(test);
 #ifndef WIN32
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
    //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
-
 #else
    // remove subdir tree
    //cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(m_strHomeDir) + ".sphere\"";
@@ -1115,7 +1114,6 @@ int Slave::createSysDir()
          return -1;
    }
    closedir(test);
-
    system(string("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".tmp/*").c_str());
 #else
    // remove subdir tree
@@ -1134,9 +1132,10 @@ inline string Slave::reviseSysCmdPath(const string& path)
    string rpath;
    for (const char *p = path.c_str(), *q = path.c_str() + path.length(); p != q; ++ p)
    {
+#ifndef WIN32
       if ((*p == 32) || (*p == 34) || (*p == 38) || (*p == 39))
          rpath.append(1, char(92));
-#ifdef WIN32
+#else
       if (*p == '/') 
          rpath.append(1, '\\');
       else

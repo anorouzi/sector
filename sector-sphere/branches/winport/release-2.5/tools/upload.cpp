@@ -103,8 +103,12 @@ int upload(const char* file, const char* dst, Sector& client)
    return 0;
 }
 
-int getFileList(const string& path, vector<string>& fl)
+int getFileList(const string& pathname, vector<string>& fl)
 {
+#ifdef WIN32
+   string path = pathname;
+   win_to_unix_path (path);
+#endif
    fl.push_back(path);
 
    struct stat s;
@@ -191,6 +195,9 @@ int main(int argc, char** argv)
       else
       {
          string path = argv[i];
+#ifdef WIN32
+         win_to_unix_path (path);
+#endif
          string orig = path;
          size_t p = path.rfind('/');
          if (p == string::npos)

@@ -209,11 +209,18 @@ char* ConfParser::getToken(char* str, string& token)
       return NULL;
 
    token = "";
-   while ((' ' != *p) && ('\t' != *p) && ('\0' != *p))
+   while ('\t' != *p && '\0' != *p)
    {
       token.append(1, *p);
       ++ p;
    }
+
+   // trim trailing blank spcaces if any
+   size_t endpos = token.find_last_not_of(' ');
+   if (string::npos == endpos)
+       token = "";    // nothing but blanks!
+   else if (endpos+1 != token.length())
+       token = token.substr( 0, endpos);
 
    return p;
 }
