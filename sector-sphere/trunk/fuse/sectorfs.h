@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/02/2010
 *****************************************************************************/
 
 
@@ -103,9 +103,11 @@ private:
 
 private:
    static int translateErr(int sferr);
+   static int restart();
 
 private:
    static const int g_iBlockSize = 512;
+   static bool g_bConnected;
 };
 
 #endif

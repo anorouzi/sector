@@ -336,10 +336,10 @@ int Client::list(const string& path, vector<SNode>& attr)
 
    Address serv;
    if (lookup(revised_path, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -371,10 +371,10 @@ int Client::stat(const string& path, SNode& attr)
 
    Address serv;
    if (lookup(revised_path, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -409,10 +409,10 @@ int Client::mkdir(const string& path)
 
    Address serv;
    if (lookup(revised_path, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -438,10 +438,10 @@ int Client::move(const string& oldpath, const string& newpath)
 
    Address serv;
    if (lookup(src, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -460,10 +460,10 @@ int Client::remove(const string& path)
 
    Address serv;
    if (lookup(revised_path, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -513,10 +513,10 @@ int Client::copy(const string& src, const string& dst)
 
    Address serv;
    if (lookup(rsrc, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -536,10 +536,10 @@ int Client::utime(const string& path, const int64_t& ts)
 
    Address serv;
    if (lookup(revised_path, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -556,10 +556,10 @@ int Client::sysinfo(SysStat& sys)
 
    Address serv;
    if (lookup(m_iKey, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -595,10 +595,10 @@ int Client::shutdown(const int& type, const string& param)
 
    Address serv;
    if (lookup(m_iKey, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -623,10 +623,10 @@ int Client::fsck(const string& path)
 
    Address serv;
    if (lookup(m_iKey, serv) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
@@ -829,7 +829,7 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
 int Client::lookup(const string& path, Address& serv_addr)
 {
    if (m_Routing.lookup(path, serv_addr) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (login(serv_addr.m_strIP, serv_addr.m_iPort) < 0)
    {
@@ -847,7 +847,7 @@ int Client::lookup(const string& path, Address& serv_addr)
 int Client::lookup(const int32_t& key, Address& serv_addr)
 {
    if (m_Routing.lookup(key, serv_addr) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (login(serv_addr.m_strIP, serv_addr.m_iPort) < 0)
    {

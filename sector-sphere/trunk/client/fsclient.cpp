@@ -99,14 +99,17 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
    msg.setData(80, m_strFileName.c_str(), m_strFileName.length() + 1);
 
    Address serv;
-   m_pClient->lookup(m_strFileName, serv);
+   if (m_pClient->lookup(m_strFileName, serv) < 0)
+      return SectorError::E_MASTER;
+
    if ((m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0) || ((msg.getType() < 0) && (SectorError::E_ROUTING == *(int32_t*)msg.getData())))
    {
       // masters might have been changed, retrieve new master information
       m_pClient->updateMasters();
-      m_pClient->lookup(m_strFileName, serv);
+      if (m_pClient->lookup(m_strFileName, serv) < 0)
+         return SectorError::E_MASTER;
       if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-         return SectorError::E_CONNECTION;
+         return SectorError::E_MASTER;
       if (msg.getType() < 0)
          return *(int32_t*)msg.getData();
    }
@@ -218,9 +221,10 @@ int FSClient::reopen()
    msg.setData(4, (char*)&port, 4);
 
    Address serv;
-   m_pClient->lookup(m_strFileName, serv);
+   if (m_pClient->lookup(m_strFileName, serv) < 0)
+      return SectorError::E_MASTER;
    if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
-      return SectorError::E_CONNECTION;
+      return SectorError::E_MASTER;
 
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());

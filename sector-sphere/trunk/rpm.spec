@@ -8,7 +8,7 @@ Name: sector
 Version: 2.5
 Release: 0
 Group: System Environment/Daemons
-License: BSD
+License: Apache License 2.0
 Source: sector.2.5.tar.gz
 BuildRoot: %{_tmppath}/%{name}-root
 BuildPrereq: libstdc++-devel, openssl-devel, fuse-libs, fuse-devel
@@ -129,7 +129,6 @@ install -m 0644 Makefile.common $RPM_BUILD_ROOT/opt/sector
 
 # config
 /opt/sector/conf/client.conf
-/opt/sector/tmp
 /opt/sector/conf/master_acl.conf
 /opt/sector/conf/slave_acl.conf
 /opt/sector/conf/users/anonymous

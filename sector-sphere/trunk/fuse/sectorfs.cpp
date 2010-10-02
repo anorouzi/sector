@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/02/2010
 *****************************************************************************/
 
 
@@ -30,6 +30,7 @@ Sector SectorFS::g_SectorClient;
 Session SectorFS::g_SectorConfig;
 map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
+bool SectorFS::g_bConnected = false;
 
 void* SectorFS::init(struct fuse_conn_info *conn)
 {
@@ -39,6 +40,8 @@ void* SectorFS::init(struct fuse_conn_info *conn)
       return NULL;
 
    g_SectorClient.setMaxCacheSize(g_SectorConfig.m_ClientConf.m_llMaxCacheSize);
+
+   g_bConnected = true;
 
    return NULL;
 }
@@ -51,10 +54,18 @@ void SectorFS::destroy(void *)
 
 int SectorFS::getattr(const char* path, struct stat* st)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    SNode s;
    int r = g_SectorClient.stat(path, s);
    if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return translateErr(r);
+   }
 
    if (s.m_bIsDir)
       st->st_mode = S_IFDIR | 0755;
@@ -85,44 +96,86 @@ int SectorFS::mknod(const char *, mode_t, dev_t)
 
 int SectorFS::mkdir(const char* path, mode_t mode)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return translateErr(r);
+   }
 
    return 0;
 }
 
 int SectorFS::unlink(const char* path)
 {
-   if (g_SectorClient.remove(path) < 0)
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
+   int r = g_SectorClient.remove(path);
+   if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return -1;
+   }
 
    return 0;
 }
 
 int SectorFS::rmdir(const char* path)
 {
-   if (g_SectorClient.remove(path) < 0)
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
+   int r = g_SectorClient.remove(path);
+   if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return -1;
+   }
 
    return 0;
 }
 
 int SectorFS::rename(const char* src, const char* dst)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    int r = g_SectorClient.move(src, dst);
    if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return translateErr(r);
+   }
 
    return 0;
 }
 
 int SectorFS::statfs(const char* path, struct statvfs* buf)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    SysStat s;
    int r = g_SectorClient.sysinfo(s);
    if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return translateErr(r);
+   }
 
    buf->f_namemax = 256;
    buf->f_bsize = g_iBlockSize;
@@ -137,12 +190,36 @@ int SectorFS::statfs(const char* path, struct statvfs* buf)
 
 int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 {
-    return g_SectorClient.utime(path, ubuf->modtime);;
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
+   int r = g_SectorClient.utime(path, ubuf->modtime);
+   if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
+      return translateErr(r);
+   }
+
+   return 0;
 }
 
 int SectorFS::utimens(const char* path, const struct timespec tv[2])
 {
-   return g_SectorClient.utime(path, tv[1].tv_sec);
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
+   int r = g_SectorClient.utime(path, tv[1].tv_sec);
+   if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
+      return translateErr(r);
+   }
+
+   return 0;
 }
 
 int SectorFS::opendir(const char *, struct fuse_file_info *)
@@ -152,10 +229,18 @@ int SectorFS::opendir(const char *, struct fuse_file_info *)
 
 int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* info)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    vector<SNode> filelist;
    int r = g_SectorClient.list(path, filelist);
    if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return translateErr(r);
+   }
 
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
@@ -216,10 +301,18 @@ int SectorFS::chown(const char *, uid_t, gid_t)
 
 int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    SectorFile* f = g_SectorClient.createSectorFile();
    int r = f->open(path, SF_MODE::WRITE);
    if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       return translateErr(r);
+   }
    f->close();
    g_SectorClient.releaseSectorFile(f);
 
@@ -228,6 +321,9 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
 
 int SectorFS::truncate(const char *, off_t)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    return 0;
 }
 
@@ -238,6 +334,9 @@ int SectorFS::ftruncate(const char* path, off_t offset, struct fuse_file_info *)
 
 int SectorFS::open(const char* path, struct fuse_file_info* fi)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator i = m_mOpenFileList.find(path);
    if (i != m_mOpenFileList.end())
@@ -258,6 +357,9 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    int r = f->open(path, permission);
    if (r < 0)
    {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
       g_SectorClient.releaseSectorFile(f);
       pthread_mutex_unlock(&m_OpenFileLock);
       return translateErr(r);
@@ -276,6 +378,9 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
 
 int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* info)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
@@ -296,6 +401,9 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* info)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
@@ -321,6 +429,9 @@ int SectorFS::fsync(const char *, int, struct fuse_file_info *)
 
 int SectorFS::release(const char* path, struct fuse_file_info* info)
 {
+   if (!g_bConnected) restart();
+   if (!g_bConnected) return -1;
+
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
@@ -368,7 +479,30 @@ int SectorFS::translateErr(int sferr)
 
    case SectorError::E_EXIST:
       return -EEXIST;
+
+   case SectorError::E_MASTER:
+      return -EHOSTDOWN;
    }
 
    return -1;
+}
+
+int SectorFS::restart()
+{
+   if (g_bConnected)
+      return 0;
+
+   g_SectorClient.logout();
+   g_SectorClient.close();
+
+   if (g_SectorClient.init(g_SectorConfig.m_ClientConf.m_strMasterIP, g_SectorConfig.m_ClientConf.m_iMasterPort) < 0)
+      return -1;
+   if (g_SectorClient.login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
+      return -1;
+
+   g_SectorClient.setMaxCacheSize(g_SectorConfig.m_ClientConf.m_llMaxCacheSize);
+
+   g_bConnected = true;
+
+   return 0;
 }

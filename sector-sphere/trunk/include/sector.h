@@ -335,7 +335,7 @@ public:
    static const int E_GMP = -2010;              // unable to initialize gmp
    static const int E_DATACHN = -2011;          // unable to initialize data channel
    static const int E_CERTREFUSE = -2012;       // unable to retrieve master certificate
-   static const int E_MASTER = 2013;            // all masters have been lost
+   static const int E_MASTER = -2013;           // all masters have been lost
    static const int E_CONNECTION = -3000;       // unable to connect
    static const int E_BROKENPIPE = -3001;       // data connection lost
    static const int E_TIMEOUT = -3002;          // message recv timeout
