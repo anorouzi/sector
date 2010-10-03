@@ -23,13 +23,13 @@ written by
 #ifndef __SECTOR_SLAVE_H__
 #define __SECTOR_SLAVE_H__
 
+#include <sector.h>
+#include <sphere.h>
 #include <gmp.h>
 #include <datachn.h>
-#include <conf.h>
 #include <index.h>
 #include <index2.h>
 #include <log.h>
-#include <sphere.h>
 #include <routing.h>
 #include <transaction.h>
 
@@ -135,6 +135,25 @@ public: // io statistics type
    static const int SYS_OUT = 2;
    static const int CLI_IN = 3;
    static const int CLI_OUT = 4;
+};
+
+class SlaveConf
+{
+public:
+   SlaveConf();
+
+   int init(const std::string& path);
+
+public:
+   std::string m_strMasterHost;
+   int m_iMasterPort;
+   std::string m_strHomeDir;
+   int64_t m_llMaxDataSize;
+   int m_iMaxServiceNum;
+   std::string m_strLocalIP;
+   std::string m_strPublicIP;
+   int m_iClusterID;
+   MetaForm m_MetaType;         // form of metadata
 };
 
 class Slave

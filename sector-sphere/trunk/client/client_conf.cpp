@@ -16,18 +16,99 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/14/2010
+   Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-#include <conf.h>
-#include <utility.h>
-#include <iostream>
+#include <sector.h>
 #include <cstring>
+#include <cstdio>
 #include <cstdlib>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <iostream>
 
 using namespace std;
+
+ClientConf::ClientConf():
+m_strUserName(),
+m_strPassword(),
+m_strMasterIP(),
+m_iMasterPort(6000),
+m_strCertificate(),
+m_llMaxCacheSize(10000000),
+m_iFuseReadAheadBlock(1000000),
+m_llMaxWriteCacheSize(10000000)
+{
+}
+
+int ClientConf::init(const string& path)
+{
+   ConfParser parser;
+   Param param;
+
+   if (0 != parser.init(path))
+      return -1;
+
+   while (parser.getNextParam(param) >= 0)
+   {
+      if (param.m_vstrValue.empty())
+         continue;
+
+      if ("MASTER_ADDRESS" == param.m_strName)
+      {
+         char buf[128];
+         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
+
+         unsigned int i = 0;
+         for (unsigned int n = strlen(buf); i < n; ++ i)
+         {
+            if (buf[i] == ':')
+               break;
+         }
+
+         buf[i] = '\0';
+         m_strMasterIP = buf;
+         m_iMasterPort = atoi(buf + i + 1);
+      }
+      else if ("USERNAME" == param.m_strName)
+      {
+         m_strUserName = param.m_vstrValue[0];
+      }
+      else if ("PASSWORD" == param.m_strName)
+      {
+         m_strPassword = param.m_vstrValue[0];
+      }
+      else if ("CERTIFICATE" == param.m_strName)
+      {
+         m_strCertificate = param.m_vstrValue[0];
+      }
+      else if ("MAX_CACHE_SIZE" == param.m_strName)
+      {
+#ifndef WIN32
+         m_llMaxCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llMaxCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
+      }
+      else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
+      {
+         m_iFuseReadAheadBlock = atoi(param.m_vstrValue[0].c_str()) * 1000000;
+      }
+      else if ("MAX_READ_CACHE_SIZE" == param.m_strName)
+      {
+#ifndef WIN32
+         m_llMaxWriteCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+#else
+         m_llMaxWriteCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
+#endif
+      }
+      else
+         cerr << "unrecongnized client.conf parameter: " << param.m_strName << endl;
+   }
+
+   parser.close();
+
+   return 0;
+}
 
 bool WildCard::isWildCard(const string& path)
 {
@@ -222,3 +303,4 @@ int Utility::logout(Sector& client)
    client.close();
    return 0;
 }
+

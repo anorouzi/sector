@@ -1,4 +1,4 @@
-#include <conf.h>
+#include <sector.h>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>

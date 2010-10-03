@@ -22,9 +22,9 @@ written by
 #ifndef __SECTOR_MASTER_H__
 #define __SECTOR_MASTER_H__
 
+#include <sector.h>
 #include <gmp.h>
 #include <log.h>
-#include <conf.h>
 #include <index.h>
 #include <index2.h>
 #include <vector>
@@ -40,6 +40,27 @@ struct SlaveAddr
 {
    std::string m_strAddr;				// slave IP address
    std::string m_strBase;				// slave executable "start_slave" path
+};
+
+class MasterConf
+{
+public:
+   MasterConf();
+
+   int init(const std::string& path);
+
+public:
+   int m_iServerPort;                   // server port
+   std::string m_strSecServIP;          // security server IP
+   int m_iSecServPort;                  // security server port
+   int m_iMaxActiveUser;                // maximum active user
+   std::string m_strHomeDir;            // data directory
+   int m_iReplicaNum;                   // number of replicas of each file
+   MetaForm m_MetaType;                 // form of metadata
+   int m_iSlaveTimeOut;                 // slave timeout threshold
+   int64_t m_llSlaveMinDiskSpace;       // minimum available disk space allowed on each slave
+   int m_iClientTimeOut;                // client timeout threshold
+   int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log
 };
 
 class Master

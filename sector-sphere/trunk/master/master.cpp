@@ -82,7 +82,7 @@ int Master::init()
 
    // check local directories, create them if not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
-   system((string("rm -rf ") + m_strHomeDir).c_str());
+   //system((string("rm -rf ") + m_strHomeDir).c_str());
    DIR* test = opendir(m_strHomeDir.c_str());
    if (NULL == test)
    {
@@ -109,9 +109,13 @@ int Master::init()
    }
    closedir(test);
 
-   if ((mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0)
-      || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0)
-      || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
+   mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU);
+   mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU);
+   mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU);
+
+   if ((stat((m_strHomeDir + ".metadata").c_str(), &s) < 0)
+      || (stat((m_strHomeDir + ".tmp").c_str(), &s) < 0)
+      || (stat((m_strHomeDir + ".log").c_str(), &s) < 0))
    {
       cerr << "unable to create home directory " << m_strHomeDir << endl;
       return -1;
@@ -2533,7 +2537,6 @@ void* Master::replica(void* s)
          self->populateSpecialRep(self->m_strSectorHome + "/conf/replica.conf", special);
          self->m_pMetadata->checkReplica("/", self->m_vstrToBeReplicated, over_replicated, self->m_SysConfig.m_iReplicaNum, special);
 
-         /*
          // create replicas for files on slaves without enough disk space
          // so that some files can be removed from these nodes
          map<int64_t, Address> lowdisk;
@@ -2545,7 +2548,6 @@ void* Master::replica(void* s)
             for (vector<string>::iterator i = path.begin(); i != path.end(); ++ i)
                self->m_vstrToBeReplicated.push_back(*i);
          }
-         */
       }
 
       vector<string>::iterator r = self->m_vstrToBeReplicated.begin();

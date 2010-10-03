@@ -27,7 +27,7 @@ written by
 #include <iostream>
 #include <fstream>
 #include <filesrc.h>
-#include <conf.h>
+#include <sector.h>
 
 using namespace std;
 

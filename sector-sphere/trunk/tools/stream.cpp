@@ -20,12 +20,10 @@ written by
 *****************************************************************************/
 
 #include <sector.h>
-#include <conf.h>
 #include <probot.h>
 #include <cstdlib>
 #include <sys/time.h>
 #include <iostream>
-#include <utility.h>
 
 using namespace std;
 

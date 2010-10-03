@@ -42,7 +42,7 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.5 build 09/22/2010.";
+const std::string SectorVersion = "Sector version 2.6 build 10/03/2010.";
 
 
 struct Address
@@ -364,6 +364,91 @@ public:
 
 private:
    static std::map<int, std::string> s_mErrorMsg;
+};
+
+
+class SECTOR_API ConfLocation
+{
+public:
+   static int locate(std::string& loc);
+};
+
+struct SECTOR_API Param
+{
+   std::string m_strName;
+   std::vector<std::string> m_vstrValue;
+};
+
+class SECTOR_API ConfParser
+{
+public:
+   int init(const std::string& path);
+   void close();
+   int getNextParam(Param& param);
+
+private:
+   char* getToken(char* str, std::string& token);
+
+private:
+   std::ifstream m_ConfFile;
+   std::vector<std::string> m_vstrLines;
+   std::vector<std::string>::iterator m_ptrLine;
+   int m_iLineCount;
+};
+
+enum MetaForm {MEMORY = 1, DISK};
+
+class SECTOR_API ClientConf
+{
+public:
+   ClientConf();
+
+   int init(const std::string& path);
+
+public:
+   std::string m_strUserName;
+   std::string m_strPassword;
+   std::string m_strMasterIP;
+   int m_iMasterPort;
+   std::string m_strCertificate;
+   int64_t m_llMaxCacheSize;
+   int m_iFuseReadAheadBlock;
+   int64_t m_llMaxWriteCacheSize;
+};
+
+class SECTOR_API WildCard
+{
+public:
+   static bool isWildCard(const std::string& path);
+   static bool match(const std::string& card, const std::string& path);
+};
+
+class SECTOR_API Session
+{
+public:
+   int loadInfo(const char* conf = NULL);
+
+public:
+   ClientConf m_ClientConf;
+};
+
+class CmdLineParser
+{
+public:
+   int parse(int argc, char** argv);
+
+public:
+   std::vector<std::string> m_vSFlags;           // --f
+   std::map<std::string, std::string> m_mDFlags; // -f val
+   std::vector<std::string> m_vParams;           // parameter
+};
+
+class Utility
+{
+public:
+   static void print_error(int code);
+   static int login(Sector& client);
+   static int logout(Sector& client);
 };
 
 #endif

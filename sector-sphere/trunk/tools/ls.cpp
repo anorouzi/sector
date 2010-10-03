@@ -22,8 +22,6 @@ written by
 #include <iostream>
 #include <iomanip>
 #include <sector.h>
-#include <conf.h>
-#include <utility.h>
 
 using namespace std;
 

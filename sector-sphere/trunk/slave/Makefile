@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../lib -lslave -lrpc -lsecurity -lcommon -ludt
 endif
 
-OBJS = slave.o serv_file.o serv_spe.o
+OBJS = slave_conf.o slave.o serv_file.o serv_spe.o
 
 all: libslave.so libslave.a start_slave sphere
 

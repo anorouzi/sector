@@ -1,8 +1,6 @@
 #include <sector.h>
-#include <conf.h>
 #include <sys/time.h>
 #include <iostream>
-#include <utility.h>
 
 using namespace std;
 

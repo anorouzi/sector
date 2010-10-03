@@ -1,3 +1,7 @@
+version 2.6
+
+automatic re-connect for FUSE client on master down/restart
+
 version 2.5
 
 automatic storage re-balancing

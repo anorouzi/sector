@@ -20,7 +20,6 @@ written by
 *****************************************************************************/
 
 #include <sector.h>
-#include <conf.h>
 #include <security.h>
 #include <filesrc.h>
 #include <iostream>

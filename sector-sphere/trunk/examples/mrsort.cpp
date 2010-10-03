@@ -1,9 +1,7 @@
 #include <sector.h>
-#include <conf.h>
 #include <sys/time.h>
 #include <iostream>
 #include <cmath>
-#include <utility.h>
 
 using namespace std;
 

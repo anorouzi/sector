@@ -32,8 +32,6 @@ written by
 #include <sys/time.h>
 #include <iostream>
 #include <sector.h>
-#include <conf.h>
-#include <utility.h>
 
 using namespace std;
 
