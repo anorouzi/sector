@@ -28,12 +28,12 @@ using namespace std;
 TransManager::TransManager():
 m_iTransID(1)
 {
-   pthread_mutex_init(&m_TLLock, NULL);
+   CGuard::createMutex(m_TLLock);
 }
 
 TransManager::~TransManager()
 {
-   pthread_mutex_destroy(&m_TLLock);
+   CGuard::releaseMutex(m_TLLock);
 }
 
 int TransManager::create(const int type, const int key, const int cmd, const string& file, const int mode)

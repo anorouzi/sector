@@ -24,9 +24,9 @@ written by
 #define __SECTOR_LOG_H__
 
 #include <udt.h>
-#include <pthread.h>
 #include <fstream>
 #include <map>
+#include <osportable.h>
 
 struct LogLevel
 {
@@ -95,7 +95,7 @@ private:
    std::string m_strLogPath;
    std::ofstream m_LogFile;
 
-   pthread_mutex_t m_LogLock;
+   CMutex m_LogLock;
 
    std::map<int, LogString> m_mStoredString;
 };

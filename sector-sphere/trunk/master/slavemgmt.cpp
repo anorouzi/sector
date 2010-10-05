@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/26/2010
+   Yunhong Gu, last updated 10/05/2010
 *****************************************************************************/
 
 
@@ -27,7 +27,7 @@ written by
 #include <cstring>
 #include <common.h>
 #include <meta.h>
-
+#include <iostream>
 using namespace std;
 
 SlaveManager::SlaveManager():
@@ -114,7 +114,7 @@ int SlaveManager::insert(SlaveNode& sn)
 
    sn.m_llLastUpdateTime = CTimer::getTime();
    sn.m_llLastVoteTime = CTimer::getTime();
-   sn.m_iStatus = 1;
+   sn.m_iStatus = SlaveStatus::NORMAL;
    m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    m_mSlaveList[sn.m_iNodeID] = sn;
 
@@ -198,7 +198,6 @@ int SlaveManager::remove(int nodeid)
    }
 
    m_mSlaveList.erase(sn);
-   m_siBadSlaves.erase(nodeid);
 
    m_llLastUpdateTime = CTimer::getTime();
 
@@ -269,8 +268,8 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    avail.resize(m_Topology.m_uiLevel + 1);
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      // skip bad slaves
-      if (m_siBadSlaves.find(i->first) != m_siBadSlaves.end())
+      // skip bad&lost slaves
+      if (i->second.m_iStatus != SlaveStatus::NORMAL)
          continue;
 
       // only nodes with more than minimum availale disk space are chosen
@@ -348,11 +347,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       map<int, vector<int> > dist_vec;
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
       {
-         int d = -1;
-
-         // do not choose bad node
-         if (m_siBadSlaves.find(*i) == m_siBadSlaves.end())
-            d = m_Topology.distance(client.m_strIP.c_str(), m_mSlaveList[*i].m_strIP.c_str());
+         int d = m_Topology.distance(client.m_strIP.c_str(), m_mSlaveList[*i].m_strIP.c_str());
 
          dist_vec[d].push_back(*i);
 
@@ -393,8 +388,8 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
       for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
       {
-         // skip bad slaves
-         if (m_siBadSlaves.find(i->first) != m_siBadSlaves.end())
+         // skip bad & lost nodes
+         if (i->second.m_iStatus != SlaveStatus::NORMAL)
             continue;
 
          // only nodes with more than minimum available disk space are chosen
@@ -462,8 +457,8 @@ int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)
 {
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      // skip bad slaves
-      if (m_siBadSlaves.find(i->first) != m_siBadSlaves.end())
+      // skip bad&lost slaves
+      if (i->second.m_iStatus != SlaveStatus::NORMAL)
          continue;
 
       // only nodes with more than minimum available disk space are chosen
@@ -544,14 +539,23 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
       return -1;
    }
 
+   if (s->second.m_iStatus == SlaveStatus::DOWN)
+   {
+      // "lost" slaves must be restarted, as files might have been changed
+      return -1;
+   }
+
    s->second.m_llLastUpdateTime = CTimer::getTime();
    s->second.m_llTimeStamp = CTimer::getTime();
    s->second.deserialize(info, len);
 
+   if (s->second.m_iStatus == SlaveStatus::BAD)
+      return -1;
+
    if (s->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace)
-      s->second.m_iStatus = 2; // disk full
+      s->second.m_iStatus = SlaveStatus::DISKFULL;
    else
-      s->second.m_iStatus = 1; // normal
+      s->second.m_iStatus = SlaveStatus::NORMAL;
 
    return 0;
 }
@@ -576,15 +580,34 @@ int SlaveManager::updateSlaveTS(const Address& addr)
    return 0;
 }
 
-int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, const int64_t& timeout)
+int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, map<int, Address>& retry, map<int, Address>& dead, const int64_t& timeout, const int64_t& retrytime)
 {
    CGuard sg(m_SlaveLock);
 
    bad.clear();
    lost.clear();
+   retry.clear();
+   dead.clear();
 
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
+      if (i->second.m_iStatus == SlaveStatus::DOWN)
+      {
+         // if the node is already marked down, try to restart or remove permanently
+         if (CTimer::getTime() - i->second.m_llLastUpdateTime >= (uint64_t)retrytime)
+         {
+            dead[i->first].m_strIP = i->second.m_strIP;
+            dead[i->first].m_iPort = i->second.m_iPort;
+         }
+         else
+         {
+            retry[i->first].m_strIP = i->second.m_strIP;
+            retry[i->first].m_iPort = i->second.m_iPort;
+         }
+
+         continue;
+      }
+
       // clear expired votes
       if (i->second.m_llLastVoteTime - CTimer::getTime() > 24LL * 60 * 3600 * 1000000)
       {
@@ -597,6 +620,7 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
       {
          bad[i->first].m_strIP = i->second.m_strIP;
          bad[i->first].m_iPort = i->second.m_iPort;
+         i->second.m_iStatus = SlaveStatus::BAD;
       }
 
       // detect slave timeout
@@ -604,6 +628,7 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
       {
          lost[i->first].m_strIP = i->second.m_strIP;
          lost[i->first].m_iPort = i->second.m_iPort;
+         i->second.m_iStatus = SlaveStatus::DOWN;
       }
    }
 
@@ -734,8 +759,7 @@ int SlaveManager::serializeClusterInfo(char*& buf, int& size)
    {
       *(int32_t*)p = i->second.m_iClusterID;
       *(int32_t*)(p + 4) = i->second.m_iTotalNodes;
-      if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
-         *(int64_t*)(p + 8) = i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
+      *(int64_t*)(p + 8) = i->second.m_llAvailDiskSpace;
       *(int64_t*)(p + 16) = i->second.m_llTotalFileSize;
       *(int64_t*)(p + 24) = i->second.m_llTotalInputData;
       *(int64_t*)(p + 32) = i->second.m_llTotalOutputData;
@@ -795,6 +819,9 @@ uint64_t SlaveManager::getTotalDiskSpace()
    uint64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
+      if ((i->second.m_iStatus == SlaveStatus::DOWN) || (i->second.m_iStatus == SlaveStatus::BAD))
+         continue;
+
       if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
          size += i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
    }
@@ -822,11 +849,16 @@ void SlaveManager::updateclusterstat_(Cluster& c)
 
       for (set<int>::iterator i = c.m_sNodes.begin(); i != c.m_sNodes.end(); ++ i)
       {
-         if (m_mSlaveList[*i].m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
-            c.m_llAvailDiskSpace += m_mSlaveList[*i].m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
-         c.m_llTotalFileSize += m_mSlaveList[*i].m_llTotalFileSize;
-         updateclusterio_(c, m_mSlaveList[*i].m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
-         updateclusterio_(c, m_mSlaveList[*i].m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
+         SlaveNode* s = &m_mSlaveList[*i];
+
+         if (s->m_iStatus == SlaveStatus::DOWN)
+            continue;
+
+         if (s->m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+            c.m_llAvailDiskSpace += s->m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
+         c.m_llTotalFileSize += s->m_llTotalFileSize;
+         updateclusterio_(c, s->m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
+         updateclusterio_(c, s->m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
       }
    }
    else
@@ -842,8 +874,7 @@ void SlaveManager::updateclusterstat_(Cluster& c)
       {
          updateclusterstat_(i->second);
 
-         if (i->second.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
-            c.m_llAvailDiskSpace += i->second.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
+         c.m_llAvailDiskSpace += i->second.m_llAvailDiskSpace;
          c.m_llTotalFileSize += i->second.m_llTotalFileSize;
          updateclusterio_(c, i->second.m_mSysIndInput, c.m_mSysIndInput, c.m_llTotalInputData);
          updateclusterio_(c, i->second.m_mSysIndOutput, c.m_mSysIndOutput, c.m_llTotalOutputData);
@@ -919,7 +950,10 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
 
    uint64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
-      size += i->second.m_llAvailDiskSpace;
+   {
+      if (i->second.m_iStatus == SlaveStatus::NORMAL)
+         size += i->second.m_llAvailDiskSpace;
+   }
 
    int64_t avg = size / m_mSlaveList.size();
 

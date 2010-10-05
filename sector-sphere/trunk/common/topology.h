@@ -33,6 +33,14 @@ written by
    #include <stdint.h>
 #endif
 
+struct SlaveStatus
+{
+   static const int DOWN = 0;
+   static const int NORMAL = 1;
+   static const int DISKFULL = 2;
+   static const int BAD = 3;
+};
+
 class SlaveNode
 {
 public:
@@ -63,7 +71,7 @@ public:
    std::map<std::string, int64_t> m_mCliIndOutput;	// network output to each client
 
    int64_t m_llLastUpdateTime;				// last update time
-   int m_iStatus;					// 0: inactive 1: active-normal 2: active-disk full/read only
+   int m_iStatus;					// 0: inactive 1: active-normal 2: active-disk full/read only 3: bad
 
    std::set<int> m_sBadVote;				// set of bad votes by other slaves
    int64_t m_llLastVoteTime;				// timestamp of last vote

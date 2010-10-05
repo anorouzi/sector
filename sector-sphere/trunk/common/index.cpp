@@ -22,14 +22,23 @@ written by
 
 #include <algorithm>
 #include <common.h>
-#include <dirent.h>
 #include <index.h>
 #include <set>
 #include <stack>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <cstring>
+#include <time.h>
+
+#ifndef WIN32
+   #include <dirent.h>
+   #include <unistd.h>
+#else
+   #include <windows.h>
+   #include <tchar.h> 
+   #include <stdio.h>
+   #include <strsafe.h>
+#endif
 
 using namespace std;
 
@@ -189,7 +198,7 @@ int Index::lookup(const string& path, set<Address, AddrComp>& addr)
       }
       else
       {
-         for (set<Address>::iterator i = n->m_sLocation.begin(); i != n->m_sLocation.end(); ++ i)
+         for (set<Address, AddrComp>::iterator i = n->m_sLocation.begin(); i != n->m_sLocation.end(); ++ i)
             addr.insert(*i);
       }
    }
@@ -752,6 +761,7 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
 
 int Index::scan(const string& currdir, map<string, SNode>& metadata)
 {
+#ifndef WIN32
    dirent **namelist;
    int n = scandir(currdir.c_str(), &namelist, 0, alphasort);
 
@@ -816,6 +826,63 @@ int Index::scan(const string& currdir, map<string, SNode>& metadata)
    free(namelist);
 
    return metadata.size();
+#else
+   WIN32_FIND_DATA ffd;
+   LARGE_INTEGER filesize;
+   TCHAR szDir[MAX_PATH];
+   size_t length_of_arg;
+   HANDLE hFind = INVALID_HANDLE_VALUE;
+   DWORD dwError=0;
+
+   StringCchLength(currdir.c_str(), MAX_PATH, &length_of_arg);
+
+   if (length_of_arg > (MAX_PATH - 3))
+      return -1;
+
+   StringCchCopy(szDir, MAX_PATH, currdir.c_str());
+   StringCchCat(szDir, MAX_PATH, TEXT("\\*"));
+
+   // Find the first file in the directory.
+   hFind = FindFirstFile(szDir, &ffd);
+   if (INVALID_HANDLE_VALUE == hFind) 
+      return dwError;
+   
+   // List all the files in the directory with some info about them.
+   do
+   {
+      SNode sn;
+      metadata[ffd.cFileName] = sn;
+      map<string, SNode>::iterator mi = metadata.find(ffd.cFileName);
+      mi->second.m_strName = ffd.cFileName;
+      mi->second.m_llSize = 0;
+      mi->second.m_llTimeStamp = 0;
+
+      if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+      {
+         mi->second.m_bIsDir = true;
+         scan(ffd.cFileName, mi->second.m_mDirectory);
+      }
+      else
+      {
+         filesize.LowPart = ffd.nFileSizeLow;
+         filesize.HighPart = ffd.nFileSizeHigh;
+     	 mi->second.m_llSize = filesize.QuadPart;
+
+         LARGE_INTEGER ts;
+         ts.LowPart = ffd.ftLastWriteTime.dwLowDateTime;
+         ts.HighPart = ffd.ftLastWriteTime.dwHighDateTime;
+         mi->second.m_llTimeStamp = ts.QuadPart;
+      }
+   }
+   while (FindNextFile(hFind, &ffd) != 0);
+ 
+   dwError = GetLastError();
+   if (dwError != ERROR_NO_MORE_FILES) 
+      return -1;
+
+   FindClose(hFind);
+   return metadata.size();
+#endif
 }
 
 int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const unsigned int& replica)
@@ -845,7 +912,7 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
          {
             // files with same name, size, timestamp
             // and the number of replicas is below the threshold
-            for (set<Address>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
+            for (set<Address, AddrComp>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
                s->second.m_sLocation.insert(*a);
             tbd.push_back(i->first);
          }

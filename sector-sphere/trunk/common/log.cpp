@@ -39,12 +39,10 @@ SectorLog::SectorLog():
 m_iLevel(1),
 m_iDay(-1)
 {
-   pthread_mutex_init(&m_LogLock, NULL);
 }
 
 SectorLog::~SectorLog()
 {
-   pthread_mutex_destroy(&m_LogLock);
 }
 
 int SectorLog::init(const char* path)
@@ -52,7 +50,11 @@ int SectorLog::init(const char* path)
    m_strLogPath = path;
    time_t t = time(NULL);
    tm date;
+#ifndef WIN32
    gmtime_r(&t, &date);
+#else
+   gmtime_s(&date, &t);
+#endif
    m_iDay = date.tm_mday;
 
    char fn[32];
@@ -79,7 +81,7 @@ void SectorLog::setLevel(const int level)
 
 SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 {
-   CGuard lg(m_LogLock);
+   CGuardEx lg(m_LogLock);
 
    if (tag.m_iTag == LogTag::START)
    {
@@ -94,7 +96,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
       map<int, LogString>::iterator i = m_mStoredString.find(key);
       if (i != m_mStoredString.end())
       {
-         insert_((i->second.m_strLog + "\n").c_str(), i->second.m_iLevel);
+         insert_(i->second.m_strLog.c_str(), i->second.m_iLevel);
          m_mStoredString.erase(i);
       }
    }
@@ -104,7 +106,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 
 SectorLog& SectorLog::operator<<(const std::string& message)
 {
-   CGuard lg(m_LogLock);
+   CGuardEx lg(m_LogLock);
 
    int key = pthread_self();
    map<int, LogString>::iterator i = m_mStoredString.find(key);
@@ -118,7 +120,7 @@ SectorLog& SectorLog::operator<<(const std::string& message)
 
 SectorLog& SectorLog::operator<<(const int64_t& val)
 {
-   CGuard lg(m_LogLock);
+   CGuardEx lg(m_LogLock);
 
    int key = pthread_self();
    map<int, LogString>::iterator i = m_mStoredString.find(key);
@@ -157,7 +159,7 @@ void SectorLog::insert_(const char* text, const int level)
 
 void SectorLog::insert(const char* text, const int level)
 {
-   CGuard lg(m_LogLock);
+   CGuardEx lg(m_LogLock);
    insert_(text, level);
 }
 

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/05/2010
 *****************************************************************************/
 
 #include <master.h>
@@ -33,6 +33,7 @@ m_strHomeDir("./"),
 m_iReplicaNum(1),
 m_MetaType(MEMORY),
 m_iSlaveTimeOut(300),
+m_iSlaveRetryTime(600),
 m_llSlaveMinDiskSpace(10000000000LL),
 m_iClientTimeOut(600),
 m_iLogLevel(1)
@@ -92,6 +93,12 @@ int MasterConf::init(const string& path)
          m_iSlaveTimeOut = atoi(param.m_vstrValue[0].c_str());
          if (m_iSlaveTimeOut < 120)
             m_iSlaveTimeOut = 120;
+      }
+      else if ("LOST_SLAVE_RETRY_TIME" == param.m_strName)
+      {
+         m_iSlaveRetryTime = atoi(param.m_vstrValue[0].c_str());
+         if (m_iSlaveRetryTime < 0)
+            m_iSlaveRetryTime = 0;
       }
       else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
       {

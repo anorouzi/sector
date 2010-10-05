@@ -16,15 +16,15 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/04/2010
 *****************************************************************************/
 
 
 #ifndef __SECTOR_THREAD_POOL_H__
 #define __SECTOR_THREAD_POOL_H__
 
-#include <pthread.h>
 #include <queue>
+#include <osportable.h>
 
 class ThreadJobQueue
 {
@@ -41,8 +41,8 @@ public:
 private:
    std::queue<void*> m_qJobs;
 
-   pthread_mutex_t m_QueueLock;
-   pthread_cond_t m_QueueCond;
+   CMutex m_QueueLock;
+   CCond m_QueueCond;
 };
 
 #endif

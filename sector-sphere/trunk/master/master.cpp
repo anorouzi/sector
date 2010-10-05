@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/23/2010
+   Yunhong Gu, last updated 10/05/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -349,18 +349,16 @@ int Master::run()
       // check each slave node
       // if probe fails, remove the metadata of the data on the node, and create new replicas
 
-
-      // TODO: check slave disk usage, move/relocate part of its data from low-disk-space slave to another slave
-
-
       map<int, Address> bad;
       map<int, Address> lost;
-      m_SlaveManager.checkBadAndLost(bad, lost, m_SysConfig.m_iSlaveTimeOut * 1000000LL);
+      map<int, Address> retry;
+      map<int, Address> dead;
+      m_SlaveManager.checkBadAndLost(bad, lost, retry, dead, m_SysConfig.m_iSlaveTimeOut * 1000000LL, m_SysConfig.m_iSlaveRetryTime * 1000000LL);
 
       for (map<int, Address>::iterator i = bad.begin(); i != bad.end(); ++ i)
       {
          m_SectorLog.insert(("Bad slave detected " + i->second.m_strIP + ".").c_str());
-         //TODO: create replica for files on the bade nodes, gradually move data out of those nodes
+         //TODO: create replica for files on the bad nodes, gradually move data out of those nodes
       }
 
       for (map<int, Address>::iterator i = lost.begin(); i != lost.end(); ++ i)
@@ -375,9 +373,35 @@ int Master::run()
             m_SectorLog.insert(("Restart slave " + sa->second.m_strAddr + " " + sa->second.m_strBase).c_str());
 
             // kill and restart the slave
-            system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
+            //system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
+
+            SectorMsg newmsg;
+            newmsg.setType(8);
+            int msgid = 0;
+            m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
+
             system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
          }
+      }
+
+      for (map<int, Address>::iterator i = retry.begin(); i != retry.end(); ++ i)
+      {
+         map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);
+         if (sa != m_mSlaveAddrRec.end())
+         {
+            SectorMsg newmsg;
+            newmsg.setType(8);
+            int msgid = 0;
+            m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
+
+            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+         }
+      }
+
+      for (map<int, Address>::iterator i = dead.begin(); i != dead.end(); ++ i)
+      {
+         m_SectorLog.insert(("Slave " + i->second.m_strIP + " has been failed for a long time; Give it up now.").c_str());
+         m_SlaveManager.remove(i->first);
       }
 
       // update cluster statistics
@@ -587,7 +611,10 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
          if (m_GMP.rpc(addr.m_strIP, addr.m_iPort, &msg, &msg) >= 0)
             res = SectorError::E_REPSLAVE;
          else
+         {
             removeSlave(id, addr);
+            m_SlaveManager.remove(id);
+         }
       }
    }
 
@@ -1286,33 +1313,15 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       }
 
       //TODO: check active transcations, if a node is running a job, put it into a shutdown queue
-
       for (map<int, Address>::iterator i = sl.begin(); i != sl.end(); ++ i)
       {
          SectorMsg newmsg;
          newmsg.setType(8);
          int msgid = 0;
          m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
+
+         removeSlave(i->first, i->second);
          m_SlaveManager.remove(i->first);
-         m_pMetadata->substract("/", i->second);
-
-         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << i->second.m_strIP << ":" << i->second.m_iPort << " is shutdown." << LogStringTag(LogTag::END);
-
-         // send lost slave info to all existing masters
-         map<uint32_t, Address> al;
-         m_Routing.getListOfMasters(al);
-         SectorMsg master_msg;
-         master_msg.setKey(0);
-         master_msg.setType(1007);
-         master_msg.setData(0, (char*)&(i->first), 4);
-
-         for (map<uint32_t, Address>::iterator m = al.begin(); m != al.end(); ++ m)
-         {
-            if (m->first == m_iRouterKey)
-               continue;
-
-            m_GMP.rpc(m->second.m_strIP.c_str(), m->second.m_iPort, &master_msg, &master_msg);
-         }      
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -2863,8 +2872,6 @@ int Master::removeSlave(const int& id, const Address& addr)
          m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
       }
    }
-
-   m_SlaveManager.remove(id);
 
    // send lost slave info to all existing masters
    map<uint32_t, Address> al;

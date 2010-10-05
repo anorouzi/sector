@@ -27,7 +27,9 @@ written by
 #include <vector>
 #include <map>
 #include <string>
-#include <pthread.h>
+#ifndef WIN32
+   #include <pthread.h>
+#endif
 
 struct TransType
 {

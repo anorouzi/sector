@@ -30,6 +30,7 @@ written by
 #include <fstream>
 #include <topology.h>
 #include <sector.h>
+#include <common.h>
 
 class Metadata
 {

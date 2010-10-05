@@ -1045,6 +1045,8 @@ void SlaveStat::refresh()
 {
    // THIS CODE IS FOR LINUX ONLY. NOT PORTABLE
 
+   // TODO: this should be improved
+
    m_llTimeStamp = CTimer::getTime();
 
    int pid = getpid();
@@ -1055,7 +1057,7 @@ void SlaveStat::refresh()
    ifstream ifs;
    ifs.open(memfile, ios::in);
    char buf[1024];
-   for (int i = 0; i < 12; ++ i)
+   for (int i = 0; i < 10; ++ i)
       ifs.getline(buf, 1024);
    string tmp;
    ifs >> tmp;

@@ -160,5 +160,4 @@ install -m 0644 Makefile.common $RPM_BUILD_ROOT/opt/sector
 %libs_dir/libudt.a
 /usr/include/sector.h
 /usr/include/sphere.h
-/usr/include/conf.h
 /opt/sector/Makefile.common

@@ -27,12 +27,20 @@ using namespace std;
 
 MOMgmt::MOMgmt()
 {
-   pthread_mutex_init(&m_MOLock, NULL);
+   #ifndef WIN32
+      pthread_mutex_init(&m_MOLock, NULL);
+   #else
+      m_MOLock = CreateMutex(NULL, false, NULL);      
+   #endif
 }
 
 MOMgmt::~MOMgmt()
 {
-   pthread_mutex_destroy(&m_MOLock);
+   #ifndef WIN32
+      pthread_mutex_destroy(&m_MOLock);
+   #else
+      CloseHandle(m_MOLock);
+   #endif
 }
 
 int MOMgmt::add(const string& name, void* loc, const string& user)

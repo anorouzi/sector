@@ -58,6 +58,7 @@ public:
    int m_iReplicaNum;                   // number of replicas of each file
    MetaForm m_MetaType;                 // form of metadata
    int m_iSlaveTimeOut;                 // slave timeout threshold
+   int m_iSlaveRetryTime;               // time to reload a lost slave
    int64_t m_llSlaveMinDiskSpace;       // minimum available disk space allowed on each slave
    int m_iClientTimeOut;                // client timeout threshold
    int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log

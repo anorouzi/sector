@@ -76,15 +76,69 @@ string format(const int64_t& val, const int len)
    return format(toString(val), len);
 }
 
+string formatStatus(const int status, const int len)
+{
+   string info = "Unknown";
+
+   switch (status)
+   {
+   case 0:
+      info = "Down";
+      break;
+   case 1:
+      info = "Normal";
+      break;
+   case 2:
+      return "DiskFull";
+      break;
+   case 3:
+      return "Error";
+      break;
+   }
+
+   if (len <= 0)
+      return info;
+
+   if (info.length() > unsigned(len))
+      return info.substr(0, len);
+   else
+      info.append(len - info.length(), ' ');
+
+   return info;
+}
+
+string formatSize(const int64_t& size)
+{
+   if (size <= 0)
+      return "0";
+
+   int64_t k = 1000LL;
+   int64_t m = 1000 * k;
+   int64_t g = 1000 * m;
+   int64_t t = 1000 * g;
+   int64_t p = 1000 * t;
+
+   if (size < k)
+      return toString(size) + " B";
+   if (size < m)
+      return toString(size / k) + "." + toString((size - (size / k) * k) * k / k) + " KB";
+   if (size < g)
+      return toString(size / m) + "." + toString((size - (size / m) * m) * k / m) + " MB";
+   if (size < t)
+      return toString(size / g) + "." + toString((size - (size / g) * g) * k / g) + " GB";
+   if (size < p)
+      return toString(size / t) + "." + toString((size - (size / t) * t) * k / t) + " TB";
+
+   return toString(size / p) + "." + toString((size - (size / p) * p) * k / p) + " PB";
+}
+
 void print(const SysStat& s)
 {
-   const int MB = 1024 * 1024;
-
    cout << "Sector System Information:" << endl;
    time_t st = s.m_llStartTime;
    cout << "Running since:               " << ctime(&st);
-   cout << "Available Disk Size:         " << format(s.m_llAvailDiskSpace / MB) << " MB" << endl;
-   cout << "Total File Size:             " << format(s.m_llTotalFileSize / MB) << " MB" << endl;
+   cout << "Available Disk Size:         " << formatSize(s.m_llAvailDiskSpace)<< endl;
+   cout << "Total File Size:             " << formatSize(s.m_llTotalFileSize) << endl;
    cout << "Total Number of Files:       " << s.m_llTotalFileNum << endl;
    cout << "Total Number of Slave Nodes: " << s.m_llTotalSlaves << endl;
 
@@ -107,10 +161,10 @@ void print(const SysStat& s)
    cout << "Total number of clusters:    " << total_cluster << endl;
    cout << format("Cluster_ID", 12)
         << format("Total_Nodes", 12)
-        << format("AvailDisk(MB)", 15)
-        << format("FileSize(MB)", 15)
-        << format("NetIn(MB)", 15)
-        << format("NetOut(MB)", 15) << endl;
+        << format("AvailDisk", 12)
+        << format("FileSize", 12)
+        << format("NetIn", 12)
+        << format("NetOut", 12) << endl;
    for (vector<SysStat::ClusterStat>::const_iterator i = s.m_vCluster.begin(); i != s.m_vCluster.end(); ++ i)
    {
       if (i->m_iTotalNodes <= 0)
@@ -118,35 +172,37 @@ void print(const SysStat& s)
 
       cout << format(i->m_iClusterID, 12)
            << format(i->m_iTotalNodes, 12)
-           << format(format(i->m_llAvailDiskSpace / MB), 15)
-           << format(format(i->m_llTotalFileSize / MB), 15)
-           << format(i->m_llTotalInputData / MB, 15)
-           << format(i->m_llTotalOutputData / MB, 15) << endl;
+           << format(formatSize(i->m_llAvailDiskSpace), 12)
+           << format(formatSize(i->m_llTotalFileSize), 12)
+           << format(formatSize(i->m_llTotalInputData), 12)
+           << format(formatSize(i->m_llTotalOutputData), 12) << endl;
    }
 
    cout << "------------------------------------------------------------\n";
    cout << format("SLAVE_ID", 10)
         << format("Address", 24)
-        << format("AvailDisk(MB)", 15)
-        << format("TotalFile(MB)", 15)
-        << format("Mem(MB)", 12)
+        << format("CLUSTER", 8)
+        << format("STATUS", 10)
+        << format("AvailDisk", 12)
+        << format("TotalFile", 12)
+        << format("Memory", 12)
         << format("CPU(us)", 12)
-        << format("NetIn(MB)", 15)
-        << format("NetOut(MB)", 15)
-        << format("TS(second)", 15)
+        << format("NetIn", 12)
+        << format("NetOut", 12)
         << format("Data_Dir", 0) << endl;
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
       cout << format(i->m_iID, 10)
            << format(i->m_strIP + ":" + toString(i->m_iPort) , 24)
-           << format(format(i->m_llAvailDiskSpace / MB), 15)
-           << format(format(i->m_llTotalFileSize / MB), 15)
-           << format(i->m_llCurrMemUsed / MB, 12)
+           << format(i->m_iClusterID, 8)
+           << formatStatus(i->m_iStatus, 10)
+           << format(formatSize(i->m_llAvailDiskSpace), 12)
+           << format(formatSize(i->m_llTotalFileSize), 12)
+           << format(formatSize(i->m_llCurrMemUsed), 12)
            << format(i->m_llCurrCPUUsed, 12)
-           << format(i->m_llTotalInputData / MB, 15)
-           << format(i->m_llTotalOutputData / MB, 15)
-           << format(i->m_llTimeStamp / 1000000, 15)
+           << format(formatSize(i->m_llTotalInputData), 12)
+           << format(formatSize(i->m_llTotalOutputData), 12)
            << format(i->m_strDataDir, 0) << endl;
    }
 }

@@ -20,6 +20,7 @@ int main(int argc, char** argv)
    client.mkdir("test");
    client.remove("/tmp/guide.dat");
    client.remove("/tmp/guide.dat.idx");
+   client.mkdir("tmp");
 
    SysStat sys;
    client.sysinfo(sys);

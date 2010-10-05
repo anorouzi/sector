@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/05/2010
 *****************************************************************************/
 
 
@@ -54,7 +54,7 @@ public:
    int updateSlaveList(std::vector<Address>& sl, int64_t& last_update_time);
    int updateSlaveInfo(const Address& addr, const char* info, const int& len);
    int updateSlaveTS(const Address& addr);
-   int checkBadAndLost(std::map<int, Address>& bad, std::map<int, Address>& lost, const int64_t& timeout);
+   int checkBadAndLost(std::map<int, Address>& bad, std::map<int, Address>& lost, std::map<int, Address>& retry, std::map<int, Address>& dead, const int64_t& timeout, const int64_t& retrytime);
    int serializeSlaveList(char*& buf, int& size);
    int deserializeSlaveList(int num, const char* buf, int size);
    int getSlaveID(const Address& addr);
@@ -79,7 +79,6 @@ private:
 private:
    std::map<Address, int, AddrComp> m_mAddrList;		// list of slave addresses
    std::map<int, SlaveNode> m_mSlaveList;			// list of slaves
-   std::set<int> m_siBadSlaves;					// list of bad slaves
 
    Topology m_Topology;						// slave system topology definition
    Cluster m_Cluster;						// topology structure

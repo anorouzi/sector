@@ -26,39 +26,31 @@ using namespace std;
 
 ThreadJobQueue::ThreadJobQueue()
 {
-   pthread_mutex_init(&m_QueueLock, NULL);
-   pthread_cond_init(&m_QueueCond, NULL);
 }
 
 ThreadJobQueue::~ThreadJobQueue()
 {
-   pthread_mutex_destroy(&m_QueueLock);
-   pthread_cond_destroy(&m_QueueCond);
 }
 
 int ThreadJobQueue::push(void* param)
 {
-   pthread_mutex_lock(&m_QueueLock);
+   CGuardEx tg(m_QueueLock);
 
    m_qJobs.push(param);
-
-   pthread_cond_signal(&m_QueueCond);
-   pthread_mutex_unlock(&m_QueueLock);
+   m_QueueCond.signal();
 
    return 0;
 }
 
 void* ThreadJobQueue::pop()
 {
-   pthread_mutex_lock(&m_QueueLock);
+   CGuardEx tg(m_QueueLock);
 
    while (m_qJobs.empty())
-      pthread_cond_wait(&m_QueueCond, &m_QueueLock);
+      m_QueueCond.wait(m_QueueLock);
 
    void* param = m_qJobs.front();
    m_qJobs.pop();
-
-   pthread_mutex_unlock(&m_QueueLock);
 
    return param;
 }
