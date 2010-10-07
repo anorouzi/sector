@@ -41,6 +41,8 @@ public:
    virtual void init(const std::string& path) = 0;
    virtual void clear() = 0;
 
+   void setDefault(const int rep_num, const int rep_dist);
+
 public:	// list and lookup operations
    virtual int list(const std::string& path, std::vector<std::string>& filelist) = 0;
    virtual int list_r(const std::string& path, std::vector<std::string>& filelist) = 0;
@@ -100,13 +102,17 @@ public:	// medadata and file system operations
    virtual int64_t getTotalDataSize(const std::string& path) = 0;
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
-   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special) = 0;
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over) = 0;
 
    virtual int getSlaveMeta(Metadata* branch, const Address& addr) = 0;
 
 public:
    static int parsePath(const std::string& path, std::vector<std::string>& result);
    static std::string revisePath(const std::string& path);
+   static std::string revisePathNoLimit(const std::string& path);
+
+public:
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist) = 0;
 
 protected:
    pthread_mutex_t m_MetaLock;
@@ -122,6 +128,10 @@ private:
    static bool initLC();
    static bool m_pbLegalChar[256];
    static bool m_bInit;
+
+protected:
+   static int m_iDefaultRepNum;
+   static int m_iDefaultRepDist;
 };
 
 #endif

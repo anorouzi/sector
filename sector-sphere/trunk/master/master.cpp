@@ -123,11 +123,16 @@ int Master::init()
 
    m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
-   if (m_SysConfig.m_MetaType == DISK)
-      m_pMetadata = new Index2;
-   else
+   if (m_SysConfig.m_MetaType == MEMORY)
       m_pMetadata = new Index;
+   else
+      m_pMetadata = new Index2;
    m_pMetadata->init(m_strHomeDir + ".metadata");
+
+   // set and configure replication strategies
+   m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist);
+   if (m_ReplicaConf.refresh(m_strSectorHome + "/conf/replica.conf"))
+      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
 
    // load slave list and addresses
    loadSlaveAddr(m_strSectorHome + "/conf/slaves.list");
@@ -648,12 +653,13 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
 
       // accept existing data on the new slave and merge it with the master metadata
       Metadata* branch = NULL;
-      if (m_SysConfig.m_MetaType == DISK)
-         branch = new Index2;
-      else
+      if (m_SysConfig.m_MetaType == MEMORY)
          branch = new Index;
+      else
+         branch = new Index2;
       branch->init(m_strHomeDir + ".tmp/" + ip);
       branch->deserialize("/", m_strHomeDir + ".tmp/" + ip + ".dat", &addr);
+      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
       m_pMetadata->merge("/", branch, m_SysConfig.m_iReplicaNum);
       unlink((m_strHomeDir + ".tmp/" + ip + ".dat").c_str());
 
@@ -1097,7 +1103,9 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
          else if (change == FileChangeType::FILE_UPDATE_NEW)
          {
-             m_pMetadata->create(sn);
+            sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(sn.m_strName, m_SysConfig.m_iReplicaNum);
+            sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(sn.m_strName, m_SysConfig.m_iReplicaDist);
+            m_pMetadata->create(sn);
          }
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
@@ -1607,10 +1615,17 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       string newname = dst.substr(dst.rfind('/') + 1, dst.length());
 
+      // move metadata and refresh the replica settings of the new file/dir
       if (rt < 0)
+      {
          m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
+         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
+      }
       else
+      {
          m_pMetadata->move(src.c_str(), dst.c_str());
+         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
+      }
 
       msg->setData(0, src.c_str(), src.length() + 1);
       msg->setData(src.length() + 1, uplevel.c_str(), uplevel.length() + 1);
@@ -1902,17 +1917,20 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             }
          }
 
-         if (m_SlaveManager.chooseIONode(candidates, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve) <= 0)
+         // create the new file in the metadata
+         SNode sn;
+         sn.m_strName = path;
+         sn.m_bIsDir = false;
+         sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(path, m_SysConfig.m_iReplicaNum);
+         sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(path, m_SysConfig.m_iReplicaDist);
+
+         if (m_SlaveManager.chooseIONode(candidates, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve, sn.m_iReplicaDist) <= 0)
          {
             reject(ip, port, id, SectorError::E_NODISK);
             m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "open", msg->getData(), "REJECT", "", 8);
             break;
          }
 
-         // create the new file in the metadata
-         SNode sn;
-         sn.m_strName = path;
-         sn.m_bIsDir = false;
          for (vector<SlaveNode>::iterator i = addr.begin(); i != addr.end(); ++ i)
          {
             Address a;
@@ -1920,6 +1938,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             a.m_iPort = i->m_iPort;
             sn.m_sLocation.insert(a);
          }
+
          m_pMetadata->create(sn);
 
          m_pMetadata->lock(path.c_str(), key, rwx);
@@ -1942,7 +1961,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             break;
          }
 
-         m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve);
+         m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve, attr.m_iReplicaDist);
       }
 
       int transid = m_TransManager.create(TransType::FILE, key, msg->getType(), path, mode);
@@ -2535,6 +2554,10 @@ void* Master::replica(void* s)
          continue;
       }
 
+      // refresh special replication settings
+      if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
+         self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist);
+
       vector<string> over_replicated;
 
       pthread_mutex_lock(&self->m_ReplicaLock);
@@ -2542,9 +2565,7 @@ void* Master::replica(void* s)
       // check replica, create or remove replicas if necessary
       if (self->m_vstrToBeReplicated.empty())
       {
-         map<string, int> special;
-         self->populateSpecialRep(self->m_strSectorHome + "/conf/replica.conf", special);
-         self->m_pMetadata->checkReplica("/", self->m_vstrToBeReplicated, over_replicated, self->m_SysConfig.m_iReplicaNum, special);
+         self->m_pMetadata->checkReplica("/", self->m_vstrToBeReplicated, over_replicated);
 
          // create replicas for files on slaves without enough disk space
          // so that some files can be removed from these nodes
@@ -2810,44 +2831,6 @@ int Master::serializeSysStat(char*& buf, int& size)
    delete [] slave_info;
 
    return size;
-}
-
-int Master::populateSpecialRep(const string& conf, map<string, int>& special)
-{
-   special.clear();
-
-   ifstream cf(conf.c_str());
-   if (cf.bad() || cf.fail())
-      return -1;
-
-   while (!cf.eof())
-   {
-      char buf[1024];
-      cf.getline(buf, 1024);
-      if (('\0' == *buf) || ('#' == *buf))
-         continue;
-
-      stringstream ss (ios::in | ios::out);
-      ss << buf;
-      string path;
-      int thresh;
-      ss >> path >> thresh;
-
-      if (thresh <= 0)
-         continue;
-
-      string revised_path = Metadata::revisePath(path);
-      SNode sn;
-      if (m_pMetadata->lookup(revised_path, sn) < 0)
-         continue;
-
-      if (sn.m_bIsDir)
-         revised_path.append("/");
-
-      special[revised_path] = thresh;
-   }
-
-   return special.size();
 }
 
 int Master::removeSlave(const int& id, const Address& addr)

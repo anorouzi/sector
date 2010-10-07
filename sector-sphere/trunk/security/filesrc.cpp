@@ -28,6 +28,7 @@ written by
 #include <fstream>
 #include <filesrc.h>
 #include <sector.h>
+#include <meta.h>
 
 using namespace std;
 
@@ -195,9 +196,23 @@ int FileSrc::parseUser(User& user, const char* name, const char* ufile)
       if ("PASSWORD" == param.m_strName)
          user.m_strPassword = param.m_vstrValue[0];
       else if ("READ_PERMISSION" == param.m_strName)
-         user.m_vstrReadList = param.m_vstrValue;
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string rp = Metadata::revisePath(*i);
+            if (rp.length() > 0)
+               user.m_vstrReadList.push_back(rp);
+         }
+      }
       else if ("WRITE_PERMISSION" == param.m_strName)
-         user.m_vstrWriteList = param.m_vstrValue;
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string rp = Metadata::revisePath(*i);
+            if (rp.length() > 0)
+               user.m_vstrWriteList.push_back(rp);
+         }
+      }
       else if ("EXEC_PERMISSION" == param.m_strName)
       {
          if (param.m_vstrValue[0] == "TRUE")

@@ -46,7 +46,6 @@ class MasterConf
 {
 public:
    MasterConf();
-
    int init(const std::string& path);
 
 public:
@@ -56,12 +55,34 @@ public:
    int m_iMaxActiveUser;                // maximum active user
    std::string m_strHomeDir;            // data directory
    int m_iReplicaNum;                   // number of replicas of each file
+   int m_iReplicaDist;			// replication distance
    MetaForm m_MetaType;                 // form of metadata
    int m_iSlaveTimeOut;                 // slave timeout threshold
    int m_iSlaveRetryTime;               // time to reload a lost slave
    int64_t m_llSlaveMinDiskSpace;       // minimum available disk space allowed on each slave
    int m_iClientTimeOut;                // client timeout threshold
    int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log
+};
+
+class ReplicaConf
+{
+public:
+   ReplicaConf();
+   bool refresh(const std::string& path);
+
+public:
+   std::map<std::string, int> m_mReplicaNum;	// number of replicas
+   std::map<std::string, int> m_mReplicaDist;	// distance of replicas
+
+public:
+   int getReplicaNum(const std::string& path, int default_val);
+   int getReplicaDist(const std::string& path, int default_val);
+
+private:
+   int parseItem(const std::string& input, std::string& path, int& val);
+
+private:
+   int64_t m_llTimeStamp;
 };
 
 class Master
@@ -128,10 +149,10 @@ private: // replication
    std::vector<std::string> m_vstrToBeReplicated;	// list of files to be replicated/copied
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
+   ReplicaConf m_ReplicaConf;				// special replications
+
    int createReplica(const std::string& src, const std::string& dst);
    int removeReplica(const std::string& filename, const Address& addr);
-
-   int populateSpecialRep(const std::string& conf, std::map<std::string, int>& special);
 
    int processWriteResults(const std::string& filename, std::map<int, std::string> results);
 

@@ -77,6 +77,8 @@ public:
    int64_t m_llTimeStamp;
    int64_t m_llSize;
    std::string m_strChecksum;
+   int m_iReplicaNum;
+   int m_iReplicaDist;
 
 public:
    int serialize(char*& buf) const;
@@ -423,6 +425,7 @@ class SECTOR_API WildCard
 public:
    static bool isWildCard(const std::string& path);
    static bool match(const std::string& card, const std::string& path);
+   static bool contain(const std::string& card, const std::string& path);
 };
 
 class SECTOR_API Session

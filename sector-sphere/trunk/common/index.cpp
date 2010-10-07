@@ -29,6 +29,7 @@ written by
 #include <sys/stat.h>
 #include <cstring>
 #include <time.h>
+#include <sector.h>
 
 #ifndef WIN32
    #include <dirent.h>
@@ -641,7 +642,7 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
    return collectDataInfo(file, *currdir, result);
 }
 
-int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
+int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over)
 {
    CGuard mg(m_MetaLock);
 
@@ -660,7 +661,7 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
       currdir = &(s->second.m_mDirectory);
    }
 
-   return checkReplica(path, *currdir, under, over, thresh, special);
+   return checkReplica(path, *currdir, under, over);
 }
 
 int Index::getSlaveMeta(Metadata* branch, const Address& addr)
@@ -1013,7 +1014,7 @@ int Index::collectDataInfo(const string& path, map<string, SNode>& currdir, vect
    return result.size();
 }
 
-int Index::checkReplica(const string& path, map<string, SNode>& currdir, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
+int Index::checkReplica(const string& path, map<string, SNode>& currdir, vector<string>& under, vector<string>& over)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
@@ -1025,47 +1026,29 @@ int Index::checkReplica(const string& path, map<string, SNode>& currdir, vector<
 
       if ((!i->second.m_bIsDir) || (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end()))
       {
-         // replicate a file according to the number of replicas
+         // replicate a file according to the number of specified replicas
          // or if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
 
-         unsigned int d = thresh;
-         // allow certain directories or files to have different replica numbers
-         // TODO: should be more efficient
-         for (map<string, int>::const_iterator s = special.begin(); s != special.end(); ++ s)
+         unsigned int curr_rep_num = 0;
+         unsigned int target_rep_num = 0;
+         if (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end())
          {
-            if (s->first.c_str()[s->first.length() - 1] == '/')
-            {
-               // check directory prefix
-               if (abs_path.substr(0, s->first.length() - 1) + "/" == s->first)
-               {
-                  d = s->second;
-                  break;
-               }
-            }
-            else
-            {
-               // special file, name must match
-               if (abs_path == s->first)
-               {
-                  d = s->second;
-                  break;
-               }
-            }
+            curr_rep_num = i->second.m_mDirectory[".nosplit"].m_sLocation.size();
+            target_rep_num = i->second.m_mDirectory[".nosplit"].m_iReplicaNum;
+         }
+         else
+         {
+            curr_rep_num = i->second.m_sLocation.size();
+            target_rep_num = i->second.m_iReplicaNum;
          }
 
-         unsigned int curr_rep_num = 0;
-         if (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end())
-            curr_rep_num = i->second.m_mDirectory[".nosplit"].m_sLocation.size();
-         else
-            curr_rep_num = i->second.m_sLocation.size();
-
-         if (curr_rep_num < d)
-           under.push_back(abs_path);
-         else if (curr_rep_num > d)
-           over.push_back(abs_path);
+         if (curr_rep_num < target_rep_num)
+            under.push_back(abs_path);
+         else if (curr_rep_num > target_rep_num)
+            over.push_back(abs_path);
       }
       else
-         checkReplica(abs_path, i->second.m_mDirectory, under, over, thresh, special);
+         checkReplica(abs_path, i->second.m_mDirectory, under, over);
    }
 
    return 0;
@@ -1119,6 +1102,67 @@ int Index::getSlaveMeta(map<string, SNode>& currdir, vector<string>& path, map<s
          getSlaveMeta(i->second.m_mDirectory, path, target, addr);
          path.erase(path.begin() + path.size() - 1);
       }
+   }
+
+   return 0;
+}
+
+void Index::refreshRepSetting(const string& path, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist)
+{
+   CGuard mg(m_MetaLock);
+
+   vector<string> dir;
+   if (parsePath(path, dir) < 0)
+      return;
+
+   map<string, SNode>* currdir = &m_mDirectory;
+   map<string, SNode>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = currdir->find(*d);
+      if (s == currdir->end())
+         return;
+
+      currdir = &(s->second.m_mDirectory);
+   }
+
+   refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist);
+}
+
+int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist)
+{
+   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   {
+      string abs_path = path;
+      if (path == "/")
+         abs_path += i->first;
+      else
+         abs_path += "/" + i->first;
+
+      i->second.m_iReplicaNum = default_num;
+
+      for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
+      {
+         if (WildCard::contain(rn->first, abs_path))
+         {
+            i->second.m_iReplicaNum = rn->second;
+            break;
+         }
+      }
+
+      i->second.m_iReplicaDist = default_dist;
+
+      for (map<string, int>::const_iterator rd = rep_dist.begin(); rd != rep_dist.end(); ++ rd)
+      {
+         if (WildCard::contain(rd->first, abs_path))
+         {
+            i->second.m_iReplicaDist = rd->second;
+            break;
+         }
+      }
+
+      if (i->second.m_bIsDir)
+         refreshRepSetting(abs_path, i->second.m_mDirectory, default_num, default_dist, rep_num, rep_dist);
    }
 
    return 0;

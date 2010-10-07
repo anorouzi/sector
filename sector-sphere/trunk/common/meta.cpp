@@ -27,6 +27,8 @@ using namespace std;
 
 bool Metadata::m_pbLegalChar[256];
 bool Metadata::m_bInit = Metadata::initLC();
+int Metadata::m_iDefaultRepNum = 1;
+int Metadata::m_iDefaultRepDist = 65536;
 
 Metadata::Metadata()
 {
@@ -36,6 +38,12 @@ Metadata::Metadata()
 Metadata::~Metadata()
 {
    CGuard::releaseMutex(m_MetaLock);
+}
+
+void Metadata::setDefault(const int rep_num, const int rep_dist)
+{
+   m_iDefaultRepNum = rep_num;
+   m_iDefaultRepDist = rep_dist;
 }
 
 int Metadata::lock(const string& path, int user, int mode)
@@ -149,6 +157,38 @@ string Metadata::revisePath(const string& path)
             return "";
          }
 
+         *np++ = *p;
+         slash = false;
+      }
+   }
+   *np = '\0';
+
+   if ((strlen(newpath) > 1) && slash)
+      newpath[strlen(newpath) - 1] = '\0';
+
+   string tmp = newpath;
+   delete [] newpath;
+
+   return tmp;
+}
+
+string Metadata::revisePathNoLimit(const string& path)
+{
+   char* newpath = new char[path.length() + 2];
+   char* np = newpath;
+   *np++ = '/';
+   bool slash = true;
+
+   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
+   {
+      if (*p == '/')
+      {
+         if (!slash)
+            *np++ = '/';
+         slash = true;
+      }
+      else
+      {
          *np++ = *p;
          slash = false;
       }

@@ -20,6 +20,7 @@ written by
 *****************************************************************************/
 
 #include <master.h>
+#include <sstream>
 #include <iostream>
 
 using namespace std;
@@ -31,6 +32,7 @@ m_iSecServPort(0),
 m_iMaxActiveUser(1024),
 m_strHomeDir("./"),
 m_iReplicaNum(1),
+m_iReplicaDist(65536),
 m_MetaType(MEMORY),
 m_iSlaveTimeOut(300),
 m_iSlaveRetryTime(600),
@@ -81,6 +83,8 @@ int MasterConf::init(const string& path)
       }
       else if ("REPLICA_NUM" == param.m_strName)
          m_iReplicaNum = atoi(param.m_vstrValue[0].c_str());
+      else if ("REPLICA_DIST" == param.m_strName)
+         m_iReplicaDist = atoi(param.m_vstrValue[0].c_str());
       else if ("META_LOC" == param.m_strName)
       {
          if ("MEMORY" == param.m_vstrValue[0])
@@ -125,4 +129,104 @@ int MasterConf::init(const string& path)
    parser.close();
 
    return 0;
+}
+
+ReplicaConf::ReplicaConf():
+m_llTimeStamp(0)
+{
+}
+
+bool ReplicaConf::refresh(const string& path)
+{
+   struct stat s;
+   if (stat(path.c_str(), &s) < 0)
+      return false;
+
+   if (s.st_mtime == m_llTimeStamp)
+      return false;
+
+   m_llTimeStamp = s.st_mtime;
+
+   ConfParser parser;
+   Param param;
+
+   if (0 != parser.init(path))
+      return false;
+
+   while (parser.getNextParam(param) >= 0)
+   {
+      if ("REPLICATION_NUMBER" == param.m_strName)
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string path;
+            int num;
+            if (parseItem(*i, path, num) >= 0)
+            {
+               string rp = Metadata::revisePathNoLimit(path);
+               if (rp.length() > 0)
+                  m_mReplicaNum[rp] = num;
+            }
+         }
+      }
+      else if ("REPLICATION_DISTANCE" == param.m_strName)
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string path;
+            int dist;
+            if (parseItem(*i, path, dist) >= 0)
+            {
+               string rp = Metadata::revisePathNoLimit(path);
+               if (rp.length() > 0)
+                  m_mReplicaDist[rp] = dist;
+            }
+         }
+      }
+      else
+      {
+         cerr << "unrecongnized replica.conf parameter: " << param.m_strName << endl;
+      }
+   }
+
+   parser.close();
+
+   return true;
+}
+
+int ReplicaConf::parseItem(const string& input, string& path, int& val)
+{
+   val = -1;
+
+   //format: path num
+   stringstream ssinput(input);
+   ssinput >> path >> val;
+
+   return val;   
+}
+
+int ReplicaConf::getReplicaNum(const std::string& path, int default_val)
+{
+   for (map<string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaDist.end(); ++ i)
+   {
+      if (WildCard::contain(i->first, path))
+      {
+         return i->second;
+      }
+   }
+
+   return default_val;
+}
+
+int ReplicaConf::getReplicaDist(const std::string& path, int default_val)
+{
+   for (map<string, int>::const_iterator i = m_mReplicaDist.begin(); i != m_mReplicaDist.end(); ++ i)
+   {
+      if (WildCard::contain(i->first, path))
+      {
+         return i->second;
+      }
+   }
+
+   return default_val;
 }

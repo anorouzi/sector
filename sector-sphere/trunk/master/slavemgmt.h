@@ -42,10 +42,10 @@ public:
    bool checkDuplicateSlave(const std::string& ip, const std::string& path, int32_t& id, Address& addr);
 
 public:
-   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0);
-   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize);
-   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0);
+   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist = 65536);
+   int chooseIONode(std::set<int>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0, int rep_dist = 65536);
+   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist = 65536);
+   int chooseIONode(std::set<Address, AddrComp>& loclist, const Address& client, int mode, std::vector<SlaveNode>& sl, int replica, int64_t reserve = 0, int rep_dist = 65536);
    int chooseSPENodes(const Address& client, std::vector<SlaveNode>& sl);
    int chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Address& addr);
 
@@ -74,7 +74,7 @@ public:
 private:
    void updateclusterstat_(Cluster& c);
    void updateclusterio_(Cluster& c, std::map<std::string, int64_t>& data_in, std::map<std::string, int64_t>& data_out, int64_t& total);
-   int choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize);
+   int choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist);
 
 private:
    std::map<Address, int, AddrComp> m_mAddrList;		// list of slave addresses

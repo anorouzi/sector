@@ -173,6 +173,15 @@ int ConfParser::getNextParam(Param& param)
 
 char* ConfParser::getToken(char* str, string& token)
 {
+   // remove blanks spaces at the end
+   for (int i = strlen(str); i >= 0; -- i)
+   {
+      if ((str[i] == ' ') || (str[i] == '\t'))
+         str[i] = '\0';
+      else
+         break;
+   }
+
    char* p = str;
 
    // skip blank spaces
@@ -183,6 +192,11 @@ char* ConfParser::getToken(char* str, string& token)
    if ('\0' == *p)
       return NULL;
 
+   token = p;
+   return p + strlen(p);
+
+   // The code below is not used for now.
+
    token = "";
    while ((' ' != *p) && ('\t' != *p) && ('\0' != *p))
    {
@@ -192,3 +206,112 @@ char* ConfParser::getToken(char* str, string& token)
 
    return p;
 }
+
+bool WildCard::isWildCard(const string& path)
+{
+   if (path.find('*') != string::npos)
+      return true;
+
+   if (path.find('?') != string::npos)
+      return true;
+
+   return false;
+}
+
+bool WildCard::match(const string& card, const string& path)
+{
+   const char* p = card.c_str();
+   const char* q = path.c_str();
+
+   unsigned int i = 0;
+   unsigned int j = 0;
+   while ((i < card.length()) && (j < path.length()))
+   {
+      switch (p[i])
+      {
+      case '*':
+         if (i == card.length() - 1)
+            return true;
+
+         while (p[i] == '*')
+            ++ i;
+
+         for (; j < path.length(); ++ j)
+         {
+            if (((q[j] == p[i]) || (p[i] == '?') ) && match(p + i, q + j))
+               return true;
+         }
+
+         return false;
+
+      case '?':
+         break;
+
+      default:
+         if (p[i] != q[j])
+            return false;
+      }
+
+      ++ i;
+      ++ j;
+   }
+
+   if ((i != card.length()) || (j != path.length()))
+      return false;
+
+   return true;
+}
+
+bool WildCard::contain(const string& card, const string& path)
+{
+   unsigned int lc = card.length();
+   unsigned int lp = path.length();
+
+   if (lc > lp)
+      return false;
+
+   const char* p = card.c_str();
+   const char* q = path.c_str();
+   unsigned int i = 0;
+   unsigned int j = 0;
+
+   while ((i < lc) && (j < lp))
+   {
+      switch (p[i])
+      {
+      case '*':
+         while (p[i] == '*')
+            ++ i;
+
+         if (i >= lc)
+            return true;
+
+         while ((j < lp) && (q[j] != p[i]))
+            ++ j;
+
+         if (j >= lp)
+            return false;
+
+         break;
+
+      case '?':
+         break;
+
+      default:
+         if (p[i] != q[j])
+            return false;
+      }
+
+      ++ i;
+      ++ j;
+   }
+
+   if (i != lc)
+      return false;
+
+   if ((j != lp) && (q[j] != '/'))
+      return false;
+
+   return true;
+}
+

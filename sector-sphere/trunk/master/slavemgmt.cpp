@@ -256,16 +256,29 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
    return false;
 }
 
-int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
+int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
 {
    CGuard sg(m_SlaveLock);
-   return choosereplicanode_(loclist, sn, filesize);
+   return choosereplicanode_(loclist, sn, filesize, rep_dist);
 }
 
-int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize)
+int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
 {
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 1);
+
+   // find the topology of current replicas
+   vector< vector<int> > locpath;
+   for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   {
+      map<int, SlaveNode>::iterator p = m_mSlaveList.find(*i);
+      if (p == m_mSlaveList.end())
+         continue;
+      locpath.push_back(p->second.m_viPath);
+   }
+
+   int level = 65536;
+
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
       // skip bad&lost slaves
@@ -276,23 +289,22 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       if (i->second.m_llAvailDiskSpace < (m_llSlaveMinDiskSpace + filesize))
          continue;
 
-      int level = 0;
-      for (set<int>::iterator j = loclist.begin(); j != loclist.end(); ++ j)
+      // cannot replicate to a node already having the data
+      if (loclist.find(i->first) != loclist.end())
+         continue;
+
+      // calculate the distance from this slave node to the current replicas
+      level = 65536;
+      for (vector< vector<int> >::iterator j = locpath.begin(); j != locpath.end(); ++ j)
       {
-         if (i->first == *j)
-         {
-            level = -1;
-            break;
-         }
-
-         map<int, SlaveNode>::iterator jp = m_mSlaveList.find(*j);
-         if (jp == m_mSlaveList.end())
-            continue;
-
-         int tmpl = m_Topology.match(i->second.m_viPath, jp->second.m_viPath);
-         if (tmpl > level)
+         int tmpl = m_Topology.match(i->second.m_viPath, *j);
+         if (tmpl < level)
             level = tmpl;
       }
+
+      // if users define a replication distance, then only nodes within rep_dist can be chosen
+      if ((rep_dist >= 0) && (level > rep_dist))
+         continue;
 
       if (level >= 0)
          avail[level].insert(i->first);
@@ -326,7 +338,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    return 1;
 }
  
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
+int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve, int rep_dist)
 {
    CGuard sg(m_SlaveLock);
 
@@ -421,7 +433,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
          for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
             locid.insert(j->m_iNodeID);
 
-         if (choosereplicanode_(locid, sn, reserve) <= 0)
+         if (choosereplicanode_(locid, sn, reserve, rep_dist) <= 0)
             break;
 
          sl.push_back(sn);
@@ -431,7 +443,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
    return sl.size();
 }
 
-int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize)
+int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
 {
    set<int> locid;
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -439,10 +451,10 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseReplicaNode(locid, sn, filesize);
+   return chooseReplicaNode(locid, sn, filesize, rep_dist);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve, int rep_dist)
 {
    set<int> locid;
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -450,7 +462,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, client, mode, sl, replica, reserve);
+   return chooseIONode(locid, client, mode, sl, replica, reserve, rep_dist);
 }
 
 int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)

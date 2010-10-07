@@ -696,7 +696,7 @@ int Index2::collectDataInfo(const string& path, vector<string>& result)
    return result.size();
 }
 
-int Index2::checkReplica(const string& path, vector<string>& under, vector<string>& over, const unsigned int& thresh, const map<string, int>& special)
+int Index2::checkReplica(const string& path, vector<string>& under, vector<string>& over)
 {
    dirent **namelist;
    int n = scandir((m_strMetaPath + "/" + path).c_str(), &namelist, 0, alphasort);
@@ -723,28 +723,8 @@ int Index2::checkReplica(const string& path, vector<string>& under, vector<strin
          SNode sn;
          sn.deserialize2(m_strMetaPath + "/" + abs_path);
 
-         unsigned int d = thresh;
-         for (map<string, int>::const_iterator s = special.begin(); s != special.end(); ++ s)
-         {
-            if (s->first.c_str()[s->first.length() - 1] == '/')
-            {
-               // check directory prefix
-               if (abs_path.substr(0, s->first.length() - 1) + "/" == s->first)
-               {
-                  d = s->second;
-                  break;
-               }
-            }
-            else
-            {
-               // special file, name must match
-               if (abs_path == s->first)
-               {
-                  d = s->second;
-                  break;
-               }
-            }
-         }
+         //unsigned int d = thresh;
+         unsigned int d = 2;
 
          if (stat((m_strMetaPath + "/" + abs_path + "/.nosplit").c_str(), &s_nosplit) >= 0)
             sn.deserialize2(m_strMetaPath + "/" + abs_path + "/.nosplit");
@@ -755,7 +735,7 @@ int Index2::checkReplica(const string& path, vector<string>& under, vector<strin
             over.push_back(abs_path);
       }
       else
-         checkReplica(abs_path, under, over, thresh, special);
+         checkReplica(abs_path, under, over);
 
       free(namelist[i]);
    }

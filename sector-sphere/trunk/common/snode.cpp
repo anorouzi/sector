@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/06/2010
 *****************************************************************************/
 
 
@@ -34,7 +34,9 @@ m_strName(""),
 m_bIsDir(false),
 m_llTimeStamp(0),
 m_llSize(0),
-m_strChecksum("")
+m_strChecksum(""),
+m_iReplicaNum(1),
+m_iReplicaDist(65536)
 {
    m_sLocation.clear();
    m_mDirectory.clear();

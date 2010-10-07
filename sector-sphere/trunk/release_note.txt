@@ -1,5 +1,8 @@
 version 2.6
 
+support replication distance
+improved sysinfo display
+master will continue to restart lost slaves until LOST_SLAVE_RETRY_TIME
 automatic re-connect for FUSE client on master down/restart
 
 version 2.5

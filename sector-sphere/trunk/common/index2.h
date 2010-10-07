@@ -59,8 +59,11 @@ public:
    virtual int64_t getTotalDataSize(const std::string& path);
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
-   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over, const unsigned int& thresh, const std::map<std::string, int>& special);
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over);
    virtual int getSlaveMeta(Metadata* branch, const Address& addr) {return 0;}
+
+public:
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist) {}
 
 private:
    int serialize(std::ofstream& ofs, const std::string& currdir, int level);
