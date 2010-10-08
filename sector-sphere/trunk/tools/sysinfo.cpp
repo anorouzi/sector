@@ -89,7 +89,7 @@ string formatStatus(const int status, const int len)
       info = "Normal";
       break;
    case 2:
-      return "DiskFull";
+      info = "DiskFull";
       break;
    case 3:
       return "Error";

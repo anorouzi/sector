@@ -125,7 +125,7 @@ int Topology::init(const char* topoconf)
       tm.m_uiIP = 0;
       tm.m_uiMask = 0;
       tm.m_viPath.push_back(0);
-      m_vTopoMap.insert(m_vTopoMap.end(), tm);
+      m_vTopoMap.push(tm);
 
       return 0;
    }
@@ -163,7 +163,7 @@ int Topology::init(const char* topoconf)
       if (parseTopo(topo.c_str(), tm.m_viPath) <= 0)
          return -1;
 
-      m_vTopoMap.insert(m_vTopoMap.end(), tm);
+      m_vTopoMap.push_back(tm);
 
       if (m_uiLevel < tm.m_viPath.size())
          m_uiLevel = tm.m_viPath.size();
@@ -198,7 +198,7 @@ int Topology::lookup(const char* ip, vector<int>& path)
    }
 
    for (unsigned int i = 0; i < m_uiLevel; ++ i)
-      path.insert(path.end(), 0);
+      path.push_back(0);
 
    return -1;
 }

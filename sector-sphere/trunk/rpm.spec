@@ -43,8 +43,8 @@ Sector/sphere packages
 
 %build
 rm -f conf/*.{cert,key}
-make
-( cd fuse ; make )
+make DEBUG=0 STATIC=1
+( cd fuse ; make DEBUG=0 STATIC=1)
 
 %clean
 rm -rf %buildroot
@@ -68,7 +68,7 @@ install -m 0755 fuse/sector-fuse $RPM_BUILD_ROOT/usr/local/bin/sector_fuse
 install -m 0755 security/ssl_cert_gen $RPM_BUILD_ROOT/usr/local/sbin/sector_ssl_cert_gen
 
 # config
-install -d $RPM_BUILD_ROOT/opt/sector/{conf,tmp}
+install -d $RPM_BUILD_ROOT/opt/sector/{conf}
 install -m 0644 conf/{client,master,master_acl,replica,slave,slave_acl,topology}.conf $RPM_BUILD_ROOT/opt/sector/conf
 
 export SECTOR_HOME=/opt/sector
@@ -97,7 +97,7 @@ install -m 0644 release_note.txt $RPM_BUILD_ROOT/opt/sector/release_note.txt
 
 # headers and libs
 install -d $RPM_BUILD_ROOT/usr/include
-install -m 0644 include/{sector,sphere,conf}.h $RPM_BUILD_ROOT/usr/include
+install -m 0644 include/{sector,sphere}.h $RPM_BUILD_ROOT/usr/include
 install -m 0644 lib/lib{client,common,rpc,security,udt}.a $RPM_BUILD_ROOT/%libs_dir
 install -m 0644 Makefile.common $RPM_BUILD_ROOT/opt/sector
 

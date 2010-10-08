@@ -11,7 +11,6 @@
 #include <sys/time.h>
 #include <iostream>
 #include <sector.h>
-#include <conf.h>
 
 using namespace std;
 
@@ -43,8 +42,6 @@ int main(int argc, char** argv)
 
    string msg = "this is a test";
    f->write(msg.c_str(), msg.length() + 1);
-
-sleep(60);
 
    SNode attr;
    client.stat(testfile, attr);

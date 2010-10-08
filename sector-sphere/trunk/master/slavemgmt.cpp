@@ -27,7 +27,7 @@ written by
 #include <cstring>
 #include <common.h>
 #include <meta.h>
-#include <iostream>
+
 using namespace std;
 
 SlaveManager::SlaveManager():
@@ -68,7 +68,7 @@ int SlaveManager::init(const char* topoconf)
       c.m_llTotalInputData = 0;
       c.m_llTotalOutputData = 0;
       c.m_viPath = pc->m_viPath;
-      c.m_viPath.insert(c.m_viPath.end(), 0);
+      c.m_viPath.push_back(0);
 
       pc->m_mSubCluster[0] = c;
       pc = &(pc->m_mSubCluster[0]);
@@ -90,7 +90,7 @@ int SlaveManager::init(const char* topoconf)
             c.m_llTotalInputData = 0;
             c.m_llTotalOutputData = 0;
             c.m_viPath = pc->m_viPath;
-            c.m_viPath.insert(c.m_viPath.end(), *l);
+            c.m_viPath.push_back(*l);
             pc->m_mSubCluster[*l] = c;
          }
          pc = &(pc->m_mSubCluster[*l]);
@@ -123,20 +123,30 @@ int SlaveManager::insert(SlaveNode& sn)
    addr.m_iPort = sn.m_iPort;
    m_mAddrList[addr] = sn.m_iNodeID;
 
-   map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
-   map<int, Cluster>::iterator pc;
-   for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i)
+   Cluster* sc = &m_Cluster;
+   map<int, Cluster>::iterator pc = sc->m_mSubCluster.end();
+   for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i, sc = &(pc->second))
    {
-      pc = sc->find(*i);
+      pc = sc->m_mSubCluster.find(*i);
+      if (pc == sc->m_mSubCluster.end())
+      {
+         //impossble
+         continue;
+      }
       pc->second.m_iTotalNodes ++;
       if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
          pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
       pc->second.m_llTotalFileSize += sn.m_llTotalFileSize;
-
-      sc = &(pc->second.m_mSubCluster);
    }
 
-   pc->second.m_sNodes.insert(sn.m_iNodeID);
+   if (pc != sc->m_mSubCluster.end())
+   {
+      pc->second.m_sNodes.insert(sn.m_iNodeID);
+   }
+   else
+   {
+      // IMPOSSIBLE
+   }
 
    map<string, set<string> >::iterator i = m_mIPFSInfo.find(sn.m_strIP);
    if (i == m_mIPFSInfo.end())

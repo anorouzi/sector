@@ -1,6 +1,5 @@
 #include <iostream>
 #include <client.h>
-#include <conf.h>
 
 using namespace std;
 
@@ -23,7 +22,7 @@ int main(int argc, char** argv)
    int32_t id = 0;
    string addr;
    int32_t code = 0;
-   for (map<string, string>::iterator i = clp.m_mParams.begin(); i != clp.m_mParams.end(); ++ i)
+   for (map<string, string>::iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
    {
       if (i->first == "i")
          id = atoi(i->second.c_str());
