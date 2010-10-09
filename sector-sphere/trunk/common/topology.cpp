@@ -125,7 +125,7 @@ int Topology::init(const char* topoconf)
       tm.m_uiIP = 0;
       tm.m_uiMask = 0;
       tm.m_viPath.push_back(0);
-      m_vTopoMap.push(tm);
+      m_vTopoMap.push_back(tm);
 
       return 0;
    }

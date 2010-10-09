@@ -131,7 +131,7 @@ int SlaveManager::insert(SlaveNode& sn)
       if (pc == sc->m_mSubCluster.end())
       {
          //impossble
-         continue;
+         break;
       }
       pc->second.m_iTotalNodes ++;
       if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
