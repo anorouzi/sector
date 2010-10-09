@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/16/2010
+   Yunhong Gu, last updated 10/08/2010
 *****************************************************************************/
 
 #include <slave.h>
@@ -400,13 +400,15 @@ void* Slave::SPEHandler(void* p)
          input.m_pcUnit = block;
          input.m_iRows = -1;
          input.m_pllIndex = NULL;
-         output.m_iResSize = 0;
-         output.m_iRows = 0;
-         output.m_strError = "";
          output.m_llOffset = 0;
 
          for (int i = 0; (i == 0) || (output.m_llOffset > 0); ++ i)
          {
+            // re-initialize output everytime UDF is called, except for offset
+            output.m_iResSize = 0;
+            output.m_iRows = 0;
+            output.m_strError = "";
+
             processstatus = self->processData(input, output, file, result, buckets, process, map, partition);
             if (processstatus < 0)
             {
