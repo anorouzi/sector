@@ -1,7 +1,9 @@
 %ifarch x86_64
 %define libs_dir /usr/lib64
+%define opt_flags AMD64=1
 %else
 %define libs_dir /usr/lib
+%define opt_flags IA32=1
 %endif
 
 Name: sector

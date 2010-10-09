@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2009, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/29/2008
+   Yunhong Gu, last updated 10/08/2010
 *****************************************************************************/
 
 #include <string>
@@ -48,7 +48,7 @@ CUserMessage::CUserMessage():
 m_iDataLength(0),
 m_iBufLength(1500)
 {
-   m_pcBuffer = new char[m_iBufLength];
+   m_pcBuffer = reinterpret_cast< char * >( new uint64_t[ ( m_iBufLength + 7 ) / 8 ] );
 }
 
 CUserMessage::CUserMessage(const int& len):
@@ -58,14 +58,14 @@ m_iBufLength(len)
    if (m_iBufLength < 8)
       m_iBufLength = 8;
 
-   m_pcBuffer = new char[m_iBufLength];
+   m_pcBuffer = reinterpret_cast< char * >( new uint64_t[ ( m_iBufLength + 7 ) / 8 ] );
 }
 
 CUserMessage::CUserMessage(const CUserMessage& msg):
 m_iDataLength(msg.m_iDataLength),
 m_iBufLength(msg.m_iBufLength)
 {
-   m_pcBuffer = new char[m_iBufLength];
+   m_pcBuffer = reinterpret_cast< char * >( new uint64_t[ ( m_iBufLength + 7 ) / 8 ] );
    memcpy(m_pcBuffer, msg.m_pcBuffer, m_iDataLength + 4);
 }
 
