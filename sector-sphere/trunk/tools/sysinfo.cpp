@@ -112,24 +112,28 @@ string formatSize(const int64_t& size)
    if (size <= 0)
       return "0";
 
-   int64_t k = 1000LL;
-   int64_t m = 1000 * k;
-   int64_t g = 1000 * m;
-   int64_t t = 1000 * g;
-   int64_t p = 1000 * t;
+   double k = 1000.;
+   double m = 1000 * k;
+   double g = 1000 * m;
+   double t = 1000 * g;
+   double p = 1000 * t;
+
+   char sizestr[64];
 
    if (size < k)
-      return toString(size) + " B";
-   if (size < m)
-      return toString(size / k) + "." + toString((size - (size / k) * k) * k / k) + " KB";
-   if (size < g)
-      return toString(size / m) + "." + toString((size - (size / m) * m) * k / m) + " MB";
-   if (size < t)
-      return toString(size / g) + "." + toString((size - (size / g) * g) * k / g) + " GB";
-   if (size < p)
-      return toString(size / t) + "." + toString((size - (size / t) * t) * k / t) + " TB";
+      sprintf(sizestr, "%lld B", (long long int)size);
+   else if (size < m)
+      sprintf(sizestr, "%.3f KB", size / k);
+   else if (size < g)
+      sprintf(sizestr, "%.3f MB", size / m);
+   else if (size < t)
+      sprintf(sizestr, "%.3f GB", size / g);
+   else if (size < p)
+      sprintf(sizestr, "%.3f TB", size / t);
+   else
+      sprintf(sizestr, "%.3f PB", size / p);
 
-   return toString(size / p) + "." + toString((size - (size / p) * p) * k / p) + " PB";
+   return sizestr;
 }
 
 void print(const SysStat& s)

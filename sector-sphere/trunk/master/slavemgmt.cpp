@@ -125,7 +125,7 @@ int SlaveManager::insert(SlaveNode& sn)
 
    Cluster* sc = &m_Cluster;
    map<int, Cluster>::iterator pc = sc->m_mSubCluster.end();
-   for (vector<int>::iterator i = sn.m_viPath.begin(); i != sn.m_viPath.end(); ++ i, sc = &(pc->second))
+   for (vector<int>::iterator i = sn.m_viPath.begin(); ;)
    {
       pc = sc->m_mSubCluster.find(*i);
       if (pc == sc->m_mSubCluster.end())
@@ -137,6 +137,11 @@ int SlaveManager::insert(SlaveNode& sn)
       if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
          pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
       pc->second.m_llTotalFileSize += sn.m_llTotalFileSize;
+
+      if (++ i != sn.m_viPath.end())
+         break;
+
+      sc = &(pc->second);
    }
 
    if (pc != sc->m_mSubCluster.end())
@@ -176,7 +181,7 @@ int SlaveManager::remove(int nodeid)
    vector<int> path;
    m_Topology.lookup(sn->second.m_strIP.c_str(), path);
    map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
-   map<int, Cluster>::iterator pc;
+   map<int, Cluster>::iterator pc = sc->end();
    for (vector<int>::iterator i = path.begin(); i != path.end(); ++ i)
    {
       if ((pc = sc->find(*i)) == sc->end())

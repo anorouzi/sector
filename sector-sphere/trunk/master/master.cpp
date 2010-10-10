@@ -581,16 +581,17 @@ void* Master::serviceEx(void* param)
    return NULL;
 }
 
-int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const string& ip)
+int Master::processSlaveJoin(SSLTransport& slvconn,
+                             SSLTransport& secconn, const string& ip)
 {
    // recv local storage path, avoid same slave joining more than once
    int32_t size = 0;
-   s.recv((char*)&size, 4);
+   slvconn.recv((char*)&size, 4);
    string lspath = "";
    if (size > 0)
    {
       char* tmp = new char[size];
-      s.recv(tmp, size);
+      slvconn.recv(tmp, size);
       lspath = Metadata::revisePath(tmp);
       delete [] tmp;
    }
@@ -623,29 +624,29 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
       }
    }
 
-   s.send((char*)&res, 4);
+   slvconn.send((char*)&res, 4);
 
    if (res > 0)
    {
       SlaveNode sn;
       sn.m_iNodeID = res;
       sn.m_strIP = ip;
-      s.recv((char*)&sn.m_iPort, 4);
-      s.recv((char*)&sn.m_iDataPort, 4);
+      slvconn.recv((char*)&sn.m_iPort, 4);
+      slvconn.recv((char*)&sn.m_iDataPort, 4);
       sn.m_strStoragePath = lspath;
       sn.m_llLastUpdateTime = CTimer::getTime();
       sn.m_llLastVoteTime = CTimer::getTime();
 
-      s.recv((char*)&(sn.m_llAvailDiskSpace), 8);
+      slvconn.recv((char*)&(sn.m_llAvailDiskSpace), 8);
 
       int id;
-      s.recv((char*)&id, 4);
+      slvconn.recv((char*)&id, 4);
       if (id > 0)
          sn.m_iNodeID = id;
 
       size = 0;
-      s.recv((char*)&size, 4);
-      s.recvfile((m_strHomeDir + ".tmp/" + ip + ".dat").c_str(), 0, size);
+      slvconn.recv((char*)&size, 4);
+      slvconn.recvfile((m_strHomeDir + ".tmp/" + ip + ".dat").c_str(), 0, size);
 
       Address addr;
       addr.m_strIP = ip;
@@ -678,24 +679,24 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
          //this is the first master that the slave connect to; send these information to the slave
          size = branch->getTotalFileNum("/");
          if (size <= 0)
-            s.send((char*)&size, 4);
+            slvconn.send((char*)&size, 4);
          else
          {
             branch->serialize("/", m_strHomeDir + ".tmp/" + ip + ".left");
             struct stat st;
             stat((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), &st);
             size = st.st_size;
-            s.send((char*)&size, 4);
+            slvconn.send((char*)&size, 4);
             if (size > 0)
-               s.sendfile((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
+               slvconn.sendfile((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
             string cmd = string("rm -rf ") + m_strHomeDir + ".tmp/" + ip + ".left";
             system(cmd.c_str());
          }
 
          // send the list of masters to the new slave
-         s.send((char*)&m_iRouterKey, 4);
+         slvconn.send((char*)&m_iRouterKey, 4);
          int num = m_Routing.getNumOfMasters() - 1;
-         s.send((char*)&num, 4);
+         slvconn.send((char*)&num, 4);
          map<uint32_t, Address> al;
          m_Routing.getListOfMasters(al);
          for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
@@ -703,11 +704,11 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
             if (i->first == m_iRouterKey)
                continue;
 
-            s.send((char*)&i->first, 4);
+            slvconn.send((char*)&i->first, 4);
             size = i->second.m_strIP.length() + 1;
-            s.send((char*)&size, 4);
-            s.send(i->second.m_strIP.c_str(), size);
-            s.send((char*)&i->second.m_iPort, 4);
+            slvconn.send((char*)&size, 4);
+            slvconn.send(i->second.m_strIP.c_str(), size);
+            slvconn.send((char*)&i->second.m_iPort, 4);
          }
       }
 
@@ -724,13 +725,18 @@ int Master::processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const strin
    return 0;
 }
 
-int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string& ip)
+int Master::processUserJoin(SSLTransport& cliconn,
+                            SSLTransport& secconn, const string& ip)
 {
+   /* client uname, passwd and key */
    char user[64];
-   s.recv(user, 64);
+   cliconn.recv(user, 64);
    char password[128];
-   s.recv(password, 128);
+   cliconn.recv(password, 128);
+   int32_t ukey;
+   cliconn.recv((char*)&ukey, 4);
 
+   /* forward to sec-server and get key from sec-server */
    secconn.send(user, 64);
    secconn.send(password, 128);
    char clientIP[64];
@@ -740,12 +746,11 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
    int32_t key = 0;
    secconn.recv((char*)&key, 4);
 
-   int32_t ukey;
-   s.recv((char*)&ukey, 4);
    if ((key > 0) && (ukey > 0))
       key = ukey;
 
-   s.send((char*)&key, 4);
+   /* forward sec key to client */
+   cliconn.send((char*)&key, 4);
 
    if (key > 0)
    {
@@ -755,14 +760,14 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
       au->m_iKey = key;
       au->m_llLastRefreshTime = CTimer::getTime();
 
-      s.recv((char*)&au->m_iPort, 4);
-      s.recv((char*)&au->m_iDataPort, 4);
-      s.recv((char*)au->m_pcKey, 16);
-      s.recv((char*)au->m_pcIV, 8);
+      cliconn.recv((char*)&au->m_iPort, 4);
+      cliconn.recv((char*)&au->m_iDataPort, 4);
+      cliconn.recv((char*)au->m_pcKey, 16);
+      cliconn.recv((char*)au->m_pcIV, 8);
 
-      s.send((char*)&m_iTopoDataSize, 4);
+      cliconn.send((char*)&m_iTopoDataSize, 4);
       if (m_iTopoDataSize > 0)
-         s.send(m_pcTopoData, m_iTopoDataSize);
+         cliconn.send(m_pcTopoData, m_iTopoDataSize);
 
       int32_t size = 0;
       char* buf = NULL;
@@ -796,9 +801,9 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
       if (ukey <= 0)
       {
          // send the list of masters to the new users
-         s.send((char*)&m_iRouterKey, 4);
+         cliconn.send((char*)&m_iRouterKey, 4);
          int num = m_Routing.getNumOfMasters() - 1;
-         s.send((char*)&num, 4);
+         cliconn.send((char*)&num, 4);
          map<uint32_t, Address> al;
          m_Routing.getListOfMasters(al);
          for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
@@ -806,16 +811,16 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
             if (i->first == m_iRouterKey)
                continue;
 
-            s.send((char*)&i->first, 4);
+            cliconn.send((char*)&i->first, 4);
             int size = i->second.m_strIP.length() + 1;
-            s.send((char*)&size, 4);
-            s.send(i->second.m_strIP.c_str(), size);
-            s.send((char*)&i->second.m_iPort, 4);
+            cliconn.send((char*)&size, 4);
+            cliconn.send(i->second.m_strIP.c_str(), size);
+            cliconn.send((char*)&i->second.m_iPort, 4);
          }
       }
 
       // for synchronization only, message content is meaningless
-      s.send((char*)&key, 4);
+      cliconn.send((char*)&key, 4);
    }
    else
    {
@@ -825,7 +830,8 @@ int Master::processUserJoin(SSLTransport& s, SSLTransport& secconn, const string
    return 0;
 }
 
-int Master::processMasterJoin(SSLTransport& s, SSLTransport& secconn, const string& ip)
+int Master::processMasterJoin(SSLTransport& mstconn,
+                              SSLTransport& secconn, const string& ip)
 {
    char masterIP[64];
    strcpy(masterIP, ip.c_str());
@@ -835,18 +841,18 @@ int Master::processMasterJoin(SSLTransport& s, SSLTransport& secconn, const stri
 
    if (res > 0)
       res = m_iRouterKey;
-   s.send((char*)&res, 4);
+   mstconn.send((char*)&res, 4);
 
    if (res > 0)
    {
       int masterPort;
       int32_t key;
-      s.recv((char*)&masterPort, 4);
-      s.recv((char*)&key, 4);
+      mstconn.recv((char*)&masterPort, 4);
+      mstconn.recv((char*)&key, 4);
 
       // send master list
       int num = m_Routing.getNumOfMasters() - 1;
-      s.send((char*)&num, 4);
+      mstconn.send((char*)&num, 4);
       map<uint32_t, Address> al;
       m_Routing.getListOfMasters(al);
       for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
@@ -854,20 +860,20 @@ int Master::processMasterJoin(SSLTransport& s, SSLTransport& secconn, const stri
          if (i->first == m_iRouterKey)
             continue;
 
-         s.send((char*)&i->first, 4);
+         mstconn.send((char*)&i->first, 4);
          int size = i->second.m_strIP.length() + 1;
-         s.send((char*)&size, 4);
-         s.send(i->second.m_strIP.c_str(), size);
-         s.send((char*)&i->second.m_iPort, 4);
+         mstconn.send((char*)&size, 4);
+         mstconn.send(i->second.m_strIP.c_str(), size);
+         mstconn.send((char*)&i->second.m_iPort, 4);
       }
 
       // send slave list
       char* buf = NULL;
       int32_t size = 0;
       num = m_SlaveManager.serializeSlaveList(buf, size);
-      s.send((char*)&num, 4);
-      s.send((char*)&size, 4);
-      s.send(buf, size);
+      mstconn.send((char*)&num, 4);
+      mstconn.send((char*)&size, 4);
+      mstconn.send(buf, size);
       delete [] buf;
 
       // send user list
@@ -875,11 +881,11 @@ int Master::processMasterJoin(SSLTransport& s, SSLTransport& secconn, const stri
       vector<char*> bufs;
       vector<int> sizes;
       m_UserManager.serializeUsers(num, bufs, sizes);
-      s.send((char*)&num, 4);
+      mstconn.send((char*)&num, 4);
       for (int i = 0; i < num; ++ i)
       {
-         s.send((char*)&sizes[i], 4);
-         s.send(bufs[i], sizes[i]);
+         mstconn.send((char*)&sizes[i], 4);
+         mstconn.send(bufs[i], sizes[i]);
          delete [] bufs[i];
       }
 
@@ -889,8 +895,8 @@ int Master::processMasterJoin(SSLTransport& s, SSLTransport& secconn, const stri
       struct stat st;
       stat((m_strHomeDir + ".tmp/master_meta.dat").c_str(), &st);
       size = st.st_size;
-      s.send((char*)&size, 4);
-      s.sendfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
+      mstconn.send((char*)&size, 4);
+      mstconn.sendfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
       unlink((m_strHomeDir + ".tmp/master_meta.dat").c_str());
 
       // send new master info to all existing masters
