@@ -1097,6 +1097,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          // restore file information
          SNode sn;
          sn.deserialize(fileinfo.c_str());
+         sn.m_sLocation.clear();
          sn.m_sLocation.insert(addr);
 
          if (change == FileChangeType::FILE_UPDATE_WRITE)
