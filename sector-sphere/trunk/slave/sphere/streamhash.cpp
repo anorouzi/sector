@@ -47,19 +47,19 @@ int streamhash(const SInput* input, SOutput* output, SFile* file)
 
    ifs.seekg(output->m_llOffset);
 
-   char* buffer = new char [65536];
+   string buffer;
    while(!ifs.eof())
    {
-      ifs.getline(buffer, 65536);
-      if (strlen(buffer) <= 0)
+      getline(ifs, buffer);
+      if (buffer.length() == 0)
          continue;
 
-      int bid = getBucketID(buffer);
+      int bid = getBucketID(buffer.c_str());
       output->m_piBucketID[output->m_iRows] = bid;
-      memcpy(output->m_pcResult + output->m_pllIndex[output->m_iRows], buffer, strlen(buffer) + 1);
-      *(output->m_pcResult + output->m_pllIndex[output->m_iRows] + strlen(buffer)) = '\n';
+      memcpy(output->m_pcResult + output->m_pllIndex[output->m_iRows], buffer.c_str(), buffer.length() + 1);
+      *(output->m_pcResult + output->m_pllIndex[output->m_iRows] + buffer.length()) = '\n';
       output->m_iRows ++;
-      output->m_pllIndex[output->m_iRows] = output->m_pllIndex[output->m_iRows - 1] + strlen(buffer) + 1;
+      output->m_pllIndex[output->m_iRows] = output->m_pllIndex[output->m_iRows - 1] + buffer.length() + 1;
 
       if ((output->m_pllIndex[output->m_iRows] + 65536 >= output->m_iBufSize) || (output->m_iRows + 1 >= output->m_iIndSize))
       {
@@ -69,7 +69,6 @@ int streamhash(const SInput* input, SOutput* output, SFile* file)
    }
 
    ifs.close();
-   delete [] buffer;
 
    output->m_iResSize = output->m_pllIndex[output->m_iRows];
 

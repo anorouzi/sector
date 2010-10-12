@@ -32,14 +32,25 @@ using namespace std;
 
 DCClient* Client::createDCClient()
 {
-   DCClient* sp = new DCClient;
-   sp->m_pClient = this;
-   CGuard::enterCS(m_IDLock);
-   sp->m_iID = m_iID ++;
-   m_mDCList[sp->m_iID] = sp;
-   CGuard::leaveCS(m_IDLock);
+   CGuard ig(m_IDLock);
 
-   return sp;
+   DCClient* sp = NULL;
+
+   try
+   {
+      sp = new DCClient;
+      sp->m_pClient = this;
+
+      sp->m_iID = m_iID ++;
+      m_mDCList[sp->m_iID] = sp;
+
+      return sp;
+   }
+   catch (...)
+   {
+      delete sp;
+      return NULL;
+   }
 }
 
 int Client::releaseDCClient(DCClient* sp)

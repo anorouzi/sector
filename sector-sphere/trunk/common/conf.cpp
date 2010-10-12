@@ -76,14 +76,14 @@ int ConfParser::init(const string& path)
 
    while (!m_ConfFile.eof())
    {
-      char buf[1024];
-      m_ConfFile.getline(buf, 1024);
+      string buf = "";
+      getline(m_ConfFile, buf);
 
-      if ('\0' == *buf)
+      if ('\0' == buf.c_str()[0])
          continue;
 
       //skip comments
-      if ('#' == buf[0])
+      if ('#' == buf.c_str()[0])
          continue;
 
       //TODO: skip lines with all blanks and tabs
