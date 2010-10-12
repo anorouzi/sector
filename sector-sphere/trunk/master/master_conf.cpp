@@ -207,7 +207,7 @@ int ReplicaConf::parseItem(const string& input, string& path, int& val)
 
 int ReplicaConf::getReplicaNum(const std::string& path, int default_val)
 {
-   for (map<string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaDist.end(); ++ i)
+   for (map<string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++ i)
    {
       if (WildCard::contain(i->first, path))
       {
