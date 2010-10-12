@@ -61,8 +61,7 @@ class GMP_API CUserMessage
 friend class CGMP;
 
 public:
-   CUserMessage();
-   CUserMessage(const int& len);
+   CUserMessage(const int len = 1500);
    CUserMessage(const CUserMessage& msg);
    virtual ~CUserMessage();
 

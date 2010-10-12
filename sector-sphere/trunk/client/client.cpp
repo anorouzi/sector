@@ -42,6 +42,7 @@ m_strCert(""),
 m_strServerHost(""),
 m_strServerIP(""),
 m_iKey(0),
+m_bVerbose(false),
 m_iCount(0),
 m_bActive(false),
 m_iID(0)
@@ -615,7 +616,7 @@ int Client::shutdown(const int& type, const string& param)
    return 0;
 }
 
-int Client::fsck(const string& path)
+int Client::fsck(const string& /*path*/)
 {
    SectorMsg msg;
    msg.setKey(m_iKey);

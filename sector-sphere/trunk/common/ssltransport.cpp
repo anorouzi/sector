@@ -262,7 +262,7 @@ int SSLTransport::recv(char* data, const int& size)
    return size;
 }
 
-int64_t SSLTransport::sendfile(const char* file, const int64_t& offset, const int64_t& size)
+int64_t SSLTransport::sendfile(const char* file, const int64_t& /*offset*/, const int64_t& size)
 {
    if (!m_bConnected)
       return -1;
@@ -289,7 +289,7 @@ int64_t SSLTransport::sendfile(const char* file, const int64_t& offset, const in
    return sent;
 }
 
-int64_t SSLTransport::recvfile(const char* file, const int64_t& offset, const int64_t& size)
+int64_t SSLTransport::recvfile(const char* file, const int64_t& /*offset*/, const int64_t& size)
 {
    if (!m_bConnected)
       return -1;

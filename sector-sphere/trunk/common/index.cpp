@@ -524,7 +524,7 @@ int Index::scan(const string& datadir, const string& metadir)
    return 0;
 }
 
-int Index::merge(const string& path, Metadata* meta, const unsigned int& replica)
+int Index::merge(const string& /*path*/, Metadata* meta, const unsigned int& replica)
 {
    CGuard mg(m_MetaLock);
 
@@ -1073,7 +1073,7 @@ int Index::getSlaveMeta(map<string, SNode>& currdir, vector<string>& path, map<s
    {
       if (!i->second.m_bIsDir)
       {
-         if (i->second.m_sLocation.find(addr) != i->second.m_sLocation.end());
+         if (i->second.m_sLocation.find(addr) != i->second.m_sLocation.end())
          {
             map<string, SNode>* currdir = &target;
             for (vector<string>::iterator d = path.begin(); d != path.end(); ++ d)

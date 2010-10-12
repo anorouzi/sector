@@ -31,7 +31,7 @@ public:
    Index();
    virtual ~Index();
 
-   virtual void init(const std::string& path) {}
+   virtual void init(const std::string& /*path*/) {}
    virtual void clear() {}
 
 public:

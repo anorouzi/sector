@@ -114,7 +114,10 @@ int SlaveManager::insert(SlaveNode& sn)
 
    sn.m_llLastUpdateTime = CTimer::getTime();
    sn.m_llLastVoteTime = CTimer::getTime();
-   sn.m_iStatus = SlaveStatus::NORMAL;
+   if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
+      sn.m_iStatus = SlaveStatus::NORMAL;
+   else
+      sn.m_iStatus = SlaveStatus::DISKFULL;
    m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    m_mSlaveList[sn.m_iNodeID] = sn;
 
@@ -480,7 +483,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
    return chooseIONode(locid, client, mode, sl, replica, reserve, rep_dist);
 }
 
-int SlaveManager::chooseSPENodes(const Address& client, vector<SlaveNode>& sl)
+int SlaveManager::chooseSPENodes(const Address& /*client*/, vector<SlaveNode>& sl)
 {
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
@@ -688,7 +691,7 @@ int SlaveManager::serializeSlaveList(char*& buf, int& size)
    return m_mSlaveList.size();
 }
 
-int SlaveManager::deserializeSlaveList(int num, const char* buf, int size)
+int SlaveManager::deserializeSlaveList(int num, const char* buf, int /*size*/)
 {
    const char* p = buf;
    for (int i = 0; i < num; ++ i)

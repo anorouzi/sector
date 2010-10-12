@@ -369,7 +369,7 @@ void* Slave::SPEHandler(void* p)
          unsigned int seed = t.tv_sec * 1000000 + t.tv_usec;
          int ds_thresh = 32000000 * ((rand_r(&seed) % 7) + 1);
          if ((result.m_llTotalDataSize >= ds_thresh) && (buckets != 0))
-            deliverystatus = self->deliverResult(buckets, speid, result, dest);
+            deliverystatus = self->deliverResult(buckets, result, dest);
 
          if (deliverystatus < 0)
          {
@@ -421,7 +421,7 @@ void* Slave::SPEHandler(void* p)
             unsigned int seed = t.tv_sec * 1000000 + t.tv_usec;
             int ds_thresh = 32000000 * ((rand_r(&seed) % 7) + 1);
             if ((result.m_llTotalDataSize >= ds_thresh) && (buckets != 0))
-               deliverystatus = self->deliverResult(buckets, speid, result, dest);
+               deliverystatus = self->deliverResult(buckets, result, dest);
 
             if (deliverystatus < 0)
             {
@@ -442,7 +442,7 @@ void* Slave::SPEHandler(void* p)
 
       // if buckets = 0, send back to clients, otherwise deliver to local or network locations
       if ((buckets != 0) && (progress >= 0))
-         deliverystatus = self->deliverResult(buckets, speid, result, dest);
+         deliverystatus = self->deliverResult(buckets, result, dest);
 
       if (deliverystatus < 0)
          progress = -1;
@@ -919,7 +919,7 @@ int Slave::sendResultToClient(const int& buckets, const int* sarray, const int* 
    return 0;
 }
 
-int Slave::sendResultToBuckets(const int& speid, const int& buckets, const SPEResult& result, const SPEDestination& dest)
+int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, const SPEDestination& dest)
 {
    map<int, set<int> > ResByLoc;
    map<int, int> SizeByLoc;
@@ -1327,14 +1327,14 @@ int Slave::processData(SInput& input, SOutput& output, SFile& file, SPEResult& r
    return 0;
 }
 
-int Slave::deliverResult(const int& buckets, const int& speid, SPEResult& result, SPEDestination& dest)
+int Slave::deliverResult(const int& buckets, SPEResult& result, SPEDestination& dest)
 {
    int ret = 0;
 
    if (buckets == -1)
       ret = sendResultToFile(result, dest.m_strLocalFile + dest.m_pcLocalFileID, dest.m_piSArray[0]);
    else if (buckets > 0)
-      ret = sendResultToBuckets(speid, buckets, result, dest);
+      ret = sendResultToBuckets(buckets, result, dest);
 
    for (int b = 0; b < buckets; ++ b)
    {

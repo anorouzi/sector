@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/05/2010
+   Yunhong Gu, last updated 10/10/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -104,12 +104,9 @@ int SphereStream::init(const int& num)
 
    m_piLocID = new int32_t[num];
 
-   for (vector<string>::iterator i = m_vFiles.begin(); i != m_vFiles.end(); ++ i)
-      *i = "";
-   for (vector<int64_t>::iterator i = m_vSize.begin(); i != m_vSize.end(); ++ i)
-      *i = 0;
-   for (vector<int64_t>::iterator i = m_vRecNum.begin(); i != m_vRecNum.end(); ++ i)
-      *i = 0;
+   std::fill( m_vFiles.begin(), m_vFiles.end(), "" );
+   std::fill( m_vSize.begin(), m_vSize.end(), 0 );
+   std::fill( m_vRecNum.begin(), m_vRecNum.end(), 0 );
 
    return num;
 }
@@ -299,7 +296,8 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    if (result < 0)
       return result;
 
-   cout << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
+   if (m_pClient->m_bVerbose)
+      cout << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
 
    SectorMsg msg;
    msg.setType(202); // locate available SPE
@@ -340,7 +338,8 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    m_iAvailRes = 0;
    m_bBucketHealth = true;
 
-   cout << m_mSPE.size() << " spes found! " << m_mpDS.size() << " data seg total." << endl;
+   if (m_pClient->m_bVerbose)
+      cout << m_mSPE.size() << " spes found! " << m_mpDS.size() << " data seg total." << endl;
 
    // starting...
 #ifndef WIN32
@@ -527,7 +526,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
    self->postProcessOutput();
 
    // set totalSPE = 0, so that read() will return error immediately
-   if (self->m_iProgress < 100)
+   if (self->m_iProgress < self->m_iTotalDS)
       self->m_iTotalSPE = 0;
 
    CGuard::leaveCS(self->m_RunLock);
@@ -805,11 +804,12 @@ int DCClient::waitForCompletion()
    {
       int progress = checkProgress();
       SphereResult* res = NULL;
+      int result = read(res);
 
-      if (read(res) <= 0)
+      if (result <= 0)
       {
          if (progress < 0)
-            return SectorError::E_ALLSPEFAIL;
+            return result;
          else if (progress == 100)
             break;
       }
@@ -823,7 +823,8 @@ int DCClient::waitForCompletion()
       t2 = CTimer::getTime();
       if (t2 - t1 > 60000000)
       {
-         cout << "PROGRESS: " << progress << "%" << endl;
+         if (m_pClient->m_bVerbose)
+             cout << "PROGRESS: " << progress << "%" << endl;
          t1 = t2;
       }
    }
@@ -835,7 +836,7 @@ int DCClient::waitForCompletion()
    return 0;
 }
 
-int DCClient::read(SphereResult*& res, const bool& inorder, const bool& wait)
+int DCClient::read(SphereResult*& res, const bool& /*inorder*/, const bool& wait)
 {
    if (!m_bOpened)
       return SectorError::E_NOPROCESS;
@@ -1109,7 +1110,8 @@ int DCClient::connectSPE(SPE& s)
 
    m_pClient->m_DataChn.connect(s.m_strIP, s.m_iDataPort);
 
-   cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
+   if (m_pClient->m_bVerbose)
+      cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
 
    // send output information
    m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&m_iOutputType, 4);
@@ -1264,7 +1266,9 @@ int DCClient::prepareOutput(const char* spenodes)
             msg.setData(offset + 4, m_strOperator.c_str(), m_strOperator.length() + 1);
          }
 
-         cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
+         if (m_pClient->m_bVerbose)
+            cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
+
          Address serv;
          m_pClient->m_Routing.getPrimaryMaster(serv);
          if (m_pClient->m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)

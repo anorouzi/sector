@@ -2,6 +2,8 @@ include ../Makefile.common
 
 CCFLAGS += -I../gmp -I../security -I../common
 
+LDFLAGS += -ldl
+
 ifeq ($(STATIC), 1)
    LDFLAGS += libslave.a ../lib/librpc.a ../lib/libsecurity.a ../lib/libcommon.a ../lib/libudt.a 
 else

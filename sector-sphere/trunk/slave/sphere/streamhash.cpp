@@ -47,7 +47,7 @@ int streamhash(const SInput* input, SOutput* output, SFile* file)
 
    ifs.seekg(output->m_llOffset);
 
-   char* buffer = new char[65536];
+   char* buffer = new char [65536];
    while(!ifs.eof())
    {
       ifs.getline(buffer, 65536);

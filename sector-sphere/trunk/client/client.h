@@ -122,6 +122,8 @@ protected:
 
    Cache m_Cache;			// file client cache
 
+   bool m_bVerbose;			// verbose debug & other information print to screen
+
 private:
    int m_iCount;			// number of concurrent logins
 

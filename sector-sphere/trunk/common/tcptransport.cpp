@@ -186,6 +186,8 @@ int64_t TCPTransport::sendfile(const char* file, const int64_t& offset, const in
    if (ifs.bad() || ifs.fail())
       return -1;
 
+   ifs.seekg(offset);
+
    int block = 1000000;
    char* buf = new char[block];
    int64_t sent = 0;
@@ -212,6 +214,8 @@ int64_t TCPTransport::recvfile(const char* file, const int64_t& offset, const in
 
    if (ofs.bad() || ofs.fail())
       return -1;
+
+   ofs.seekp(offset);
 
    int block = 1000000;
    char* buf = new char[block];

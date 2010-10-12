@@ -3,7 +3,7 @@
 %define opt_flags AMD64=1
 %else
 %define libs_dir /usr/lib
-%define opt_flags IA32=1
+%define opt_flags I386=1
 %endif
 
 Name: sector
@@ -45,8 +45,8 @@ Sector/sphere packages
 
 %build
 rm -f conf/*.{cert,key}
-make DEBUG=0 STATIC=1
-( cd fuse ; make DEBUG=0 STATIC=1)
+make %{opt_flags} DEBUG=0 STATIC=1
+( cd fuse ; make %{opt_flags} DEBUG=0 STATIC=1)
 
 %clean
 rm -rf %buildroot

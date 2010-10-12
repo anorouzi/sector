@@ -378,7 +378,7 @@ int Index2::serialize(const string& path, const string& dstfile)
    return 0;
 }
 
-int Index2::deserialize(const string& path, const string& srcfile, const Address* addr)
+int Index2::deserialize(const string& /*path*/, const string& srcfile, const Address* addr)
 {
    vector<string> dirs;
    dirs.resize(1024);

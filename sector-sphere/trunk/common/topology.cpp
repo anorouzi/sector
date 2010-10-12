@@ -345,7 +345,7 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
    buf[j] = '\0';
 
    char* p;
-   unsigned int bit = strtol(buf, &p, 10);
+   int bit = strtol(buf, &p, 10);
 
    if ((p == buf) || (bit > 32) || (bit < 0))
    {

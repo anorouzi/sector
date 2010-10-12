@@ -45,14 +45,7 @@ written by
 
 using namespace std;
 
-CUserMessage::CUserMessage():
-m_iDataLength(0),
-m_iBufLength(1500)
-{
-   m_pcBuffer = reinterpret_cast< char * >( new uint64_t[ ( m_iBufLength + 7 ) / 8 ] );
-}
-
-CUserMessage::CUserMessage(const int& len):
+CUserMessage::CUserMessage(const int len):
 m_iDataLength(0),
 m_iBufLength(len)
 {

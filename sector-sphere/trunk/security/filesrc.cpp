@@ -156,7 +156,7 @@ int FileSrc::parseIPRange(IPRange& ipr, const char* ip)
    else
    {
       char* p;
-      unsigned int bit = strtol(buf, &p, 10);
+      int bit = strtol(buf, &p, 10);
 
       if ((p == buf) || (bit > 32) || (bit < 0))
       {

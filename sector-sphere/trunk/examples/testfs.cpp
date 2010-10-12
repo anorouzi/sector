@@ -4,7 +4,7 @@
 
 using namespace std;
 
-int main(int argc, char** argv)
+int main(int argc, char** /*argv*/)
 {
    if (1 != argc)
    {
@@ -24,7 +24,22 @@ int main(int argc, char** argv)
 
    SysStat sys;
    client.sysinfo(sys);
-   const int fn = sys.m_llTotalSlaves;
+   int fn = 0;
+   for (vector<SysStat::SlaveStat>::const_iterator i = sys.m_vSlaveList.begin(); i != sys.m_vSlaveList.end(); ++ i)
+   {
+      // choose nodes with enough spaces only (10GB)
+      // NOTE: this benchmark code use some internal knowledge of the Sector system
+      // In general, an user application should not need to know these.
+      if ((i->m_iStatus == 1) && (i->m_llAvailDiskSpace >= 100*100000000LL))
+         ++ fn;
+   }
+
+   if (0 == fn)
+   {
+      cout << "there is no enough space in the system to generate testing files, which is 10GB each.\n";
+      Utility::logout(client);
+      return -1;
+   }
 
    SectorFile* guide = client.createSectorFile();
    if (guide->open("tmp/guide.dat", SF_MODE::WRITE | SF_MODE::TRUNC) < 0)

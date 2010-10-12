@@ -36,7 +36,7 @@ public:
    int listen();
    TCPTransport* accept(char* ip, int& port);
    int connect(const char* ip, const int& port);
-   int rendezvous_connect(const char* ip, const int& port, bool cs = false) {return 0;}
+   int rendezvous_connect(const char* /*ip*/, const int& /*port*/, bool /*cs = false*/) {return 0;}
    int close();
 
    int send(const char* data, const int& size);

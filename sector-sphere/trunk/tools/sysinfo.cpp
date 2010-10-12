@@ -211,7 +211,7 @@ void print(const SysStat& s)
    }
 }
 
-int main(int argc, char** argv)
+int main(int argc, char** /*argv*/)
 {
    cout << SectorVersion << endl;
 

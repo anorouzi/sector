@@ -2277,7 +2277,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
    return 0;
 }
 
-int Master::processDBCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
+int Master::processDBCmd(const string& ip, const int port,  const User* /*user*/, const int32_t /*key*/, int id, SectorMsg* msg)
 {
    // 300+ SpaceDB
 
@@ -2292,7 +2292,7 @@ int Master::processDBCmd(const string& ip, const int port,  const User* user, co
    return 0;
 }
 
-int Master::processMCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
+int Master::processMCmd(const string& ip, const int port,  const User* /*user*/, const int32_t /*key*/, int id, SectorMsg* msg)
 {
    switch (msg->getType())
    {
@@ -2350,7 +2350,7 @@ int Master::processMCmd(const string& ip, const int port,  const User* user, con
 }
 
 #ifdef DEBUG
-int Master::processDebugCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
+int Master::processDebugCmd(const string& ip, const int port,  const User* /*user*/, const int32_t /*key*/, int id, SectorMsg* msg)
 {
    //99xx commands, for debug and testing purpose only
 
@@ -2432,7 +2432,7 @@ int Master::sync(const char* fileinfo, const int& size, const int& type)
    return 0;
 }
 
-int Master::processSyncCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
+int Master::processSyncCmd(const string& ip, const int port,  const User* /*user*/, const int32_t /*key*/, int id, SectorMsg* msg)
 {
    switch (msg->getType())
    {

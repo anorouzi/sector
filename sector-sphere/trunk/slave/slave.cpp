@@ -606,7 +606,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
    return 0;
 }
 
-int Slave::processDBCmd(const string& ip, const int port, int id, SectorMsg* msg)
+int Slave::processDBCmd(const string& /*ip*/, const int /*port*/, int /*id*/, SectorMsg* msg)
 {
    switch (msg->getType())
    {
@@ -658,7 +658,7 @@ int Slave::processMCmd(const string& ip, const int port, int id, SectorMsg* msg)
 }
 
 #ifdef DEBUG
-int Slave::processDebugCmd(const string& ip, const int port, int id, SectorMsg* msg)
+int Slave::processDebugCmd(const string& /*ip*/, const int /*port*/, int /*id*/, SectorMsg* msg)
 {
    switch (msg->getType())
    {

@@ -333,7 +333,7 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    return recvsize;
 }
 
-int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer)
+int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& /*buffer*/)
 {
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
@@ -501,7 +501,7 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
    return realsize;
 }
 
-int64_t FSClient::upload(const char* localpath, const bool& cont)
+int64_t FSClient::upload(const char* localpath, const bool& /*cont*/)
 {
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;

@@ -5,7 +5,7 @@
 
 using namespace std;
 
-int main(int argc, char** argv)
+int main(int argc, char** /*argv*/)
 {
    if (1 != argc)
    {
@@ -18,7 +18,9 @@ int main(int argc, char** argv)
       return -1;
 
    // remove result of last run
+   cout << "removing files from previous runs, please wait...\n";
    client.rmr("/test/sorted");
+   cout << "done.\n";
 
    SysStat sys;
    client.sysinfo(sys);
