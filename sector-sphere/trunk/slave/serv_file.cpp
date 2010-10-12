@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/22/2010
+   Yunhong Gu, last updated 10/11/2010
 *****************************************************************************/
 
 
@@ -55,7 +55,7 @@ void* Slave::fileHandler(void* p)
    bool bWrite = mode & 2;
    bool bSecure = mode & 16;
 
-   bool run = true;
+   int change = FileChangeType::FILE_UPDATE_NO;
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
 
@@ -64,6 +64,12 @@ void* Slave::fileHandler(void* p)
    if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
    {
       self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "failed to connect to file client " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
+
+      // release transactions and file locks
+      self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
+      self->m_pLocalFile->unlock(sname, key, mode);
+      self->report(master_ip, master_port, transid, sname, change);
+
       return NULL;
    }
 
@@ -73,7 +79,6 @@ void* Slave::fileHandler(void* p)
       self->m_DataChn.setCryptoKey(client_ip, client_port, crypto_key, crypto_iv);
 
    //create a new directory or file in case it does not exist
-   int change = FileChangeType::FILE_UPDATE_NO;
    if (mode > 1)
    {
       self->createDir(sname.substr(0, sname.rfind('/')));
@@ -92,8 +97,6 @@ void* Slave::fileHandler(void* p)
    int64_t rb = 0;
    int64_t wb = 0;
 
-   int32_t cmd = 0;
-
    WriteLog writelog;
 
    fstream fhandle;
@@ -101,6 +104,8 @@ void* Slave::fileHandler(void* p)
 
    // a file session is successful one when the client issue a close() request
    bool success = false;
+   bool run = true;
+   int32_t cmd = 0;
 
    while (!fhandle.fail() && run && self->m_bDiskHealth && self->m_bNetworkHealth)
    {
