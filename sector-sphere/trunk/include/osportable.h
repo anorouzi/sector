@@ -31,6 +31,10 @@ written by
    #include <windows.h>
 #endif
 #include <cstdlib>
+#include <sector.h>
+#include <string>
+#include <vector>
+
 
 #ifndef WIN32
    #include <stdint.h>
@@ -84,27 +88,7 @@ written by
     #define     S_ISREG(mode)    S_ISTYPE((mode), _S_IFREG)
 
     /* for WinXP only, Vista & above already support this
-    const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt) {
-        if (af == AF_INET)
-        {
-                struct sockaddr_in in;
-                memset(&in, 0, sizeof(in));
-                in.sin_family = AF_INET;
-                memcpy(&in.sin_addr, src, sizeof(struct in_addr));
-                getnameinfo((struct sockaddr *)&in, sizeof(struct sockaddr_in), dst, cnt, NULL, 0, NI_NUMERICHOST);
-                return dst;
-        }
-        else if (af == AF_INET6)
-        {
-                struct sockaddr_in6 in;
-                memset(&in, 0, sizeof(in));
-                in.sin6_family = AF_INET6;
-                memcpy(&in.sin6_addr, src, sizeof(struct in_addr6));
-                getnameinfo((struct sockaddr *)&in, sizeof(struct sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST);
-                return dst;
-        }
-        return NULL;
-    }
+    const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
     */
 #endif
 
@@ -299,5 +283,17 @@ private:
 
    CCond& operator=(const CCond&);
 };
+
+
+class LocalFS
+{
+public:
+   static int mkdir(const std::string& path);
+   static int rmdir(const std::string& path);
+   static int clean_dir(const std::string& path);
+   static int list_dir(const std::string& path, std::vector<SNode>& filelist);
+   static int stat(const std::string& path, SNode& s);
+};
+
 
 #endif

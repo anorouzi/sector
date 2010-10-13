@@ -38,7 +38,7 @@ FSClient* Client::createFSClient()
       sf->m_iID = m_iID ++;
       m_mFSList[sf->m_iID] = sf;
    }
-   catch
+   catch (...)
    {
       delete sf;
       return NULL;

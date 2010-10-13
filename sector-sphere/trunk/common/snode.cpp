@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/06/2010
+   Yunhong Gu, last updated 10/13/2010
 *****************************************************************************/
 
 
@@ -58,7 +58,7 @@ int SNode::serialize(char*& buf) const
       return -1;
    }
 
-   sprintf(buf, "%d,%s,%d,%lld,%lld", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize);
+   sprintf(buf, "%d,%s,%d,%lld,%lld,%d,%d", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize, m_iReplicaNum, m_iReplicaDist);
    char* p = buf + strlen(buf);
    for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {
@@ -165,6 +165,46 @@ int SNode::deserialize(const char* buf)
 #else
    m_llSize = _atoi64(tmp);
 #endif
+
+   if (stop)
+   {
+      delete [] buffer;
+      return -1;
+   }
+   stop = true;
+
+   // restore timestamp
+   tmp = tmp + strlen(tmp) + 1;
+   for (unsigned int i = 0; i < strlen(tmp); ++ i)
+   {
+      if (tmp[i] == ',')
+      {
+         stop = false;
+         tmp[i] = '\0';
+         break;
+      }
+   }
+   m_iReplicaNum = atoi(tmp);
+
+   if (stop)
+   {
+      delete [] buffer;
+      return -1;
+   }
+   stop = true;
+
+   // restore timestamp
+   tmp = tmp + strlen(tmp) + 1;
+   for (unsigned int i = 0; i < strlen(tmp); ++ i)
+   {
+      if (tmp[i] == ',')
+      {
+         stop = false;
+         tmp[i] = '\0';
+         break;
+      }
+   }
+   m_iReplicaDist = atoi(tmp);
 
    // restore locations
    while (!stop)

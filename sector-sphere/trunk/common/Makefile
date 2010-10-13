@@ -1,6 +1,7 @@
 include ../Makefile.common
 
-OBJS = conf.o \
+OBJS = osportable.o \
+       conf.o \
        snode.o \
        meta.o \
        index.o \
