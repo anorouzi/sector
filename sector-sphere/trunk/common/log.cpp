@@ -178,7 +178,11 @@ void SectorLog::checkLogFile()
 {
    time_t t = time(NULL);
    tm date;
+#ifndef WIN32
    gmtime_r(&t, &date);
+#else
+   gmtime_s(&date, &t);
+#endif
    if (date.tm_mday == m_iDay)
       return;
 

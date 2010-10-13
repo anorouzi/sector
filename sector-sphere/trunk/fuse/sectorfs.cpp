@@ -32,7 +32,7 @@ map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
 
-void* SectorFS::init(struct fuse_conn_info *conn)
+void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 {
    if (g_SectorClient.init(g_SectorConfig.m_ClientConf.m_strMasterIP, g_SectorConfig.m_ClientConf.m_iMasterPort) < 0)
       return NULL;
@@ -94,7 +94,7 @@ int SectorFS::mknod(const char *, mode_t, dev_t)
    return 0;
 }
 
-int SectorFS::mkdir(const char* path, mode_t mode)
+int SectorFS::mkdir(const char* path, mode_t /*mode*/)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -162,7 +162,7 @@ int SectorFS::rename(const char* src, const char* dst)
    return 0;
 }
 
-int SectorFS::statfs(const char* path, struct statvfs* buf)
+int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -227,7 +227,7 @@ int SectorFS::opendir(const char *, struct fuse_file_info *)
    return 0;
 }
 
-int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* info)
+int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t /*offset*/, struct fuse_file_info* /*info*/)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -376,7 +376,7 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    return 0;
 }
 
-int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* info)
+int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -399,7 +399,7 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
    return r;
 }
 
-int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* info)
+int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -427,7 +427,7 @@ int SectorFS::fsync(const char *, int, struct fuse_file_info *)
    return 0;
 }
 
-int SectorFS::release(const char* path, struct fuse_file_info* info)
+int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -462,7 +462,7 @@ int SectorFS::access(const char *, int)
    return 0;
 }
 
-int SectorFS::lock(const char *, struct fuse_file_info *, int cmd, struct flock *)
+int SectorFS::lock(const char *, struct fuse_file_info *, int, struct flock *)
 {
    return 0;
 }

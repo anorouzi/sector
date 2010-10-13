@@ -38,9 +38,6 @@ m_llLastUpdateTime(0),
 m_pcTopoData(NULL),
 m_iTopoDataSize(0)
 {
-   pthread_mutex_init(&m_ReplicaLock, NULL);
-   pthread_cond_init(&m_ReplicaCond, NULL);
-
    SSLTransport::init();
 }
 
@@ -49,8 +46,6 @@ Master::~Master()
    m_SectorLog.close();
    delete m_pMetadata;
    delete [] m_pcTopoData;
-   pthread_mutex_destroy(&m_ReplicaLock);
-   pthread_cond_destroy(&m_ReplicaCond);
 
    SSLTransport::destroy();
 }
@@ -181,6 +176,7 @@ int Master::init()
    m_Routing.insert(m_iRouterKey, addr);
 
    // start utility thread
+#ifndef WIN32
    pthread_t utilserver;
    pthread_create(&utilserver, NULL, utility, this);
    pthread_detach(utilserver);
@@ -199,6 +195,30 @@ int Master::init()
    pthread_t repserver;
    pthread_create(&repserver, NULL, replica, this);
    pthread_detach(repserver);
+#else
+    DWORD ThreadID = 0;
+    HANDLE hThread = NULL;
+
+    // start utility thread
+    hThread = CreateThread(NULL, 0, utility, this, NULL, &ThreadID);
+    if (hThread)
+       CloseHandle(hThread);
+
+    // start service thread
+    hThread = CreateThread(NULL, 0, service, this, NULL, &ThreadID);
+    if (hThread)
+       CloseHandle(hThread);
+
+    // start management/process thread
+    hThread = CreateThread(NULL, 0, process, this, NULL, &ThreadID);
+    if (hThread)
+       CloseHandle(hThread);
+
+    // start replica thread
+    hThread = CreateThread(NULL, 0, replica, this, NULL, &ThreadID);
+    if (hThread)
+       CloseHandle(hThread);
+#endif
 
    m_llStartTime = time(NULL);
    m_SectorLog.insert("Sector started.");
@@ -300,7 +320,11 @@ int Master::run()
 {
    while (m_Status == RUNNING)
    {
+#ifndef WIN32
       sleep(60);
+#else
+      Sleep(60 * 1000);
+#endif
 
       // check other masters
       vector<uint32_t> tbrm;
@@ -385,7 +409,11 @@ int Master::run()
             int msgid = 0;
             m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
 
+#ifndef WIN32
             system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+#else
+            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/bin/start_slave " + sa->second.m_strBase + " &> NULL &\"").c_str());
+#endif
          }
       }
 
@@ -423,7 +451,11 @@ int Master::stop()
    return 0;
 }
 
-void* Master::utility(void* s)
+#ifndef WIN32
+   void* Master::utility(void* s)
+#else
+   DWORD WINAPI Master::utility(void* s)
+#endif
 {
    Master* self = (Master*)s;
 
@@ -438,11 +470,13 @@ void* Master::utility(void* s)
    ifs.read(buf, size);
    ifs.close();
 
+#ifndef WIN32
    //ignore SIGPIPE
    sigset_t ps;
    sigemptyset(&ps);
    sigaddset(&ps, SIGPIPE);
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
+#endif
 
    TCPTransport util;
    util.open(NULL, self->m_SysConfig.m_iServerPort - 1);
@@ -465,23 +499,36 @@ void* Master::utility(void* s)
    return NULL;
 }
 
-void* Master::service(void* s)
+#ifndef WIN32
+   void* Master::service(void* s)
+#else
+   DWORD WINAPI Master::service(void* s)
+#endif
 {
    Master* self = (Master*)s;
 
+#ifndef WIN32
    //ignore SIGPIPE
    sigset_t ps;
    sigemptyset(&ps);
    sigaddset(&ps, SIGPIPE);
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
+#endif
 
    // ONLY ONE service worker, more will cause synchronization problem
    const int ServiceWorker = 1;
    for (int i = 0; i < ServiceWorker; ++ i)
    {
+#ifndef WIN32
       pthread_t t;
       pthread_create(&t, NULL, serviceEx, self);
       pthread_detach(t);
+#else
+      DWORD ThreadID;
+      HANDLE hThread = CreateThread(NULL, 0, serviceEx, self, NULL, &ThreadID);
+      if (hThread)
+         CloseHandle(hThread);
+#endif
    }
 
    SSLTransport serv;
@@ -512,7 +559,11 @@ void* Master::service(void* s)
    return NULL;
 }
 
-void* Master::serviceEx(void* param)
+#ifndef WIN32
+   void* Master::serviceEx(void* param)
+#else
+   DWORD WINAPI Master::serviceEx(void* param)
+#endif
 {
    Master* self = (Master*)param;
 
@@ -689,7 +740,11 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
             if (size > 0)
                slvconn.sendfile((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
+#ifndef WIN32
             string cmd = string("rm -rf ") + m_strHomeDir + ".tmp/" + ip + ".left";
+#else
+            string cmd = string("del /F /Q \"") + unix_to_win_path(m_strHomeDir) + ".tmp\\" + ip + ".left" + "\"";
+#endif
             system(cmd.c_str());
          }
 
@@ -930,16 +985,27 @@ int Master::processMasterJoin(SSLTransport& mstconn,
    return 0;
 }
 
-void* Master::process(void* s)
+#ifndef WIN32
+   void* Master::process(void* s)
+#else
+   DWORD WINAPI Master::process(void* s)
+#endif
 {
    Master* self = (Master*)s;
 
    const int ProcessWorker = 4;
    for (int i = 0; i < ProcessWorker; ++ i)
    {
+#ifndef WIN32
       pthread_t t;
       pthread_create(&t, NULL, processEx, self);
       pthread_detach(t);
+#else
+      DWORD ThreadID;
+      HANDLE hThread = CreateThread(NULL, 0, processEx, self, NULL, &ThreadID);
+      if (hThread)
+         CloseHandle(hThread);
+#endif
    }
 
    while (self->m_Status == RUNNING)
@@ -1010,7 +1076,11 @@ void* Master::process(void* s)
    return NULL;
 }
 
-void* Master::processEx(void* param)
+#ifndef WIN32
+   void* Master::processEx(void* param)
+#else
+   DWORD WINAPI Master::processEx(void* param)
+#endif
 {
    Master* self = (Master*)param;
 
@@ -1117,9 +1187,9 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
-            pthread_mutex_lock(&m_ReplicaLock);
+            m_ReplicaLock.acquire();
             m_sstrOnReplicate.erase(sn.m_strName);
-            pthread_mutex_unlock(&m_ReplicaLock);
+            m_ReplicaLock.release();
          }
       }
 
@@ -1153,10 +1223,10 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       //if (r < 0)
       //   msg->setType(-msg->getType());
       m_GMP.sendto(ip, port, id, msg);
-      pthread_mutex_lock(&m_ReplicaLock);
+      m_ReplicaLock.acquire();
       if (!m_vstrToBeReplicated.empty())
-         pthread_cond_signal(&m_ReplicaCond);
-      pthread_mutex_unlock(&m_ReplicaLock);
+         m_ReplicaCond.signal();
+      m_ReplicaLock.release();
 
       break;
    }
@@ -1797,7 +1867,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       else
          rep = src.substr(0, src.rfind('/'));
 
-      pthread_mutex_lock(&m_ReplicaLock);
+      m_ReplicaLock.acquire();
       for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
          string target = *i;
@@ -1805,8 +1875,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), *i + "\t" + target);
       }
       if (!m_vstrToBeReplicated.empty())
-         pthread_cond_signal(&m_ReplicaCond);
-      pthread_mutex_unlock(&m_ReplicaLock);
+         m_ReplicaCond.signal();
+      m_ReplicaLock.release();
 
       m_GMP.sendto(ip, port, id, msg);
 
@@ -2467,9 +2537,9 @@ int Master::processSyncCmd(const string& ip, const int port,  const User* /*user
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
-            pthread_mutex_lock(&m_ReplicaLock);
+            m_ReplicaLock.acquire();
             m_sstrOnReplicate.erase(sn.m_strName);
-            pthread_mutex_unlock(&m_ReplicaLock);
+            m_ReplicaLock.release();
          }
       }
 
@@ -2546,7 +2616,11 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    m_GMP.sendto(ip, port, id, &msg);
 }
 
-void* Master::replica(void* s)
+#ifndef WIN32
+   void* Master::replica(void* s)
+#else
+   DWORD WINAPI Master::replica(void* s)
+#endif
 {
    Master* self = (Master*)s;
 
@@ -2557,7 +2631,11 @@ void* Master::replica(void* s)
       // only the first master is responsible for replica checking
       if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
       {
+#ifndef WIN32
          sleep(60);
+#else
+         Sleep(60 * 1000);
+#endif
          continue;
       }
 
@@ -2567,7 +2645,7 @@ void* Master::replica(void* s)
 
       vector<string> over_replicated;
 
-      pthread_mutex_lock(&self->m_ReplicaLock);
+      self->m_ReplicaLock.acquire();
 
       // check replica, create or remove replicas if necessary
       if (self->m_vstrToBeReplicated.empty())
@@ -2615,7 +2693,7 @@ void* Master::replica(void* s)
       // remove those already been replicated
       self->m_vstrToBeReplicated.erase(self->m_vstrToBeReplicated.begin(), r);
 
-      pthread_mutex_unlock(&self->m_ReplicaLock);
+      self->m_ReplicaLock.release();
 
 
       // over replication should be erased at a longer period, we use 1 hour 
@@ -2642,14 +2720,9 @@ void* Master::replica(void* s)
 
 
       // wait for 60 seconds until next check
-      pthread_mutex_lock(&self->m_ReplicaLock);
-      timeval currtime;
-      gettimeofday(&currtime, NULL);
-      timespec to;
-      to.tv_sec = currtime.tv_sec + 60;
-      to.tv_nsec = currtime.tv_usec * 1000;
-      pthread_cond_timedwait(&self->m_ReplicaCond, &self->m_ReplicaLock, &to);
-      pthread_mutex_unlock(&self->m_ReplicaLock);
+      self->m_ReplicaLock.acquire();
+      self->m_ReplicaCond.wait(self->m_ReplicaLock, 60*1000);
+      self->m_ReplicaLock.release();
    }
 
    return NULL;

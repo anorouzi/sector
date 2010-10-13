@@ -23,11 +23,13 @@ written by
 #include <sector.h>
 #include <fstream>
 #include <iostream>
-#include <pthread.h>
 #include <signal.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+#ifndef WIN32
+   #include <pthread.h>
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+#endif
 
 using namespace std;
 
@@ -129,11 +131,13 @@ const User* SServer::match(const map<string, User>& users, const char* name, con
 
 void SServer::run()
 {
+#ifndef WIN32
    //ignore SIGPIPE
    sigset_t ps;
    sigemptyset(&ps);
    sigaddset(&ps, SIGPIPE);
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
+#endif
 
    while (true)
    {
@@ -156,9 +160,15 @@ void SServer::run()
       p->sserver = this;
       p->ssl = s;
 
+#ifndef WIN32
       pthread_t t;
       pthread_create(&t, NULL, process, p);
       pthread_detach(t);
+#else
+      DWORD ThreadID;
+      HANDLE hThread = CreateThread(NULL, 0, process, p, NULL, &ThreadID);
+      CloseHandle (hThread);
+#endif
    }
 }
 
@@ -167,7 +177,11 @@ int32_t SServer::generateKey()
    return m_iKeySeed ++;
 }
 
-void* SServer::process(void* p)
+#ifndef WIN32
+   void* SServer::process(void* p)
+#else
+    DWORD WINAPI SServer::process(void* p)
+#endif
 {
    SServer* self = ((Param*)p)->sserver;
    SSLTransport* s = ((Param*)p)->ssl;

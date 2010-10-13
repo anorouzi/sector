@@ -27,6 +27,7 @@ written by
 #include <vector>
 #include <map>
 #include <stdint.h>
+#include <osportable.h>
 
 class User
 {
@@ -71,7 +72,7 @@ public:
 
 private:
    std::map<int, User*> m_mActiveUsers;
-   pthread_mutex_t m_Lock;
+   CMutex m_Lock;
 };
 
 #endif

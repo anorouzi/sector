@@ -35,6 +35,7 @@ written by
 #include <transaction.h>
 #include <user.h>
 #include <threadpool.h>
+#include <osportable.h>
 	
 struct SlaveAddr
 {
@@ -98,7 +99,11 @@ public:
    int stop();
 
 private:
+#ifndef WIN32
    static void* utility(void* s);
+#else
+   static DWORD WINAPI utility(void* s);
+#endif
 
    ThreadJobQueue m_ServiceJobQueue;			// job queue for service thread pool
    struct ServiceJobParam
@@ -107,8 +112,13 @@ private:
       int port;
       SSLTransport* ssl;
    };
+#ifndef WIN32
    static void* service(void* s);
    static void* serviceEx(void* p);
+#else
+   static DWORD WINAPI service(void* s);
+   static DWORD WINAPI serviceEx(void* p);
+#endif
    int processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const std::string& ip);
    int processUserJoin(SSLTransport& s, SSLTransport& secconn, const std::string& ip);
    int processMasterJoin(SSLTransport& s, SSLTransport& secconn, const std::string& ip);
@@ -123,8 +133,13 @@ private:
       int id;
       SectorMsg* msg;
    };
+#ifndef WIN32
    static void* process(void* s);
    static void* processEx(void* p);
+#else
+   static DWORD WINAPI process(void* s);
+   static DWORD WINAPI processEx(void* p);
+#endif
    int processSysCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    int processFSCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    int processDCCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
@@ -140,10 +155,14 @@ private:
    inline void reject(const std::string& ip, const int port, int id, int32_t code);
 
 private: // replication
+#ifndef WIN32
    static void* replica(void* s);
+#else
+   static DWORD WINAPI replica(void* p);
+#endif
 
-   pthread_mutex_t m_ReplicaLock;
-   pthread_cond_t m_ReplicaCond;
+   CMutex m_ReplicaLock;
+   CCond m_ReplicaCond;
 
    // string format: <src file>,<dst file>
    std::vector<std::string> m_vstrToBeReplicated;	// list of files to be replicated/copied

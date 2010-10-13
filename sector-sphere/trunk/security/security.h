@@ -102,7 +102,11 @@ private:
       SServer* sserver;
       SSLTransport* ssl; 
    };
+#ifndef WIN32
    static void* process(void* p);
+#else
+   static unsigned long __stdcall process(void* p);
+#endif
 
 private:
    int m_iPort;

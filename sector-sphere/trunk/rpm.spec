@@ -63,14 +63,14 @@ install -m 0755 lib/lib{client,common,rpc,security,udt}.so $RPM_BUILD_ROOT/%libs
 # tools
 install -d $RPM_BUILD_ROOT/usr/local/bin
 install -d $RPM_BUILD_ROOT/usr/local/sbin
-install -m 0755 tools/sector_{cp,download,ls,mkdir,mv,pipe,rm,stat,sysinfo,upload} $RPM_BUILD_ROOT/usr/local/bin
+install -m 0755 tools/sector_{cp,download,ls,mkdir,mv,pipe,rm,shutdown,stat,sysinfo,upload} $RPM_BUILD_ROOT/usr/local/bin
 install -m 0755 tools/sphere_stream $RPM_BUILD_ROOT/usr/local/bin
 
 install -m 0755 fuse/sector-fuse $RPM_BUILD_ROOT/usr/local/bin/sector_fuse
 install -m 0755 security/ssl_cert_gen $RPM_BUILD_ROOT/usr/local/sbin/sector_ssl_cert_gen
 
 # config
-install -d $RPM_BUILD_ROOT/opt/sector/{conf}
+install -d $RPM_BUILD_ROOT/opt/sector/conf
 install -m 0644 conf/{client,master,master_acl,replica,slave,slave_acl,topology}.conf $RPM_BUILD_ROOT/opt/sector/conf
 
 export SECTOR_HOME=/opt/sector

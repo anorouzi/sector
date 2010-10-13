@@ -24,6 +24,7 @@ written by
 #define __SECTOR_SLAVEMGMT_H__
 
 #include <topology.h>
+#include <osportable.h>
 
 class SlaveManager
 {
@@ -90,7 +91,7 @@ private:
    int64_t m_llSlaveMinDiskSpace;				// minimum available disk space per slave node
 
 private:
-   pthread_mutex_t m_SlaveLock;
+   CMutex m_SlaveLock;
 };
 
 #endif

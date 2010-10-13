@@ -163,17 +163,15 @@ int User::deserialize(const char* buf, const int& size)
 
 UserManager::UserManager()
 {
-   pthread_mutex_init(&m_Lock, NULL);
 }
 
 UserManager::~UserManager()
 {
-   pthread_mutex_destroy(&m_Lock);
 }
 
 int UserManager::insert(User* u)
 {
-   CGuard ug(m_Lock);
+   CGuardEx ug(m_Lock);
 
    m_mActiveUsers[u->m_iKey] = u;
    return 0;
@@ -181,7 +179,7 @@ int UserManager::insert(User* u)
 
 int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
 {
-   CGuard ug(m_Lock);
+   CGuardEx ug(m_Lock);
 
    iu.clear();
 
@@ -203,7 +201,7 @@ int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
 
 int UserManager::serializeUsers(int& num, vector<char*>& buf, vector<int>& size)
 {
-   CGuard ug(m_Lock);
+   CGuardEx ug(m_Lock);
 
    buf.clear();
    size.clear();
@@ -228,7 +226,7 @@ int UserManager::serializeUsers(int& num, vector<char*>& buf, vector<int>& size)
 
 User* UserManager::lookup(int key)
 {
-   CGuard ug(m_Lock);
+   CGuardEx ug(m_Lock);
 
    map<int, User*>::iterator i = m_mActiveUsers.find(key);
    if (i == m_mActiveUsers.end())
@@ -239,7 +237,7 @@ User* UserManager::lookup(int key)
 
 int UserManager::remove(int key)
 {
-   CGuard ug(m_Lock);
+   CGuardEx ug(m_Lock);
 
    map<int, User*>::iterator i = m_mActiveUsers.find(key);
    if (i == m_mActiveUsers.end())

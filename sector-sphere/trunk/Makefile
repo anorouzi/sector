@@ -3,15 +3,10 @@ TARGETS = clean all install
 
 subdirs:
 	for dir in $(SUBDIRS); do \
-		cd $$dir; \
-		$(MAKE); \
-		$(MAKE) install; \
-		cd ..; \
+		$(MAKE) -C $$dir && $(MAKE) -C $$dir install; \
 	done
 
 clean:
 	for dir in $(SUBDIRS); do \
-		cd $$dir; \
-		$(MAKE) clean; \
-		cd ..; \
+		$(MAKE) -C $$dir clean; \
 	done

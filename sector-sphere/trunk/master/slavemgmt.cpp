@@ -34,12 +34,10 @@ SlaveManager::SlaveManager():
 m_llLastUpdateTime(-1),
 m_llSlaveMinDiskSpace(10000000000LL)
 {
-   pthread_mutex_init(&m_SlaveLock, NULL);
 }
 
 SlaveManager::~SlaveManager()
 {
-   pthread_mutex_destroy(&m_SlaveLock);
 }
 
 int SlaveManager::init(const char* topoconf)
@@ -110,7 +108,7 @@ int SlaveManager::setSlaveMinDiskSpace(const int64_t& byteSize)
 
 int SlaveManager::insert(SlaveNode& sn)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    sn.m_llLastUpdateTime = CTimer::getTime();
    sn.m_llLastVoteTime = CTimer::getTime();
@@ -169,7 +167,7 @@ int SlaveManager::insert(SlaveNode& sn)
 
 int SlaveManager::remove(int nodeid)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    map<int, SlaveNode>::iterator sn = m_mSlaveList.find(nodeid);
 
@@ -224,7 +222,7 @@ int SlaveManager::remove(int nodeid)
 
 bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int32_t& id, Address& addr)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    map<string, set<string> >::iterator i = m_mIPFSInfo.find(ip);
    if (i == m_mIPFSInfo.end())
@@ -276,7 +274,7 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
 
 int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
    return choosereplicanode_(loclist, sn, filesize, rep_dist);
 }
 
@@ -358,7 +356,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
  
 int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve, int rep_dist)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    timeval t;
    gettimeofday(&t, 0);
@@ -523,7 +521,7 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
 
 int SlaveManager::serializeTopo(char*& buf, int& size)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    buf = NULL;
    size = m_Topology.getTopoDataSize();
@@ -535,7 +533,7 @@ int SlaveManager::serializeTopo(char*& buf, int& size)
 
 int SlaveManager::updateSlaveList(vector<Address>& sl, int64_t& last_update_time)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    if (last_update_time < m_llLastUpdateTime)
    {
@@ -556,7 +554,7 @@ int SlaveManager::updateSlaveList(vector<Address>& sl, int64_t& last_update_time
 
 int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const int& len)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    map<Address, int, AddrComp>::iterator a = m_mAddrList.find(addr);
    if (a == m_mAddrList.end())
@@ -592,7 +590,7 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
 
 int SlaveManager::updateSlaveTS(const Address& addr)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    map<Address, int, AddrComp>::iterator a = m_mAddrList.find(addr);
    if (a == m_mAddrList.end())
@@ -612,7 +610,7 @@ int SlaveManager::updateSlaveTS(const Address& addr)
 
 int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, map<int, Address>& retry, map<int, Address>& dead, const int64_t& timeout, const int64_t& retrytime)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    bad.clear();
    lost.clear();
@@ -667,7 +665,7 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
 
 int SlaveManager::serializeSlaveList(char*& buf, int& size)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    buf = new char [(4 + 4 + 64 + 4 + 4) * m_mSlaveList.size()];
 
@@ -718,7 +716,7 @@ int SlaveManager::deserializeSlaveList(int num, const char* buf, int /*size*/)
 
 int SlaveManager::getSlaveID(const Address& addr)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    map<Address, int, AddrComp>::const_iterator i = m_mAddrList.find(addr);
 
@@ -730,7 +728,7 @@ int SlaveManager::getSlaveID(const Address& addr)
 
 int SlaveManager::getSlaveAddr(const int& id, Address& addr)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    map<int, SlaveNode>::iterator i = m_mSlaveList.find(id);
 
@@ -745,7 +743,7 @@ int SlaveManager::getSlaveAddr(const int& id, Address& addr)
 
 int SlaveManager::voteBadSlaves(const Address& voter, int num, const char* buf)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    int vid = m_mAddrList[voter];
    for (int i = 0; i < num; ++ i)
@@ -763,21 +761,21 @@ int SlaveManager::voteBadSlaves(const Address& voter, int num, const char* buf)
 
 unsigned int SlaveManager::getNumberOfClusters()
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    return m_Cluster.m_mSubCluster.size();
 }
 
 unsigned int SlaveManager::getNumberOfSlaves()
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    return m_mSlaveList.size();
 }
 
 int SlaveManager::serializeClusterInfo(char*& buf, int& size)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    size = 4 + m_Cluster.m_mSubCluster.size() * 40;
    buf = new char[size];
@@ -802,7 +800,7 @@ int SlaveManager::serializeClusterInfo(char*& buf, int& size)
 
 int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    size = 4;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
@@ -844,7 +842,7 @@ int SlaveManager::serializeSlaveInfo(char*& buf, int& size)
 
 uint64_t SlaveManager::getTotalDiskSpace()
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    uint64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
@@ -861,7 +859,7 @@ uint64_t SlaveManager::getTotalDiskSpace()
 
 void SlaveManager::updateClusterStat()
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    updateclusterstat_(m_Cluster);
 }
@@ -933,7 +931,7 @@ void SlaveManager::updateclusterio_(Cluster& c, map<string, int64_t>& data_in, m
 
 int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopath)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    vector<int> path;
    if (m_Topology.parseTopo(topopath.c_str(), path) < 0)
@@ -971,7 +969,7 @@ int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopa
 
 int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
 {
-   CGuard sg(m_SlaveLock);
+   CGuardEx sg(m_SlaveLock);
 
    if (m_mSlaveList.empty())
       return 0;

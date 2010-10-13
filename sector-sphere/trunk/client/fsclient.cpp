@@ -27,12 +27,22 @@ using namespace std;
 
 FSClient* Client::createFSClient()
 {
-   FSClient* sf = new FSClient;
-   sf->m_pClient = this;
-   CGuard::enterCS(m_IDLock);
-   sf->m_iID = m_iID ++;
-   m_mFSList[sf->m_iID] = sf;
-   CGuard::leaveCS(m_IDLock);
+   CGuard ig(m_IDLock);
+   FSClient* sf = NULL;
+
+   try
+   {
+      sf = new FSClient;
+      sf->m_pClient = this;
+
+      sf->m_iID = m_iID ++;
+      m_mFSList[sf->m_iID] = sf;
+   }
+   catch
+   {
+      delete sf;
+      return NULL;
+   }
 
    return sf;
 }
