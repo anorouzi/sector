@@ -1847,8 +1847,6 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       SNode as, at;
       int rs = m_pMetadata->lookup(src.c_str(), as);
       int rt = m_pMetadata->lookup(dst.c_str(), at);
-      vector<string> filelist;
-      m_pMetadata->list_r(src.c_str(), filelist);
       if (rs < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
@@ -1860,12 +1858,19 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
+      // respond client now becuase list_r() may take long time if the directory is big
+      // copy() is asynchronous anyway
+      m_GMP.sendto(ip, port, id, msg);
+
       // replace the directory prefix with dst
       string rep;
       if (rt < 0)
          rep = src;
       else
          rep = src.substr(0, src.rfind('/'));
+
+      vector<string> filelist;
+      m_pMetadata->list_r(src.c_str(), filelist);
 
       m_ReplicaLock.acquire();
       for (vector<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
@@ -1877,8 +1882,6 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_vstrToBeReplicated.empty())
          m_ReplicaCond.signal();
       m_ReplicaLock.release();
-
-      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }

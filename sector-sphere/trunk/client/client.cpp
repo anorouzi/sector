@@ -42,7 +42,7 @@ m_strCert(""),
 m_strServerHost(""),
 m_strServerIP(""),
 m_iKey(0),
-m_bVerbose(false),
+m_bVerbose(true),
 m_iCount(0),
 m_bActive(false),
 m_iID(0)

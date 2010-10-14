@@ -134,12 +134,13 @@ int SlaveManager::insert(SlaveNode& sn)
          //impossble
          break;
       }
+
       pc->second.m_iTotalNodes ++;
       if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
          pc->second.m_llAvailDiskSpace += sn.m_llAvailDiskSpace - m_llSlaveMinDiskSpace;
       pc->second.m_llTotalFileSize += sn.m_llTotalFileSize;
 
-      if (++ i != sn.m_viPath.end())
+      if (++ i == sn.m_viPath.end())
          break;
 
       sc = &(pc->second);

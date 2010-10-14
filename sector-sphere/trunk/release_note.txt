@@ -1,5 +1,6 @@
 version 2.6
 
+more OS-independent code
 support replication distance
 improved sysinfo display
 master will continue to restart lost slaves until LOST_SLAVE_RETRY_TIME
