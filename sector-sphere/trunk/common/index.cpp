@@ -156,11 +156,7 @@ int Index::lookup(const string& path, SNode& attr)
       currdir = &(s->second.m_mDirectory);
    }
 
-   attr.m_strName = s->second.m_strName;
-   attr.m_bIsDir = s->second.m_bIsDir;
-   attr.m_llSize = s->second.m_llSize;
-   attr.m_llTimeStamp = s->second.m_llTimeStamp;
-   attr.m_sLocation = s->second.m_sLocation;
+   attr = s->second;
 
    return s->second.m_mDirectory.size();
 }

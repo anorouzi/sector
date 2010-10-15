@@ -315,3 +315,48 @@ bool WildCard::contain(const string& card, const string& path)
    return true;
 }
 
+int CmdLineParser::parse(int argc, char** argv)
+{
+   m_vSFlags.clear();
+   m_mDFlags.clear();
+   m_vParams.clear();
+
+   bool dash = false;
+   string key;
+   for (int i = 1; i < argc; ++ i)
+   {
+      if (argv[i][0] == '-')
+      {
+         if ((strlen(argv[i]) >= 2) && (argv[i][1] == '-'))
+         {
+            // --f
+            m_vSFlags.push_back(argv[i] + 2);
+            dash = false;
+         }
+         else
+         {
+            // -f [val]
+            dash = true;
+            key = argv[i] + 1;
+            m_mDFlags[key] = "";
+         }
+      }
+      else
+      {
+         if (!dash)
+         {
+            // param
+            m_vParams.push_back(argv[i]);
+         }
+         else
+         {
+            // -f val
+            m_mDFlags[key] = argv[i];
+            dash = false;
+         }
+      }
+   }
+
+   return 0;
+}
+

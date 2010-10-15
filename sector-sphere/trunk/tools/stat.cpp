@@ -53,11 +53,14 @@ int main(int argc, char** argv)
       cout << "Size: " << attr.m_llSize << " bytes" << endl;
       time_t ft = attr.m_llTimeStamp;
       cout << "Last Modified: " << ctime(&ft);
-      cout << "Total Number of Replicas: " << attr.m_sLocation.size() << endl;
-      cout << "Location:" << endl;
-      for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+      if (!attr.m_bIsDir)
       {
-         cout << i->m_strIP << ":" << i->m_iPort << endl;
+         cout << "Total Number of Replicas: " << attr.m_sLocation.size() << "  (target: " << attr.m_iReplicaNum << ")" << endl;
+         cout << "Location:" << endl;
+         for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
+         {
+            cout << i->m_strIP << ":" << i->m_iPort << endl;
+         }
       }
    }
 

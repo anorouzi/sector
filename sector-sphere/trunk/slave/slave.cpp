@@ -286,8 +286,13 @@ void Slave::run()
 
    m_bRunning = true;
 
+#ifndef WIN32
    pthread_t worker_thread;
    pthread_create(&worker_thread, NULL, worker, this);
+#else
+   unsigned int ThreadID;
+   worker_thread = (HANDLE)_beginthreadex(NULL, 0, worker, this, NULL, &ThreadID);
+#endif
 
    while (m_bRunning)
    {
@@ -337,7 +342,11 @@ void Slave::run()
 
    delete msg;
 
+#ifndef WIN32
    pthread_join(worker_thread, NULL);
+#else
+   WaitForSingleObject(worker_thread, INFINITE);
+#endif
 
    // TODO: check and cancel all file&spe threads
 
@@ -468,9 +477,16 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
+#ifndef WIN32
       pthread_t file_handler;
       pthread_create(&file_handler, NULL, fileHandler, p);
       pthread_detach(file_handler);
+#else
+      unsigned int ThreadID;
+      HANDLE file_handler = (HANDLE)_beginthreadex(NULL, 0, fileHandler, p, NULL, &ThreadID);
+      if (file_handler)
+         CloseHandle(file_handler);
+#endif
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
@@ -493,9 +509,16 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
+#ifndef WIN32
       pthread_t replica_handler;
       pthread_create(&replica_handler, NULL, copy, p);
       pthread_detach(replica_handler);
+#else
+      unsigned int ThreadID;
+      HANDLE replica_handler = (HANDLE)_beginthreadex(NULL, 0, copy, p, NULL, &ThreadID);
+      if (replica_handler)
+         CloseHandle(replica_handler);
+#endif
 
       m_GMP.sendto(ip, port, id, msg);
 
@@ -543,9 +566,16 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
+#ifndef WIN32
       pthread_t spe_handler;
       pthread_create(&spe_handler, NULL, SPEHandler, p);
       pthread_detach(spe_handler);
+#else
+      unsigned int ThreadID;
+      HANDLE spe_handler = (HANDLE)_beginthreadex(NULL, 0, SPEHandler, p, NULL, &ThreadID);
+      if (spe_handler)
+         CloseHandle(spe_handler);
+#endif
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
@@ -588,9 +618,16 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
+#ifndef WIN32
       pthread_t spe_shuffler;
       pthread_create(&spe_shuffler, NULL, SPEShuffler, p);
       pthread_detach(spe_shuffler);
+#else
+      unsigned int ThreadID;
+      HANDLE spe_shuffler = (HANDLE)_beginthreadex(NULL, 0, SPEShuffler, p, NULL, &ThreadID);
+      if (spe_shuffler)
+         CloseHandle(spe_shuffler);
+#endif
 
       *(int32_t*)msg->getData() = gmp->getPort();
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
@@ -684,8 +721,18 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
    if (change > 0)
    {
-      if (getFileList(filename, filelist) <= 0)
-         return 0;
+      struct stat64 s;
+      if (stat64((m_strHomeDir + filename).c_str(), &s) >= 0)
+      {
+         if (!S_ISDIR(s.st_mode))
+            filelist.push_back(filename);
+         else
+            getFileList(filename, filelist);
+      }
+      else
+      {
+         //log error
+      }
    }
 
    return report(master_ip, master_port, transid, filelist, change);
@@ -693,65 +740,18 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
 int Slave::getFileList(const string& path, vector<string>& filelist)
 {
-   string abs_path = m_strHomeDir + path;
-   struct stat64 s;
-   if (stat64(abs_path.c_str(), &s) < 0)
+   vector<SNode> sl;
+   if (LocalFS::list_dir(m_strHomeDir + path, sl) < 0)
       return -1;
 
-   if (!S_ISDIR(s.st_mode))
+   for (vector<SNode>::iterator i = sl.begin(); i != sl.end(); ++ i)
    {
-      filelist.push_back(path);
-      return 1;
+      filelist.push_back(path + "/" + i->m_strName);
+      if (i->m_bIsDir)
+      {
+         getFileList(path + "/" + i->m_strName, filelist);
+      }
    }
-
-   dirent **namelist;
-   int n = scandir(abs_path.c_str(), &namelist, 0, alphasort);
-
-   if (n < 0)
-      return -1;
-
-   for (int i = 0; i < n; ++ i)
-   {
-      // skip "." and ".."
-      if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
-      {
-         free(namelist[i]);
-         continue;
-      }
-
-      // check file name
-      bool bad = false;
-      for (char *p = namelist[i]->d_name, *q = namelist[i]->d_name + strlen(namelist[i]->d_name); p != q; ++ p)
-      {
-         if ((*p == 10) || (*p == 13))
-         {
-            bad = true;
-            break;
-         }
-      }
-      if (bad)
-         continue;
-
-      if (stat64((abs_path + "/" + namelist[i]->d_name).c_str(), &s) < 0)
-         continue;
-
-      // skip system file and directory
-      if (S_ISDIR(s.st_mode) && (namelist[i]->d_name[0] == '.'))
-      {
-         free(namelist[i]);
-         continue;
-      }
-
-      if (S_ISDIR(s.st_mode))
-         getFileList(path + "/" + namelist[i]->d_name, filelist);
-      else
-         filelist.push_back(path + "/" + namelist[i]->d_name);
-
-      free(namelist[i]);
-   }
-   free(namelist);
-
-   filelist.push_back(path);
 
    return filelist.size();
 }
@@ -937,8 +937,9 @@ int Slave::createDir(const string& path)
 int Slave::createSysDir()
 {
    // check local directory
-   DIR* test = opendir(m_strHomeDir.c_str());
-   if (NULL == test)
+   struct stat s;
+
+   if (stat(m_strHomeDir.c_str(), &s) < 0)
    {
       if (errno != ENOENT)
          return -1;
@@ -950,57 +951,32 @@ int Slave::createSysDir()
       for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
       {
          currpath += *i;
-         if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
+         if (LocalFS::mkdir(currpath) < 0)
             return -1;
          currpath += "/";
       }
    }
-   closedir(test);
 
-   test = opendir((m_strHomeDir + ".metadata").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU) < 0))
-         return -1;
-   }
-   closedir(test);
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".metadata/*").c_str());
+   if (LocalFS::mkdir(m_strHomeDir + ".metadata") < 0)
+      return -1;
+   LocalFS::clean_dir(m_strHomeDir + ".metadata");
 
-   test = opendir((m_strHomeDir + ".log").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU) < 0))
-         return -1;
-   }
-   closedir(test);
-   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".log/*").c_str());
+   if (LocalFS::mkdir(m_strHomeDir + ".log") < 0)
+      return -1;
 
-   test = opendir((m_strHomeDir + ".sphere").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere").c_str(), S_IRWXU) < 0))
-         return -1;
-   }
-   closedir(test);
-   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/*").c_str());
+   if (LocalFS::mkdir(m_strHomeDir + ".sphere") < 0)
+      return -1;
+   //LocalFS::clean_dir(m_strHomeDir + ".sphere");
+   if (LocalFS::mkdir(m_strHomeDir + ".sphere/perm") < 0)
+      return -1;
 
-   test = opendir((m_strHomeDir + ".sphere/perm").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".sphere/perm").c_str(), S_IRWXU) < 0))
-         return -1;
-   }
-   closedir(test);
-   //system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".sphere/perm/*").c_str());
+   if (LocalFS::mkdir(m_strHomeDir + ".tmp") < 0)
+      return -1;
+   LocalFS::clean_dir(m_strHomeDir + ".tmp");
 
-   test = opendir((m_strHomeDir + ".tmp").c_str());
-   if (NULL == test)
-   {
-      if ((errno != ENOENT) || (mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU) < 0))
-         return -1;
-   }
-   closedir(test);
-   system(("rm -rf " + reviseSysCmdPath(m_strHomeDir) + ".tmp/*").c_str());
+   if (LocalFS::mkdir(m_strHomeDir + ".attic") < 0)
+      return -1;
+   LocalFS::clean_dir(m_strHomeDir + ".attic");
 
    return 0;
 }
@@ -1043,17 +1019,16 @@ void SlaveStat::init()
 
 void SlaveStat::refresh()
 {
-   // THIS CODE IS FOR LINUX ONLY. NOT PORTABLE
-
-   // TODO: this should be improved
-
    m_llTimeStamp = CTimer::getTime();
+
+#ifndef WIN32
+   // THIS CODE IS FOR LINUX ONLY. NOT PORTABLE
+   // TODO: this should be improved
 
    int pid = getpid();
 
    char memfile[64];
    sprintf(memfile, "/proc/%d/status", pid);
-
    ifstream ifs;
    ifs.open(memfile, ios::in);
    char buf[1024];
@@ -1069,6 +1044,10 @@ void SlaveStat::refresh()
    tms cputime;
    times(&cputime);
    m_llCurrCPUUsed = (cputime.tms_utime + cputime.tms_stime) * 1000000LL / hz;
+#else
+    m_llCurrMemUsed = GetWSPrivateMemory(::GetProcessId(::GetCurrentProcess()));
+    m_llCurrCPUUsed = GetCpuProcUsage (::GetCurrentProcess());
+#endif
 }
 
 void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)

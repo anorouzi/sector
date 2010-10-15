@@ -32,6 +32,7 @@ written by
 #include <log.h>
 #include <routing.h>
 #include <transaction.h>
+#include <osportable.h>
 
 
 typedef int (*SPHERE_PROCESS)(const SInput*, SOutput*, SFile*);
@@ -268,11 +269,19 @@ private:
       int64_t* pending;		// pending incoming data size
    };
 
+#ifndef WIN32
    static void* fileHandler(void* p2);
    static void* copy(void* p3);
    static void* SPEHandler(void* p4);
    static void* SPEShuffler(void* p5);
    static void* SPEShufflerEx(void* p5);
+#else
+   static unsigned int WINAPI fileHandler(void* p2);
+   static unsigned int WINAPI copy(void* p3);
+   static unsigned int WINAPI SPEHandler(void* p4);
+   static unsigned int WINAPI SPEShuffler(void* p5);
+   static unsigned int WINAPI SPEShufflerEx(void* p5);
+#endif
 
 private: // Sphere operations
    int SPEReadData(const std::string& datafile, const int64_t& offset, int& size, int64_t* index, const int64_t& totalrows, char*& block);
@@ -318,7 +327,11 @@ private: // local FS status
    int checkBadDest(std::multimap<int64_t, Address>& sndspd, std::vector<Address>& bad);
 
 private: // worker thread, report status, garbage collection, etc.
+#ifndef WIN32
    static void* worker(void* param);
+#else
+   static unsigned int WINAPI worker(void* param);
+#endif
 
 private:
    int m_iSlaveID;			// unique ID assigned by the master

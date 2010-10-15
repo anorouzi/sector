@@ -168,7 +168,11 @@ void SPEDestination::reset(const int& buckets)
       m_piSArray[0] = m_piRArray[0] = 0;
 }
 
+#ifndef WIN32
 void* Slave::SPEHandler(void* p)
+#else
+unsigned int WINAPI Slave::SPEHandler(void* p)
+#endif
 {
    Slave* self = ((Param4*)p)->serv_instance;
    const string ip = ((Param4*)p)->client_ip;
@@ -541,7 +545,11 @@ void* Slave::SPEHandler(void* p)
    return NULL;
 }
 
+#ifndef WIN32
 void* Slave::SPEShuffler(void* p)
+#else
+unsigned WINAPI Slave::SPEShuffler(void* p)
+#endif
 {
    Slave* self = ((Param5*)p)->serv_instance;
    int transid = ((Param5*)p)->transid;
@@ -591,7 +599,12 @@ void* Slave::SPEShuffler(void* p)
       ((Param5*)p)->bqcond = bqcond;
       ((Param5*)p)->pending = pendingSize;
 
+#ifndef WIN32
       pthread_create(&shufflerex, NULL, SPEShufflerEx, p);
+#else
+      unsigned int ThreadID;
+      shufflerex = (HANDLE)_beginthreadex(NULL, 0, SPEShufflerEx, p, NULL, &ThreadID);
+#endif
 
       self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogStringTag(LogTag::END);
    }
@@ -654,7 +667,11 @@ void* Slave::SPEShuffler(void* p)
 
    if (init_success)
    {
+#ifndef WIN32
       pthread_join(shufflerex, NULL);
+#else
+      WaitForSingleObject(shufflerex, INFINITE);
+#endif
 
       pthread_mutex_destroy(bqlock);
       pthread_cond_destroy(bqcond);
@@ -685,7 +702,11 @@ void* Slave::SPEShuffler(void* p)
    return NULL;
 }
 
+#ifndef WIN32
 void* Slave::SPEShufflerEx(void* p)
+#else
+    unsigned int WINAPI Slave::SPEShufflerEx(void* p)
+#endif
 {
    Slave* self = ((Param5*)p)->serv_instance;
    int transid = ((Param5*)p)->transid;

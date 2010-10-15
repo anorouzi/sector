@@ -139,7 +139,7 @@ void SectorLog::insert_(const char* text, const int level)
    #ifdef DEBUG
    if (level == LogLevel::SCREEN)
    {
-      cout << text;
+      cout << text << endl;
       return;
    }
    #endif

@@ -35,11 +35,14 @@ written by
    #include <windows.h>
    #include <tchar.h>
    #include <strsafe.h>
+   #include <direct.h>
 #endif
 
 using namespace std;
 
-/*
+#ifdef WIN32
+#if _WIN32_WINNT <= _WIN32_WINNT_WS03
+
 const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 {
    if (af == AF_INET)
@@ -63,15 +66,37 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 
    return NULL;
 }
-*/
+
+int inet_pton(int af, const char* s, void* d)
+{
+   if (af == AF_INET)
+   {
+      ((sockaddr_in*)d)->s_addr = inet_addr(s);
+      return 0;
+   }
+   else if (af == AF_INET6)
+   {
+
+   }
+
+   return -1;
+}
+
+#endif
+#endif
 
 
 int LocalFS::mkdir(const std::string& path)
 {
+#ifndef WIN32
    if ((-1 == ::mkdir(path.c_str(), S_IRWXU)) && (errno != EEXIST))
       return -1;
-
    return 0;
+#else
+   if ((-1 == ::_mkdir(path.c_str())) && (errno != EEXIST))
+      return -1;
+   return 0;
+#endif
 }
 
 int LocalFS::rmdir(const std::string& path)
@@ -79,9 +104,9 @@ int LocalFS::rmdir(const std::string& path)
    string cmd;
 
 #ifndef WIN32
-   cmd = "rm -rf " + path;
+   cmd = "rm -rf " + reviseSysCmdPath(path);
 #else
-   cmd = string("rmdir /Q /S \"") + path;
+   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(path);
 #endif
 
    system(cmd.c_str());
@@ -94,9 +119,9 @@ int LocalFS::clean_dir(const std::string& path)
    string cmd;
 
 #ifndef WIN32
-   cmd = "rm -rf " + path + "/*";
+   cmd = "rm -rf " + reviseSysCmdPath(path) + "/*";
 #else
-   cmd = string("rmdir /Q /S \"") + path + "/*";
+   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(path) + "\*";
 #endif
 
    system(cmd.c_str());
@@ -135,18 +160,17 @@ int LocalFS::list_dir(const std::string& path, vector<SNode>& filelist)
    return 0;
 #else
    WIN32_FIND_DATA ffd;
-   LARGE_INTEGER filesize;
    TCHAR szDir[MAX_PATH];
    size_t length_of_arg;
    HANDLE hFind = INVALID_HANDLE_VALUE;
    DWORD dwError=0;
 
-   StringCchLength(currdir.c_str(), MAX_PATH, &length_of_arg);
+   StringCchLength(path.c_str(), MAX_PATH, &length_of_arg);
 
    if (length_of_arg > (MAX_PATH - 3))
       return -1;
 
-   StringCchCopy(szDir, MAX_PATH, currdir.c_str());
+   StringCchCopy(szDir, MAX_PATH, path.c_str());
    StringCchCat(szDir, MAX_PATH, TEXT("\\*"));
 
    // Find the first file in the directory.
@@ -173,7 +197,11 @@ int LocalFS::stat(const std::string& path, SNode& sn)
    struct stat64 st;
    if (-1 == stat64(path.c_str(), &st))
       return -1;
-
+#else
+   struct _stat64 st;
+   if (-1 == _stat64(path.c_str(), &st))
+      return -1;
+#endif
    sn.m_strName = path;
    sn.m_bIsDir = S_ISDIR(st.st_mode) ? 1 : 0;
    sn.m_llTimeStamp = st.st_mtime;
@@ -185,7 +213,23 @@ int LocalFS::stat(const std::string& path, SNode& sn)
    sn.m_sLocation.insert(addr);
 
    return 0;
-#else
-
-#endif
 }
+
+string LocalFS::reviseSysCmdPath(const string& path)
+{
+   string rpath;
+
+#ifndef WIN32
+   for (const char *p = path.c_str(), *q = path.c_str() + path.length(); p != q; ++ p)
+   {
+      if ((*p == 32) || (*p == 34) || (*p == 38) || (*p == 39))
+         rpath.append(1, char(92));
+      rpath.append(1, *p);
+   }
+#else
+   rpath = path;
+#endif
+
+   return rpath;
+}
+

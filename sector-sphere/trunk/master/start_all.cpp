@@ -1,3 +1,24 @@
+/*****************************************************************************
+Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+License for the specific language governing permissions and limitations under
+the License.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 10/14/2010
+*****************************************************************************/
+
 #include <sector.h>
 #include <cstdlib>
 #include <cstring>
@@ -6,12 +27,18 @@
 
 using namespace std;
 
-int main()
+void help()
+{
+   cout << "start_all [-s slaves.list] [-l slave_screen_log_output]" << endl;
+}
+
+int main(int argc, char** argv)
 {
    string sector_home;
    if (ConfLocation::locate(sector_home) < 0)
    {
       cerr << "no Sector information located; nothing to start.\n";
+      help();
       return -1;
    }
 
@@ -19,11 +46,30 @@ int main()
    system(cmd.c_str());
    cout << "start master ...\n";
 
-   ifstream ifs((sector_home + "/conf/slaves.list").c_str());
 
+   CmdLineParser clp;
+   clp.parse(argc, argv);
+
+   string slaves_list = sector_home + "/conf/slaves.list";
+   string slave_screen_log = "/dev/null";
+
+   for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
+   {
+      if (i->first == "s")
+         slaves_list = i->second;
+      else if (i->first == "l")
+         slave_screen_log = i->second;
+      else
+      {
+         help();
+         return 0;
+      }
+   }
+
+   ifstream ifs(slaves_list.c_str());
    if (ifs.bad() || ifs.fail())
    {
-      cout << "no slave list found!\n";
+      cout << "no slave list found at " << slaves_list << endl;
       return -1;
    }
 
@@ -81,9 +127,11 @@ int main()
       addr = addr.substr(0, addr.find(' '));
 
       //TODO: source .bash_profile to include more environments variables
-      system((string("ssh ") + addr + " \"" + base + "/slave/start_slave " + base + " &> /dev/null &\" &").c_str());
+      string cmd = (string("ssh ") + addr + " \"" + base + "/slave/start_slave " + base + " &> " + slave_screen_log + "&\" &");
+      system(cmd.c_str());
 
       cout << "start slave at " << addr << endl;
+      cout << "CMD: " << cmd << endl;
    }
 
    return 0;

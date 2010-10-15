@@ -49,11 +49,8 @@ written by
    #pragma warning( disable: 4251 )
 #endif
 
-#ifndef WIN32
-    #define udt_inet_ntop inet_ntop
-    #define udt_inet_pton inet_pton
-#else
-   // Windows compability
+#ifdef WIN32
+    // Windows compability
     #include <sys/types.h>
     #include <sys/stat.h>
     #include <sys/timeb.h>
@@ -87,9 +84,10 @@ written by
     #define     S_ISTYPE(mode, mask)  (((mode) & _S_IFMT) == (mask))
     #define     S_ISREG(mode)    S_ISTYPE((mode), _S_IFREG)
 
-    /* for WinXP only, Vista & above already support this
+    #if _WIN32_WINNT <= _WIN32_WINNT_WS03
     const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
-    */
+    int inet_pton(int af, const char* s, void* d);
+    #endif
 #endif
 
 
@@ -293,6 +291,9 @@ public:
    static int clean_dir(const std::string& path);
    static int list_dir(const std::string& path, std::vector<SNode>& filelist);
    static int stat(const std::string& path, SNode& s);
+
+private:
+   static std::string reviseSysCmdPath(const std::string& path);
 };
 
 

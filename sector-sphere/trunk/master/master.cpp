@@ -16,13 +16,12 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/05/2010
+   Yunhong Gu, last updated 10/14/2010
 *****************************************************************************/
 
 #include <common.h>
 #include <ssltransport.h>
 #include <tcptransport.h>
-#include <dirent.h>
 #include <signal.h>
 #include <stack>
 #include <sstream>
@@ -77,9 +76,8 @@ int Master::init()
 
    // check local directories, create them if not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
-   //system((string("rm -rf ") + m_strHomeDir).c_str());
-   DIR* test = opendir(m_strHomeDir.c_str());
-   if (NULL == test)
+
+   if (stat(m_strHomeDir.c_str(), &s) < 0)
    {
       if (errno != ENOENT)
       {
@@ -94,7 +92,7 @@ int Master::init()
       for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
       {
          currpath += *i;
-         if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
+         if (LocalFS::mkdir(currpath) < 0)
          {
             m_SectorLog.insert("unable to configure home directory.");
             return -1;
@@ -102,11 +100,10 @@ int Master::init()
          currpath += "/";
       }
    }
-   closedir(test);
 
-   mkdir((m_strHomeDir + ".metadata").c_str(), S_IRWXU);
-   mkdir((m_strHomeDir + ".tmp").c_str(), S_IRWXU);
-   mkdir((m_strHomeDir + ".log").c_str(), S_IRWXU);
+   LocalFS::mkdir(m_strHomeDir + ".metadata");
+   LocalFS::mkdir(m_strHomeDir + ".tmp");
+   LocalFS::mkdir(m_strHomeDir + ".log");
 
    if ((stat((m_strHomeDir + ".metadata").c_str(), &s) < 0)
       || (stat((m_strHomeDir + ".tmp").c_str(), &s) < 0)
@@ -427,7 +424,11 @@ int Master::run()
             int msgid = 0;
             m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
 
+#ifndef WIN32
             system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
+#else
+            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/bin/start_slave " + sa->second.m_strBase + " &> NULL &\"").c_str());
+#endif
          }
       }
 
@@ -740,12 +741,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
             if (size > 0)
                slvconn.sendfile((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
-#ifndef WIN32
-            string cmd = string("rm -rf ") + m_strHomeDir + ".tmp/" + ip + ".left";
-#else
-            string cmd = string("del /F /Q \"") + unix_to_win_path(m_strHomeDir) + ".tmp\\" + ip + ".left" + "\"";
-#endif
-            system(cmd.c_str());
+            LocalFS::rmdir(m_strHomeDir + ".tmp/" + ip + ".left");
          }
 
          // send the list of masters to the new slave

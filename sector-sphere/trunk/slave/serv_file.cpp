@@ -26,7 +26,11 @@ written by
 
 using namespace std;
 
+#ifndef WIN32
 void* Slave::fileHandler(void* p)
+#else
+unsigned int WINAPI Slave::fileHandler(void* p)
+#endif
 {
    Slave* self = ((Param2*)p)->serv_instance;
    string filename = self->m_strHomeDir + ((Param2*)p)->filename;
@@ -448,7 +452,11 @@ void* Slave::fileHandler(void* p)
    return NULL;
 }
 
+#ifndef WIN32
 void* Slave::copy(void* p)
+#else
+unsigned int WINAPI Slave::copy(void* p)
+#endif
 {
    Slave* self = ((Param3*)p)->serv_instance;
    int transid = ((Param3*)p)->transid;
