@@ -146,7 +146,7 @@ int main(int argc, char** argv)
 {
    if (argc != 3)
    {
-      cerr << "USAGE: download <src file/dir> <local dir>\n";
+      cerr << "USAGE: sector_download <src file/dir> <local dir>\n";
       return -1;
    }
 

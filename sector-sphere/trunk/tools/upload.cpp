@@ -146,9 +146,11 @@ int main(int argc, char** argv)
 {
    if (argc < 3)
    {
-      cerr << "usage: upload <src file/dir> <dst dir>" << endl;
+      cerr << "usage: sector_upload <src file/dir> <dst dir>" << endl;
       return 0;
    }
+
+   //TODO: add parameter to specify number of replicas on write
 
    Sector client;
    if (Utility::login(client) < 0)

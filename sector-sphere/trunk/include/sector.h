@@ -193,6 +193,15 @@ struct SECTOR_API SF_POS
    static const int END = 3;
 };
 
+//extra file open options
+struct SECTOR_API SF_OPT
+{
+   std::string m_strHintIP;
+   int64_t m_llReservedSize;
+   int m_iReplicaNum;
+   int m_iPriority;
+};
+
 class SECTOR_API SectorFile
 {
 friend class Sector;
