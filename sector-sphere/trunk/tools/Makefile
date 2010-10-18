@@ -6,7 +6,19 @@ else
    LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-EXE = sector_download sector_upload sector_ls sector_rm sector_mkdir sector_stat sector_sysinfo sector_mv sector_cp sector_pipe sector_shutdown sphere_stream
+EXE = sector_download \
+      sector_upload \
+      sector_ls \
+      sector_rm \
+      sector_mkdir \
+      sector_stat \
+      sector_sysinfo \
+      sector_mv \
+      sector_cp \
+      sector_pipe \
+      sector_shutdown \
+      sector_check_replica \
+      sphere_stream 
 
 all: $(EXE)
 
@@ -44,6 +56,9 @@ sector_pipe: pipe.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 sector_shutdown: shutdown.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+sector_check_replica: check_replica.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 sphere_stream: stream.cpp probot.o

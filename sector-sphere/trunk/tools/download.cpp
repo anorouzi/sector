@@ -144,125 +144,131 @@ int getFileList(const string& path, vector<string>& fl, Sector& client)
 
 int main(int argc, char** argv)
 {
-   if (argc != 3)
+   if (argc < 3)
    {
       cerr << "USAGE: sector_download <src file/dir> <local dir>\n";
       return -1;
    }
 
-   Sector client;
-   if (Utility::login(client) < 0)
-      return 0;
-
-   vector<string> fl;
-   bool wc = WildCard::isWildCard(argv[1]);
-   if (!wc)
-   {
-      SNode attr;
-      if (client.stat(argv[1], attr) < 0)
-      {
-         cerr << "ERROR: source file does not exist.\n";
-         return -1;
-      }
-      getFileList(argv[1], fl, client);
-   }
-   else
-   {
-      string path = argv[1];
-      string orig = path;
-      size_t p = path.rfind('/');
-      if (p == string::npos)
-         path = "/";
-      else
-      {
-         path = path.substr(0, p);
-         orig = orig.substr(p + 1, orig.length() - p);
-      }
-
-      vector<SNode> filelist;
-      int r = client.list(path, filelist);
-      if (r < 0)
-         cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
-
-      for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
-      {
-         if (WildCard::match(orig, i->m_strName))
-            getFileList(path + "/" + i->m_strName, fl, client);
-      }
-   }
-
-
+   // check destination directory, which must exist
    struct stat64 st;
-   int r = stat64(argv[2], &st);
+   int r = stat64(argv[argc - 1], &st);
    if ((r < 0) || !S_ISDIR(st.st_mode))
    {
       cerr << "ERROR: destination directory does not exist.\n";
       return -1;
    }
 
+   // login to SectorFS
+   Sector client;
+   if (Utility::login(client) < 0)
+      return 0;
 
-   string olddir;
-   for (int i = strlen(argv[1]) - 1; i >= 0; -- i)
+   // start downloading all files
+   for (int i = 1; i < argc - 1; ++ i)
    {
-      if (argv[1][i] != '/')
+      vector<string> fl;
+      bool wc = WildCard::isWildCard(argv[i]);
+      if (!wc)
       {
-         olddir = string(argv[1]).substr(0, i);
-         break;
-      }
-   }
-   size_t p = olddir.rfind('/');
-   if (p == string::npos)
-      olddir = "";
-   else
-      olddir = olddir.substr(0, p);
-
-   string newdir = argv[2];
-
-   for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
-   {
-      string dst = *i;
-      if (olddir.length() > 0)
-         dst.replace(0, olddir.length(), newdir);
-      else
-         dst = newdir + "/" + dst;
-
-      string localdir = dst.substr(0, dst.rfind('/'));
-
-      // if localdir does not exist, create it
-      if (stat64(localdir.c_str(), &st) < 0)
-      {
-         for (unsigned int p = 1; p < localdir.length(); ++ p)
+         SNode attr;
+         if (client.stat(argv[i], attr) < 0)
          {
-            if (localdir.c_str()[p] == '/')
-            {
-               string substr = localdir.substr(0, p);
+            cerr << "ERROR: source file does not exist.\n";
+            return -1;
+         }
+         getFileList(argv[i], fl, client);
+      }
+      else
+      {
+         string path = argv[i];
+         string orig = path;
+         size_t p = path.rfind('/');
+         if (p == string::npos)
+            path = "/";
+         else
+         {
+            path = path.substr(0, p);
+            orig = orig.substr(p + 1, orig.length() - p);
+         }
 
-               if ((-1 == ::mkdir(substr.c_str(), S_IRWXU)) && (errno != EEXIST))
+         vector<SNode> filelist;
+         int r = client.list(path, filelist);
+         if (r < 0)
+            cerr << "ERROR: " << r << " " << SectorError::getErrorMsg(r) << endl;
+
+         for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+         {
+            if (WildCard::match(orig, i->m_strName))
+               getFileList(path + "/" + i->m_strName, fl, client);
+         }
+      }
+
+      string olddir;
+      for (int j = strlen(argv[i]) - 1; j >= 0; -- j)
+      {
+         if (argv[i][j] != '/')
+         {
+            olddir = string(argv[i]).substr(0, j);
+            break;
+         }
+      }
+      size_t p = olddir.rfind('/');
+      if (p == string::npos)
+         olddir = "";
+      else
+         olddir = olddir.substr(0, p);
+
+      string newdir = argv[argc - 1];
+
+      for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
+      {
+         string dst = *i;
+         if (olddir.length() > 0)
+            dst.replace(0, olddir.length(), newdir);
+         else
+            dst = newdir + "/" + dst;
+
+         string localdir = dst.substr(0, dst.rfind('/'));
+
+         // if localdir does not exist, create it
+         if (stat64(localdir.c_str(), &st) < 0)
+         {
+            for (unsigned int p = 1; p < localdir.length(); ++ p)
+            {
+               if (localdir.c_str()[p] == '/')
                {
-                  cerr << "ERROR: unable to create local directory " << substr << endl;
-                  return -1;
+                  string substr = localdir.substr(0, p);
+
+                  if ((-1 == ::mkdir(substr.c_str(), S_IRWXU)) && (errno != EEXIST))
+                  {
+                     cerr << "ERROR: unable to create local directory " << substr << endl;
+                     return -1;
+                  }
                }
+            }
+
+            if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
+            {
+               cerr << "ERROR: unable to create local directory " << localdir << endl;
+               break;
             }
          }
 
-         if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
+         if (download(i->c_str(), localdir.c_str(), client) < 0)
          {
-            cerr << "ERROR: unable to create local directory " << localdir << endl;
-            break;
-         }
-      }
+            // calculate total available disk size
+            struct statvfs64 dstinfo;
+            statvfs64(newdir.c_str(), &dstinfo);
+            int64_t availdisk = dstinfo.f_bavail * dstinfo.f_bsize;
 
-      if (download(i->c_str(), localdir.c_str(), client) < 0)
-      {
-         // calculate total available disk size
-         struct statvfs64 dstinfo;
-         statvfs64(newdir.c_str(), &dstinfo);
-         int64_t availdisk = dstinfo.f_bavail * dstinfo.f_bsize;
-
-         if (availdisk <= 0)
-         {
-            cerr << "insufficient local disk space. quit.\n";
-            break;
+            if (availdisk <= 0)
+            {
+               // if no disk space svailable, no need to try any more
+               cerr << "insufficient local disk space. quit.\n";
+               Utility::logout(client);
+               return -1;
+            }
          }
       }
    }
