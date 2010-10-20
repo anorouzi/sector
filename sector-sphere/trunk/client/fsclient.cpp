@@ -57,7 +57,6 @@ int Client::releaseFSClient(FSClient* sf)
    return 0;
 }
 
-
 FSClient::FSClient():
 m_iSession(),
 m_strSlaveIP(),
@@ -87,7 +86,7 @@ FSClient::~FSClient()
    CGuard::releaseMutex(m_FileLock);
 }
 
-int FSClient::open(const string& filename, int mode, const string& hint, const int64_t& reserve)
+int FSClient::open(const string& filename, int mode, const SF_OPT* option)
 {
    // if this client is already associated with an openned file, cannot open another file
    if (0 != m_strFileName.length())
@@ -101,12 +100,23 @@ int FSClient::open(const string& filename, int mode, const string& hint, const i
 
    int32_t m = mode;
    msg.setData(0, (char*)&m, 4);
-   int64_t res = (reserve > 0) ? reserve : 0;
-   msg.setData(4, (char*)&res, 8);
    int32_t port = m_pClient->m_DataChn.getPort();
-   msg.setData(12, (char*)&port, 4);
-   msg.setData(16, hint.c_str(), hint.length() + 1);
-   msg.setData(80, m_strFileName.c_str(), m_strFileName.length() + 1);
+   msg.setData(4, (char*)&port, 4);
+   int32_t len_name = m_strFileName.length() + 1;
+   msg.setData(8, (char*)&len_name, 4);
+   msg.setData(12, m_strFileName.c_str(), len_name);
+
+   // send file opne options
+   int32_t len_opt = 0;
+   string buf = "";
+   if (NULL != option)
+   {
+      option->serialize(buf);
+      len_opt = buf.length() + 1;
+   }
+   msg.setData(12 + len_name, (char*)&len_opt, 4);
+   if (len_opt > 0)
+      msg.setData(16 + len_name, buf.c_str(), len_opt);
 
    Address serv;
    if (m_pClient->lookup(m_strFileName, serv) < 0)

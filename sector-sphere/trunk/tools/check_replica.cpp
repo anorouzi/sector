@@ -90,12 +90,6 @@ int main(int argc, char** argv)
       }
    }
 
-   if (clp.m_vParams.empty())
-   {
-      help();
-      return -1;
-   }
-
    Sector client;
    if (Utility::login(client) < 0)
       return -1;   

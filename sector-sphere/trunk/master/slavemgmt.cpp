@@ -355,7 +355,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    return 1;
 }
  
-int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve, int rep_dist)
+int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist)
 {
    CGuardEx sg(m_SlaveLock);
 
@@ -371,28 +371,10 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
    if (!loclist.empty())
    {
-      // find nearest node, if equal distance, choose a random one
-      int dist = -1;
-      map<int, vector<int> > dist_vec;
-      for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
-      {
-         int d = m_Topology.distance(client.m_strIP.c_str(), m_mSlaveList[*i].m_strIP.c_str());
+      SlaveNode sn;
+      findNearestNode(loclist, option.m_strHintIP, sn);
 
-         dist_vec[d].push_back(*i);
-
-         if ((d < dist) || (dist < 0))
-            dist = d;
-      }
-
-      // if no slave node found, return 0
-      if (dist < 0)
-         return SectorError::E_NODISK;
-
-      int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
-      vector<int>::iterator n = dist_vec[dist].begin();
-      for (int i = 0; i < r; ++ i)
-         n ++;
-      sl.push_back(m_mSlaveList[*n]);
+      sl.push_back(sn);
 
       // if this is a READ_ONLY operation, one node is enough
       if ((mode & SF_MODE::WRITE) == 0)
@@ -401,7 +383,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
       // the first node will be the closest to the client; the client writes to that node only
       for (set<int>::iterator i = loclist.begin(); i != loclist.end(); i ++)
       {
-         if (*i == *n)
+         if (*i == sn.m_iNodeID)
             continue;
 
          sl.push_back(m_mSlaveList[*i]);
@@ -415,42 +397,57 @@ int SlaveManager::chooseIONode(set<int>& loclist, const Address& client, int mod
 
       set<int> avail;
 
+      vector<int> path_limit;
+      if (option.m_strCluster.c_str()[0] != '\0')
+         Topology::parseTopo(option.m_strCluster.c_str(), path_limit);
+
       for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
       {
          // skip bad & lost nodes
          if (i->second.m_iStatus != SlaveStatus::NORMAL)
             continue;
 
+         // if client specifies a cluster ID, then only nodes on the cluster are chosen
+         if (!path_limit.empty())
+         {
+            if (path_limit.size() > i->second.m_viPath.size())
+               continue;
+
+            bool match = true;
+            for (vector<int>::iterator v = path_limit.begin(), p = i->second.m_viPath.begin(); v != path_limit.end(); ++ v, ++ p)
+            {
+               if (*v != *p)
+               {
+                  match = false;
+                  break;
+               }
+            }
+
+            if (!match)
+              continue;
+         }
+
          // only nodes with more than minimum available disk space are chosen
-         if (i->second.m_llAvailDiskSpace > (m_llSlaveMinDiskSpace + reserve))
+         if (i->second.m_llAvailDiskSpace > (m_llSlaveMinDiskSpace + option.m_llReservedSize))
             avail.insert(i->first);
       }
 
-      int r = 0;
-
-      if (!avail.empty())
-         r = int(avail.size() * (double(rand()) / RAND_MAX)) % avail.size();
-      else
+      if (avail.empty())
          return SectorError::E_NODISK;
 
-      set<int>::iterator n = avail.begin();
-      for (int i = 0; i < r; ++ i)
-         n ++;
-      sl.push_back(m_mSlaveList[*n]);
+      SlaveNode sn;
+      findNearestNode(avail, option.m_strHintIP, sn);
 
-      // if this is not a high reliable write, one node is enough
-      if ((mode & SF_MODE::HiRELIABLE) == 0)
-         return sl.size();
+      sl.push_back(sn);
 
       // otherwise choose more nodes for immediate replica
-      for (int i = 0; i < replica - 1; ++ i)
+      for (int i = 0; i < option.m_iReplicaNum - 1; ++ i)
       {
-         SlaveNode sn;
          set<int> locid;
          for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
             locid.insert(j->m_iNodeID);
 
-         if (choosereplicanode_(locid, sn, reserve, rep_dist) <= 0)
+         if (choosereplicanode_(locid, sn, option.m_llReservedSize, rep_dist) <= 0)
             break;
 
          sl.push_back(sn);
@@ -471,7 +468,7 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
    return chooseReplicaNode(locid, sn, filesize, rep_dist);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& client, int mode, vector<SlaveNode>& sl, int replica, int64_t reserve, int rep_dist)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, int mode, vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist)
 {
    set<int> locid;
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -479,7 +476,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, const Address& c
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, client, mode, sl, replica, reserve, rep_dist);
+   return chooseIONode(locid, mode, sl, option, rep_dist);
 }
 
 int SlaveManager::chooseSPENodes(const Address& /*client*/, vector<SlaveNode>& sl)
@@ -1006,4 +1003,36 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
    }
 
    return lowdisk.size();
+}
+
+int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip, SlaveNode& sn)
+{
+   if (loclist.empty())
+      return SectorError::E_NODISK;
+
+   // find nearest node, if equal distance, choose a random one
+   int dist = -1;
+   map<int, vector<int> > dist_vec;
+   for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   {
+      int d = m_Topology.distance(ip.c_str(), m_mSlaveList[*i].m_strIP.c_str());
+
+      dist_vec[d].push_back(*i);
+
+      if ((d < dist) || (dist < 0))
+         dist = d;
+   }
+
+   // if no slave node found, return 0
+   if (dist < 0)
+      return SectorError::E_NODISK;
+
+   int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
+   vector<int>::iterator n = dist_vec[dist].begin();
+   for (int i = 0; i < r; ++ i)
+      n ++;
+
+   sn = m_mSlaveList[*n];
+
+   return 0;
 }

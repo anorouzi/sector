@@ -2,6 +2,7 @@ include ../Makefile.common
 
 OBJS = osportable.o \
        conf.o \
+       sfopt.o \
        snode.o \
        meta.o \
        index.o \

@@ -226,7 +226,13 @@ int Slave::connect()
          vector<string> fl;
          attic->list_r("/", fl);
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
-            move(*i, ".attic", "");
+         {
+            string dst = ".attic/";
+            size_t p = i->rfind('/');
+            if (p != string::npos)
+               dst += i->substr(0, p);
+            move(*i, dst, "");
+         }
 
          attic->clear();
          delete attic;
@@ -424,6 +430,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
    {
       string path = Metadata::revisePath(msg->getData());
       m_pLocalFile->remove(path, true);
+
+      //TODO: removed files may be moved to .attic instead of removing immediately, thus users may be able to restore them
+
       string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
       system(sysrm.c_str());
 
@@ -939,7 +948,7 @@ int Slave::createSysDir()
    // check local directory
    struct stat s;
 
-   if (stat(m_strHomeDir.c_str(), &s) < 0)
+   if ((stat(m_strHomeDir.c_str(), &s) < 0) || (!S_ISDIR(s.st_mode)))
    {
       if (errno != ENOENT)
          return -1;
@@ -976,7 +985,8 @@ int Slave::createSysDir()
 
    if (LocalFS::mkdir(m_strHomeDir + ".attic") < 0)
       return -1;
-   LocalFS::clean_dir(m_strHomeDir + ".attic");
+   //TODO: check slave.conf option to defice if to clean .attic
+   //LocalFS::clean_dir(m_strHomeDir + ".attic");
 
    return 0;
 }

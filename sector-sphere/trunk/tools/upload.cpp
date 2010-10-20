@@ -35,7 +35,12 @@ written by
 
 using namespace std;
 
-int upload(const char* file, const char* dst, Sector& client)
+void help()
+{
+   cerr << "usage: sector_upload <src file/dir> <dst dir> [-n num_of_replicas] [-a ip_address] [-c cluster_id]" << endl;
+}
+
+int upload(const char* file, const char* dst, Sector& client, const int rep_num, const string& ip, const string& cid)
 {
    //check if file already exists
 
@@ -65,11 +70,15 @@ int upload(const char* file, const char* dst, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   int64_t reserve = s.st_size;
-   if (reserve <= 0)
-      reserve = 1;
+   SF_OPT option;
+   option.m_llReservedSize = s.st_size;
+   if (option.m_llReservedSize <= 0)
+      option.m_llReservedSize = 1;
+   option.m_iReplicaNum = rep_num;
+   option.m_strHintIP = ip;
+   option.m_strCluster = cid;
 
-   int r = f->open(dst, SF_MODE::WRITE, "", reserve);
+   int r = f->open(dst, SF_MODE::WRITE, &option);
    if (r < 0)
    {
       cerr << "unable to open file " << dst << endl;
@@ -93,7 +102,7 @@ int upload(const char* file, const char* dst, Sector& client)
    {
       cout << "Uploading failed! Please retry. " << endl << endl;
       Utility::print_error(result);
-      return -1;
+      return result;
    }
 
    return 0;
@@ -146,17 +155,47 @@ int main(int argc, char** argv)
 {
    if (argc < 3)
    {
-      cerr << "usage: sector_upload <src file/dir> <dst dir>" << endl;
-      return 0;
+      help();
+      return -1;
    }
 
-   //TODO: add parameter to specify number of replicas on write
+   CmdLineParser clp;
+   if (clp.parse(argc, argv) < 0)
+   {
+      help();
+      return -1;
+   }
+
+   if (clp.m_vParams.size() < 2)
+   {
+      help();
+      return -1;
+   }
+
+   int replica_num = 1;
+   string ip = "";
+   string cluster = "";
+
+   for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
+   {
+      if (i->first == "n")
+         replica_num = atoi(i->second.c_str());
+      else if (i->first == "a")
+         ip = i->second;
+      else if (i->first == "c")
+         cluster = i->second;
+      else
+      {
+         help();
+         return -1;
+      }
+   }
 
    Sector client;
    if (Utility::login(client) < 0)
       return -1;
 
-   string newdir = argv[argc - 1];
+   string newdir = *clp.m_vParams.rbegin();
    SNode attr;
    int r = client.stat(newdir, attr);
    if ((r < 0) || (!attr.m_bIsDir))
@@ -168,23 +207,24 @@ int main(int argc, char** argv)
 
    bool success = true;
 
-   for (int i = 1; i < argc - 1; ++ i)
+   clp.m_vParams.erase(clp.m_vParams.begin() + clp.m_vParams.size() - 1);
+   for (vector<string>::iterator i = clp.m_vParams.begin(); i < clp.m_vParams.end(); ++ i)
    {
       vector<string> fl;
-      bool wc = WildCard::isWildCard(argv[i]);
+      bool wc = WildCard::isWildCard(*i);
       if (!wc)
       {
          struct stat64 st;
-         if (stat64(argv[i], &st) < 0)
+         if (stat64(i->c_str(), &st) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
             return -1;
          }
-         getFileList(argv[i], fl);
+         getFileList(*i, fl);
       }
       else
       {
-         string path = argv[i];
+         string path = *i;
          string orig = path;
          size_t p = path.rfind('/');
          if (p == string::npos)
@@ -223,11 +263,11 @@ int main(int argc, char** argv)
       }
 
       string olddir;
-      for (int j = strlen(argv[i]) - 1; j >= 0; -- j)
+      for (int j = i->length() - 1; j >= 0; -- j)
       {
-         if (argv[i][j] != '/')
+         if (i->c_str()[j] != '/')
          {
-            olddir = string(argv[i]).substr(0, j);
+            olddir = i->substr(0, j);
             break;
          }
       }
@@ -253,7 +293,7 @@ int main(int argc, char** argv)
             client.mkdir(dst);
          else
          {
-            if (upload(i->c_str(), dst.c_str(), client) < 0)
+            if (upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster) < 0)
                success = false;
          }
       }

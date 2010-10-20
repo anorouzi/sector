@@ -196,10 +196,16 @@ struct SECTOR_API SF_POS
 //extra file open options
 struct SECTOR_API SF_OPT
 {
+   SF_OPT();
+
    std::string m_strHintIP;
+   std::string m_strCluster;
    int64_t m_llReservedSize;
    int m_iReplicaNum;
    int m_iPriority;
+
+   void serialize(std::string& buf) const;
+   void deserialize(const std::string& buf);
 };
 
 class SECTOR_API SectorFile
@@ -212,7 +218,7 @@ private:
    const SectorFile& operator=(const SectorFile&) {return *this;}
 
 public:
-   int open(const std::string& filename, int mode = SF_MODE::READ, const std::string& hint = "", const int64_t& reserve = 0);
+   int open(const std::string& filename, int mode = SF_MODE::READ, const SF_OPT* option = NULL);
    int64_t read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch = 0);
    int64_t write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer = 0);
    int64_t read(char* buf, const int64_t& size);

@@ -1597,12 +1597,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      Address client;
-      client.m_strIP = ip;
-      client.m_iPort = port;
+      SF_OPT option;
+      option.m_strHintIP = ip;
+
       set<int> empty;
       vector<SlaveNode> addr;
-      if (m_SlaveManager.chooseIONode(empty, client, SF_MODE::WRITE, addr, 1) <= 0)
+      if (m_SlaveManager.chooseIONode(empty, SF_MODE::WRITE, addr, option) <= 0)
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
          break;
@@ -1821,8 +1821,11 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
-      if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
+      if ((m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0) && (src != dst))
       {
+         // destination file cannot exist, no overwite
+         // however, if src == dst, a new replica for src will be created.
+
          reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
@@ -1933,10 +1936,18 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    case 110: // open file
    {
       int32_t mode = *(int32_t*)(msg->getData());
-      int64_t reserve = *(int64_t*)(msg->getData() + 4);
-      int32_t dataport = *(int32_t*)(msg->getData() + 12);
-      string hintip = msg->getData() + 16;
-      string path = Metadata::revisePath(msg->getData() + 80);
+      int32_t dataport = *(int32_t*)(msg->getData() + 4);
+      int32_t name_len = *(int32_t*)(msg->getData() + 8);
+      string path = Metadata::revisePath(msg->getData() + 12);
+      int32_t opt_len = *(int32_t*)(msg->getData() + 12 + name_len);
+
+      SF_OPT option;
+      if (opt_len > 0)
+         option.deserialize(msg->getData() + 12 + name_len + 4);
+      if (option.m_llReservedSize < 0)
+         option.m_llReservedSize = 0;
+      if (option.m_strHintIP.c_str()[0] == '\0')
+         option.m_strHintIP = ip;
 
       if (!m_Routing.match(path.c_str(), m_iRouterKey))
       {
@@ -1956,12 +1967,6 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       SNode attr;
       int r = m_pMetadata->lookup(path.c_str(), attr);
 
-      Address hint;
-      if (hintip.length() == 0)
-         hint.m_strIP = ip;
-      else
-         hint.m_strIP = hintip;
-      hint.m_iPort = port;
       vector<SlaveNode> addr;
 
       if (r < 0)
@@ -2000,7 +2005,13 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(path, m_SysConfig.m_iReplicaNum);
          sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(path, m_SysConfig.m_iReplicaDist);
 
-         if (m_SlaveManager.chooseIONode(candidates, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve, sn.m_iReplicaDist) <= 0)
+         // client may choose to write to different number of replicas between 1 and max
+         if (option.m_iReplicaNum > sn.m_iReplicaNum)
+            option.m_iReplicaNum = sn.m_iReplicaNum;
+         if (mode & SF_MODE::HiRELIABLE)
+            option.m_iReplicaNum = sn.m_iReplicaNum;
+
+         if (m_SlaveManager.chooseIONode(candidates, mode, addr, option, sn.m_iReplicaDist) <= 0)
          {
             reject(ip, port, id, SectorError::E_NODISK);
             m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "open", msg->getData(), "REJECT", "", 8);
@@ -2037,7 +2048,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             break;
          }
 
-         m_SlaveManager.chooseIONode(attr.m_sLocation, hint, mode, addr, m_SysConfig.m_iReplicaNum, reserve, attr.m_iReplicaDist);
+         m_SlaveManager.chooseIONode(attr.m_sLocation, mode, addr, option, attr.m_iReplicaDist);
       }
 
       int transid = m_TransManager.create(TransType::FILE, key, msg->getType(), path, mode);
@@ -2124,10 +2135,14 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          candidates.erase(a);
       }
 
+      // remove the last slave IDs, since they are not reponsive
+      t.m_siSlaveID.clear();
+
+      SF_OPT option;
+      option.m_strHintIP = ip;
+
       vector<SlaveNode> addr;
-      Address hint;
-      hint.m_strIP = ip;      
-      m_SlaveManager.chooseIONode(candidates, hint, t.m_iMode, addr, m_SysConfig.m_iReplicaNum);
+      m_SlaveManager.chooseIONode(candidates, t.m_iMode, addr, option);
       if (addr.empty())
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
@@ -2745,11 +2760,20 @@ int Master::createReplica(const string& src, const string& dst)
          SNode sub_attr;
          if (m_pMetadata->lookup((src + "/.nosplit").c_str(), sub_attr) < 0)
             return -1;
+
+         // do not over replicate
+         if (sub_attr.m_sLocation.size() >= sub_attr.m_iReplicaNum)
+            return -1;
+
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize) < 0)
             return -1;
       }
       else
       {
+         // do not over replicate
+         if (attr.m_sLocation.size() >= attr.m_iReplicaNum)
+            return -1;
+
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize) < 0)
             return -1;
       }

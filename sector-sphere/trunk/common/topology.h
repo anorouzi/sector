@@ -132,8 +132,8 @@ public:
    int deserialize(const char* buf, const int& size);
 
 public:
-   int parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask);
-   int parseTopo(const char* topo, std::vector<int>& tm);
+   static int parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask);
+   static int parseTopo(const char* topo, std::vector<int>& tm);
 
 private:
    unsigned int m_uiLevel;
