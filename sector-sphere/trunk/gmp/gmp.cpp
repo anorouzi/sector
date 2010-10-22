@@ -741,6 +741,8 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
       ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
    }
 
+   delete [] buf;
+
    #ifndef WIN32
       pthread_cond_signal(&self->m_RcvQueueCond);
       pthread_cond_signal(&self->m_ResQueueCond);

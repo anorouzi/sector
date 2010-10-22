@@ -82,8 +82,8 @@ DCClient* ClientMgmt::lookupDC(const int& id)
 int ClientMgmt::insertClient(Client* c)
 {
    CGuard::enterCS(m_CLock);
-   int id = g_ClientMgmt.m_iID ++;
-   g_ClientMgmt.m_mClients[id] = c;
+   int id = m_iID ++;
+   m_mClients[id] = c;
    CGuard::leaveCS(m_CLock);
 
    return id;
@@ -92,11 +92,11 @@ int ClientMgmt::insertClient(Client* c)
 int ClientMgmt::insertFS(FSClient* f)
 {
    CGuard::enterCS(m_CLock);
-   int id = g_ClientMgmt.m_iID ++;
+   int id = m_iID ++;
    CGuard::leaveCS(m_CLock);
 
    CGuard::enterCS(m_FSLock);
-   g_ClientMgmt.m_mSectorFiles[id] = f;
+   m_mSectorFiles[id] = f;
    CGuard::leaveCS(m_FSLock);
 
    return id;
@@ -105,11 +105,11 @@ int ClientMgmt::insertFS(FSClient* f)
 int ClientMgmt::insertDC(DCClient* d)
 {
    CGuard::enterCS(m_CLock);
-   int id = g_ClientMgmt.m_iID ++;
+   int id = m_iID ++;
    CGuard::leaveCS(m_CLock);
 
    CGuard::enterCS(m_DCLock);
-   g_ClientMgmt.m_mSphereProcesses[id] = d;
+   m_mSphereProcesses[id] = d;
    CGuard::leaveCS(m_DCLock);
 
    return id;
@@ -118,7 +118,7 @@ int ClientMgmt::insertDC(DCClient* d)
 int ClientMgmt::removeClient(const int& id)
 {
    CGuard::enterCS(m_CLock);
-   g_ClientMgmt.m_mClients.erase(id);
+   m_mClients.erase(id);
    CGuard::leaveCS(m_CLock);
 
    return 0;
@@ -127,7 +127,7 @@ int ClientMgmt::removeClient(const int& id)
 int ClientMgmt::removeFS(const int& id)
 {
    CGuard::enterCS(m_FSLock);
-   g_ClientMgmt.m_mSectorFiles.erase(id);
+   m_mSectorFiles.erase(id);
    CGuard::leaveCS(m_FSLock);
 
    return 0;
@@ -136,7 +136,7 @@ int ClientMgmt::removeFS(const int& id)
 int ClientMgmt::removeDC(const int& id)
 {
    CGuard::enterCS(m_DCLock);
-   g_ClientMgmt.m_mSphereProcesses.erase(id);
+   m_mSphereProcesses.erase(id);
    CGuard::leaveCS(m_DCLock);
 
    return 0;
@@ -150,7 +150,7 @@ int Sector::init(const string& server, const int& port)
 
    if (r >= 0)
    {
-      m_iID = g_ClientMgmt.insertClient(c);
+      m_iID = Client::g_ClientMgmt.insertClient(c);
    }
    else
    {
@@ -162,7 +162,7 @@ int Sector::init(const string& server, const int& port)
 
 int Sector::login(const string& username, const string& password, const char* cert)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -172,7 +172,7 @@ int Sector::login(const string& username, const string& password, const char* ce
 
 int Sector::logout()
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -182,12 +182,12 @@ int Sector::logout()
 
 int Sector::close()
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
 
-   g_ClientMgmt.removeClient(m_iID);
+   Client::g_ClientMgmt.removeClient(m_iID);
 
    c->close();
    delete c;
@@ -197,7 +197,7 @@ int Sector::close()
 
 int Sector::list(const string& path, vector<SNode>& attr)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -207,7 +207,7 @@ int Sector::list(const string& path, vector<SNode>& attr)
 
 int Sector::stat(const string& path, SNode& attr)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -217,7 +217,7 @@ int Sector::stat(const string& path, SNode& attr)
 
 int Sector::mkdir(const string& path)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -227,7 +227,7 @@ int Sector::mkdir(const string& path)
 
 int Sector::move(const string& oldpath, const string& newpath)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -237,7 +237,7 @@ int Sector::move(const string& oldpath, const string& newpath)
 
 int Sector::remove(const string& path)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -247,7 +247,7 @@ int Sector::remove(const string& path)
 
 int Sector::rmr(const string& path)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -257,7 +257,7 @@ int Sector::rmr(const string& path)
 
 int Sector::copy(const string& src, const string& dst)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -267,7 +267,7 @@ int Sector::copy(const string& src, const string& dst)
 
 int Sector::utime(const string& path, const int64_t& ts)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -277,7 +277,7 @@ int Sector::utime(const string& path, const int64_t& ts)
 
 int Sector::sysinfo(SysStat& sys)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -287,7 +287,7 @@ int Sector::sysinfo(SysStat& sys)
 
 int Sector::shutdown(const int& type, const string& param)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -297,7 +297,7 @@ int Sector::shutdown(const int& type, const string& param)
 
 int Sector::fsck(const string& path)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -307,7 +307,7 @@ int Sector::fsck(const string& path)
 
 int Sector::setMaxCacheSize(const int64_t& ms)
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
@@ -317,7 +317,7 @@ int Sector::setMaxCacheSize(const int64_t& ms)
 
 SectorFile* Sector::createSectorFile()
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return NULL;
@@ -325,14 +325,14 @@ SectorFile* Sector::createSectorFile()
    FSClient* f = c->createFSClient();
    SectorFile* sf = new SectorFile;
 
-   sf->m_iID = g_ClientMgmt.insertFS(f);
+   sf->m_iID = Client::g_ClientMgmt.insertFS(f);
 
    return sf;
 }
 
 SphereProcess* Sector::createSphereProcess()
 {
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return NULL;
@@ -340,7 +340,7 @@ SphereProcess* Sector::createSphereProcess()
    DCClient* d = c->createDCClient();
    SphereProcess* sp = new SphereProcess;
 
-   sp->m_iID = g_ClientMgmt.insertDC(d);
+   sp->m_iID = Client::g_ClientMgmt.insertDC(d);
 
    return sp;
 }
@@ -350,13 +350,13 @@ int Sector::releaseSectorFile(SectorFile* sf)
    if (NULL == sf)
       return 0;
 
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
-   FSClient* f = g_ClientMgmt.lookupFS(sf->m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(sf->m_iID);
 
    if ((NULL == c) || (NULL == f))
       return SectorError::E_INVALID;
 
-   g_ClientMgmt.removeFS(sf->m_iID);
+   Client::g_ClientMgmt.removeFS(sf->m_iID);
    c->releaseFSClient(f);
    delete sf;
    return 0;
@@ -367,13 +367,13 @@ int Sector::releaseSphereProcess(SphereProcess* sp)
    if (NULL == sp)
       return 0;
 
-   Client* c = g_ClientMgmt.lookupClient(m_iID);
-   DCClient* d = g_ClientMgmt.lookupDC(sp->m_iID);
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(sp->m_iID);
 
    if ((NULL == c) || (NULL == d))
       return SectorError::E_INVALID;
 
-   g_ClientMgmt.removeDC(sp->m_iID);
+   Client::g_ClientMgmt.removeDC(sp->m_iID);
    c->releaseDCClient(d);
    delete sp;
    return 0;
@@ -381,7 +381,7 @@ int Sector::releaseSphereProcess(SphereProcess* sp)
 
 int SectorFile::open(const string& filename, int mode, const SF_OPT* option)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -391,7 +391,7 @@ int SectorFile::open(const string& filename, int mode, const SF_OPT* option)
 
 int64_t SectorFile::read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -401,7 +401,7 @@ int64_t SectorFile::read(char* buf, const int64_t& offset, const int64_t& size, 
 
 int64_t SectorFile::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -411,7 +411,7 @@ int64_t SectorFile::write(const char* buf, const int64_t& offset, const int64_t&
 
 int64_t SectorFile::read(char* buf, const int64_t& size)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -421,7 +421,7 @@ int64_t SectorFile::read(char* buf, const int64_t& size)
 
 int64_t SectorFile::write(const char* buf, const int64_t& size)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -431,7 +431,7 @@ int64_t SectorFile::write(const char* buf, const int64_t& size)
 
 int64_t SectorFile::download(const char* localpath, const bool& cont)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -441,7 +441,7 @@ int64_t SectorFile::download(const char* localpath, const bool& cont)
 
 int64_t SectorFile::upload(const char* localpath, const bool& cont)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -451,7 +451,7 @@ int64_t SectorFile::upload(const char* localpath, const bool& cont)
 
 int SectorFile::flush()
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -461,7 +461,7 @@ int SectorFile::flush()
 
 int SectorFile::close()
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -471,7 +471,7 @@ int SectorFile::close()
 
 int64_t SectorFile::seekp(int64_t off, int pos)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -481,7 +481,7 @@ int64_t SectorFile::seekp(int64_t off, int pos)
 
 int64_t SectorFile::seekg(int64_t off, int pos)
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -491,7 +491,7 @@ int64_t SectorFile::seekg(int64_t off, int pos)
 
 int64_t SectorFile::tellp()
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -501,7 +501,7 @@ int64_t SectorFile::tellp()
 
 int64_t SectorFile::tellg()
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return SectorError::E_INVALID;
@@ -511,7 +511,7 @@ int64_t SectorFile::tellg()
 
 bool SectorFile::eof()
 {
-   FSClient* f = g_ClientMgmt.lookupFS(m_iID);
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
 
    if (NULL == f)
       return true;
@@ -521,7 +521,7 @@ bool SectorFile::eof()
 
 int SphereProcess::close()
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -531,7 +531,7 @@ int SphereProcess::close()
 
 int SphereProcess::loadOperator(const char* library)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -541,7 +541,7 @@ int SphereProcess::loadOperator(const char* library)
 
 int SphereProcess::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size, const int& type)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -551,7 +551,7 @@ int SphereProcess::run(const SphereStream& input, SphereStream& output, const st
 
 int SphereProcess::run_mr(const SphereStream& input, SphereStream& output, const string& mr, const int& rows, const char* param, const int& size)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -561,7 +561,7 @@ int SphereProcess::run_mr(const SphereStream& input, SphereStream& output, const
 
 int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wait)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -571,7 +571,7 @@ int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wai
 
 int SphereProcess::checkProgress()
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -581,7 +581,7 @@ int SphereProcess::checkProgress()
 
 int SphereProcess::checkMapProgress()
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -591,7 +591,7 @@ int SphereProcess::checkMapProgress()
 
 int SphereProcess::checkReduceProgress()
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -601,7 +601,7 @@ int SphereProcess::checkReduceProgress()
 
 int SphereProcess::waitForCompletion()
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL == d)
       return SectorError::E_INVALID;
@@ -611,7 +611,7 @@ int SphereProcess::waitForCompletion()
 
 void SphereProcess::setMinUnitSize(int size)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL != d)
       d->setMinUnitSize(size);
@@ -619,7 +619,7 @@ void SphereProcess::setMinUnitSize(int size)
 
 void SphereProcess::setMaxUnitSize(int size)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL != d)
       d->setMaxUnitSize(size);
@@ -627,7 +627,7 @@ void SphereProcess::setMaxUnitSize(int size)
 
 void SphereProcess::setProcNumPerNode(int num)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL != d)
       d->setProcNumPerNode(num);
@@ -635,7 +635,7 @@ void SphereProcess::setProcNumPerNode(int num)
 
 void SphereProcess::setDataMoveAttr(bool move)
 {
-   DCClient* d = g_ClientMgmt.lookupDC(m_iID);
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
 
    if (NULL != d)
       d->setDataMoveAttr(move);

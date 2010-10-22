@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 10/21/2010
 *****************************************************************************/
 
 
@@ -147,7 +147,10 @@ SSLTransport* SSLTransport::accept(char* ip, int& port)
    sockaddr_in addr;
    socklen_t size = sizeof(sockaddr_in);
    if ((t->m_iSocket = ::accept(m_iSocket, (sockaddr*)&addr, &size)) < 0)
+   {
+      delete t;
       return NULL;
+   }
 
    inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
    port = addr.sin_port;
@@ -156,7 +159,10 @@ SSLTransport* SSLTransport::accept(char* ip, int& port)
    SSL_set_fd(t->m_pSSL, t->m_iSocket);
 
    if (SSL_accept(t->m_pSSL) <= 0)
+   {
+      delete t;
       return NULL;
+   }
 
    t->m_bConnected = true;
 
@@ -192,7 +198,11 @@ int SSLTransport::connect(const char* host, const int& port)
    SSL_set_fd(m_pSSL, m_iSocket);
 
    if (SSL_connect(m_pSSL) <= 0)
+   {
+      SSL_free(m_pSSL);
+      m_pSSL = NULL;
       return SectorError::E_SECURITY;
+   }
 
    if (SSL_get_verify_result(m_pSSL) != X509_V_OK)
    {

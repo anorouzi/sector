@@ -32,8 +32,11 @@ written by
 #include "client.h"
 #include <fsclient.h>
 #include <dcclient.h>
+#include <clientmgmt.h>
 
 using namespace std;
+
+ClientMgmt Client::g_ClientMgmt;
 
 Client::Client():
 m_strUsername(""),

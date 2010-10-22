@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/08/2010
+   Yunhong Gu, last updated 10/21/2010
 *****************************************************************************/
 
 #include <slave.h>
@@ -1188,20 +1188,26 @@ int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)
    std::sort(vr.begin(), vr.end(), ltrec());
 
    if (red != NULL)
-      reduce(vr, bucket, red, NULL, 0);
-
-   fstream sorted((bucket + ".sorted").c_str(), ios::out | ios::binary | ios::trunc);
-   fstream sortedidx((bucket + ".sorted.idx").c_str(), ios::out | ios::binary | ios::trunc);
-   offset = 0;
-   sortedidx.write((char*)&offset, 8);
-   for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end(); ++ i)
    {
-      sorted.write(i->m_pcData, i->m_iSize);
-      offset += i->m_iSize;
-      sortedidx.write((char*)&offset, 8);
+      reduce(vr, bucket, red, NULL, 0);
    }
-   sorted.close();
-   sortedidx.close();
+   else
+   {
+      // if reduced, no need to store these intermediate files
+
+      fstream sorted((bucket + ".sorted").c_str(), ios::out | ios::binary | ios::trunc);
+      fstream sortedidx((bucket + ".sorted.idx").c_str(), ios::out | ios::binary | ios::trunc);
+      offset = 0;
+      sortedidx.write((char*)&offset, 8);
+      for (vector<MRRecord>::iterator i = vr.begin(); i != vr.end(); ++ i)
+      {
+         sorted.write(i->m_pcData, i->m_iSize);
+         offset += i->m_iSize;
+         sortedidx.write((char*)&offset, 8);
+      }
+      sorted.close();
+      sortedidx.close();
+   }
 
    delete [] rec;
    delete [] idx;

@@ -32,11 +32,15 @@ written by
    #include <pthread.h>
 #endif
 
+class ClientMgmt;
 class FSClient;
 class DCClient;
 
 class Client
 {
+friend class Sector;
+friend class SectorFile;
+friend class SphereProcess;
 friend class FSClient;
 friend class DCClient;
 
@@ -143,6 +147,9 @@ protected:
    int m_iID;					// seed of id for each file or process
    std::map<int, FSClient*> m_mFSList;		// list of open files
    std::map<int, DCClient*> m_mDCList;		// list of active process
+
+protected:
+   static ClientMgmt g_ClientMgmt;
 };
 
 #endif

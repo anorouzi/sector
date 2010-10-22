@@ -61,6 +61,4 @@ private:
    pthread_mutex_t m_DCLock;
 };
 
-ClientMgmt g_ClientMgmt;
-
 #endif

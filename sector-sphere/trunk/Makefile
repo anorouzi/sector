@@ -3,7 +3,8 @@ TARGETS = clean all install
 
 subdirs:
 	for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir && $(MAKE) -C $$dir install; \
+		$(MAKE) -C $$dir || exit $$?; \
+		$(MAKE) -C $$dir install; \
 	done
 
 clean:
