@@ -106,7 +106,7 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
    msg.setData(8, (char*)&len_name, 4);
    msg.setData(12, m_strFileName.c_str(), len_name);
 
-   // send file opne options
+   // send file open options
    int32_t len_opt = 0;
    string buf = "";
    if (NULL != option)

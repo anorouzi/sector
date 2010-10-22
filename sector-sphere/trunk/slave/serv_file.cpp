@@ -549,12 +549,13 @@ unsigned int WINAPI Slave::copy(void* p)
 
       int32_t mode = SF_MODE::READ;
       msg.setData(0, (char*)&mode, 4);
-      int64_t reserve = 0;
-      msg.setData(4, (char*)&reserve, 8);
       int32_t localport = self->m_DataChn.getPort();
-      msg.setData(12, (char*)&localport, 4);
-      msg.setData(16, "\0", 1);
-      msg.setData(80, src_path.c_str(), src_path.length() + 1);
+      msg.setData(4, (char*)&localport, 4);
+      int32_t len_name = src_path.length() + 1;
+      msg.setData(8, (char*)&len_name, 4);
+      msg.setData(12, src_path.c_str(), len_name);
+      int32_t len_opt = 0;
+      msg.setData(12 + len_name, (char*)&len_opt, 4);
 
       if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
       {

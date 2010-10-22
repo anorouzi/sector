@@ -1411,12 +1411,13 @@ int Slave::readSectorFile(const string& filename, const int64_t& offset, const i
 
    int32_t mode = 1;
    msg.setData(0, (char*)&mode, 4);
-   int64_t reserve = 0;
-   msg.setData(4, (char*)&reserve, 8);
    int32_t port = m_DataChn.getPort();
-   msg.setData(12, (char*)&port, 4);
-   msg.setData(16, "\0", 1);
-   msg.setData(80, filename.c_str(), filename.length() + 1);
+   msg.setData(4, (char*)&port, 4);
+   int32_t len_name = filename.length() + 1;
+   msg.setData(8, (char*)&len_name, 4);
+   msg.setData(12, filename.c_str(), len_name);
+   int32_t len_opt = 0;
+   msg.setData(12 + len_name, (char*)&len_opt, 4);
 
    Address addr;
    m_Routing.lookup(filename, addr);
