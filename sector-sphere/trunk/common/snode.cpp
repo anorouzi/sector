@@ -173,7 +173,7 @@ int SNode::deserialize(const char* buf)
    }
    stop = true;
 
-   // restore timestamp
+   // restore replication number
    tmp = tmp + strlen(tmp) + 1;
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {
@@ -193,7 +193,7 @@ int SNode::deserialize(const char* buf)
    }
    stop = true;
 
-   // restore timestamp
+   // restore replication distance
    tmp = tmp + strlen(tmp) + 1;
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/05/2010
+   Yunhong Gu, last updated 10/25/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -384,17 +384,6 @@ int Client::stat(const string& path, SNode& attr)
       return *(int32_t*)(msg.getData());
 
    attr.deserialize(msg.getData());
-
-   int n = (msg.m_iDataLength - SectorMsg::m_iHdrSize - 128) / 68;
-   char* al = msg.getData() + 128;
-
-   for (int i = 0; i < n; ++ i)
-   {
-      Address addr;
-      addr.m_strIP = al + 68 * i;
-      addr.m_iPort = *(int32_t*)(al + 68 * i + 64);
-      attr.m_sLocation.insert(addr);
-   }
 
    // check local cache: updated files may not be sent to the master yet
    m_Cache.stat(path, attr);
