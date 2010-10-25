@@ -282,7 +282,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
 int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
 {
    vector< set<int> > avail;
-   avail.resize(m_Topology.m_uiLevel + 1);
+   avail.resize(m_Topology.m_uiLevel + 2);
 
    // find the topology of current replicas
    vector< vector<int> > locpath;
@@ -293,8 +293,6 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          continue;
       locpath.push_back(p->second.m_viPath);
    }
-
-   int level = 65536;
 
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
@@ -311,24 +309,21 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          continue;
 
       // calculate the distance from this slave node to the current replicas
-      level = 65536;
-      for (vector< vector<int> >::iterator j = locpath.begin(); j != locpath.end(); ++ j)
-      {
-         int tmpl = m_Topology.match(i->second.m_viPath, *j);
-         if (tmpl < level)
-            level = tmpl;
-      }
+      int level = m_Topology.max_distance(i->second.m_viPath, locpath);
 
       // if users define a replication distance, then only nodes within rep_dist can be chosen
       if ((rep_dist >= 0) && (level > rep_dist))
          continue;
 
+      // level <= m_Topology.m_uiLevel + 1
       if (level >= 0)
          avail[level].insert(i->first);
    }
 
    set<int> candidate;
-   for (unsigned int i = 0; i <= m_Topology.m_uiLevel; ++ i)
+   
+   // choose furthest node within replica distance
+   for (unsigned int i = m_Topology.m_uiLevel + 1; i >= 0; -- i)
    {
       if (!avail[i].empty())
       {

@@ -36,7 +36,7 @@ m_iPriority(1)
 
 void SF_OPT::serialize(string& buf) const
 {
-   stringstream ss(stringstream::in);
+   stringstream ss(stringstream::out);
 
    if (m_strHintIP.c_str()[0] == '\0')
       ss << "NULL ";
@@ -57,7 +57,7 @@ void SF_OPT::serialize(string& buf) const
 
 void SF_OPT::deserialize(const string& buf)
 {
-   stringstream ss(buf, stringstream::out);
+   stringstream ss(buf, stringstream::in);
    ss >> m_strHintIP
       >> m_strCluster
       >> m_llReservedSize

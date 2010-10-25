@@ -98,6 +98,8 @@ private:
       int64_t m_StartTime;			// SPE start time
       int64_t m_LastUpdateTime;			// SPE last update time
       int m_iSession;				// SPE session ID for data channel
+
+      std::map<int, std::list<int> > m_mDSQueue;	// job queue
    };
    std::map<int, SPE> m_mSPE;
 
@@ -145,9 +147,11 @@ private: // inputs and outputs
    int prepareInput();
    int prepareSPE(const char* spenodes);
    int segmentData();
+   int prepareSPEJobQueue();
    int prepareOutput(const char* spenodes);
    int postProcessOutput();
 
+private: // running and schedulling
 #ifndef WIN32
    static void* run(void*);
 #else

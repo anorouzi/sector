@@ -335,6 +335,10 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    if (result <= 0)
       return result;
 
+   result = prepareSPEJobQueue();
+   if (result < 0)
+      return result;
+
    if (m_iOutputType == -1)
       m_pOutput->init(m_mpDS.size());
 
@@ -565,74 +569,40 @@ int DCClient::checkSPE()
       // if the SPE is not running
       if (2 != s->second.m_iStatus)
       {
-         Address sn;
-         sn.m_strIP = s->second.m_strIP;
-         sn.m_iPort = s->second.m_iPort;
-
-         // find a new DS and start it
+         // find a new DS in the job queue and start it
          CGuard::enterCS(m_DSLock);
 
-         // start from random node
-         map<int, DS*>::iterator dss = m_mpDS.end();
-         int rs = 0;
-         if (!m_mpDS.empty())
-            rs = int(m_mpDS.size() * (double(rand()) / RAND_MAX)) % m_mpDS.size();
-         map<int, DS*>::iterator d = m_mpDS.begin();
-         for (int i = 0; i < rs; ++ i)
-            ++ d;
-
-         unsigned int MinDist = 1000000000;
-         unsigned int MinLoc = 1000000000;
-
-         for (int i = 0, n = m_mpDS.size(); i < n; ++ i)
+         for (map<int, list<int> >::iterator dist = s->second.m_mDSQueue.begin(); dist != s->second.m_mDSQueue.end(); ++ dist)
          {
-            if (++ d == m_mpDS.end())
-               d = m_mpDS.begin();
-
-            if (0 != d->second->m_iStatus)
-               continue;
-
-            if (!m_bDataMove)
+            for (list<int>::iterator dsid = dist->second.begin(); dsid != dist->second.end();)
             {
-               // if a file is processed via pass by filename, it must be processed on its original location
-               // also, this depends on if the source data is allowed to move
-               if (d->second->m_pLoc->find(sn) != d->second->m_pLoc->end())
+               map<int, DS*>::iterator ds = m_mpDS.find(*dsid);
+               if (ds == m_mpDS.end())
                {
-                  dss = d;
+                  // DS already processed, remove from job queue
+                  list<int>::iterator tmp = dsid;
+                  ++ dsid;
+                  dist->second.erase(tmp);
+               }
+               else if (ds->second->m_iStatus == 0)
+               {
+                  //TODO: for same distance, process DS with less copies first
+                  //TODO: process DS with slower progress first
+
+                  // found nearest DS to process
+                  startSPE(s->second, ds->second);
+                  ds_found = true;
                   break;
                }
                else
-                  continue;
-            }
-
-            unsigned int dist = m_pClient->m_Topology.distance(sn, *(d->second->m_pLoc));
-
-            if (dist < MinDist)
-            {
-               // find nearest data segment
-               dss = d;
-               MinDist = dist;
-               MinLoc = d->second->m_pLoc->size();
-            }
-            else if (dist == MinDist)
-            {
-               if (d->second->m_pLoc->size() < MinLoc)
                {
-                  // for same distance, process DS with less copies first
-                  dss = d;
-                  MinLoc = d->second->m_pLoc->size();
-               }
-               else if (d->second->m_pLoc->size() == MinLoc)
-               {
-                  // process data file with the slower progress first
+                  // this DS is either being processed or has been completed
+                  ++ dsid;
                }
             }
-         }
 
-         if (dss != m_mpDS.end())
-         {
-            startSPE(s->second, dss->second);
-            ds_found = true;
+            if (ds_found)
+               break;
          }
 
          CGuard::leaveCS(m_DSLock);
@@ -1484,6 +1454,49 @@ int DCClient::readResult(SPE* s)
    ++ m_iAvailRes;
    SetEvent(m_ResCond);
 #endif
+
+   return 0;
+}
+
+int DCClient::prepareSPEJobQueue()
+{
+   for (map<int, SPE>::iterator s = m_mSPE.begin(); s != m_mSPE.end(); ++ s)
+   {
+      Address sn;
+      sn.m_strIP = s->second.m_strIP;
+      sn.m_iPort = s->second.m_iPort;
+
+      // scan all DSs and put them into each SPE's job queue
+      CGuard::enterCS(m_DSLock);
+
+      // start from random node
+      map<int, DS*>::iterator dss = m_mpDS.end();
+      int rs = 0;
+      if (!m_mpDS.empty())
+         rs = int(m_mpDS.size() * (double(rand()) / RAND_MAX)) % m_mpDS.size();
+      map<int, DS*>::iterator d = m_mpDS.begin();
+      for (int i = 0; i < rs; ++ i)
+         ++ d;
+
+      for (int i = 0, n = m_mpDS.size(); i < n; ++ i)
+      {
+         if (++ d == m_mpDS.end())
+            d = m_mpDS.begin();
+
+         unsigned int dist = m_pClient->m_Topology.min_distance(sn, *(d->second->m_pLoc));
+
+         if ((!m_bDataMove) && (0 != dist))
+         {
+            // if a file is processed via pass by filename, it must be processed on its original location
+            // also, this depends on if the source data is allowed to move
+            continue;
+         }
+
+         s->second.m_mDSQueue[dist].push_back(d->first);
+      }
+
+      CGuard::leaveCS(m_DSLock);
+   }
 
    return 0;
 }

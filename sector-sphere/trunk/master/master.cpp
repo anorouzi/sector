@@ -1821,10 +1821,18 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
-      if ((m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0) && (src != dst))
+
+      if (src == dst)
+      {
+         // sector_cp can be used to create replicas of a file/dir, if src == dst
+         m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), src + "\t" + dst);
+         m_GMP.sendto(ip, port, id, msg);
+         break;
+      }
+
+      if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
       {
          // destination file cannot exist, no overwite
-         // however, if src == dst, a new replica for src will be created.
 
          reject(ip, port, id, SectorError::E_EXIST);
          break;
@@ -2762,19 +2770,19 @@ int Master::createReplica(const string& src, const string& dst)
             return -1;
 
          // do not over replicate
-         if (sub_attr.m_sLocation.size() >= sub_attr.m_iReplicaNum)
+         if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
             return -1;
 
-         if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize) < 0)
+         if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist) < 0)
             return -1;
       }
       else
       {
          // do not over replicate
-         if (attr.m_sLocation.size() >= attr.m_iReplicaNum)
+         if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
             return -1;
 
-         if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize) < 0)
+         if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist) < 0)
             return -1;
       }
    }

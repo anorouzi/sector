@@ -114,7 +114,7 @@ public:
    int init(const char* topoconf);
    int lookup(const char* ip, std::vector<int>& path);
 
-   unsigned int match(std::vector<int>& p1, std::vector<int>& p2);
+   unsigned int match(const std::vector<int>& p1, const std::vector<int>& p2);
 
       // Functionality:
       //    compute the distance between two IP addresses.
@@ -125,7 +125,8 @@ public:
       //    0 if ip1 = ip2, 1 if on the same rack, etc.
 
    unsigned int distance(const char* ip1, const char* ip2);
-   unsigned int distance(const Address& addr, const std::set<Address, AddrComp>& loclist);
+   unsigned int min_distance(const Address& addr, const std::set<Address, AddrComp>& loclist);
+   unsigned int max_distance(const std::vector<int>& path, const std::vector< std::vector<int> >& path_list);
 
    int getTopoDataSize();
    int serialize(char* buf, int& size);

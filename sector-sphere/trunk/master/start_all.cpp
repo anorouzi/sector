@@ -43,8 +43,10 @@ int main(int argc, char** argv)
    }
 
    string cmd = string("nohup " + sector_home + "/master/start_master > /dev/null &");
-   system(cmd.c_str());
+   int result = system(cmd.c_str());
    cout << "start master ...\n";
+
+   cout << "result: = " << result << endl;
 
 
    CmdLineParser clp;

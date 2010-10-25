@@ -203,7 +203,7 @@ int Topology::lookup(const char* ip, vector<int>& path)
    return -1;
 }
 
-unsigned int Topology::match(vector<int>& p1, vector<int>& p2)
+unsigned int Topology::match(const vector<int>& p1, const vector<int>& p2)
 {
    unsigned int level;
    if (p1.size() < p2.size())
@@ -231,7 +231,7 @@ unsigned int Topology::distance(const char* ip1, const char* ip2)
    return m_uiLevel - match(p1, p2) + 1;
 }
 
-unsigned int Topology::distance(const Address& addr, const set<Address, AddrComp>& loclist)
+unsigned int Topology::min_distance(const Address& addr, const set<Address, AddrComp>& loclist)
 {
    if (loclist.find(addr) != loclist.end())
       return 0;
@@ -244,6 +244,22 @@ unsigned int Topology::distance(const Address& addr, const set<Address, AddrComp
          dist = d;
    }
    return dist;
+}
+
+unsigned int Topology::max_distance(const vector<int>& path, const vector< vector<int> >& path_list)
+{
+   if (path_list.empty())
+      return m_uiLevel + 1;
+
+   unsigned int md = 0;
+   for (vector< vector<int> >::const_iterator p = path_list.begin(); p != path_list.end(); ++ p)
+   {
+      unsigned int dist = m_uiLevel - match(path, *p) + 1;
+      if (dist > md)
+         md = dist;
+   }
+
+   return md;
 }
 
 int Topology::getTopoDataSize()
