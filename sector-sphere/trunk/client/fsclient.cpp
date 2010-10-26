@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/12/2010
+   Yunhong Gu, last updated 10/25/2010
 *****************************************************************************/
 
 
@@ -538,14 +538,17 @@ int64_t FSClient::upload(const char* localpath, const bool& /*cont*/)
    int64_t size = ifs.tellg();
    ifs.seekg(0);
 
-   // upload command: 4
-   int32_t cmd = 4;
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&size, 8);
+   for (vector<Address>::reverse_iterator i = m_vReplicaAddress.rbegin(); i != m_vReplicaAddress.rend(); ++ i)
+   {
+      // upload command: 4
+      int32_t cmd = 4;
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4);
+      m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&size, 8);
 
-   int response = -1;
-   if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
-      return SectorError::E_CONNECTION;
+      int response = -1;
+      if ((m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, response) < 0) || (-1 == response))
+         return SectorError::E_CONNECTION;
+   }
 
    int64_t unit = 64000000; //send 64MB each time
    int64_t tosend = size;

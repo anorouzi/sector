@@ -61,6 +61,8 @@ unsigned int WINAPI Slave::fileHandler(void* p)
 
    int change = FileChangeType::FILE_UPDATE_NO;
 
+   int last_timestamp = 0;
+
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
@@ -342,8 +344,8 @@ unsigned int WINAPI Slave::fileHandler(void* p)
          char* buf = NULL;
          if (self->m_DataChn.recv(client_ip, client_port, transid, buf, size) < 0)
             break;
-         int32_t ts = 0;
-         if (self->m_DataChn.recv4(client_ip, client_port, transid, ts) < 0)
+         last_timestamp = 0;
+         if (self->m_DataChn.recv4(client_ip, client_port, transid, last_timestamp) < 0)
             break;
 
          WriteLog log;
@@ -360,8 +362,8 @@ unsigned int WINAPI Slave::fileHandler(void* p)
          {
             //synchronize timestamp
             utimbuf ut;
-            ut.actime = ts;
-            ut.modtime = ts;
+            ut.actime = last_timestamp;
+            ut.modtime = last_timestamp;
             utime(filename.c_str(), &ut);
          }
 
@@ -419,6 +421,15 @@ unsigned int WINAPI Slave::fileHandler(void* p)
 
    // close local file
    fhandle.close();
+
+   // update final timestamp
+   if (last_timestamp > 0)
+   {
+      utimbuf ut;
+      ut.actime = last_timestamp;
+      ut.modtime = last_timestamp;
+      utime(filename.c_str(), &ut);
+   }
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
