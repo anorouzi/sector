@@ -1,32 +1,6 @@
-Index: gmp/Makefile
-===================================================================
---- gmp/Makefile	(revision 496)
-+++ gmp/Makefile	(working copy)
-@@ -10,7 +10,7 @@
- 	$(C++) -fPIC $(CCFLAGS) $< -c
- 
- librpc.so: $(OBJS)
--	$(C++) -shared -o $@ $^
-+	$(C++) -shared -o $@ $^ $(LDFLAGS)
- 
- librpc.a: $(OBJS)
- 	ar -rcs $@ $^
-Index: common/Makefile
-===================================================================
---- common/Makefile	(revision 496)
-+++ common/Makefile	(working copy)
-@@ -27,7 +27,7 @@
- 	$(C++) -fPIC $(CCFLAGS) $< -c
- 
- libcommon.so: $(OBJS)
--	$(C++) -shared -o $@ $^
-+	$(C++) -shared -o $@ $^ $(LDFLAGS)
- 
- libcommon.a: $(OBJS)
- 	ar -rcs $@ $^
 Index: master/Makefile
 ===================================================================
---- master/Makefile	(revision 496)
+--- master/Makefile	(revision 558)
 +++ master/Makefile	(working copy)
 @@ -16,7 +16,7 @@
  	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -37,35 +11,9 @@ Index: master/Makefile
  
  libmaster.a: $(OBJS)
  	ar -rcs $@ $^
-Index: udt/Makefile
-===================================================================
---- udt/Makefile	(revision 496)
-+++ udt/Makefile	(working copy)
-@@ -11,7 +11,7 @@
- 	$(C++) -fPIC $(CCFLAGS) $< -c
- 
- libudt.so: $(OBJS)
--	$(C++) -shared -o $@ $^
-+	$(C++) -shared -o $@ $^ $(LDFLAGS)
- 
- libudt.a: $(OBJS)
- 	ar -rcs $@ $^
-Index: Makefile.common
-===================================================================
---- Makefile.common	(revision 496)
-+++ Makefile.common	(working copy)
-@@ -4,7 +4,7 @@
- STATIC = 0
- 
- CCFLAGS = -I. -I../include -I../udt
--LDFLAGS = -lstdc++ -lpthread -lssl -L.
-+LDFLAGS = -lstdc++ -lpthread -lssl -L. -Wl,--build-id
- 
- ifeq ($(DEBUG), 1)
-    CCFLAGS += -Wall -g -DDEBUG
 Index: security/Makefile
 ===================================================================
---- security/Makefile	(revision 496)
+--- security/Makefile	(revision 558)
 +++ security/Makefile	(working copy)
 @@ -16,7 +16,7 @@
  	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -76,18 +24,9 @@ Index: security/Makefile
  
  libsecurity.a: $(OBJS)
  	ar -rcs $@ $^
-@@ -25,7 +25,7 @@
- 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
- 
- ssl_cert_gen: ssl_cert_gen.cpp
--	$(C++) $^ -o $@ -lssl -lstdc++
-+	$(C++) $^ -o $@ -lssl -lstdc++ $(LDFLAGS)
- 
- clean:
- 	rm -f *.o *.so *.a sserver ssl_cert_gen
 Index: slave/sphere/Makefile
 ===================================================================
---- slave/sphere/Makefile	(revision 496)
+--- slave/sphere/Makefile	(revision 558)
 +++ slave/sphere/Makefile	(working copy)
 @@ -4,7 +4,7 @@
  all: streamhash.so
@@ -100,9 +39,9 @@ Index: slave/sphere/Makefile
  	rm -f *.so
 Index: slave/Makefile
 ===================================================================
---- slave/Makefile	(revision 496)
+--- slave/Makefile	(revision 558)
 +++ slave/Makefile	(working copy)
-@@ -16,7 +16,7 @@
+@@ -18,7 +18,7 @@
  	$(C++) -fPIC $(CCFLAGS) $< -c
  
  libslave.so: $(OBJS)
@@ -113,7 +52,7 @@ Index: slave/Makefile
  	ar -rcs $@ $^
 Index: examples/funcs/Makefile
 ===================================================================
---- examples/funcs/Makefile	(revision 496)
+--- examples/funcs/Makefile	(revision 558)
 +++ examples/funcs/Makefile	(working copy)
 @@ -1,6 +1,6 @@
  C++ = g++
@@ -123,16 +62,3 @@ Index: examples/funcs/Makefile
  
  all: randwriter.so sort.so sorthash.so wordbucket.so gen_idx.so mr_sort.so mr_word.so
  
-Index: client/Makefile
-===================================================================
---- client/Makefile	(revision 496)
-+++ client/Makefile	(working copy)
-@@ -10,7 +10,7 @@
- 	$(C++) -fPIC $(CCFLAGS) $< -c
- 
- libclient.so: $(OBJS)
--	$(C++) -shared -o $@ $^
-+	$(C++) -shared -o $@ $^ $(LDFLAGS)
- 
- libclient.a: $(OBJS)
- 	ar -rcs $@ $^

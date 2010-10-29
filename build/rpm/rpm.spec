@@ -154,6 +154,22 @@ install -m 0644 Makefile.common $RPM_BUILD_ROOT/opt/sector
 /opt/sector/README.txt
 /opt/sector/release_note.txt
 
+%post -n sector_sphere 
+ln -s /opt/sector/sector_cp /usr/local/bin/sector_cp
+ln -s /opt/sector/sector_download /usr/local/bin/sector_download
+ln -s /opt/sector/sector_ls /usr/local/bin/sector_ls
+ln -s /opt/sector/sector_mkdir /usr/local/bin/sector_mkdir
+ln -s /opt/sector/sector_mv /usr/local/bin/sector_mv
+ln -s /opt/sector/sector_pipe /usr/local/bin/sector_pipe
+ln -s /opt/sector/sector_rm /usr/local/bin/sector_rm
+ln -s /opt/sector/sector_stat /usr/local/bin/sector_stat
+ln -s /opt/sector/sector_sysinfo /usr/local/bin/sector_sysinfo
+ln -s /opt/sector/sector_upload /usr/local/bin/sector_upload
+ln -s /opt/sector/sector_shutdown /usr/local/bin/sector_shutdown
+ln -s /opt/sector/sector_fuse /usr/local/bin/sector_fuse
+ln -s /opt/sector/sphere_stream /usr/local/bin/sphere_stream
+ln -s /opt/sector/sector_ssl_cert_gen /usr/local/sbin/sector_ssl_cert_gen
+
 %files -n sector_sphere-devel
 %libs_dir/libclient.a
 %libs_dir/libcommon.a
