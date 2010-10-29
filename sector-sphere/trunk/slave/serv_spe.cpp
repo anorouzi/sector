@@ -305,7 +305,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
             delete [] index;
             delete [] block;
 
-            progress = -1;
+            progress = SectorError::E_SPEREAD;
             msg.setData(4, (char*)&progress, 4);
             msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
             int id = 0;
@@ -364,7 +364,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
          processstatus = self->processData(input, output, file, result, buckets, process, map, partition);
          if (processstatus < 0)
          {
-            progress = -1;
+            progress = SectorError::E_SPEPROC;
             break;
          }
 
@@ -377,7 +377,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
 
          if (deliverystatus < 0)
          {
-            progress = -1;
+            progress = SectorError::E_SPEWRITE;
             break;
          }
 
@@ -416,7 +416,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
             processstatus = self->processData(input, output, file, result, buckets, process, map, partition);
             if (processstatus < 0)
             {
-               progress = -1;
+               progress = SectorError::E_SPEPROC;
                break;
             }
 
@@ -429,7 +429,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
 
             if (deliverystatus < 0)
             {
-               progress = -1;
+               progress = SectorError::E_SPEWRITE;
                break;
             }
 
@@ -449,7 +449,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
          deliverystatus = self->deliverResult(buckets, result, dest);
 
       if (deliverystatus < 0)
-         progress = -1;
+         progress = SectorError::E_SPEWRITE;
       else
          progress = 100;
 
@@ -529,8 +529,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
    else
    {
       // this SPE failed to initialize. send the error to the client
-      // send error code -2 
-      int progress = -2;
+      int progress = SectorError::E_SPEUDF;
       msg.setData(4, (char*)&progress, 4);
       msg.m_iDataLength = SectorMsg::m_iHdrSize + 8;
       int id = 0;

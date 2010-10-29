@@ -174,6 +174,9 @@ int SSLTransport::connect(const char* host, const int& port)
    if (m_bConnected)
       return 0;
 
+   if (NULL == m_pCTX)
+      return -1;
+
    sockaddr_in addr;
    addr.sin_family = AF_INET;
    addr.sin_port = htons(port);

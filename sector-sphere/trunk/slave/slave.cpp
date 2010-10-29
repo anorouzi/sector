@@ -149,9 +149,9 @@ int Slave::connect()
       masters.erase(masters.begin());
 
       SSLTransport secconn;
-      secconn.initClientCTX(cert.c_str());
-      secconn.open(NULL, 0);
-      if (secconn.connect(mip.c_str(), mport) < 0)
+      if ((secconn.initClientCTX(cert.c_str()) < 0) ||
+         (secconn.open(NULL, 0) < 0) ||
+         (secconn.connect(mip.c_str(), mport) < 0))
       {
          cerr << "unable to set up secure channel to the master.\n";
          return -1;

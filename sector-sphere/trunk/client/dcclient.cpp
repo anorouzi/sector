@@ -424,7 +424,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
       int tmp;
       SectorMsg msg;
       if (self->m_pClient->m_GMP.recvfrom(ip, port, tmp, &msg, false) < 0)
-         continue;
+        continue;
 
       //TODO: due to one GMP limitation, one client can only execute one sphere process at each time
       //can be solved with individual GMP, or enhance GMP with session
@@ -443,7 +443,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
 
       if (progress < 0)
       {
-         cerr << "SPE PROCESSING ERROR " << ip << " " << port << endl;
+         cerr << "SPE PROCESSING ERROR " << ip << " " << port << " CODE: " << progress << endl;
 
          //error, quit this segment on the SPE
          s->second.m_pDS->m_iStatus = -1;
@@ -470,7 +470,7 @@ DWORD WINAPI DCClient::run(LPVOID param)
          SetEvent(self->m_ResCond);
 #endif
 
-         if (progress == -2)
+         if (progress == SectorError::E_SPEUDF)
          {
             // error occured to this SPE
             s->second.m_iStatus = -1;
@@ -514,7 +514,6 @@ DWORD WINAPI DCClient::run(LPVOID param)
       self->m_pClient->m_GMP.sendto(i->second.m_strIP.c_str(), i->second.m_iShufflerPort, id, &msg);
    }
 
-   //TODO: need to detect lost slaves
    while (self->checkBucket() > 0)
    {
       string ip;
@@ -566,7 +565,50 @@ int DCClient::checkSPE()
       if (-1 == s->second.m_iStatus)
          continue;
 
-      // if the SPE is not running
+      // check if the SPE is still alive
+      if ((s->second.m_iStatus > 0) && (!m_pClient->m_DataChn.isConnected(s->second.m_strIP, s->second.m_iDataPort)))
+      {
+         cerr << "SPE lost " << s->second.m_strIP << " " << s->second.m_iPort << endl;
+
+         if (!m_mBucket.empty())
+         {
+            cerr << "cannot recover the hashing bucket due to the lost SPE. Process failed." << endl;
+            m_bBucketHealth = false;
+            return 0;
+         }
+
+         // dismiss this SPE and release its job
+         s->second.m_iStatus = -1;
+         m_iTotalSPE --;
+
+         CGuard::enterCS(m_DSLock);
+
+         if (++ s->second.m_pDS->m_iRetryNum > 3)
+         {
+            //if the DS still fails after several retries, it means there is a bug in processing the specific data.
+            s->second.m_pDS->m_iStatus = -1;
+
+            ++ m_iProgress;
+
+#ifndef WIN32
+            pthread_mutex_lock(&m_ResLock);
+            ++ m_iAvailRes;
+            pthread_cond_signal(&m_ResCond);
+            pthread_mutex_unlock(&m_ResLock);
+#else
+            ++ m_iAvailRes;
+            SetEvent(m_ResCond);
+#endif
+         }
+         else
+            s->second.m_pDS->m_iStatus = 0;
+
+         s->second.m_pDS->m_iSPEID = -1;
+
+         CGuard::leaveCS(m_DSLock);
+      }
+
+      // if the SPE is not running, 0 = init but not conncted, 1 = idle, 2 = processing
       if (2 != s->second.m_iStatus)
       {
          // find a new DS in the job queue and start it
@@ -609,53 +651,8 @@ int DCClient::checkSPE()
       }
       else 
       {
-         if (m_pClient->m_DataChn.isConnected(s->second.m_strIP, s->second.m_iDataPort))
-         {
-            spe_busy = true;
-
-            m_dRunningProgress += s->second.m_iProgress / 100.0;
-         }
-         else
-         {
-            cerr << "SPE lost " << s->second.m_strIP << endl;
-
-            if (!m_mBucket.empty())
-            {
-               cerr << "cannot recover the hashing bucket due to the lost SPE. Process failed." << endl;
-               m_bBucketHealth = false;
-               return 0;
-            }
-
-            // dismiss this SPE and release its job
-            s->second.m_iStatus = -1;
-            m_iTotalSPE --;
-
-            CGuard::enterCS(m_DSLock);
-
-            if (++ s->second.m_pDS->m_iRetryNum > 3)
-            {
-               //if the DS still fails after several retries, it means there is a bug in processing the specific data.
-               s->second.m_pDS->m_iStatus = -1;
-
-               ++ m_iProgress;
-
-#ifndef WIN32
-               pthread_mutex_lock(&m_ResLock);
-               ++ m_iAvailRes;
-               pthread_cond_signal(&m_ResCond);
-               pthread_mutex_unlock(&m_ResLock);
-#else
-               ++ m_iAvailRes;
-               SetEvent(m_ResCond);
-#endif
-            }
-            else
-               s->second.m_pDS->m_iStatus = 0;
-
-            s->second.m_pDS->m_iSPEID = -1;
-
-            CGuard::leaveCS(m_DSLock);
-         }
+         spe_busy = true;
+         m_dRunningProgress += s->second.m_iProgress / 100.0;
       }
    }
 
@@ -674,6 +671,15 @@ int DCClient::checkBucket()
    int count = 0;
    for (map<int, BUCKET>::iterator b = m_mBucket.begin(); b != m_mBucket.end(); ++ b)
    {
+      if (!m_pClient->m_DataChn.isConnected(b->second.m_strIP, b->second.m_iDataPort))
+      {
+         m_bBucketHealth = false;
+
+         //since this bucket has been lost, we fill its progress and the client can continue to collect results from others
+         //the m_bBucketHealth flag can be used to indicate such failure
+         b->second.m_iProgress = 100;
+      }
+
       if (b->second.m_iProgress == 100)
          count ++;
    }
@@ -1272,14 +1278,16 @@ int DCClient::prepareOutput(const char* spenodes)
          b.m_iSession = *(int32_t*)(msg.getData() + 4);
          b.m_iProgress = 0;
          b.m_LastUpdateTime = CTimer::getTime();
-         m_mBucket[b.m_iID] = b;
 
          // set up data connection, not for data transfter, but for keep-alive
-         m_pClient->m_DataChn.connect(b.m_strIP, b.m_iDataPort);
+         if (m_pClient->m_DataChn.connect(b.m_strIP, b.m_iDataPort) < 0)
+            continue;
 
          // upload library files for MapReduce processing
          if (m_iProcType == 1)
             loadOperator(b.m_strIP, b.m_iPort, b.m_iDataPort, b.m_iSession);
+
+         m_mBucket[b.m_iID] = b;
       }
 
       if (m_mBucket.empty())

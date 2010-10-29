@@ -33,7 +33,7 @@ written by
 #include <fsclient.h>
 #include <dcclient.h>
 #include <clientmgmt.h>
-
+#include <iostream>
 using namespace std;
 
 ClientMgmt Client::g_ClientMgmt;
@@ -150,7 +150,10 @@ int Client::login(const string& username, const string& password, const char* ce
    secconn.send(buf, 128);
 
    secconn.send((char*)&m_iKey, 4);
+
+   m_iKey = -1;
    secconn.recv((char*)&m_iKey, 4);
+
    if (m_iKey < 0)
       return SectorError::E_SECURITY;
 

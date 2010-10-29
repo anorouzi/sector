@@ -376,6 +376,10 @@ public: // internal error
    static const int E_ROUTING = -101;           // incorrect master node to handle the request
    static const int E_REPSLAVE = -102;          // slave is already in the system; conflict
    static const int E_INVPARAM = -103;		// invalid parameters
+   static const int E_SPEREAD = -104;		// SPE cannot read input data for processing
+   static const int E_SPEWRITE = -105;		// SPE failed to deliver results
+   static const int E_SPEUDF = -106;		// SPE cannot locate and/or open UDF libraries
+   static const int E_SPEPROC = - 107;		// UDF processing error
 
 public:
    static int init();

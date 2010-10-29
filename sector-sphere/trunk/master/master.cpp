@@ -597,6 +597,7 @@ int Master::stop()
       if (secconn.send((char*)&cmd, 4) < 0)
       {
          //if the permanent connection to the security server is broken, re-connect
+         secconn.close();
          secconn.open(NULL, 0);
          if (secconn.connect(self->m_SysConfig.m_strSecServIP.c_str(), self->m_SysConfig.m_iSecServPort) < 0)
          {
@@ -794,7 +795,7 @@ int Master::processUserJoin(SSLTransport& cliconn,
    strcpy(clientIP, ip.c_str());
    secconn.send(clientIP, 64);
 
-   int32_t key = 0;
+   int32_t key = -1;
    secconn.recv((char*)&key, 4);
 
    if ((key > 0) && (ukey > 0))

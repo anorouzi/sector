@@ -222,16 +222,11 @@ int main(int argc, char** /*argv*/)
    }
 
    Sector client;
-
-   int result = Utility::login(client);
-   if (result < 0)
-   {
-      Utility::print_error(result);
+   if (Utility::login(client) < 0)
       return -1;
-   }
 
    SysStat sys;
-   result = client.sysinfo(sys);
+   int result = client.sysinfo(sys);
    if (result >= 0)
       print(sys);
    else

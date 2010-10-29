@@ -64,14 +64,14 @@ public:
 class SSource
 {
 public:
-   virtual ~SSource() {}
+   virtual ~SSource();
 
 public:
-   virtual int loadACL(std::vector<IPRange>& acl, const void* src) = 0;
-   virtual int loadUsers(std::map<std::string, User>& users, const void* src) = 0;
+   virtual int init(const void* param = NULL) = 0;
 
-public:
-   //virtual int passwd(const std::string& user, const std::string& password);
+   virtual bool matchMasterACL(const char* ip) = 0;
+   virtual bool matchSlaveACL(const char* ip) = 0;
+   virtual int retrieveUser(const char* name, const char* password, const char* ip, User& user) = 0;
 };
 
 class SServer
@@ -83,11 +83,7 @@ public:
 public:
    int init(const int& port, const char* cert, const char* key);
    void close();
-
-   int loadMasterACL(SSource* src, const void* param);
-   int loadSlaveACL(SSource* src, const void* param);
-   int loadShadowFile(SSource* src, const void* param);
-
+   int setSecuritySource(SSource* src);
    void run();
 
 private:
@@ -113,13 +109,7 @@ private:
    SSLTransport m_SSL;
 
 private:
-   std::vector<IPRange> m_vMasterACL;
-   std::vector<IPRange> m_vSlaveACL;
-   std::map<std::string, User> m_mUsers;
-
-private:
-   static bool match(const std::vector<IPRange>& acl, const char* ip);
-   static const User* match(const std::map<std::string, User>& users, const char* name, const char* password, const char* ip);
+   SSource* m_pSecuritySource;
 };
 
 #endif

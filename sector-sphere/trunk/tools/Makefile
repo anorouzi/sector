@@ -6,59 +6,15 @@ else
    LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-EXE = sector_download \
-      sector_upload \
-      sector_ls \
-      sector_rm \
-      sector_mkdir \
-      sector_stat \
-      sector_sysinfo \
-      sector_mv \
-      sector_cp \
-      sector_pipe \
-      sector_shutdown \
-      sector_check_replica \
-      sphere_stream 
+EXE = $(addprefix sector_, download upload ls rm mkdir stat sysinfo mv cp pipe shutdown check_replica) \
+       sphere_stream 
 
 all: $(EXE)
 
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
-sector_download: download.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_upload: upload.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_ls: ls.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_rm: rm.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_mkdir: mkdir.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_stat: stat.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_sysinfo: sysinfo.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_mv: mv.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_cp: cp.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_pipe: pipe.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_shutdown: shutdown.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-sector_check_replica: check_replica.cpp
+sector_%: %.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 sphere_stream: stream.cpp probot.o

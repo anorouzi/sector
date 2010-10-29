@@ -50,35 +50,27 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   SSource* src = new FileSrc;
+   // using the simple user accounts stored in files
+   // other driver can be used to connect to LDAP, database, or system accounts
+   FileSrc* src = new FileSrc;
 
-   if (ss.loadMasterACL(src, (sector_home + "/conf/master_acl.conf").c_str()) < 0)
+   if (src->init(sector_home.c_str()) < 0)
    {
-      cerr << "WARNING: failed to read master ACL configuration file master_acl.conf. No masters would be able to join.\n";
       cerr << "Secuirty server failed to start. Please fix the problem.\n";
       return -1;
    }
 
-   if (ss.loadSlaveACL(src, (sector_home + "/conf/slave_acl.conf").c_str()) < 0)
-   {
-      cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf. No slaves would be able to join.\n";
-      cerr << "Secuirty server failed to start. Please fix the problem.\n";
-      return -1;
-   }
-
-   if (ss.loadShadowFile(src, (sector_home + "/conf/users").c_str()) < 0)
-   {
-      cerr << "WARNING: no users account initialized.\n";
-      cerr << "Secuirty server failed to start. Please fix the problem.\n";
-      return -1;
-   }
-
-   delete src;
+   ss.setSecuritySource(src);
 
    cout << "Sector Security server running at port " << port << endl << endl;
    cout << "The server is started successfully; there is no further output from this program. Please do not shutdown the security server; otherwise no client may be able to login. If the server is down for any reason, you can restart it without restarting the masters and the slaves.\n";
 
    ss.run();
 
-   return 1;
+   cerr << "Security server was interrupted.\n";
+
+   ss.close();
+   delete src;
+
+   return 0;
 }

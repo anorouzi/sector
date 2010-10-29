@@ -32,9 +32,80 @@ written by
 
 using namespace std;
 
-int FileSrc::loadACL(vector<IPRange>& acl, const void* src)
+FileSrc::~FileSrc()
 {
-   ifstream af((char*)src);
+}
+
+int FileSrc::init(const void* param)
+{
+   string conf_location = string((char*)param) + "/conf/";
+
+   if (loadACL(m_vMasterACL, conf_location + "master_acl.conf") < 0)
+   {
+      cerr << "WARNING: failed to read master ACL configuration file master_acl.conf. No masters would be able to join.\n";
+      return -1;
+   }
+
+   if (loadACL(m_vSlaveACL, conf_location + "slave_acl.conf") < 0)
+   {
+      cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf. No slaves would be able to join.\n";
+      return -1;
+   }
+
+   if (loadUsers(m_mUsers, conf_location + "users") < 0)
+   {
+      cerr << "WARNING: no users account initialized.\n";
+      return -1;
+   }
+
+   return 0;
+}
+
+bool FileSrc::matchMasterACL(const char* ip)
+{
+   return match(m_vMasterACL, ip);
+}
+
+bool FileSrc::matchSlaveACL(const char* ip)
+{
+   return match(m_vSlaveACL, ip);
+}
+
+int FileSrc::retrieveUser(const char* name, const char* password, const char* ip, User& user)
+{
+   map<string, User>::const_iterator i = m_mUsers.find(name);
+
+   if (i == m_mUsers.end())
+      return -1;
+
+   if (i->second.m_strPassword != password)
+      return -1;
+
+   if (!match(i->second.m_vACL, ip))
+      return -1;
+
+   user = i->second;
+   return 0;
+}
+
+bool FileSrc::match(const vector<IPRange>& acl, const char* ip)
+{
+   in_addr addr;
+   if (inet_pton(AF_INET, ip, &addr) < 0)
+      return false;
+
+   for (vector<IPRange>::const_iterator i = acl.begin(); i != acl.end(); ++ i)
+   {
+      if ((addr.s_addr & i->m_uiMask) == (i->m_uiIP & i->m_uiMask))
+      return true;
+   }
+
+   return false;
+} 
+
+int FileSrc::loadACL(vector<IPRange>& acl, const string& path)
+{
+   ifstream af(path.c_str(), ios::in | ios::binary);
 
    if (af.fail() || af.bad())
       return -1;
@@ -58,10 +129,8 @@ int FileSrc::loadACL(vector<IPRange>& acl, const void* src)
    return acl.size();
 }
 
-int FileSrc::loadUsers(map<string, User>& users, const void* src)
+int FileSrc::loadUsers(map<string, User>& users, const string& path)
 {
-   string path = (char*)src;
-
    dirent **namelist;
    int n = scandir(path.c_str(), &namelist, 0, alphasort);
 
@@ -89,7 +158,7 @@ int FileSrc::loadUsers(map<string, User>& users, const void* src)
       }
 
       User u;
-      if (parseUser(u, namelist[i]->d_name, (path + "/" + namelist[i]->d_name).c_str()) > 0)
+      if (parseUser(u, namelist[i]->d_name, (path + "/" + namelist[i]->d_name).c_str()) >= 0)
          users[u.m_strName] = u;
 
       free(namelist[i]);
@@ -235,5 +304,5 @@ int FileSrc::parseUser(User& user, const char* name, const char* ufile)
 
    parser.close();
 
-   return 1;
+   return 0;
 }

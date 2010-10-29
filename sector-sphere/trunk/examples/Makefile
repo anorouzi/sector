@@ -10,22 +10,7 @@ APP = testfs testdc wordcount text.idx mrsort mrword
 
 all: $(APP) funcs
 
-testfs: testfs.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-testdc: testdc.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-wordcount: wordcount.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-text.idx: text.idx.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-mrsort: mrsort.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-mrword: mrword.cpp
+%: %.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 funcs: _always_check_

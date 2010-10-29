@@ -46,10 +46,14 @@ int User::serialize(const vector<string>& input, string& buf) const
    return buf.length() + 1;
 }
 
+SSource::~SSource()
+{
+}
 
 SServer::SServer():
 m_iKeySeed(1),
-m_iPort(0)
+m_iPort(0),
+m_pSecuritySource(NULL)
 {
 }
 
@@ -82,55 +86,21 @@ void SServer::close()
    SSLTransport::destroy();
 }
 
-int SServer::loadMasterACL(SSource* src, const void* param)
+int SServer::setSecuritySource(SSource* src)
 {
-   return src->loadACL(m_vMasterACL, param);
+   if (NULL == src)
+      return -1;
+
+   m_pSecuritySource = src;
+   return 0;
 }
-
-int SServer::loadSlaveACL(SSource* src, const void* param)
-{
-   return src->loadACL(m_vSlaveACL, param);
-}
-
-int SServer::loadShadowFile(SSource* src, const void* param)
-{
-   return src->loadUsers(m_mUsers, param);
-}
-
-bool SServer::match(const vector<IPRange>& acl, const char* ip)
-{
-   in_addr addr;
-   if (inet_pton(AF_INET, ip, &addr) < 0)
-      return false;
-
-   for (vector<IPRange>::const_iterator i = acl.begin(); i != acl.end(); ++ i)
-   {
-      if ((addr.s_addr & i->m_uiMask) == (i->m_uiIP & i->m_uiMask))
-         return true;
-   }
-
-   return false;
-}
-
-const User* SServer::match(const map<string, User>& users, const char* name, const char* password, const char* ip)
-{
-   map<string, User>::const_iterator i = users.find(name);
-
-   if (i == users.end())
-      return NULL;
-
-   if (i->second.m_strPassword != password)
-      return NULL;
-
-   if (!match(i->second.m_vACL, ip))
-      return NULL;
-
-   return &(i->second);
-}
-
 
 void SServer::run()
 {
+   // security source must be initialized and set before the server is running
+   if (NULL == m_pSecuritySource)
+      return;
+
 #ifndef WIN32
    //ignore SIGPIPE
    sigset_t ps;
@@ -148,7 +118,7 @@ void SServer::run()
          continue;
 
       // only a master node can query security information
-      if (!match(m_vMasterACL, ip))
+      if (!m_pSecuritySource->matchMasterACL(ip))
       {
          s->close();
          continue;
@@ -202,7 +172,7 @@ int32_t SServer::generateKey()
             goto EXIT;
 
          int32_t key = self->generateKey();
-         if (!self->match(self->m_vSlaveACL, ip))
+         if (!self->m_pSecuritySource->matchSlaveACL(ip))
             key = SectorError::E_ACL;
          if (s->send((char*)&key, 4) <= 0)
             goto EXIT;
@@ -223,8 +193,9 @@ int32_t SServer::generateKey()
             goto EXIT;
 
          int32_t key;
-         const User* u = self->match(self->m_mUsers, user, password, ip);
-         if (u != NULL)
+         User u;
+
+         if (self->m_pSecuritySource->retrieveUser(user, password, ip, u) >= 0)
             key = self->generateKey();
          else
             key = -1;
@@ -237,15 +208,15 @@ int32_t SServer::generateKey()
             string buf;
             int32_t size;
 
-            size = u->serialize(u->m_vstrReadList, buf);
+            size = u.serialize(u.m_vstrReadList, buf);
             if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
                goto EXIT;
 
-            size = u->serialize(u->m_vstrWriteList, buf);
+            size = u.serialize(u.m_vstrWriteList, buf);
             if ((s->send((char*)&size, 4) <= 0) || (s->send(buf.c_str(), size) <= 0))
                goto EXIT;
 
-            int exec = u->m_bExec ? 1 : 0;
+            int exec = u.m_bExec ? 1 : 0;
             if (s->send((char*)&exec, 4) <= 0)
                goto EXIT;
          }
@@ -260,7 +231,7 @@ int32_t SServer::generateKey()
             goto EXIT;
 
          int32_t res = 1;
-         if (!self->match(self->m_vMasterACL, ip))
+         if (!self->m_pSecuritySource->matchMasterACL(ip))
             res = SectorError::E_ACL;
          if (s->send((char*)&res, 4) <= 0)
             goto EXIT;

@@ -323,7 +323,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    set<int> candidate;
    
    // choose furthest node within replica distance
-   for (unsigned int i = m_Topology.m_uiLevel + 1; i >= 0; -- i)
+   for (int i = m_Topology.m_uiLevel + 1; i >= 0; -- i)
    {
       if (!avail[i].empty())
       {

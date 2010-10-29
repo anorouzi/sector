@@ -28,15 +28,27 @@ written by
 class FileSrc: public SSource
 {
 public:
-   virtual ~FileSrc() {}
+   virtual ~FileSrc();
 
-public:
-   virtual int loadACL(std::vector<IPRange>& acl, const void* src);
-   virtual int loadUsers(std::map<std::string, User>& users, const void* src);
+   virtual int init(const void* param);
+
+   virtual bool matchMasterACL(const char* ip);
+   virtual bool matchSlaveACL(const char* ip);
+   virtual int retrieveUser(const char* name, const char* password, const char* ip, User& user);
+
+private:
+   bool match(const std::vector<IPRange>& acl, const char* ip);
+   int loadACL(std::vector<IPRange>& acl, const std::string& path);
+   int loadUsers(std::map<std::string, User>& users, const std::string& path);
 
 private:
    int parseIPRange(IPRange& ipr, const char* ip);
    int parseUser(User& user, const char* name, const char* ufile);
+
+private:
+   std::vector<IPRange> m_vMasterACL;
+   std::vector<IPRange> m_vSlaveACL;
+   std::map<std::string, User> m_mUsers;
 };
 
 #endif
