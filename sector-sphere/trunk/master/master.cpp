@@ -1485,15 +1485,24 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       SNode attr;
       int r = m_pMetadata->lookup(msg->getData(), attr);
-      if ((r < 0) || !attr.m_bIsDir)
+      if (r < 0)
       {
-         reject(ip, port, id, SectorError::E_NOTDIR);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "stat", msg->getData(), "REJECT", "", 8);
          break;
       }
 
       vector<string> filelist;
-      m_pMetadata->list(dir.c_str(), filelist);
+
+      if (attr.m_bIsDir)
+         m_pMetadata->list(dir.c_str(), filelist);
+      else
+      {
+         char* buf = NULL;
+         attr.serialize(buf);
+         filelist.push_back(buf);
+         delete [] buf;
+      }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       int size = 0;

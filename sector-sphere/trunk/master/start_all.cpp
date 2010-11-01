@@ -129,7 +129,7 @@ int main(int argc, char** argv)
       addr = addr.substr(0, addr.find(' '));
 
       //TODO: source .bash_profile to include more environments variables
-      string cmd = (string("ssh ") + addr + " \"" + base + "/slave/start_slave " + base + " &> " + slave_screen_log + "&\" &");
+      string cmd = (string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + base + "/slave/start_slave " + base + " &> " + slave_screen_log + "&\" &");
       system(cmd.c_str());
 
       cout << "start slave at " << addr << endl;
