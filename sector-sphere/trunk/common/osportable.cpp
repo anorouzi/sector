@@ -202,7 +202,13 @@ int LocalFS::stat(const std::string& path, SNode& sn)
    if (-1 == _stat64(path.c_str(), &st))
       return -1;
 #endif
-   sn.m_strName = path;
+
+   size_t pos = path.rfind('/');
+   if (pos == string::npos)
+      sn.m_strName = path;
+   else
+      sn.m_strName = path.substr(pos + 1, path.length() - pos);
+
    sn.m_bIsDir = S_ISDIR(st.st_mode) ? 1 : 0;
    sn.m_llTimeStamp = st.st_mtime;
    sn.m_llSize = st.st_size;

@@ -1492,17 +1492,16 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      vector<string> filelist;
-
-      if (attr.m_bIsDir)
-         m_pMetadata->list(dir.c_str(), filelist);
-      else
+      // !!list directory content only!!
+      if (!attr.m_bIsDir)
       {
-         char* buf = NULL;
-         attr.serialize(buf);
-         filelist.push_back(buf);
-         delete [] buf;
+         reject(ip, port, id, SectorError::E_NOTDIR);
+         m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "stat", msg->getData(), "REJECT", "", 8);
+         break;
       }
+
+      vector<string> filelist;
+      m_pMetadata->list(dir.c_str(), filelist);
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       int size = 0;
@@ -2767,14 +2766,11 @@ int Master::createReplica(const string& src, const string& dst)
       return -1;
 
    SlaveNode sn;
-   if (src == dst)
+   if (attr.m_bIsDir)
    {
-      // data replication
-      if (attr.m_bIsDir)
+      if (src == dst)
       {
-         // replicate a directory, only if there is ".nosplit" in the current directory
-         // locate src/.nosplit, but use the *total directory size*, note sub_attr and attr
-
+         // only nosplit dir can be replicated as a whole
          SNode sub_attr;
          if (m_pMetadata->lookup((src + "/.nosplit").c_str(), sub_attr) < 0)
             return -1;
@@ -2788,6 +2784,17 @@ int Master::createReplica(const string& src, const string& dst)
       }
       else
       {
+         //TODO: get total dir size
+
+         set<Address, AddrComp> empty;
+         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
+            return -1;
+      }
+   }
+   else
+   {
+      if (src == dst)
+      {
          // do not over replicate
          if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
             return -1;
@@ -2795,12 +2802,12 @@ int Master::createReplica(const string& src, const string& dst)
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist) < 0)
             return -1;
       }
-   }
-   else
-   {
-      set<Address, AddrComp> empty;
-      if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
-         return -1;
+      else
+      {
+         set<Address, AddrComp> empty;
+         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
+            return -1;
+      }
    }
 
    int transid = m_TransManager.create(TransType::REPLICA, 0, 111, dst, 0);

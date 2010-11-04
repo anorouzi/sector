@@ -482,35 +482,6 @@ unsigned int WINAPI Slave::copy(void* p)
    if (dst.c_str()[0] == '\0')
       dst = "/" + dst;
 
-   SNode tmp;
-   if (self->m_pLocalFile->lookup(src.c_str(), tmp) >= 0)
-   {
-      //if file is local, copy directly
-      //note that in this case, src != dst, therefore this is a regular "cp" command, not a system replication
-      //TODO: check disk space
-
-      self->createDir(dst.substr(0, dst.rfind('/')));
-      string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
-      string rsrc = self->reviseSysCmdPath(src);
-      string rdst = self->reviseSysCmdPath(dst);
-      system(("cp " + rhome + rsrc + " " + rhome + rdst).c_str());
-
-      // if the file has been modified during the replication, remove this replica
-      int type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
-
-      struct stat64 s;
-      if (stat64((self->m_strHomeDir + dst).c_str(), &s) < 0)
-         type = +FileChangeType::FILE_UPDATE_NO;
-
-      if (self->report(master_ip, master_port, transid, dst, type) < 0)
-         system(("rm " + rhome + rdst).c_str());
-
-      // clear this transaction
-      self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
-
-      return NULL;
-   }
-
    bool success = true;
 
    queue<string> tr;
@@ -536,9 +507,18 @@ unsigned int WINAPI Slave::copy(void* p)
          break;
       }
 
+      // the master only returns positive if this is a directory
       if (msg.getType() >= 0)
       {
-         // if this is a directory, put all files and sub-drectories into the queue of files to be copied
+         // if this is a directory, create it, and put all files and sub-directories into the queue of files to be copied
+
+         // create a local dir
+         string dst_path = dst;
+         if (src != src_path)
+            dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
+
+         //create at .tmp first, then move to real location
+         self->createDir(string(".tmp") + dst_path);
 
          string filelist = msg.getData();
          unsigned int s = 0;
@@ -554,98 +534,121 @@ unsigned int WINAPI Slave::copy(void* p)
          continue;
       }
 
-      // open the file and copy it to local
-      msg.setType(110);
-      msg.setKey(0);
-
-      int32_t mode = SF_MODE::READ;
-      msg.setData(0, (char*)&mode, 4);
-      int32_t localport = self->m_DataChn.getPort();
-      msg.setData(4, (char*)&localport, 4);
-      int32_t len_name = src_path.length() + 1;
-      msg.setData(8, (char*)&len_name, 4);
-      msg.setData(12, src_path.c_str(), len_name);
-      int32_t len_opt = 0;
-      msg.setData(12 + len_name, (char*)&len_opt, 4);
-
-      if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
+      SNode tmp;
+      if (self->m_pLocalFile->lookup(src_path.c_str(), tmp) >= 0)
       {
-         success = false;
-         break;
+         //if file is local, copy directly
+         //note that in this case, src != dst, therefore this is a regular "cp" command, not a system replication
+
+         //local files must be read directly from local disk, and cannot be read via datachn due to its limitation
+
+         string dst_path = dst;
+         if (src != src_path)
+            dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
+
+         //copy to .tmp first, then move to real location
+         self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
+
+         string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
+         string rsrc = self->reviseSysCmdPath(src_path);
+         string rdst = self->reviseSysCmdPath(dst_path);
+         system(("cp " + rhome + rsrc + " " + rhome + ".tmp/" + rdst).c_str()); 
       }
-
-      int32_t session = *(int32_t*)msg.getData();
-      int64_t size = *(int64_t*)(msg.getData() + 4);
-      time_t ts = *(int64_t*)(msg.getData() + 12);
-
-      string ip = msg.getData() + 24;
-      int32_t port = *(int32_t*)(msg.getData() + 64 + 24);
-
-      if (!self->m_DataChn.isConnected(ip, port))
+      else
       {
-         if (self->m_DataChn.connect(ip, port) < 0)
-         {
-            success = false;
-            break;
-         }
-      }
+         // open the file and copy it to local
+         msg.setType(110);
+         msg.setKey(0);
 
-      // download command: 3
-      int32_t cmd = 3;
-      self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+         int32_t mode = SF_MODE::READ;
+         msg.setData(0, (char*)&mode, 4);
+         int32_t localport = self->m_DataChn.getPort();
+         msg.setData(4, (char*)&localport, 4);
+         int32_t len_name = src_path.length() + 1;
+         msg.setData(8, (char*)&len_name, 4);
+         msg.setData(12, src_path.c_str(), len_name);
+         int32_t len_opt = 0;
+         msg.setData(12 + len_name, (char*)&len_opt, 4);
 
-      int64_t offset = 0;
-      self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
-
-      int response = -1;
-      if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
-      {
-         success = false;
-         break;
-      }
-
-      string dst_path = dst;
-      if (src != src_path)
-         dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
-
-      //copy to .tmp first, then move to real location
-      self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
-
-      fstream ofs;
-      ofs.open((self->m_strHomeDir + ".tmp" + dst_path).c_str(), ios::out | ios::binary | ios::trunc);
-
-      int64_t unit = 64000000; //send 64MB each time
-      int64_t torecv = size;
-      int64_t recd = 0;
-      while (torecv > 0)
-      {
-         int64_t block = (torecv < unit) ? torecv : unit;
-         if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
+         if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {
             success = false;
             break;
          }
 
-         recd += block;
-         torecv -= block;
-      }
+         int32_t session = *(int32_t*)msg.getData();
+         int64_t size = *(int64_t*)(msg.getData() + 4);
+         time_t ts = *(int64_t*)(msg.getData() + 12);
 
-      ofs.close();
+         string ip = msg.getData() + 24;
+         int32_t port = *(int32_t*)(msg.getData() + 64 + 24);
 
-      // update total received data size
-      self->m_SlaveStat.updateIO(ip, size, +SlaveStat::SYS_IN);
+         if (!self->m_DataChn.isConnected(ip, port))
+         {
+            if (self->m_DataChn.connect(ip, port) < 0)
+            {
+               success = false;
+               break;
+            }
+         }
 
-      cmd = 5;
-      self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
-      self->m_DataChn.recv4(ip, port, session, cmd);
+         // download command: 3
+         int32_t cmd = 3;
+         self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
 
-      if (src == dst)
-      {
-         //utime: update timestamp according to the original copy, for replica only; files created by "cp" have new timestamp
-         utimbuf ut;
-         ut.actime = ts;
-         ut.modtime = ts;
-         utime((self->m_strHomeDir + ".tmp" + dst_path).c_str(), &ut);
+         int64_t offset = 0;
+         self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
+
+         int response = -1;
+         if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
+         {
+            success = false;
+            break;
+         }
+
+         string dst_path = dst;
+         if (src != src_path)
+            dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
+
+         //copy to .tmp first, then move to real location
+         self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
+
+         fstream ofs;
+         ofs.open((self->m_strHomeDir + ".tmp" + dst_path).c_str(), ios::out | ios::binary | ios::trunc);
+
+         int64_t unit = 64000000; //send 64MB each time
+         int64_t torecv = size;
+         int64_t recd = 0;
+         while (torecv > 0)
+         {
+            int64_t block = (torecv < unit) ? torecv : unit;
+            if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
+            {
+               success = false;
+               break;
+            }
+
+            recd += block;
+            torecv -= block;
+         }
+
+         ofs.close();
+
+         // update total received data size
+         self->m_SlaveStat.updateIO(ip, size, +SlaveStat::SYS_IN);
+
+         cmd = 5;
+         self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+         self->m_DataChn.recv4(ip, port, session, cmd);
+
+         if (src == dst)
+         {
+            //utime: update timestamp according to the original copy, for replica only; files created by "cp" have new timestamp
+            utimbuf ut;
+            ut.actime = ts;
+            ut.modtime = ts;
+            utime((self->m_strHomeDir + ".tmp" + dst_path).c_str(), &ut);
+         }
       }
    }
 

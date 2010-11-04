@@ -52,14 +52,30 @@ int main(int argc, char** argv)
       }
    }
 
-   int result = 0;
-
-   vector<SNode> filelist;
-   if ((result = client.list(path, filelist)) < 0)
+   SNode attr;
+   int result = client.stat(path, attr);
+   if (result < 0)
    {
       Utility::print_error(result);
       Utility::logout(client);
       return -1;
+   }
+
+   vector<SNode> filelist;
+
+   if (attr.m_bIsDir)
+   {
+      if ((result = client.list(path, filelist)) < 0)
+      {
+         Utility::print_error(result);
+         Utility::logout(client);
+         return -1;
+      }
+   }
+   else
+   {
+      // if not a dir, list the file itself
+      filelist.push_back(attr);
    }
 
    // show directory first

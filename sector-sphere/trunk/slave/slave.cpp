@@ -733,9 +733,9 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
       struct stat64 s;
       if (stat64((m_strHomeDir + filename).c_str(), &s) >= 0)
       {
-         if (!S_ISDIR(s.st_mode))
-            filelist.push_back(filename);
-         else
+         filelist.push_back(filename);
+
+         if (S_ISDIR(s.st_mode))
             getFileList(filename, filelist);
       }
       else
@@ -756,6 +756,7 @@ int Slave::getFileList(const string& path, vector<string>& filelist)
    for (vector<SNode>::iterator i = sl.begin(); i != sl.end(); ++ i)
    {
       filelist.push_back(path + "/" + i->m_strName);
+
       if (i->m_bIsDir)
       {
          getFileList(path + "/" + i->m_strName, filelist);

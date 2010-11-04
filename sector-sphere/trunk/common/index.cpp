@@ -114,11 +114,33 @@ int Index::list_r(const string& path, vector<string>& filelist)
       currdir = &(s->second.m_mDirectory);
    }
 
-   if (dir.empty() || s->second.m_bIsDir)
+   // if this is root dir, list its content, but not itself
+   if (dir.empty())
       return list_r(*currdir, path, filelist);
 
-   filelist.push_back(path);
-   return 1;
+   if (s->second.m_bIsDir)
+   {
+      if (s->second.m_mDirectory.find(".nosplit") != s->second.m_mDirectory.end())
+      {
+         // nosplit dir, only dir name is returned 
+         filelist.push_back(path);
+         return 0;
+      }
+
+      if (s->second.m_mDirectory.empty())
+      {
+         filelist.push_back(path);
+         return 0;
+      }
+
+      return list_r(*currdir, path, filelist);
+   }
+   else
+   {
+      filelist.push_back(path);
+   }
+
+   return 0;
 }
 
 int Index::lookup(const string& path, SNode& attr)
@@ -1054,10 +1076,26 @@ int Index::list_r(map<string, SNode>& currdir, const string& path, vector<string
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
-      if (!i->second.m_bIsDir)
-         filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
+      if (i->second.m_bIsDir)
+      {
+         // nosplit dir return name only
+         if (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end())
+         {
+            filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
+         }
+         else if (i->second.m_mDirectory.empty())
+         {
+            filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
+         }
+         else
+         {
+            list_r(i->second.m_mDirectory, path + "/" + i->second.m_strName, filelist);
+         }
+      }
       else
-         list_r(i->second.m_mDirectory, path + "/" + i->second.m_strName, filelist);
+      {
+         filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
+      }
    }
 
    return filelist.size();

@@ -21,7 +21,7 @@ libmaster.so: $(OBJS)
 libmaster.a: $(OBJS)
 	ar -rcs $@ $^
 
-start_master: start_master.cpp
+start_master: start_master.cpp libmaster.a libmaster.so
 	$(C++) start_master.cpp -o start_master $(CCFLAGS) $(LDFLAGS)
 
 start_all: start_all.cpp
