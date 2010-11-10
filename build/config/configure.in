@@ -1,0 +1,54 @@
+AC_INIT([sector_sphere], [SECTOR_VERSION], [http://sector.sourceforge.net/], [sector_sphere])
+
+AC_CONFIG_MACRO_DIR([m4])
+AM_INIT_AUTOMAKE
+
+AC_MSG_CHECKING([whether to enable debug])
+AC_ARG_ENABLE([debug],
+        AC_HELP_STRING([--enable-debug],
+                        [enable debug msg inside sector/sphere]),
+        [],[enable_debug=no])
+AC_MSG_RESULT([$enable_debug])
+
+if test x$enable_debug != xno ; then
+  AC_DEFINE(DEBUG, 1, enable debug msg inside sector/sphere)
+fi
+
+AC_MSG_CHECKING([whether to disable static build for those tools])
+ AC_ARG_ENABLE([static],
+               [AC_HELP_STRING([--disable-static], [disable static tools build])],
+               [],[disable_static='no'])
+ AC_MSG_RESULT([$disable_static])
+AM_CONDITIONAL(STATIC, test x$disable_static = xno)
+
+
+AC_MSG_CHECKING([build with AMD64])
+AC_ARG_ENABLE([AMD64],
+              [AC_HELP_STRING([--amd64], [build with AMD64 support])],
+               [],[AMD64='no'])
+ AC_MSG_RESULT([$amd64])
+AM_CONDITIONAL(AMD64, test x$amd64 = xyes)
+
+AC_CONFIG_FILES(
+[Rules:Rules.in]
+)
+
+AC_PROG_LIBTOOL
+AC_PROG_CXX
+
+AC_PROG_MAKE_SET
+
+AC_OUTPUT(
+Makefile
+gmp/Makefile
+security/Makefile
+udt/Makefile
+tools/Makefile
+slave/Makefile
+slave/sphere/Makefile
+common/Makefile
+fuse/Makefile
+examples/Makefile
+master/Makefile
+client/Makefile
+)
