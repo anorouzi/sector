@@ -31,7 +31,7 @@ int main()
    // reserve enough space to upload the file
    //f->reserveWriteSpace(s.st_size);
 
-   string testfile = "/test/haha.data";
+   string testfile = "/test/haha2.data";
 
    int result = f->open(testfile, SF_MODE::READ | SF_MODE::WRITE | SF_MODE::TRUNC | SF_MODE::HiRELIABLE);
    if (result < 0)
@@ -39,6 +39,8 @@ int main()
       cout << "ERROR: code " << result << " " << SectorError::getErrorMsg(result) << endl;
       return -1;
    }
+
+sleep(30);
 
    string msg = "this is a test";
    f->write(msg.c_str(), msg.length() + 1);

@@ -28,7 +28,7 @@ int main(int argc, char** argv)
 {
    if (argc != 2)
    {
-      cerr << "USAGE: stat file\n";
+      cerr << "USAGE: sector_stat file\n";
       return -1;
    }
 

@@ -44,7 +44,7 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.6 build 10/03/2010.";
+const std::string SectorVersion = "Sector version 2.6 build 11/23/2010.";
 
 
 struct Address

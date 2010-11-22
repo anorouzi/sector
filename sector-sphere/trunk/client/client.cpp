@@ -353,6 +353,8 @@ int Client::list(const string& path, vector<SNode>& attr)
 
    string filelist = msg.getData();
 
+   attr.clear();
+
    unsigned int s = 0;
    while (s < filelist.length())
    {

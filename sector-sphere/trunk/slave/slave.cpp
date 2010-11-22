@@ -30,6 +30,7 @@ written by
 #include <utime.h>
 #include <common.h>
 #include <iostream>
+#include <sstream>
 
 using namespace std;
 
@@ -102,6 +103,7 @@ int Slave::init(const char* base)
 
    // initialize slave log
    m_SectorLog.init((m_strHomeDir + "/.log").c_str());
+   m_SectorLog.setLevel(m_SysConfig.m_iLogLevel);
 
    //copy permanent sphere libraries
    system((string("cp ") + m_strBase + "/slave/sphere/*.so " + m_strHomeDir + "/.sphere/perm/").c_str());
@@ -1034,22 +1036,32 @@ void SlaveStat::refresh()
 
 #ifndef WIN32
    // THIS CODE IS FOR LINUX ONLY. NOT PORTABLE
-   // TODO: this should be improved
+
+   m_llCurrMemUsed = 0;
 
    int pid = getpid();
-
    char memfile[64];
    sprintf(memfile, "/proc/%d/status", pid);
    ifstream ifs;
    ifs.open(memfile, ios::in);
-   char buf[1024];
-   for (int i = 0; i < 10; ++ i)
-      ifs.getline(buf, 1024);
-   string tmp;
-   ifs >> tmp;
-   ifs >> m_llCurrMemUsed;
-   m_llCurrMemUsed *= 1024;
-   ifs.close();
+   if (!ifs.fail())
+   {
+      // this looks for the VmSize line in the process status file
+      char buf[1024];
+      buf[0] = '\0';
+      while (!ifs.eof())
+      {
+         ifs.getline(buf, 1024);
+         if (string(buf).substr(0, 6) == "VmSize")
+            break;
+      }
+      string tmp;
+      stringstream ss;
+      ss.str(buf);
+      ss >> tmp >> m_llCurrMemUsed;
+      m_llCurrMemUsed *= 1024;
+      ifs.close();
+   }
 
    clock_t hz = sysconf(_SC_CLK_TCK);
    tms cputime;

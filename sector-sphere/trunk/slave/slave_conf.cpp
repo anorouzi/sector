@@ -33,7 +33,8 @@ m_iMaxServiceNum(64),
 m_strLocalIP(),
 m_strPublicIP(),
 m_iClusterID(0),
-m_MetaType(MEMORY)
+m_MetaType(MEMORY),
+m_iLogLevel(1)
 {
 }
 
@@ -93,8 +94,14 @@ int SlaveConf::init(const string& path)
          else if ("DISK" == param.m_vstrValue[0])
             m_MetaType = DISK;
       }
+      else if ("LOG_LEVEL" == param.m_strName)
+      {
+         m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
+      }
       else
+      {
          cerr << "unrecongnized system parameter: " << param.m_strName << endl;
+      }
    }
 
    parser.close();

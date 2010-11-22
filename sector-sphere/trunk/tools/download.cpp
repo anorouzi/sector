@@ -42,7 +42,12 @@ written by
 
 using namespace std;
 
-int download(const char* file, const char* dest, Sector& client)
+void help()
+{
+   cout << "download sector_file/dir local_dir [--e]" << endl;
+}
+
+int download(const char* file, const char* dest, Sector& client, bool encryption)
 {
    #ifndef WIN32
       timeval t1, t2;
@@ -74,7 +79,11 @@ int download(const char* file, const char* dest, Sector& client)
 
    SectorFile* f = client.createSectorFile();
 
-   if (f->open(file) < 0)
+   int mode = SF_MODE::READ;
+   if (encryption)
+      mode |= SF_MODE::SECURE;
+
+   if (f->open(file, mode) < 0)
    {
       cerr << "unable to locate file " << file << endl;
       return -1;
@@ -146,13 +155,42 @@ int main(int argc, char** argv)
 {
    if (argc < 3)
    {
-      cerr << "USAGE: sector_download <src file/dir> <local dir>\n";
+      help();
       return -1;
    }
 
+   CmdLineParser clp;
+   if (clp.parse(argc, argv) < 0)
+   {
+      help();
+      return -1;
+   }
+
+   if (clp.m_vParams.size() < 2)
+   {
+      help();
+      return -1;
+   }
+
+   bool encryption = false;
+
+   for (vector<string>::const_iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
+   {
+      if (*i == "e")
+         encryption = true;
+      else
+      {
+         help();
+         return -1;
+      }
+   }
+
+   string newdir = *clp.m_vParams.rbegin();
+   clp.m_vParams.erase(clp.m_vParams.begin() + clp.m_vParams.size() - 1);
+
    // check destination directory, which must exist
    struct stat64 st;
-   int r = stat64(argv[argc - 1], &st);
+   int r = stat64(newdir.c_str(), &st);
    if ((r < 0) || !S_ISDIR(st.st_mode))
    {
       cerr << "ERROR: destination directory does not exist.\n";
@@ -165,23 +203,23 @@ int main(int argc, char** argv)
       return 0;
 
    // start downloading all files
-   for (int i = 1; i < argc - 1; ++ i)
+   for (vector<string>::iterator i = clp.m_vParams.begin(); i != clp.m_vParams.end(); ++ i)
    {
       vector<string> fl;
-      bool wc = WildCard::isWildCard(argv[i]);
+      bool wc = WildCard::isWildCard(*i);
       if (!wc)
       {
          SNode attr;
-         if (client.stat(argv[i], attr) < 0)
+         if (client.stat(*i, attr) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
             return -1;
          }
-         getFileList(argv[i], fl, client);
+         getFileList(*i, fl, client);
       }
       else
       {
-         string path = argv[i];
+         string path = *i;
          string orig = path;
          size_t p = path.rfind('/');
          if (p == string::npos)
@@ -205,11 +243,11 @@ int main(int argc, char** argv)
       }
 
       string olddir;
-      for (int j = strlen(argv[i]) - 1; j >= 0; -- j)
+      for (int j = i->length() - 1; j >= 0; -- j)
       {
-         if (argv[i][j] != '/')
+         if (i->c_str()[j] != '/')
          {
-            olddir = string(argv[i]).substr(0, j);
+            olddir = i->substr(0, j);
             break;
          }
       }
@@ -218,8 +256,6 @@ int main(int argc, char** argv)
          olddir = "";
       else
          olddir = olddir.substr(0, p);
-
-      string newdir = argv[argc - 1];
 
       for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
       {
@@ -255,7 +291,7 @@ int main(int argc, char** argv)
             }
          }
 
-         if (download(i->c_str(), localdir.c_str(), client) < 0)
+         if (download(i->c_str(), localdir.c_str(), client, encryption) < 0)
          {
             // calculate total available disk size
             struct statvfs64 dstinfo;

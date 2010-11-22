@@ -77,6 +77,9 @@ int Master::init()
    // check local directories, create them if not exist
    m_strHomeDir = m_SysConfig.m_strHomeDir;
 
+   m_SectorLog.init((m_strHomeDir + "/.log").c_str());
+   m_SectorLog.setLevel(m_SysConfig.m_iLogLevel);
+
    if (stat(m_strHomeDir.c_str(), &s) < 0)
    {
       if (errno != ENOENT)
@@ -112,8 +115,6 @@ int Master::init()
       cerr << "unable to create home directory " << m_strHomeDir << endl;
       return -1;
    }
-
-   m_SectorLog.init((m_strHomeDir + "/.log").c_str());
 
    if (m_SysConfig.m_MetaType == MEMORY)
       m_pMetadata = new Index;
@@ -1665,7 +1666,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      int rwx = SF_MODE::READ;
+      // check user io permission
+      int rwx = SF_MODE::READ | SF_MODE::WRITE;
       if (!user->match(src.c_str(), rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
@@ -1692,6 +1694,15 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((rt >= 0) && (!at.m_bIsDir))
       {
          reject(ip, port, id, SectorError::E_EXIST);
+         break;
+      }
+
+      // check if source file is busy
+      // TODO: file should be moved individually, like rm, otherwise lock cannot be performed
+      rwx = SF_MODE::WRITE;
+      if (m_pMetadata->lock(src.c_str(), key, rwx) < 0)
+      {
+         reject(ip, port, id, SectorError::E_BUSY);
          break;
       }
 
@@ -1811,10 +1822,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
    case 106: // make a copy of a file/dir
    {
-      string src = msg->getData() + 4;
-      string dst = msg->getData() + 4 + src.length() + 1 + 4;
-      src = Metadata::revisePath(src);
-      dst = Metadata::revisePath(dst);
+      string src = Metadata::revisePath(msg->getData() + 4);
+      string dst = Metadata::revisePath(msg->getData() + 4 + src.length() + 1 + 4);
       string uplevel = dst.substr(0, dst.find('/'));
       string sublevel = dst + src.substr(src.rfind('/'), src.length());
 
@@ -1834,7 +1843,11 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (src == dst)
       {
          // sector_cp can be used to create replicas of a file/dir, if src == dst
+         m_ReplicaLock.acquire();
          m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), src + "\t" + dst);
+         m_ReplicaCond.signal();
+         m_ReplicaLock.release();
+
          m_GMP.sendto(ip, port, id, msg);
          break;
       }
@@ -1895,8 +1908,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          target.replace(0, rep.length(), dst);
          m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), *i + "\t" + target);
       }
-      if (!m_vstrToBeReplicated.empty())
-         m_ReplicaCond.signal();
+      m_ReplicaCond.signal();
       m_ReplicaLock.release();
 
       break;

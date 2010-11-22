@@ -37,10 +37,10 @@ using namespace std;
 
 void help()
 {
-   cerr << "usage: sector_upload <src file/dir> <dst dir> [-n num_of_replicas] [-a ip_address] [-c cluster_id]" << endl;
+   cerr << "usage: sector_upload <src file/dir> <dst dir> [-n num_of_replicas] [-a ip_address] [-c cluster_id] [--e(ncryption)]" << endl;
 }
 
-int upload(const char* file, const char* dst, Sector& client, const int rep_num, const string& ip, const string& cid)
+int upload(const char* file, const char* dst, Sector& client, const int rep_num, const string& ip, const string& cid, const bool secure)
 {
    //check if file already exists
 
@@ -78,7 +78,11 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
    option.m_strHintIP = ip;
    option.m_strCluster = cid;
 
-   int r = f->open(dst, SF_MODE::WRITE, &option);
+   int mode = SF_MODE::WRITE;
+   if (secure)
+      mode |= SF_MODE::SECURE;
+
+   int r = f->open(dst, mode, &option);
    if (r < 0)
    {
       cerr << "unable to open file " << dst << endl;
@@ -176,6 +180,8 @@ int main(int argc, char** argv)
    string ip = "";
    string cluster = "";
 
+   bool encryption = false;
+
    for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
    {
       if (i->first == "n")
@@ -184,6 +190,17 @@ int main(int argc, char** argv)
          ip = i->second;
       else if (i->first == "c")
          cluster = i->second;
+      else
+      {
+         help();
+         return -1;
+      }
+   }
+
+   for (vector<string>::const_iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
+   {
+      if (*i == "e")
+         encryption = true;
       else
       {
          help();
@@ -293,7 +310,7 @@ int main(int argc, char** argv)
             client.mkdir(dst);
          else
          {
-            if (upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster) < 0)
+            if (upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption) < 0)
                success = false;
          }
       }

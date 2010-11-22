@@ -470,7 +470,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
          vector<string> filelist;
          for (set<string>::iterator i = file.m_sstrFiles.begin(); i != file.m_sstrFiles.end(); ++ i)
             filelist.push_back(*i);
-         self->report(master_ip, master_port, transid, filelist, true);
+         self->report(master_ip, master_port, transid, filelist, +FileChangeType::FILE_UPDATE_NEW);
          self->reportMO(master_ip, master_port, transid);
       }
       else

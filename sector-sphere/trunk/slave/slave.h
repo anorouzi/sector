@@ -155,6 +155,7 @@ public:
    std::string m_strPublicIP;
    int m_iClusterID;
    MetaForm m_MetaType;         // form of metadata
+   int m_iLogLevel;		// level of log output
 };
 
 class Slave

@@ -1,5 +1,6 @@
 version 2.6
 
+UDF should onlt generate new files, and must not change existing files
 delete MapReduce intermediate files
 sector_upload support number of replicas, destination IP, and cluster
 more OS-independent code
