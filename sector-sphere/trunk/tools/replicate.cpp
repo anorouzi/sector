@@ -29,10 +29,10 @@ using namespace std;
 
 void help()
 {
-   cout << "USAGE: " << "sector_check_replica [file/dir] ... [file/dir] [-w N_copies] [-t timeout_in_seconds]" << endl;
+   cout << "USAGE: " << "sector_replicate [file/dir] ... [file/dir] [-w N_copies] [-t timeout_in_seconds]" << endl;
 }
 
-int getFileList(const string& path, vector<string>& fl, Sector& client, int thresh)
+int getFileList(const string& path, vector<string>& fl, Sector& client, unsigned int thresh)
 {
    SNode attr;
    if (client.stat(path.c_str(), attr) < 0)
@@ -47,11 +47,11 @@ int getFileList(const string& path, vector<string>& fl, Sector& client, int thre
       {
          if (i->m_bIsDir)
             getFileList(path + "/" + i->m_strName, fl, client, thresh);
-         else if ((i->m_sLocation.size() < thresh) && (i->m_sLocation.size() < i->m_iReplicaNum))
+         else if ((i->m_sLocation.size() < thresh) && (int(i->m_sLocation.size()) < i->m_iReplicaNum))
             fl.push_back(path + "/" + i->m_strName);
       }
    }
-   else if ((attr.m_sLocation.size() < thresh) && (attr.m_sLocation.size() < attr.m_iReplicaNum))
+   else if ((attr.m_sLocation.size() < thresh) && (int(attr.m_sLocation.size()) < attr.m_iReplicaNum))
    {
       fl.push_back(path);
    }
@@ -67,7 +67,7 @@ int main(int argc, char** argv)
       return -1;
    }
 
-   int wait = 65536;
+   unsigned int thresh = 65536;
    int timeout = 0;
 
    CmdLineParser clp;
@@ -80,7 +80,7 @@ int main(int argc, char** argv)
    for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
    {
       if (i->first == "w")
-         wait = atoi(i->second.c_str());
+         thresh = atoi(i->second.c_str());
       else if (i->first == "t")
          timeout = atoi(i->second.c_str());
       else
@@ -110,7 +110,7 @@ int main(int argc, char** argv)
             cerr << "ERROR: source file does not exist.\n";
             return -1;
          }
-         getFileList(*i, fl, client, wait);
+         getFileList(*i, fl, client, thresh);
       }
       else
       {
@@ -133,7 +133,7 @@ int main(int argc, char** argv)
          for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
          {
             if (WildCard::match(orig, i->m_strName))
-               getFileList(path + "/" + i->m_strName, fl, client, wait);
+               getFileList(path + "/" + i->m_strName, fl, client, thresh);
          }
       }
 
@@ -145,6 +145,8 @@ int main(int argc, char** argv)
    timeval t;
    gettimeofday(&t, NULL);
 
+   int interval = 1;
+
    for (list<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       SNode sn;
@@ -154,11 +156,19 @@ int main(int argc, char** argv)
          break;
       }
 
-      if ((sn.m_sLocation.size() >= wait) || (sn.m_sLocation.size() >= sn.m_iReplicaNum))
+      if ((sn.m_sLocation.size() >= thresh) || (int(sn.m_sLocation.size()) >= sn.m_iReplicaNum))
       {
          list<string>::iterator j = i ++;
          filelist.erase(i);
          i = j;
+      }
+      else
+      {
+         if ((result = client.copy(*i, *i)) < 0)
+         {
+            Utility::print_error(result);
+            break;
+         }
       }
 
       if (filelist.empty())
@@ -176,7 +186,9 @@ int main(int argc, char** argv)
          break;
       }
 
-      sleep(30);
+      sleep(interval);
+      if (interval < 16)
+         interval <<= 1;
    }
 
    Utility::logout(client);

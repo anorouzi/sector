@@ -6,7 +6,7 @@ else
    LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-EXE = $(addprefix sector_, download upload ls rm mkdir stat sysinfo mv cp pipe shutdown check_replica) \
+EXE = $(addprefix sector_, download upload ls rm mkdir stat sysinfo mv cp pipe shutdown replicate) \
        sphere_stream 
 
 all: $(EXE)

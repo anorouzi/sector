@@ -45,7 +45,7 @@ int getRepFileList(Sector& client, const string& path, map<string, int>& fl)
       {
          if (i->m_bIsDir)
             getRepFileList(client, path + "/" + i->m_strName, fl);
-         else if (i->m_iReplicaNum > i->m_sLocation.size())
+         else if (i->m_iReplicaNum > int(i->m_sLocation.size()))
             fl[path + "/" + i->m_strName] = i->m_sLocation.size();
       }
    }
@@ -136,7 +136,7 @@ int main(int argc, char** argv)
 
       if (!attr.m_bIsDir)
       {
-         if (attr.m_iReplicaNum <= attr.m_sLocation.size())
+         if (attr.m_iReplicaNum <= int(attr.m_sLocation.size()))
          {
             cerr << "The file already reached its maximum replication number.\n";
             Utility::logout(client);
@@ -170,9 +170,8 @@ int main(int argc, char** argv)
             {
                if (client.stat(i->first, attr) < 0)
                   tbr.push_back(i->first);
-               else if (attr.m_sLocation.size() > i->second)
+               else if (int(attr.m_sLocation.size()) > i->second)
                   tbr.push_back(i->first);
-cout << "check " << i->first << attr.m_sLocation.size() << " " << i->second << endl;
             }
 
             for (vector<string>::iterator i = tbr.begin(); i != tbr.end(); ++ i)
