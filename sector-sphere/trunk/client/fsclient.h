@@ -66,6 +66,8 @@ private:
 
    unsigned char m_pcKey[16];
    unsigned char m_pcIV[8];
+   Crypto* m_pEncoder;
+   Crypto* m_pDecoder;
 
    std::string m_strFileName;	// Sector file name
    int64_t m_llSize;            // file size

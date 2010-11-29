@@ -78,6 +78,8 @@ public:
 
    std::vector<int> m_viPath;				// topology path, from root to this node on the tree structure
 
+   int m_iActiveTrans;					// number of active transactions
+
 public:
    int deserialize(const char* buf, int size);
 };
@@ -114,7 +116,15 @@ public:
    int init(const char* topoconf);
    int lookup(const char* ip, std::vector<int>& path);
 
-   unsigned int match(const std::vector<int>& p1, const std::vector<int>& p2);
+      // Functionality:
+      //    compare two paths and return the longest matched path from the beginning
+      // Parameters:
+      //    0) [in] p1: first path;
+      //    1) [in] p2: second path;
+      // Returned value:
+      //    length of longest matched patch.
+
+   static unsigned int match(const std::vector<int>& p1, const std::vector<int>& p2);
 
       // Functionality:
       //    compute the distance between two IP addresses.

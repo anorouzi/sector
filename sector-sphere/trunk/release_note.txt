@@ -1,6 +1,8 @@
 version 2.6
 
-UDF should onlt generate new files, and must not change existing files
+per-file replication factor, replication distance, and restricted locations
+synchronous sector_cp
+UDF should only generate new files, and must not change existing files
 delete MapReduce intermediate files
 sector_upload support number of replicas, destination IP, and cluster
 more OS-independent code

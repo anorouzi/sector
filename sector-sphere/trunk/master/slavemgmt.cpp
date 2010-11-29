@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/05/2010
+   Yunhong Gu, last updated 11/28/2010
 *****************************************************************************/
 
 
@@ -273,13 +273,13 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
    return false;
 }
 
-int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
+int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
    CGuardEx sg(m_SlaveLock);
-   return choosereplicanode_(loclist, sn, filesize, rep_dist);
+   return choosereplicanode_(loclist, sn, filesize, rep_dist, restrict_loc);
 }
 
-int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
+int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 2);
@@ -308,6 +308,13 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       if (loclist.find(i->first) != loclist.end())
          continue;
 
+      // if a location restriction is applied to the file, only limited nodes can be chosen
+      if (NULL != restrict_loc)
+      {
+         if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
+            continue;
+      }
+
       // calculate the distance from this slave node to the current replicas
       int level = m_Topology.max_distance(i->second.m_viPath, locpath);
 
@@ -321,7 +328,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    }
 
    set<int> candidate;
-   
+
    // choose furthest node within replica distance
    for (int i = m_Topology.m_uiLevel + 1; i >= 0; -- i)
    {
@@ -340,17 +347,28 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    srand(t.tv_usec);
 
    int r = int(candidate.size() * (double(rand()) / RAND_MAX));
-
    set<int>::iterator n = candidate.begin();
    for (int i = 0; i < r; ++ i)
       n ++;
 
    sn = m_mSlaveList[*n];
+   if (sn.m_iActiveTrans == 0)
+      return 1;
+
+   for (set<int>::iterator i = candidate.begin(); i != candidate.end(); ++ i)
+   {
+      if (m_mSlaveList[*i].m_iActiveTrans < sn.m_iActiveTrans)
+      {
+         sn = m_mSlaveList[*i];
+         if (sn.m_iActiveTrans == 0)
+            break;
+      }
+   }
 
    return 1;
 }
  
-int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist)
+int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist, const vector<int>* restrict_loc)
 {
    CGuardEx sg(m_SlaveLock);
 
@@ -405,21 +423,15 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
          // if client specifies a cluster ID, then only nodes on the cluster are chosen
          if (!path_limit.empty())
          {
-            if (path_limit.size() > i->second.m_viPath.size())
+            if (Topology::match(path_limit, i->second.m_viPath) < path_limit.size())
                continue;
+         }
 
-            bool match = true;
-            for (vector<int>::iterator v = path_limit.begin(), p = i->second.m_viPath.begin(); v != path_limit.end(); ++ v, ++ p)
-            {
-               if (*v != *p)
-               {
-                  match = false;
-                  break;
-               }
-            }
-
-            if (!match)
-              continue;
+         // if there is location restriction on the file, check path as well
+         if (NULL != restrict_loc)
+         {
+            if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
+               continue;
          }
 
          // only nodes with more than minimum available disk space are chosen
@@ -442,7 +454,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
          for (vector<SlaveNode>::iterator j = sl.begin(); j != sl.end(); ++ j)
             locid.insert(j->m_iNodeID);
 
-         if (choosereplicanode_(locid, sn, option.m_llReservedSize, rep_dist) <= 0)
+         if (choosereplicanode_(locid, sn, option.m_llReservedSize, rep_dist, restrict_loc) <= 0)
             break;
 
          sl.push_back(sn);
@@ -452,7 +464,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
    return sl.size();
 }
 
-int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist)
+int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
    set<int> locid;
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -460,10 +472,10 @@ int SlaveManager::chooseReplicaNode(set<Address, AddrComp>& loclist, SlaveNode& 
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseReplicaNode(locid, sn, filesize, rep_dist);
+   return chooseReplicaNode(locid, sn, filesize, rep_dist, restrict_loc);
 }
 
-int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, int mode, vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist)
+int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, int mode, vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist, const vector<int>* restrict_loc)
 {
    set<int> locid;
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
@@ -471,7 +483,7 @@ int SlaveManager::chooseIONode(set<Address, AddrComp>& loclist, int mode, vector
       locid.insert(m_mAddrList[*i]);
    }
 
-   return chooseIONode(locid, mode, sl, option, rep_dist);
+   return chooseIONode(locid, mode, sl, option, rep_dist, restrict_loc);
 }
 
 int SlaveManager::chooseSPENodes(const Address& /*client*/, vector<SlaveNode>& sl)
@@ -1022,12 +1034,45 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    if (dist < 0)
       return SectorError::E_NODISK;
 
+   // chose nearest node first then least busy node, a random one if thest first two conditions equal
+   // TODO: this code can be slightly optimized
+
    int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
    vector<int>::iterator n = dist_vec[dist].begin();
    for (int i = 0; i < r; ++ i)
       n ++;
 
    sn = m_mSlaveList[*n];
+   if (sn.m_iActiveTrans == 0)
+      return 0;
+
+   for (vector<int>::iterator i = dist_vec[dist].begin(); i != dist_vec[dist].end(); ++ i)
+   {
+      if (m_mSlaveList[*i].m_iActiveTrans < sn.m_iActiveTrans)
+      {
+         sn = m_mSlaveList[*i];
+         if (sn.m_iActiveTrans == 0)
+            break;
+      }
+   }
 
    return 0;
+}
+
+void SlaveManager::incActTrans(const int& slaveid)
+{
+   CGuardEx sg(m_SlaveLock);
+
+   map<int, SlaveNode>::iterator i = m_mSlaveList.find(slaveid);
+   if (i != m_mSlaveList.end())
+      ++ i->second.m_iActiveTrans;
+}
+
+void SlaveManager::decActTrans(const int& slaveid)
+{
+   CGuardEx sg(m_SlaveLock);
+
+   map<int, SlaveNode>::iterator i = m_mSlaveList.find(slaveid);
+   if ((i != m_mSlaveList.end()) && (i->second.m_iActiveTrans > 0))
+      -- i->second.m_iActiveTrans;
 }

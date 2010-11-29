@@ -63,7 +63,7 @@ public:
    virtual int getSlaveMeta(Metadata* /*branch*/, const Address& /*addr*/) {return 0;}
 
 public:
-   virtual void refreshRepSetting(const std::string& /*path*/, int /*default_num*/, int /*default_dist*/, std::map<std::string, int>& /*rep_num*/, std::map<std::string, int>& /*rep_dist*/) {}
+   virtual void refreshRepSetting(const std::string& /*path*/, int /*default_num*/, int /*default_dist*/, std::map<std::string, int>& /*rep_num*/, std::map<std::string, int>& /*rep_dist*/, std::map<std::string, std::vector<int> >& /*restrict_loc*/) {}
 
 private:
    int serialize(std::ofstream& ofs, const std::string& currdir, int level);

@@ -121,7 +121,19 @@ public:
    static std::string revisePathNoLimit(const std::string& path);
 
 public:
-   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist) = 0;
+      // Functionality:
+      //    update per-file configuration, from replica.conf.
+      // Parameters:
+      //    1) [in] path: directory to be configured/updated, usually "/"
+      //    2) [in] default_num: default replica factor
+      //    3) [in] default_dist: default replication distance
+      //    4) [in] rep_num: special replica factor
+      //    5) [in] rep_dist: special replication distance
+      //    3) [in] restricted_loc: special restricted locations
+      // Returned value:
+      //    0 on success, or -1 on error.
+
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc) = 0;
 
 protected:
    pthread_mutex_t m_MetaLock;

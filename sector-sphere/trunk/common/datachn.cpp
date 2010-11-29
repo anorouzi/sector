@@ -235,26 +235,6 @@ int DataChn::remove(const string& ip, int port)
    return 0;
 }
 
-int DataChn::setCryptoKey(const string& ip, int port, unsigned char key[16], unsigned char iv[8])
-{
-   ChnInfo* c = locate(ip, port);
-   if (NULL == c)
-      return -1;
-
-   // crypto key should only be set once for each connection
-   // otherwise, encryption can be wrong due to key reset
-
-   CGuard cg(c->m_SndLock);
-
-   if (c->m_bSecKeySet)
-      return 0;
-
-   c->m_pTrans->initCoder(key, iv);
-   c->m_bSecKeySet = true;
-
-   return 0;
-}
-
 ChnInfo* DataChn::locate(const string& ip, int port)
 {
    Address addr;
@@ -273,7 +253,7 @@ ChnInfo* DataChn::locate(const string& ip, int port)
    return i->second;
 }
 
-int DataChn::send(const string& ip, int port, int session, const char* data, int size, bool secure)
+int DataChn::send(const string& ip, int port, int session, const char* data, int size, Crypto* encoder)
 {
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
@@ -310,16 +290,29 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
    }
 
    c->m_pTrans->send((char*)&session, 4);
-   c->m_pTrans->send((char*)&size, 4);
-   if (size > 0)
-      c->m_pTrans->sendEx(data, size, secure);
+
+   if ((NULL == encoder) || (size <= 0))
+   {
+      c->m_pTrans->send((char*)&size, 4);
+      if (size > 0)
+         c->m_pTrans->send(data, size);
+   }
+   else
+   {
+      char* tmp = new char[size + 64];
+      int len = size + 64;
+      encoder->encrypt((unsigned char*)data, size, (unsigned char*)tmp, len);
+      c->m_pTrans->send((char*)&len, 4);
+      c->m_pTrans->send(tmp, len);
+      delete [] tmp;
+   }
 
    CGuard::leaveCS(c->m_SndLock);
 
    return size;
 }
 
-int DataChn::recv(const string& ip, int port, int session, char*& data, int& size, bool secure)
+int DataChn::recv(const string& ip, int port, int session, char*& data, int& size, Crypto* decoder)
 {
    data = NULL;
 
@@ -338,8 +331,19 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       {
          if (session == q->m_iSession)
          {
-            size = q->m_iSize;
-            data = q->m_pcData;
+            if ((NULL == decoder) || self)
+            {
+               size = q->m_iSize;
+               data = q->m_pcData;
+            }
+            else
+            {
+               data = new char[q->m_iSize];
+               size = q->m_iSize;
+               decoder->decrypt((unsigned char*)q->m_pcData, q->m_iSize, (unsigned char*)data, size);
+               delete [] q->m_pcData;
+            }
+
             c->m_llTotalQueueSize -= q->m_iSize;
             c->m_vDataQueue.erase(q);
 
@@ -366,8 +370,19 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       {
          if (session == q->m_iSession)
          {
-            size = q->m_iSize;
-            data = q->m_pcData;
+            if ((NULL == decoder) || self)
+            {
+               size = q->m_iSize;
+               data = q->m_pcData;
+            }
+            else
+            {
+               data = new char[q->m_iSize];
+               size = q->m_iSize;
+               decoder->decrypt((unsigned char*)q->m_pcData, q->m_iSize, (unsigned char*)data, size);
+               delete [] q->m_pcData;
+            }
+
             c->m_llTotalQueueSize -= q->m_iSize;
             c->m_vDataQueue.erase(q);
 
@@ -428,7 +443,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
             return -1;
          }
 
-         if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
+         if (c->m_pTrans->recv(rd.m_pcData, rd.m_iSize) < 0)
          {
             delete [] rd.m_pcData;
             CGuard::leaveCS(c->m_RcvLock);
@@ -438,8 +453,19 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
 
       if (session == rd.m_iSession)
       {
-         size = rd.m_iSize;
-         data = rd.m_pcData;
+         if (NULL == decoder)
+         {
+            size = rd.m_iSize;
+            data = rd.m_pcData;
+         }
+         else
+         {
+            data = new char[rd.m_iSize];
+            size = rd.m_iSize;
+            decoder->decrypt((unsigned char*)rd.m_pcData, rd.m_iSize, (unsigned char*)data, size);
+            delete [] rd.m_pcData;
+         }
+
          CGuard::leaveCS(c->m_RcvLock);
          return size;
       }
@@ -458,7 +484,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
    return -1;
 }
 
-int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs, int64_t offset, int64_t size, bool secure)
+int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs, int64_t offset, int64_t size, Crypto* encoder)
 {
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
@@ -496,16 +522,41 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
    }
 
    c->m_pTrans->send((char*)&session, 4);
-   c->m_pTrans->send((char*)&size, 4);
-   if (size > 0)
-      c->m_pTrans->sendfileEx(ifs, offset, size, secure);
+
+   if ((NULL == encoder) || (size <= 0))
+   {
+      c->m_pTrans->send((char*)&size, 4);
+      if (size > 0)
+         c->m_pTrans->sendfile(ifs, offset, size);
+   }
+   else
+   {
+      // we assume that Sector should split file transfer into relatively small blocks
+      // thus this block can be loaded into memory completely
+      // also required by this datachn multiplexing
+
+      char* tmp_orig = new char[size];
+      char* tmp_enc = new char[size + 64];
+      int enc_size = size + 64;
+
+      ifs.seekg(offset);
+      ifs.read(tmp_orig, size);
+
+      encoder->encrypt((unsigned char*)tmp_orig, size, (unsigned char*)tmp_enc, enc_size);
+
+      c->m_pTrans->send((char*)&enc_size, 4);
+      c->m_pTrans->send(tmp_enc, enc_size);
+
+      delete [] tmp_orig;
+      delete [] tmp_enc;
+   }
 
    CGuard::leaveCS(c->m_SndLock);
 
    return size;
 }
 
-int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs, int64_t offset, int64_t& size, bool secure)
+int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs, int64_t offset, int64_t& size, Crypto* decoder)
 {
    ChnInfo* c = locate(ip, port);
    if (NULL == c)
@@ -522,9 +573,23 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       {
          if (session == q->m_iSession)
          {
-            size = q->m_iSize;
-            ofs.seekp(offset);
-            ofs.write(q->m_pcData, size);
+            if ((NULL == decoder) || self)
+            {
+               size = q->m_iSize;
+               ofs.seekp(offset);
+               ofs.write(q->m_pcData, size);
+            }
+            else
+            {
+               char* data = new char[q->m_iSize];
+               int dec_size = q->m_iSize;
+               decoder->decrypt((unsigned char*)q->m_pcData, q->m_iSize, (unsigned char*)data, dec_size);
+               size = dec_size;
+               ofs.seekp(offset);
+               ofs.write(data, size);
+               delete [] data;
+            }
+
             delete [] q->m_pcData;
             c->m_vDataQueue.erase(q);
 
@@ -551,9 +616,23 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       {
          if (session == q->m_iSession)
          {
-            size = q->m_iSize;
-            ofs.seekp(offset);
-            ofs.write(q->m_pcData, size);
+            if ((NULL == decoder) || self)
+            {
+               size = q->m_iSize;
+               ofs.seekp(offset);
+               ofs.write(q->m_pcData, size);
+            }
+            else
+            {
+               char* data = new char[q->m_iSize];
+               int dec_size = q->m_iSize;
+               decoder->decrypt((unsigned char*)q->m_pcData, q->m_iSize, (unsigned char*)data, dec_size);
+               size = dec_size;
+               ofs.seekp(offset);
+               ofs.write(data, size);
+               delete [] data;
+            }
+
             delete [] q->m_pcData;
             c->m_vDataQueue.erase(q);
 
@@ -603,41 +682,43 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       }
       else
       {
-         if (session == rd.m_iSession)
+         try
          {
-            //TODO: if recvfile returns error, following recv will crash
-            //recvfile should be removed in future version, and maybe messaging mode can be considered
-
-            if (c->m_pTrans->recvfileEx(ofs, offset, rd.m_iSize, secure) < 0)
-            {
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
+            rd.m_pcData = new char[rd.m_iSize];
          }
-         else
+         catch (...)
          {
-            try
-            {
-               rd.m_pcData = new char[rd.m_iSize];
-            }
-            catch (...)
-            {
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
+            CGuard::leaveCS(c->m_RcvLock);
+            return -1;
+         }
 
-            if (c->m_pTrans->recvEx(rd.m_pcData, rd.m_iSize, secure) < 0)
-            {
-               delete [] rd.m_pcData;
-               CGuard::leaveCS(c->m_RcvLock);
-               return -1;
-            }
+         if (c->m_pTrans->recv(rd.m_pcData, rd.m_iSize) < 0)
+         {
+            delete [] rd.m_pcData;
+            CGuard::leaveCS(c->m_RcvLock);
+            return -1;
          }
       }
 
       if (session == rd.m_iSession)
       {
-         size = rd.m_iSize;
+         if (NULL == decoder)
+         {
+            size = rd.m_iSize;
+            ofs.seekp(offset);
+            ofs.write(rd.m_pcData, size);
+         }
+         else
+         {
+            char* data = new char[rd.m_iSize];
+            int dec_size = rd.m_iSize;
+            decoder->decrypt((unsigned char*)rd.m_pcData, rd.m_iSize, (unsigned char*)data, dec_size);
+            size = dec_size;
+            ofs.seekp(offset);
+            ofs.write(data, size);
+            delete [] data;
+         }
+
          CGuard::leaveCS(c->m_RcvLock);
          return size;
       }

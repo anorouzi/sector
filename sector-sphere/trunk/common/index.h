@@ -63,7 +63,7 @@ public:
    virtual int getSlaveMeta(Metadata* branch, const Address& addr);
 
 public:
-   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist);
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
    int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
@@ -77,7 +77,7 @@ private:
    int checkReplica(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over);
    int list_r(std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist);
    int getSlaveMeta(std::map<std::string, SNode>& currdir, std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr);
-   int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist);
+   int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
    std::map<std::string, SNode> m_mDirectory;

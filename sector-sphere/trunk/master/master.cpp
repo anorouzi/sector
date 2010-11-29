@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/14/2010
+   Yunhong Gu, last updated 11/28/2010
 *****************************************************************************/
 
 #include <common.h>
@@ -125,7 +125,7 @@ int Master::init()
    // set and configure replication strategies
    m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist);
    if (m_ReplicaConf.refresh(m_strSectorHome + "/conf/replica.conf"))
-      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
+      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
 
    // load slave list and addresses
    loadSlaveAddr(m_strSectorHome + "/conf/slaves.list");
@@ -714,7 +714,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
          branch = new Index2;
       branch->init(m_strHomeDir + ".tmp/" + ip);
       branch->deserialize("/", m_strHomeDir + ".tmp/" + ip + ".dat", &addr);
-      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
+      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
       m_pMetadata->merge("/", branch, m_SysConfig.m_iReplicaNum);
       unlink((m_strHomeDir + ".tmp/" + ip + ".dat").c_str());
 
@@ -1180,6 +1180,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(sn.m_strName, m_SysConfig.m_iReplicaNum);
             sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(sn.m_strName, m_SysConfig.m_iReplicaDist);
+            m_ReplicaConf.getRestrictedLoc(sn.m_strName, sn.m_viRestrictedLoc);
             m_pMetadata->create(sn);
          }
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
@@ -1207,6 +1208,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
       // remove this slave from the transaction
       int r = m_TransManager.updateSlave(transid, slaveid);
+      m_SlaveManager.decActTrans(slaveid);
 
       // unlock the file, if this is a file operation, and all slaves have completed
       // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
@@ -1285,6 +1287,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       m_SlaveManager.voteBadSlaves(voter, num, msg->getData() + 12);
 
       m_TransManager.updateSlave(transid, slaveid);
+      m_SlaveManager.decActTrans(slaveid);
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
@@ -1712,12 +1715,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (rt < 0)
       {
          m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
-         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
+         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
       }
       else
       {
          m_pMetadata->move(src.c_str(), dst.c_str());
-         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist);
+         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
       }
 
       msg->setData(0, src.c_str(), src.length() + 1);
@@ -1833,10 +1836,26 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      SNode tmp;
-      if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
+      // check source file/dir
+      SNode as;
+      if (m_pMetadata->lookup(src.c_str(), as) < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
+         break;
+      }
+
+      // check available disk space
+      if (as.m_llSize > (int64_t)m_SlaveManager.getTotalDiskSpace())
+      {
+         reject(ip, port, id, SectorError::E_NODISK);
+         break;
+      }
+
+      // check source file read permission
+      int rwx = SF_MODE::READ;
+      if (!user->match(src.c_str(), rwx))
+      {
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -1852,20 +1871,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
-      {
-         // destination file cannot exist, no overwite
-
-         reject(ip, port, id, SectorError::E_EXIST);
-         break;
-      }
-
-      int rwx = SF_MODE::READ;
-      if (!user->match(src.c_str(), rwx))
-      {
-         reject(ip, port, id, SectorError::E_PERMISSION);
-         break;
-      }
+      // check destination write permission
       rwx = SF_MODE::WRITE;
       if (!user->match(dst.c_str(), rwx))
       {
@@ -1873,16 +1879,25 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          break;
       }
 
-      SNode as, at;
-      int rs = m_pMetadata->lookup(src.c_str(), as);
-      int rt = m_pMetadata->lookup(dst.c_str(), at);
-      if (rs < 0)
+      // check if destination file already exists
+      SNode tmp;
+      int rt = m_pMetadata->lookup(dst.c_str(), tmp);
+      if ((rt >= 0) && (!tmp.m_bIsDir))
+      {
+         reject(ip, port, id, SectorError::E_EXIST);
+         break;
+      }
+
+      if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
-      if ((rt >= 0) && (!at.m_bIsDir))
+
+      if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
       {
+         // destination file cannot exist, no overwite
+
          reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
@@ -2033,6 +2048,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          sn.m_bIsDir = false;
          sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(path, m_SysConfig.m_iReplicaNum);
          sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(path, m_SysConfig.m_iReplicaDist);
+         m_ReplicaConf.getRestrictedLoc(path, sn.m_viRestrictedLoc);
 
          // client may choose to write to different number of replicas between 1 and max
          if (option.m_iReplicaNum > sn.m_iReplicaNum)
@@ -2098,7 +2114,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          if (m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, msg, &response) >= 0)
          {
             if (response.getType() > 0)
+            {
                m_TransManager.addSlave(transid, i->m_iNodeID);
+               m_SlaveManager.incActTrans(i->m_iNodeID);
+            }
             else
             {
                //TODO: roll back 
@@ -2196,6 +2215,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
 
       m_TransManager.addSlave(transid, addr.begin()->m_iNodeID);
+      m_SlaveManager.incActTrans(addr.begin()->m_iNodeID);
 
       // send the connection information back to the client
       msg->setType(112);
@@ -2318,6 +2338,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       int transid = m_TransManager.create(TransType::SPHERE, key, msg->getType(), "", 0);
       int slaveid = m_SlaveManager.getSlaveID(addr);
       m_TransManager.addSlave(transid, slaveid);
+      m_SlaveManager.incActTrans(slaveid);
 
       msg->setData(0, ip.c_str(), ip.length() + 1);
       msg->setData(64, (char*)&port, 4);
@@ -2328,6 +2349,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
          m_TransManager.updateSlave(transid, slaveid);
+         m_SlaveManager.decActTrans(slaveid);
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start SPE", "", "SLAVE FAILURE", "", 8);
          break;
       }
@@ -2359,6 +2381,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
 
       int transid = m_TransManager.create(TransType::SPHERE, key, msg->getType(), "", 0);
       m_TransManager.addSlave(transid, m_SlaveManager.getSlaveID(addr));
+      m_SlaveManager.incActTrans(m_SlaveManager.getSlaveID(addr));
 
       msg->setData(0, ip.c_str(), ip.length() + 1);
       msg->setData(64, (char*)&port, 4);
@@ -2369,6 +2392,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
          m_TransManager.updateSlave(transid, m_SlaveManager.getSlaveID(addr));
+         m_SlaveManager.decActTrans(m_SlaveManager.getSlaveID(addr));
          m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "start Shuffler", "", "SLAVE FAILURE", "", 8);
          break;
       }
@@ -2684,7 +2708,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
       // refresh special replication settings
       if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
-         self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist);
+         self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
 
       vector<string> over_replicated;
 
@@ -2834,12 +2858,12 @@ int Master::createReplica(const string& src, const string& dst)
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
-      m_TransManager.updateSlave(transid, sn.m_iNodeID);
       m_sstrOnReplicate.erase(src);
       return -1;
    }
 
    m_TransManager.addSlave(transid, sn.m_iNodeID);
+   m_SlaveManager.incActTrans(sn.m_iNodeID);
 
    // replicate index file to the same location
    string idx = src + ".idx";
@@ -2857,12 +2881,12 @@ int Master::createReplica(const string& src, const string& dst)
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
-      m_TransManager.updateSlave(transid, sn.m_iNodeID);
       m_sstrOnReplicate.erase(idx);
       return 0;
    }
 
    m_TransManager.addSlave(transid, sn.m_iNodeID);
+   m_SlaveManager.incActTrans(sn.m_iNodeID);
 
    return 0;
 }
@@ -2987,6 +3011,7 @@ int Master::removeSlave(const int& id, const Address& addr)
       m_TransManager.retrieve(*i, t);
 
       int r = m_TransManager.updateSlave(*i, id);
+      m_SlaveManager.decActTrans(id);
 
       // if this is the last slave released, unlock the file
       if ((t.m_iType == TransType::FILE) && (r == 0))

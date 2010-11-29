@@ -79,6 +79,7 @@ public:
    std::string m_strChecksum;
    int m_iReplicaNum;
    int m_iReplicaDist;
+   std::vector<int> m_viRestrictedLoc;
 
 public:
    int serialize(char*& buf) const;

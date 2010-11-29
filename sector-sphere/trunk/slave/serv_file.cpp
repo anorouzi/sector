@@ -64,7 +64,6 @@ unsigned int WINAPI Slave::fileHandler(void* p)
    int last_timestamp = 0;
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
-
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
 
    if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
@@ -81,8 +80,15 @@ unsigned int WINAPI Slave::fileHandler(void* p)
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "connected." <<  LogStringTag(LogTag::END);
 
+   Crypto* encoder = NULL;
+   Crypto* decoder = NULL;
    if (bSecure)
-      self->m_DataChn.setCryptoKey(client_ip, client_port, crypto_key, crypto_iv);
+   {
+      encoder = new Crypto;
+      encoder->initEnc(crypto_key, crypto_iv);
+      decoder = new Crypto;
+      decoder->initDec(crypto_key, crypto_iv);      
+   }
 
    //create a new directory or file in case it does not exist
    if (mode > 1)
@@ -139,7 +145,7 @@ unsigned int WINAPI Slave::fileHandler(void* p)
             if (response == -1)
                break;
 
-            if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset, size, bSecure) < 0)
+            if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset, size, encoder) < 0)
                run = false;
             else
                rb += size;
@@ -170,15 +176,15 @@ unsigned int WINAPI Slave::fileHandler(void* p)
             delete [] param;
 
             // no secure transfer between two slaves
-            bool secure_transfer = bSecure;
+            Crypto* tmp_decoder = decoder;
             if ((client_ip != src_ip) || (client_port != src_port))
-               secure_transfer = false;
+               tmp_decoder = NULL;
 
             bool io_status = (size > 0); 
-            if (!io_status || (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, secure_transfer) < size))
+            if (!io_status || (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, tmp_decoder) < size))
                io_status = false;
 
-            //TODO: send imcomplete write to next slave on chain, rather than -1
+            //TODO: send incomplete write to next slave on chain, rather than -1
 
             if (dst_port > 0)
             {
@@ -186,9 +192,9 @@ unsigned int WINAPI Slave::fileHandler(void* p)
                char req[16];
                *(int64_t*)req = offset;
                if (io_status)
-                   *(int64_t*)(req + 8) = size;
+                  *(int64_t*)(req + 8) = size;
                else
-                   *(int64_t*)(req + 8) = -1;
+                  *(int64_t*)(req + 8) = -1;
                self->m_DataChn.send(dst_ip, dst_port, transid, req, 16);
 
                // send the data to the next replica in the chain
@@ -240,7 +246,7 @@ unsigned int WINAPI Slave::fileHandler(void* p)
             while (tosend > 0)
             {
                int64_t block = (tosend < unit) ? tosend : unit;
-               if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset + sent, block, bSecure) < 0)
+               if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset + sent, block, encoder) < 0)
                {
                   run = false;
                   break;
@@ -287,15 +293,15 @@ unsigned int WINAPI Slave::fileHandler(void* p)
             int64_t recd = 0;
 
             // no secure transfer between two slaves
-            bool secure_transfer = bSecure;
+            Crypto* tmp_decoder = decoder;
             if ((client_ip != src_ip) || (client_port != src_port))
-               secure_transfer = false;
+               tmp_decoder = NULL;
 
             while (torecv > 0)
             {
                int64_t block = (torecv < unit) ? torecv : unit;
 
-               if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, secure_transfer) < 0)
+               if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, tmp_decoder) < 0)
                {
                   run = false;
                   break;
@@ -454,6 +460,14 @@ unsigned int WINAPI Slave::fileHandler(void* p)
    // report to master the task is completed
    // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
    self->report(master_ip, master_port, transid, sname, change);
+
+   if (bSecure)
+   {
+      encoder->release();
+      delete encoder;
+      decoder->release();
+      delete decoder;
+   }
 
    if (success)
       self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);

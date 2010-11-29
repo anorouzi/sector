@@ -26,6 +26,7 @@ written by
 #include <udttransport.h>
 #include <map>
 #include <string>
+#include <crypto.h>
 #include <sector.h>
 
 struct RcvData
@@ -69,12 +70,10 @@ public:
    int connect(const std::string& ip, int port);
    int remove(const std::string& ip, int port);
 
-   int setCryptoKey(const std::string& ip, int port, unsigned char key[16], unsigned char iv[8]);
-
-   int send(const std::string& ip, int port, int session, const char* data, int size, bool secure = false);
-   int recv(const std::string& ip, int port, int session, char*& data, int& size, bool secure = false);
-   int64_t sendfile(const std::string& ip, int port, int session, std::fstream& ifs, int64_t offset, int64_t size, bool secure = false);
-   int64_t recvfile(const std::string& ip, int port, int session, std::fstream& ofs, int64_t offset, int64_t& size, bool secure = false);
+   int send(const std::string& ip, int port, int session, const char* data, int size, Crypto* encoder = NULL);
+   int recv(const std::string& ip, int port, int session, char*& data, int& size, Crypto* decoder = NULL);
+   int64_t sendfile(const std::string& ip, int port, int session, std::fstream& ifs, int64_t offset, int64_t size, Crypto* encoder = NULL);
+   int64_t recvfile(const std::string& ip, int port, int session, std::fstream& ofs, int64_t offset, int64_t& size, Crypto* decorder = NULL);
 
    int recv4(const std::string& ip, int port, int session, int32_t& val);
    int recv8(const std::string& ip, int port, int session, int64_t& val);

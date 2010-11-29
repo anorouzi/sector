@@ -183,6 +183,22 @@ bool ReplicaConf::refresh(const string& path)
             }
          }
       }
+      else if ("REPLICATION_LOCATION" == param.m_strName)
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string path;
+            string loc;
+            if (parseItem(*i, path, loc) >= 0)
+            {
+               string rp = Metadata::revisePathNoLimit(path);
+               vector<int> topo;
+               Topology::parseTopo(rp.c_str(), topo);
+               if ((rp.length() > 0) && !topo.empty())
+                  m_mRestrictedLoc[rp] = topo;
+            }
+         }
+      }
       else
       {
          cerr << "unrecongnized replica.conf parameter: " << param.m_strName << endl;
@@ -203,6 +219,15 @@ int ReplicaConf::parseItem(const string& input, string& path, int& val)
    ssinput >> path >> val;
 
    return val;   
+}
+
+int ReplicaConf::parseItem(const string& input, string& path, string& val)
+{
+   //format: path val
+   stringstream ssinput(input);
+   ssinput >> path >> val;
+
+   return 0;
 }
 
 int ReplicaConf::getReplicaNum(const std::string& path, int default_val)
@@ -229,4 +254,17 @@ int ReplicaConf::getReplicaDist(const std::string& path, int default_val)
    }
 
    return default_val;
+}
+
+void ReplicaConf::getRestrictedLoc(const std::string& path, vector<int>& loc)
+{
+   loc.clear();
+
+   for (map<string, vector<int> >::const_iterator i = m_mRestrictedLoc.begin(); i != m_mRestrictedLoc.end(); ++ i)
+   {
+      if (WildCard::contain(i->first, path))
+      {
+         loc = i->second;
+      }
+   }
 }

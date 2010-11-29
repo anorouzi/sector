@@ -1141,7 +1141,7 @@ int Index::getSlaveMeta(map<string, SNode>& currdir, vector<string>& path, map<s
    return 0;
 }
 
-void Index::refreshRepSetting(const string& path, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist)
+void Index::refreshRepSetting(const string& path, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
 {
    CGuard mg(m_MetaLock);
 
@@ -1160,10 +1160,10 @@ void Index::refreshRepSetting(const string& path, int default_num, int default_d
       currdir = &(s->second.m_mDirectory);
    }
 
-   refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist);
+   refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 }
 
-int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist)
+int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
 {
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
@@ -1173,8 +1173,8 @@ int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, in
       else
          abs_path += "/" + i->first;
 
+      // set replication factor
       i->second.m_iReplicaNum = default_num;
-
       for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
       {
          if (WildCard::contain(rn->first, abs_path))
@@ -1184,8 +1184,8 @@ int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, in
          }
       }
 
+      // set replication distance
       i->second.m_iReplicaDist = default_dist;
-
       for (map<string, int>::const_iterator rd = rep_dist.begin(); rd != rep_dist.end(); ++ rd)
       {
          if (WildCard::contain(rd->first, abs_path))
@@ -1195,8 +1195,19 @@ int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, in
          }
       }
 
+      // set restricted location
+      i->second.m_viRestrictedLoc.clear();
+      for (map<string, vector<int> >::const_iterator rl = restrict_loc.begin(); rl != restrict_loc.end(); ++ rl)
+      {
+         if (WildCard::contain(rl->first, abs_path))
+         {
+            i->second.m_viRestrictedLoc = rl->second;
+            break;
+         }
+      }
+
       if (i->second.m_bIsDir)
-         refreshRepSetting(abs_path, i->second.m_mDirectory, default_num, default_dist, rep_num, rep_dist);
+         refreshRepSetting(abs_path, i->second.m_mDirectory, default_num, default_dist, rep_num, rep_dist, restrict_loc);
    }
 
    return 0;

@@ -74,13 +74,16 @@ public:
 public:
    std::map<std::string, int> m_mReplicaNum;	// number of replicas
    std::map<std::string, int> m_mReplicaDist;	// distance of replicas
+   std::map<std::string, std::vector<int> > m_mRestrictedLoc;	// restricted locations for certain files
 
 public:
    int getReplicaNum(const std::string& path, int default_val);
    int getReplicaDist(const std::string& path, int default_val);
+   void getRestrictedLoc(const std::string& path, std::vector<int>& loc);
 
 private:
    int parseItem(const std::string& input, std::string& path, int& val);
+   int parseItem(const std::string& input, std::string& path, std::string& val);
 
 private:
    int64_t m_llTimeStamp;

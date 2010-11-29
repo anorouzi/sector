@@ -43,10 +43,10 @@ public:
    bool checkDuplicateSlave(const std::string& ip, const std::string& path, int32_t& id, Address& addr);
 
 public:
-   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist = 65536);
-   int chooseIONode(std::set<int>& loclist, int mode, std::vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist = 65536);
-   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist = 65536);
-   int chooseIONode(std::set<Address, AddrComp>& loclist, int mode, std::vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist = 65536);
+   int chooseReplicaNode(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist = 65536, const std::vector<int>* restrict_loc = NULL);
+   int chooseIONode(std::set<int>& loclist, int mode, std::vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist = 65536, const std::vector<int>* restrict_loc = NULL);
+   int chooseReplicaNode(std::set<Address, AddrComp>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist = 65536, const std::vector<int>* restrict_loc = NULL);
+   int chooseIONode(std::set<Address, AddrComp>& loclist, int mode, std::vector<SlaveNode>& sl, const SF_OPT& option, const int rep_dist = 65536, const std::vector<int>* restrict_loc = NULL);
    int chooseSPENodes(const Address& client, std::vector<SlaveNode>& sl);
    int chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Address& addr);
 
@@ -67,6 +67,8 @@ public:
    int serializeSlaveInfo(char*& buf, int& size);
    int getSlaveListByRack(std::map<int, Address>& sl, const std::string& topopath);
    int checkStorageBalance(std::map<int64_t, Address>& lowdisk);
+   void incActTrans(const int& slaveid);
+   void decActTrans(const int& slaveid);
 
 public:
    uint64_t getTotalDiskSpace();
@@ -75,7 +77,7 @@ public:
 private:
    void updateclusterstat_(Cluster& c);
    void updateclusterio_(Cluster& c, std::map<std::string, int64_t>& data_in, std::map<std::string, int64_t>& data_out, int64_t& total);
-   int choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist);
+   int choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const std::vector<int>* restrict_loc);
    int findNearestNode(std::set<int>& loclist, const std::string& ip, SlaveNode& sn);
 
 private:

@@ -61,6 +61,8 @@ FSClient::FSClient():
 m_iSession(),
 m_strSlaveIP(),
 m_iSlaveDataPort(),
+m_pEncoder(NULL),
+m_pDecoder(NULL),
 m_strFileName(),
 m_llSize(0),
 m_llCurReadPos(0),
@@ -82,6 +84,9 @@ FSClient::~FSClient()
 {
    m_bOpened = false;
    delete [] m_pcLocalPath;
+
+   delete m_pEncoder;
+   delete m_pDecoder;
 
    CGuard::releaseMutex(m_FileLock);
 }
@@ -205,10 +210,15 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
    }
 
    // crypto key should only be set once per connection
-   // repeated request to set the key will be ignored by datachn
-   memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);
-   memcpy(m_pcIV, m_pClient->m_pcCryptoIV, 8);
-   m_pClient->m_DataChn.setCryptoKey(m_strSlaveIP, m_iSlaveDataPort, m_pcKey, m_pcIV);
+   if (m_bSecure)
+   {
+      memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);
+      memcpy(m_pcIV, m_pClient->m_pcCryptoIV, 8);
+      m_pEncoder = new Crypto;
+      m_pEncoder->initEnc(m_pcKey, m_pcIV);
+      m_pDecoder = new Crypto;
+      m_pDecoder->initDec(m_pcKey, m_pcIV);
+   }
 
    m_pClient->m_Cache.update(m_strFileName, m_llTimeStamp, m_llSize, true);
 
@@ -260,9 +270,17 @@ int FSClient::reopen()
    if (m_pClient->m_DataChn.connect(m_strSlaveIP, m_iSlaveDataPort) < 0)
       return SectorError::E_CONNECTION;
 
-   memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);
-   memcpy(m_pcIV, m_pClient->m_pcCryptoIV, 8);
-   m_pClient->m_DataChn.setCryptoKey(m_strSlaveIP, m_iSlaveDataPort, m_pcKey, m_pcIV);
+   if (m_bSecure)
+   {
+      memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);
+      memcpy(m_pcIV, m_pClient->m_pcCryptoIV, 8);
+      delete m_pEncoder;
+      m_pEncoder = new Crypto;
+      m_pEncoder->initEnc(m_pcKey, m_pcIV);
+      delete m_pDecoder;
+      m_pDecoder = new Crypto;
+      m_pDecoder->initDec(m_pcKey, m_pcIV);
+   }
 
    return 0;
 }
@@ -337,7 +355,7 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
    }
 
    char* tmp = NULL;
-   int64_t recvsize = m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, tmp, realsize, m_bSecure);
+   int64_t recvsize = m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, tmp, realsize, m_pDecoder);
    if (recvsize > 0)
    {
       memcpy(buf, tmp, recvsize);
@@ -385,7 +403,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    *(int64_t*)(req + 8) = size;
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
 
-   int64_t sentsize = m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, size, m_bSecure);
+   int64_t sentsize = m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, size, m_pEncoder);
 
    if (sentsize > 0)
    {
@@ -482,7 +500,7 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
    while (torecv > 0)
    {
       int64_t block = (torecv < unit) ? torecv : unit;
-      if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, m_llSize - torecv, block, m_bSecure) < 0)
+      if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, m_llSize - torecv, block, m_pDecoder) < 0)
          break;
 
       torecv -= block;
@@ -505,7 +523,7 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
          while (torecv > 0)
          {
             int64_t block = (torecv < unit) ? torecv : unit;
-            if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, m_llSize - torecv, block, m_bSecure) < 0)
+            if (m_pClient->m_DataChn.recvfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ofs, m_llSize - torecv, block, m_pDecoder) < 0)
                break;
 
             torecv -= block;
@@ -556,7 +574,7 @@ int64_t FSClient::upload(const char* localpath, const bool& /*cont*/)
    while (tosend > 0)
    {
       int64_t block = (tosend < unit) ? tosend : unit;
-      if (m_pClient->m_DataChn.sendfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ifs, sent, block, m_bSecure) < 0)
+      if (m_pClient->m_DataChn.sendfile(m_strSlaveIP, m_iSlaveDataPort, m_iSession, ifs, sent, block, m_pEncoder) < 0)
          break;
 
       sent += block;
@@ -725,7 +743,7 @@ int64_t FSClient::prefetch(const int64_t& offset, const int64_t& size)
       return SectorError::E_CONNECTION;
 
    char* buf = NULL;
-   int64_t recvsize = m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, realsize, m_bSecure);
+   int64_t recvsize = m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, realsize, m_pDecoder);
    if (recvsize <= 0)
       return SectorError::E_CONNECTION;
 
@@ -871,7 +889,7 @@ int FSClient::flush_()
             *(int64_t*)(req + 8) = w->m_llSize;
             m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, req, 16);
 
-            if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, w->m_llSize, m_bSecure) < 0)
+            if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, w->m_llSize, m_pEncoder) < 0)
                break;
          }
 
