@@ -21,6 +21,10 @@ written by
 
 #include <sector.h>
 #include <iostream>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netdb.h>
+
 
 using namespace std;
 
@@ -208,6 +212,22 @@ void print(const SysStat& s)
            << format(formatSize(i->m_llTotalInputData), 12)
            << format(formatSize(i->m_llTotalOutputData), 12)
            << format(i->m_strDataDir, 0) << endl;
+
+      // display host name, in addition to IP
+      sockaddr_in addr;
+      addr.sin_family = AF_INET;
+
+      if (inet_pton(addr.sin_family, i->m_strIP.c_str(), &addr.sin_addr) != 1)
+        continue;
+
+      char clienthost[NI_MAXHOST];
+      if (getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
+         continue;
+      if (i->m_strIP == clienthost)
+         continue;
+
+      cout << format("", 10)
+           << clienthost << endl;
    }
 }
 

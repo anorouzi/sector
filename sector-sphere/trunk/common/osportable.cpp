@@ -69,17 +69,32 @@ const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 
 int inet_pton(int af, const char* s, void* d)
 {
+   addrinfo hints;
+   addrinfo* res;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = af;
+   hints.ai_socktype = SOCK_STREAM;
+
+   if (0 != getaddrinfo(NULL, NULL, &hints, &res))
+   {
+      return -1;
+   }
+
    if (af == AF_INET)
    {
-      ((sockaddr_in*)d)->s_addr = inet_addr(s);
-      return 0;
+      *sockaddr_in*)d = res->ai_addr;
    }
    else if (af == AF_INET6)
    {
-
+      *sockaddr_in6*)d = res->ai_addr;
    }
 
-   return -1;
+   freeaddrinfo(res);
+
+   return 0;
 }
 
 #endif
