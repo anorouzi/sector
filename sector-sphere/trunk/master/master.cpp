@@ -517,8 +517,7 @@ int Master::stop()
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
 #endif
 
-   // ONLY ONE service worker, more will cause synchronization problem
-   const int ServiceWorker = 1;
+   const int ServiceWorker = 4;
    for (int i = 0; i < ServiceWorker; ++ i)
    {
 #ifndef WIN32
@@ -665,7 +664,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       if (m_SlaveManager.checkDuplicateSlave(ip, lspath, id, addr))
       {
          // another slave is already using the storage
-         // check if the current slave is still slave
+         // check if the current slave is still alive
          SectorMsg msg;
          msg.setType(1);
          if (m_GMP.rpc(addr.m_strIP, addr.m_iPort, &msg, &msg) >= 0)
@@ -715,18 +714,26 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       branch->init(m_strHomeDir + ".tmp/" + ip);
       branch->deserialize("/", m_strHomeDir + ".tmp/" + ip + ".dat", &addr);
       branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
-      m_pMetadata->merge("/", branch, m_SysConfig.m_iReplicaNum);
       unlink((m_strHomeDir + ".tmp/" + ip + ".dat").c_str());
 
-      sn.m_llTotalFileSize = m_pMetadata->getTotalDataSize("/");
-
+      sn.m_llTotalFileSize = branch->getTotalDataSize("/");
       sn.m_llCurrMemUsed = 0;
       sn.m_llCurrCPUUsed = 0;
       sn.m_llTotalInputData = 0;
       sn.m_llTotalOutputData = 0;
 
-      m_SlaveManager.insert(sn);
+      if (m_SlaveManager.insert(sn) < 0)
+      {
+         branch->clear();
+         delete branch;
+         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogStringTag(LogTag::END);
+         return -1;
+      }
+
       m_SlaveManager.updateClusterStat();
+
+      // merge slave metadata with system metadata
+      m_pMetadata->merge("/", branch, m_SysConfig.m_iReplicaNum);
 
       if (id < 0)
       {

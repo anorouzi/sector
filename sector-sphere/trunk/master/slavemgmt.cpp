@@ -110,6 +110,11 @@ int SlaveManager::insert(SlaveNode& sn)
 {
    CGuardEx sg(m_SlaveLock);
 
+   int id = 0;
+   Address addr;
+   if (checkduplicateslave_(sn.m_strIP, sn.m_strStoragePath, id, addr))
+      return -1;
+
    sn.m_llLastUpdateTime = CTimer::getTime();
    sn.m_llLastVoteTime = CTimer::getTime();
    if (sn.m_llAvailDiskSpace > m_llSlaveMinDiskSpace)
@@ -119,7 +124,6 @@ int SlaveManager::insert(SlaveNode& sn)
    m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
    m_mSlaveList[sn.m_iNodeID] = sn;
 
-   Address addr;
    addr.m_strIP = sn.m_strIP;
    addr.m_iPort = sn.m_iPort;
    m_mAddrList[addr] = sn.m_iNodeID;
@@ -225,6 +229,11 @@ bool SlaveManager::checkDuplicateSlave(const string& ip, const string& path, int
 {
    CGuardEx sg(m_SlaveLock);
 
+   return checkduplicateslave_(ip, path, id, addr);
+}
+
+bool SlaveManager::checkduplicateslave_(const string& ip, const string& path, int32_t& id, Address& addr)
+{
    map<string, set<string> >::iterator i = m_mIPFSInfo.find(ip);
    if (i == m_mIPFSInfo.end())
       return false;

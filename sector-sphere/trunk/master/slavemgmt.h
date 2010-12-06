@@ -75,6 +75,7 @@ public:
    void updateClusterStat();
 
 private:
+   bool checkduplicateslave_(const std::string& ip, const std::string& path, int32_t& id, Address& addr);
    void updateclusterstat_(Cluster& c);
    void updateclusterio_(Cluster& c, std::map<std::string, int64_t>& data_in, std::map<std::string, int64_t>& data_out, int64_t& total);
    int choosereplicanode_(std::set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const std::vector<int>* restrict_loc);
