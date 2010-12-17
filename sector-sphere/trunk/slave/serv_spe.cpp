@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/21/2010
+   Yunhong Gu, last updated 12/15/2010
 *****************************************************************************/
 
 #include <slave.h>
@@ -91,10 +91,11 @@ void SPEResult::addData(const int& bucketid, const char* data, const int64_t& le
    m_vIndex[bucketid][m_vIndexLen[bucketid]] = m_vIndex[bucketid][m_vIndexLen[bucketid] - 1] + len;
    m_vIndexLen[bucketid] ++;
 
-   // dynamically increase index buffer size
-   while (m_vDataLen[bucketid] + len > m_vDataPhyLen[bucketid])
+   // dynamically increase data buffer size
+   if (m_vDataLen[bucketid] + len > m_vDataPhyLen[bucketid])
    {
-      char* tmp = new char[m_vDataPhyLen[bucketid] + 65536];
+      int inc_size = (len / 65536 + 1) * 65536;
+      char* tmp = new char[m_vDataPhyLen[bucketid] + inc_size];
 
       if (NULL != m_vData[bucketid])
       {
@@ -102,7 +103,7 @@ void SPEResult::addData(const int& bucketid, const char* data, const int64_t& le
          delete [] m_vData[bucketid];
       }
       m_vData[bucketid] = tmp;
-      m_vDataPhyLen[bucketid] += 65536;
+      m_vDataPhyLen[bucketid] += inc_size;
    }
 
    memcpy(m_vData[bucketid] + m_vDataLen[bucketid], data, len);

@@ -559,6 +559,8 @@ int DCClient::checkSPE()
 
    m_dRunningProgress = 0.0;
 
+   //TODO: this may be optimized with an extra data structure to record available SPE only, to reduce SPE status scan
+
    for (map<int, SPE>::iterator s = m_mSPE.begin(); s != m_mSPE.end(); ++ s)
    {
       // this SPE is abandond

@@ -1,5 +1,7 @@
 version 2.6
 
+SPE result buffer management bug fix; much faster now for large UDF results with few buckets
+faster SPE job schedulling at client
 per-file replication factor, replication distance, and restricted locations
 synchronous sector_cp
 UDF should only generate new files, and must not change existing files

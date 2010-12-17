@@ -51,6 +51,18 @@ written by
 
 using namespace std;
 
+CPeerRecord::CPeerRecord():
+m_strIP(),
+m_iPort(0),
+m_iSession(0),
+m_iID(0),
+m_llTimeStamp(0),
+m_iRTT(0),
+m_iFlowWindow(0),
+m_pUDTTrans(NULL)
+{
+}
+
 CPeerManagement::CPeerManagement()
 {
    CGuard::createMutex(m_PeerRecLock);
@@ -242,4 +254,11 @@ bool CPeerManagement::hit(const string& ip, const int& port, const int& session,
    }
 
    return false;
+}
+
+UDTTransport* CPeerManagement::getUDTTrans(const string& ip, const int& port)
+{
+   CGuard recguard(m_PeerRecLock);
+
+   return NULL;
 }

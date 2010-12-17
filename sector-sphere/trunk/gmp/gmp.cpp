@@ -353,6 +353,11 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
 
 int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 {
+   /*
+   TODO: find UDT conn from peer history, otherwise set rendezvous conn using UDP cmd 3
+   m_PeerHistory
+   */
+
    UDTTransport t;
    if (t.open(m_iUDTReusePort, false, true) < 0)
       return -1;
@@ -656,6 +661,11 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             ack[2] = id;
             ack[3] = 0;
             ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
+
+            break;
+
+         case 3: // rendezvous UDT connection request
+
 
             break;
 

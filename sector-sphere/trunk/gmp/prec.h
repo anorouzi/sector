@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/10/2010
+   Yunhong Gu, last updated 12/14/2010
 *****************************************************************************/
 
 
@@ -53,9 +53,12 @@ written by
 #include <map>
 #include <list>
 #include <string>
+#include <udttransport.h>
 
 struct CPeerRecord
 {
+   CPeerRecord();
+
    std::string m_strIP;
    int m_iPort;
    int m_iSession;
@@ -63,6 +66,8 @@ struct CPeerRecord
    int64_t m_llTimeStamp;
    int m_iRTT;
    int32_t m_iFlowWindow;
+
+   UDTTransport* m_pUDTTrans;
 };
 
 struct CFPeerRec
@@ -111,6 +116,8 @@ public:
 
    int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
    bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
+
+   UDTTransport* getUDTTrans(const std::string& ip, const int& port);
 
 private:
    int addRecentPR(const CPeerRecord& pr);

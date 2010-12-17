@@ -36,7 +36,6 @@ written by
 #include <sys/statvfs.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <iostream>
 #include <sector.h>
 

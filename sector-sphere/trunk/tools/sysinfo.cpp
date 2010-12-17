@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/12/2010
+   Yunhong Gu, last updated 12/06/2010
 *****************************************************************************/
 
 #include <sector.h>
@@ -140,6 +140,21 @@ string formatSize(const int64_t& size)
    return sizestr;
 }
 
+string getDNSName(const string& ip)
+{
+   sockaddr_in addr;
+   addr.sin_family = AF_INET;
+
+   if (inet_pton(addr.sin_family, ip.c_str(), &addr.sin_addr) != 1)
+      return ip;
+
+   char clienthost[NI_MAXHOST];
+   if (getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
+      return ip;
+
+   return clienthost;
+}
+
 void print(const SysStat& s)
 {
    cout << "Sector System Information:" << endl;
@@ -150,14 +165,14 @@ void print(const SysStat& s)
    cout << "Total Number of Files:       " << s.m_llTotalFileNum << endl;
    cout << "Total Number of Slave Nodes: " << s.m_llTotalSlaves << endl;
 
-   cout << "------------------------------------------------------------\n";
+   cout << "-----------------------------------------------------------------------\n";
    cout << format("MASTER_ID", 10) << format("IP", 16) << "PORT" << endl;
    for (vector<SysStat::MasterStat>::const_iterator i = s.m_vMasterList.begin(); i != s.m_vMasterList.end(); ++ i)
    {
       cout << format(i->m_iID, 10) << format(i->m_strIP, 16) << i->m_iPort << endl;
    }
 
-   cout << "------------------------------------------------------------\n";
+   cout << "-----------------------------------------------------------------------\n";
 
    int total_cluster = 0;
    for (vector<SysStat::ClusterStat>::const_iterator i = s.m_vCluster.begin(); i != s.m_vCluster.end(); ++ i)
@@ -186,7 +201,7 @@ void print(const SysStat& s)
            << format(formatSize(i->m_llTotalOutputData), 12) << endl;
    }
 
-   cout << "------------------------------------------------------------\n";
+   cout << "-----------------------------------------------------------------------\n";
    cout << format("SLAVE_ID", 10)
         << format("Address", 24)
         << format("CLUSTER", 8)
@@ -197,7 +212,7 @@ void print(const SysStat& s)
         << format("CPU(us)", 12)
         << format("NetIn", 12)
         << format("NetOut", 12)
-        << format("Data_Dir", 0) << endl;
+        << endl;
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
@@ -211,23 +226,11 @@ void print(const SysStat& s)
            << format(i->m_llCurrCPUUsed, 12)
            << format(formatSize(i->m_llTotalInputData), 12)
            << format(formatSize(i->m_llTotalOutputData), 12)
-           << format(i->m_strDataDir, 0) << endl;
-
-      // display host name, in addition to IP
-      sockaddr_in addr;
-      addr.sin_family = AF_INET;
-
-      if (inet_pton(addr.sin_family, i->m_strIP.c_str(), &addr.sin_addr) != 1)
-        continue;
-
-      char clienthost[NI_MAXHOST];
-      if (getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
-         continue;
-      if (i->m_strIP == clienthost)
-         continue;
+           << endl;
 
       cout << format("", 10)
-           << clienthost << endl;
+           << getDNSName(i->m_strIP) << ":"
+           << i->m_strDataDir << endl;
    }
 }
 
