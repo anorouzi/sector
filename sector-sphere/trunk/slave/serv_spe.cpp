@@ -476,8 +476,6 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
       }
       else
       {
-         if (processstatus > 0)
-            processstatus = -1001; // data transfer error
          msg.setData(8, (char*)&processstatus, 4);
          msg.m_iDataLength = SectorMsg::m_iHdrSize + 12;
          if (output.m_strError.length() > 0)
@@ -952,6 +950,7 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
       SizeByLoc[i] = 0;
    }
 
+   // summarize information for each bucket, ignore empty buckets
    for (int r = 0; r < buckets; ++ r)
    {
       int i = dest.m_piLocID[r];
@@ -971,6 +970,7 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
       if (++ p == ResByLoc.end())
          p = ResByLoc.begin();
 
+      // retrieve bucket location/address
       char* dstip = dest.m_pcOutputLoc + i * 80;
       int32_t dstport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 68);
       int32_t shufflerport = *(int32_t*)(dest.m_pcOutputLoc + i * 80 + 72);
@@ -986,6 +986,7 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
       msg.setData(12, (char*)&totalsize, 4);
       msg.m_iDataLength = SectorMsg::m_iHdrSize + 16;
 
+      // request to send results to the slave node
       msg.setType(1);
       if (m_GMP.rpc(dstip, shufflerport, &msg, &msg) < 0)
          return -1;
@@ -993,7 +994,7 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
       if (msg.getType() < 0)
       {
          // if all shufflers are busy, wait here a little while
-         if (tn ++ > ResByLoc.size())
+         if (++ tn >= ResByLoc.size())
          {
             tn = 0;
             usleep(100000);
@@ -1007,6 +1008,7 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
             return -1;
       }
 
+      // send results for one bucket a time
       for (set<int>::iterator r = ResByLoc[i].begin(); r != ResByLoc[i].end(); ++ r)
       {
          int32_t id = *r;
