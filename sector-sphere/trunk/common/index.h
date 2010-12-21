@@ -24,6 +24,7 @@ written by
 #define __SECTOR_INDEX_H__
 
 #include <meta.h>
+#include <osportable.h>
 
 class Index: public Metadata
 {
@@ -56,6 +57,7 @@ public:
 public:
    virtual int merge(const std::string& path, Metadata* branch, const unsigned int& replica);
    virtual int substract(const std::string& path, const Address& addr);
+
    virtual int64_t getTotalDataSize(const std::string& path);
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
@@ -71,16 +73,19 @@ private:
    int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
    int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch, const unsigned int& replica);
    int substract(std::map<std::string, SNode>& currdir, const Address& addr);
-   int64_t getTotalDataSize(std::map<std::string, SNode>& currdir);
-   int64_t getTotalFileNum(std::map<std::string, SNode>& currdir);
-   int collectDataInfo(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& result);
-   int checkReplica(const std::string& path, std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over);
-   int list_r(std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist);
-   int getSlaveMeta(std::map<std::string, SNode>& currdir, std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr);
+
+   int64_t getTotalDataSize(const std::map<std::string, SNode>& currdir) const;
+   int64_t getTotalFileNum(const std::map<std::string, SNode>& currdir) const;
+   int collectDataInfo(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& result) const;
+   int checkReplica(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over) const;
+   int list_r(const std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist) const;
+   int getSlaveMeta(const std::map<std::string, SNode>& currdir, const std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr) const;
+
    int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
    std::map<std::string, SNode> m_mDirectory;
+   RWLock m_MetaLock;
 };
 
 #endif

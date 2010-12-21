@@ -71,15 +71,6 @@ private:
 
 private:
    std::string m_strMetaPath;
-
-   struct LockSet
-   {
-      std::set<int> m_sReadLock;
-      std::set<int> m_sWriteLock;
-   };
-   std::map<std::string, LockSet> m_mLock;
-
-   pthread_mutex_t m_MetaLock;
 };
 
 #endif

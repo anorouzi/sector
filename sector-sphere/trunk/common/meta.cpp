@@ -32,12 +32,12 @@ int Metadata::m_iDefaultRepDist = 65536;
 
 Metadata::Metadata()
 {
-   CGuard::createMutex(m_MetaLock);
+   CGuard::createMutex(m_FileLockProtection);
 }
 
 Metadata::~Metadata()
 {
-   CGuard::releaseMutex(m_MetaLock);
+   CGuard::releaseMutex(m_FileLockProtection);
 }
 
 void Metadata::setDefault(const int rep_num, const int rep_dist)
@@ -48,7 +48,7 @@ void Metadata::setDefault(const int rep_num, const int rep_dist)
 
 int Metadata::lock(const string& path, int user, int mode)
 {
-   CGuard mg(m_MetaLock);
+   CGuard mg(m_FileLockProtection);
 
    if (mode & SF_MODE::WRITE)
    {
@@ -68,7 +68,7 @@ int Metadata::lock(const string& path, int user, int mode)
 
 int Metadata::unlock(const string& path, int user, int mode)
 {
-   CGuard mg(m_MetaLock);
+   CGuard mg(m_FileLockProtection);
 
    map<string, LockSet>::iterator i = m_mLock.find(path);
 

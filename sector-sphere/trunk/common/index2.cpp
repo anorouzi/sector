@@ -35,12 +35,10 @@ using namespace std;
 Index2::Index2():
 m_strMetaPath("/tmp")
 {
-   pthread_mutex_init(&m_MetaLock, NULL);
 }
 
 Index2::~Index2()
 {
-   pthread_mutex_destroy(&m_MetaLock);
 }
 
 void Index2::init(const string& path)

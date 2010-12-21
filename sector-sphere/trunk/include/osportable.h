@@ -282,6 +282,38 @@ private:
    CCond& operator=(const CCond&);
 };
 
+enum RWLockState {RW_READ, RW_WRITE};
+
+class RWLock
+{
+public:
+   RWLock();
+   ~RWLock();
+
+   int acquire_shared();
+   int acquire_exclusive();
+   int release_shared();
+   int release_exclusive();
+
+private:
+#ifndef WIN32
+   pthread_rwlock_t m_Lock;
+#else
+   PSRWLOCK m_Lock;
+#endif
+};
+
+class RWGuard
+{
+public:
+   RWGuard(RWLock& lock, const RWLockState = RW_READ);
+   ~RWGuard();
+
+private:
+   RWLock& m_Lock;
+   int m_iLocked;
+   RWLockState m_LockState;
+};
 
 class LocalFS
 {

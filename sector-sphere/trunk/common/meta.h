@@ -136,7 +136,7 @@ public:
    virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc) = 0;
 
 protected:
-   pthread_mutex_t m_MetaLock;
+   pthread_mutex_t m_FileLockProtection;
 
    struct LockSet
    {

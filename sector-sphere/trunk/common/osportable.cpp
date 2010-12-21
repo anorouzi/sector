@@ -101,6 +101,97 @@ int inet_pton(int af, const char* s, void* d)
 #endif
 
 
+
+RWLock::RWLock()
+{
+#ifndef WIN32
+   pthread_rwlock_init(&m_Lock, NULL);
+#else
+   InitializeSRWLock(m_Lock);
+#endif
+}
+
+RWLock::~RWLock()
+{
+#ifndef WIN32
+   pthread_rwlock_destroy(&m_Lock);
+#else
+
+#endif
+}
+
+int RWLock::acquire_shared()
+{
+#ifndef WIN32
+   if (0 == pthread_rwlock_rdlock(&m_Lock))
+      return 0;
+   return -1;
+#else
+   AcquireSRWLockShared(m_Lock);
+   return 0;
+#endif
+}
+
+int RWLock::acquire_exclusive()
+{
+#ifndef WIN32
+   if (0 == pthread_rwlock_wrlock(&m_Lock))
+      return 0;
+   return -1;
+#else
+   AcquireSRWLockExclusive(m_Lock);
+   return 0;
+#endif
+}
+
+int RWLock::release_shared()
+{
+#ifndef WIN32
+   if (0 == pthread_rwlock_unlock(&m_Lock))
+      return 0;
+   return -1;
+#else
+   ReleaseSRWLockShared(m_Lock);
+   return 0;
+#endif
+}
+
+int RWLock::release_exclusive()
+{
+#ifndef WIN32
+   if (0 == pthread_rwlock_unlock(&m_Lock))
+      return 0;
+   return -1;
+#else
+   ReleaseSRWLockExclusive(m_Lock);
+   return 0;
+#endif
+}
+
+RWGuard::RWGuard(RWLock& lock, const RWLockState state):
+m_Lock(lock),
+m_iLocked(-1),
+m_LockState(state)
+{
+   if (m_LockState == RW_READ)
+      m_iLocked = m_Lock.acquire_shared();
+   else
+      m_iLocked = m_Lock.acquire_exclusive();
+}
+
+RWGuard::~RWGuard()
+{
+   if (m_iLocked != 0)
+      return;
+
+   if (m_LockState == RW_READ)
+      m_Lock.release_shared();
+   else
+      m_Lock.release_exclusive();
+};
+
+
+
 int LocalFS::mkdir(const std::string& path)
 {
 #ifndef WIN32
