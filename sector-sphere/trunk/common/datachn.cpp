@@ -719,6 +719,8 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
             delete [] data;
          }
 
+         delete [] rd.m_pcData;
+
          CGuard::leaveCS(c->m_RcvLock);
          return size;
       }
