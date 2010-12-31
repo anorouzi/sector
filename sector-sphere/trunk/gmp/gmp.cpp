@@ -44,6 +44,7 @@ written by
    #include <stdio.h>
    #include <errno.h>
    #include <assert.h>
+   #include <netdb.h>
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
@@ -341,6 +342,25 @@ int CGMP::UDPsend(const char* ip, const int& port, CGMPMessage* msg)
 
 int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len)
 {
+   /*
+   UDTSOCKET usock;
+   if (m_PeerHistory.getUDTSocket(ip, port, usock) < 0)
+   {
+      CGMPMessage ctrl_msg;
+      ctrl_msg.pack(3, m_iUDTReusePort);
+      UDPSend(ip, port, ctrl_msg);
+
+      UDTCreate(usock);
+      if (UDTConnect(ip, port) < 0)
+         return -1;
+
+      UDT::epoll_add_usock();
+
+      m_PeerHistory.setUDTSocket(ip, port, usock);
+   }
+   */
+
+   // now UDT connection is ready, send data
    CGMPMessage* msg = new CGMPMessage;
    msg->pack(data, len, id);
    id = msg->m_iID;
@@ -353,11 +373,6 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
 
 int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 {
-   /*
-   TODO: find UDT conn from peer history, otherwise set rendezvous conn using UDP cmd 3
-   m_PeerHistory
-   */
-
    UDTTransport t;
    if (t.open(m_iUDTReusePort, false, true) < 0)
       return -1;
@@ -382,6 +397,59 @@ int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
 
    t.close();
    return 16 + msg->m_iLength;
+}
+
+int CGMP::UDTCreate(UDTSOCKET& usock)
+{
+   addrinfo hints;
+   addrinfo* res;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   // UDT uses GMP port - 1
+   char service[16];
+   sprintf(service, "%d", m_iPort - 1);
+   if (0 != getaddrinfo(NULL, service, &hints, &res))
+      return -1;
+
+   usock = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+   bool reuse = true;
+   UDT::setsockopt(usock, 0, UDT_REUSEADDR, &reuse, sizeof(bool));
+   bool rendezvous = true;
+   UDT::setsockopt(usock, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
+
+   if (UDT::ERROR == UDT::bind(usock, res->ai_addr, res->ai_addrlen))
+      return -1;
+
+   freeaddrinfo(res);
+
+   return 0;
+}
+
+int CGMP::UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port)
+{
+   addrinfo hints;
+   addrinfo* peer;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   char buffer[16];
+   sprintf(buffer, "%d", port);
+   if (0 != getaddrinfo(ip, buffer, &hints, &peer))
+      return -1;
+
+   UDT::connect(usock, peer->ai_addr, peer->ai_addrlen);
+
+   freeaddrinfo(peer);
+
+   return 0;
 }
 
 int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const bool& block)

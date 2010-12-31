@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/01/2010
+   Yunhong Gu, last updated 12/31/2010
 *****************************************************************************/
 
 
@@ -82,7 +82,7 @@ public:
    CGMPMessage(const CGMPMessage& msg);
    ~CGMPMessage();
 
-   int32_t& m_iType;		// 0 Data; 1 ACK
+   int32_t& m_iType;		// 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
    int32_t& m_iSession;
    int32_t& m_iID;		// message ID
    int32_t& m_iInfo;		//
@@ -107,6 +107,7 @@ private:
    static const int32_t g_iMaxID = 0xFFFFFFF;
    static const int m_iHdrSize = 16;
 };
+
 struct CMsgRecord
 {
    std::string m_strIP;
@@ -151,6 +152,9 @@ private:
    int UDTsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len);
    int UDTsend(const char* ip, const int& port, CGMPMessage* msg);
 
+   int UDTCreate(UDTSOCKET& usock);
+   int UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port);
+
 public:
    int sendto(const std::string& ip, const int& port, int32_t& id, const CUserMessage* msg);
    int recvfrom(std::string& ip, int& port, int32_t& id, CUserMessage* msg, const bool& block = true);
@@ -194,6 +198,7 @@ private:
 
    UDTTransport m_UDTSocket;
    int m_iUDTReusePort;
+   int m_iUDTEPollID;
 
    std::list<CMsgRecord*> m_lSndQueue;
    std::queue<CMsgRecord*> m_qRcvQueue;

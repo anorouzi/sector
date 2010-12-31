@@ -59,7 +59,7 @@ m_iID(0),
 m_llTimeStamp(0),
 m_iRTT(0),
 m_iFlowWindow(0),
-m_pUDTTrans(NULL)
+m_UDTSocket(UDT::INVALID_SOCK)
 {
 }
 
@@ -106,6 +106,7 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          (*i)->m_iID = id;
       (*i)->m_iFlowWindow = fw;
 
+      // adjust last updated time
       m_sPeerRecByTS.erase(*i);
       (*i)->m_llTimeStamp = CTimer::getTime();
       m_sPeerRecByTS.insert(*i);
@@ -124,10 +125,15 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
 
       if (m_sPeerRecByTS.size() > m_uiRecLimit)
       {
-         // delete first one
+         // delete oldest record
          set<CPeerRecord*, CFPeerRecByTS>::iterator j = m_sPeerRecByTS.begin();
 
          CPeerRecord* t = *j;
+
+         // close the UDT connection if necessary
+         if (t->m_UDTSocket != UDT::INVALID_SOCK)
+            UDT::close(t->m_UDTSocket);
+
          m_sPeerRec.erase(t);
          m_sPeerRecByTS.erase(j);
 
@@ -256,9 +262,57 @@ bool CPeerManagement::hit(const string& ip, const int& port, const int& session,
    return false;
 }
 
-UDTTransport* CPeerManagement::getUDTTrans(const string& ip, const int& port)
+int CPeerManagement::setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock)
 {
    CGuard recguard(m_PeerRecLock);
 
-   return NULL;
+   CPeerRecord pr;
+   pr.m_strIP = ip;
+   pr.m_iPort = port;
+
+   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
+
+   if (i != m_sPeerRec.end())
+   {
+      (*i)->m_UDTSocket = usock;
+   }
+   else
+   {
+      pr.m_llTimeStamp = CTimer::getTime();
+      pr.m_UDTSocket = usock;
+
+      m_sPeerRec.insert(&pr);
+      m_sPeerRecByTS.insert(&pr);
+   }
+
+   return 0;
+}
+
+int CPeerManagement::getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock)
+{
+   CGuard recguard(m_PeerRecLock);
+
+   CPeerRecord pr;
+   pr.m_strIP = ip;
+   pr.m_iPort = port;
+
+   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
+
+   if (i != m_sPeerRec.end())
+   {
+      usock = (*i)->m_UDTSocket;
+      if (usock == UDT::INVALID_SOCK)
+         return -1;
+
+      // check current state; maybe the peer has closed this connection
+      if (UDT::getsockstate(usock) != CONNECTED)
+      {
+         (*i)->m_UDTSocket = usock = UDT::INVALID_SOCK;
+         return -1;
+      }
+
+      return 0;
+   }
+
+   return -1;
 }

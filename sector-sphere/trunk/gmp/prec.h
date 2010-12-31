@@ -53,7 +53,7 @@ written by
 #include <map>
 #include <list>
 #include <string>
-#include <udttransport.h>
+#include <udt.h>
 
 struct CPeerRecord
 {
@@ -67,7 +67,7 @@ struct CPeerRecord
    int m_iRTT;
    int32_t m_iFlowWindow;
 
-   UDTTransport* m_pUDTTrans;
+   UDTSOCKET m_UDTSocket;
 };
 
 struct CFPeerRec
@@ -117,7 +117,8 @@ public:
    int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
    bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
 
-   UDTTransport* getUDTTrans(const std::string& ip, const int& port);
+   int setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock);
+   int getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock);
 
 private:
    int addRecentPR(const CPeerRecord& pr);

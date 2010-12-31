@@ -58,7 +58,6 @@ public:
    CUDTSocket();
    ~CUDTSocket();
 
-   enum UDTSTATUS {INIT = 1, OPENED, LISTENING, CONNECTED, BROKEN, CLOSED};
    UDTSTATUS m_Status;                       // current socket state
 
    uint64_t m_TimeStamp;                     // time when the socket is closed
@@ -155,9 +154,9 @@ public:
       // Parameters:
       //    0) [in] u: the UDT socket ID.
       // Returned value:
-      //    UDT socket status, or INIT if not found.
+      //    UDT socket status, or NONEXIST if not found.
 
-   CUDTSocket::UDTSTATUS getStatus(const UDTSOCKET u);
+   UDTSTATUS getStatus(const UDTSOCKET u);
 
       // socket APIs
 
@@ -172,8 +171,10 @@ public:
    int select(ud_set* readfds, ud_set* writefds, ud_set* exceptfds, const timeval* timeout);
    int selectEx(const std::vector<UDTSOCKET>& fds, std::vector<UDTSOCKET>* readfds, std::vector<UDTSOCKET>* writefds, std::vector<UDTSOCKET>* exceptfds, int64_t msTimeOut);
    int epoll_create();
-   int epoll_add(const int eid, const std::set<UDTSOCKET>* socks, const std::set<SYSSOCKET>* locals = NULL);
-   int epoll_remove(const int eid, const std::set<UDTSOCKET>* socks, const std::set<SYSSOCKET>* locals = NULL);
+   int epoll_add_usock(const int eid, const UDTSOCKET u, const int* events = NULL);
+   int epoll_add_ssock(const int eid, const SYSSOCKET s, const int* events = NULL);
+   int epoll_remove_usock(const int eid, const UDTSOCKET u, const int* events = NULL);
+   int epoll_remove_ssock(const int eid, const SYSSOCKET s, const int* events = NULL);
    int epoll_wait(const int eid, std::set<UDTSOCKET>* readfds, std::set<UDTSOCKET>* writefds, int64_t msTimeOut, std::set<SYSSOCKET>* lrfds = NULL, std::set<SYSSOCKET>* lwfds = NULL);
    int epoll_release(const int eid);
 
