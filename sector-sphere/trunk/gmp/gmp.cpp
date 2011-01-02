@@ -840,41 +840,37 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 {
    CGMP* self = (CGMP*)s;
 
-   UDTTransport t;
-   sockaddr_in addr;
-   int namelen = sizeof(sockaddr_in);
+   UDTTransport* t = NULL;
+   string peer_ip;
+   int peer_udt_port;
 
    int32_t header[4];
 
    while (!self->m_bClosed)
    {
-      if (self->m_UDTSocket.accept(t, (sockaddr*)&addr, &namelen) < 0)
+      t = self->m_UDTSocket.accept(peer_ip, peer_udt_port);
+      if (NULL == t)
          continue;
 
       int port;
-      if (t.recv((char*)&port, 4) < 0)
+      if (t->recv((char*)&port, 4) < 0)
       {
-         t.close();
+         t->close();
+         delete t;
          continue;
       }
 
       // recv "header" information
-      if (t.recv((char*)header, 16) < 0)
+      if (t->recv((char*)header, 16) < 0)
       {
-         t.close();
+         t->close();
+         delete t;
          continue;
       }
 
       CMsgRecord* rec = new CMsgRecord;
 
-      #ifndef WIN32
-         char tmp[64];
-         inet_ntop(AF_INET, &(addr.sin_addr), tmp, 64);
-      #else
-         char* tmp = inet_ntoa(addr.sin_addr);
-      #endif
-
-      rec->m_strIP = tmp;
+      rec->m_strIP = peer_ip;
       rec->m_iPort = port;
       rec->m_pMsg = new CGMPMessage;
       //rec->m_pMsg->m_iType = type;
@@ -883,9 +879,10 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
       rec->m_pMsg->m_iInfo = header[3];
 
       // recv parameter size
-      if (t.recv((char*)&(rec->m_pMsg->m_iLength), 4) < 0)
+      if (t->recv((char*)&(rec->m_pMsg->m_iLength), 4) < 0)
       {
-         t.close();
+         t->close();
+         delete t;
          delete rec->m_pMsg;
          delete rec;
          continue;
@@ -893,15 +890,17 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 
       rec->m_pMsg->m_pcData = new char[rec->m_pMsg->m_iLength];
 
-      if (t.recv(rec->m_pMsg->m_pcData, rec->m_pMsg->m_iLength) < 0)
+      if (t->recv(rec->m_pMsg->m_pcData, rec->m_pMsg->m_iLength) < 0)
       {
-         t.close();
+         t->close();
+         delete t;
          delete rec->m_pMsg;
          delete rec;
          continue;
       }
 
-      t.close();
+      t->close();
+      delete t;
 
       if (self->m_PeerHistory.hit(rec->m_strIP, rec->m_iPort, rec->m_pMsg->m_iSession, rec->m_pMsg->m_iID))
          continue;

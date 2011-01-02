@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,36 +16,38 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 01/02/2011
 *****************************************************************************/
 
 
 #ifndef __TCP_TRANSPORT_H__
 #define __TCP_TRANSPORT_H__
 
+#include <transport.h>
 #include <string>
 
-class TCPTransport
+class TCPTransport: public Transport
 {
 public:
    TCPTransport();
-   ~TCPTransport();
+   virtual ~TCPTransport();
 
 public:
-   int open(const char* ip, const int& port);
-   int listen();
-   TCPTransport* accept(char* ip, int& port);
-   int connect(const char* ip, const int& port);
-   int rendezvous_connect(const char* /*ip*/, const int& /*port*/, bool /*cs = false*/) {return 0;}
-   int close();
+   virtual int open(int& port, bool rendezvous = false, bool reuseaddr = false);
 
-   int send(const char* data, const int& size);
-   int recv(char* data, const int& size);
+   virtual int listen();
+   virtual TCPTransport* accept(std::string& ip, int& port);
+   virtual int connect(const std::string& ip, int port);
+   virtual int close();
 
-   int64_t sendfile(const char* file, const int64_t& offset, const int64_t& size);
-   int64_t recvfile(const char* file, const int64_t& offset, const int64_t& size);
+   virtual int send(const char* data, int size);
+   virtual int recv(char* data, int size);
+   virtual int64_t sendfile(std::fstream& ifs, int64_t offset, int64_t size);
+   virtual int64_t recvfile(std::fstream& ofs, int64_t offset, int64_t size);
 
-   int getLocalIP(std::string& ip);
+   virtual bool isConnected();
+   virtual int64_t getRealSndSpeed();
+   virtual int getLocalAddr(std::string& ip, int& port);
 
 private:
 #ifndef WIN32

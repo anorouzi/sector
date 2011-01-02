@@ -796,12 +796,9 @@ int DataChn::getSelfAddr(const string& peerip, int peerport, string& localip, in
       return 0;
    }
 
-   sockaddr_in addr;
-   if (c->m_pTrans->getsockname((sockaddr*)&addr) < 0)
+   if (c->m_pTrans->getLocalAddr(localip, localport) < 0)
       return -1;
 
-   localip = inet_ntoa(addr.sin_addr);
-   localport = ntohs(addr.sin_port);
    return 0;
 }
 

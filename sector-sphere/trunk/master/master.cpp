@@ -481,12 +481,13 @@ int Master::stop()
 #endif
 
    TCPTransport util;
-   util.open(NULL, self->m_SysConfig.m_iServerPort - 1);
+   int port = self->m_SysConfig.m_iServerPort - 1;
+   util.open(port);
    util.listen();
 
    while (self->m_Status == RUNNING)
    {
-      char ip[64];
+      string ip;
       int port;
       TCPTransport* t = util.accept(ip, port);
       if (NULL == t)

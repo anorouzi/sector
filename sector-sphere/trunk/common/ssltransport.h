@@ -44,6 +44,7 @@ public:
    int initClientCTX(const char* cert);
 
    int open(const char* ip, const int& port);
+
    int listen();
    SSLTransport* accept(char* ip, int& port);
    int connect(const char* ip, const int& port);

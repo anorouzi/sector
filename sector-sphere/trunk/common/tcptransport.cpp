@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 01/02/2011
 *****************************************************************************/
 
 
@@ -33,6 +33,7 @@ written by
 #include <sector.h>
 #include <tcptransport.h>
 #include <cstring>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 
@@ -50,13 +51,10 @@ TCPTransport::~TCPTransport()
 
 }
 
-int TCPTransport::open(const char* ip, const int& port)
+int TCPTransport::open(int& port, bool rendezvous, bool reuseaddr)
 {
    if ((m_iSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
       return SectorError::E_RESOURCE;
-
-   if ((NULL == ip) && (0 == port))
-      return 0;
 
    sockaddr_in addr;
    memset(&addr, 0, sizeof(sockaddr_in));
@@ -64,12 +62,11 @@ int TCPTransport::open(const char* ip, const int& port)
    addr.sin_family = AF_INET;
    addr.sin_port = htons(port);
 
-   int reuse = 1;
+   int reuse = reuseaddr;
    ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
    if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
    {
-      cerr << "TCP socket unable to bind on address " << ip << " " << port << endl;
       return SectorError::E_RESOURCE;
    }
 
@@ -81,51 +78,61 @@ int TCPTransport::listen()
    return ::listen(m_iSocket, 1024);
 }
 
-TCPTransport* TCPTransport::accept(char* ip, int& port)
+TCPTransport* TCPTransport::accept(string& ip, int& port)
 {
    TCPTransport* t = new TCPTransport;
 
    sockaddr_in addr;
-   socklen_t size = sizeof(sockaddr_in);
-   if ((t->m_iSocket = ::accept(m_iSocket, (sockaddr*)&addr, &size)) < 0)
+   socklen_t addrlen = sizeof(sockaddr_in);
+   if ((t->m_iSocket = ::accept(m_iSocket, (sockaddr*)&addr, &addrlen)) < 0)
+   {
+      delete t;
       return NULL;
+   }
 
-   inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
-   port = addr.sin_port;
+   char clienthost[NI_MAXHOST];
+   char clientport[NI_MAXSERV];
+   getnameinfo((sockaddr*)&addr, addrlen, clienthost, sizeof(clienthost), clientport, sizeof(clientport), NI_NUMERICHOST|NI_NUMERICSERV);
+
+   ip = clienthost;
+   port = atoi(clientport);
 
    t->m_bConnected = true;
 
    return t;
 }
 
-int TCPTransport::connect(const char* host, const int& port)
+int TCPTransport::connect(const string& host, int port)
 {
    if (m_bConnected)
       return 0;
 
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(port);
-   hostent* he = gethostbyname(host);
+   addrinfo hints, *peer;
 
-   if (NULL == he)
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   char buffer[16];
+   sprintf(buffer, "%d", port);
+
+   if (0 != getaddrinfo(host.c_str(), buffer, &hints, &peer))
    {
-      cerr << "SSL connect: invalid address " << host << " " << port << endl;
       return SectorError::E_CONNECTION;
    }
 
-   addr.sin_addr.s_addr = ((in_addr*)he->h_addr)->s_addr;
-   memset(addr.sin_zero, '\0', sizeof(addr.sin_zero));
-
-   if (::connect(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
+   if (::connect(m_iSocket, peer->ai_addr, peer->ai_addrlen) < 0)
    {
-      cerr << "TCP connect: unable to connect to server.\n";
+      freeaddrinfo(peer);
       return SectorError::E_CONNECTION;
    }
+
+   freeaddrinfo(peer);
 
    m_bConnected = true;
 
-   return 1;
+   return 0;
 }
 
 int TCPTransport::close()
@@ -142,7 +149,7 @@ int TCPTransport::close()
 #endif
 }
 
-int TCPTransport::send(const char* data, const int& size)
+int TCPTransport::send(const char* data, int size)
 {
    if (!m_bConnected)
       return -1;
@@ -159,7 +166,7 @@ int TCPTransport::send(const char* data, const int& size)
    return size;
 }
 
-int TCPTransport::recv(char* data, const int& size)
+int TCPTransport::recv(char* data, int size)
 {
    if (!m_bConnected)
       return -1;
@@ -176,12 +183,10 @@ int TCPTransport::recv(char* data, const int& size)
    return size;
 }
 
-int64_t TCPTransport::sendfile(const char* file, const int64_t& offset, const int64_t& size)
+int64_t TCPTransport::sendfile(std::fstream& ifs, int64_t offset, int64_t size)
 {
    if (!m_bConnected)
       return -1;
-
-   ifstream ifs(file, ios::in | ios::binary);
 
    if (ifs.bad() || ifs.fail())
       return -1;
@@ -200,17 +205,14 @@ int64_t TCPTransport::sendfile(const char* file, const int64_t& offset, const in
    }
 
    delete [] buf;
-   ifs.close();
 
    return sent;
 }
 
-int64_t TCPTransport::recvfile(const char* file, const int64_t& offset, const int64_t& size)
+int64_t TCPTransport::recvfile(std::fstream& ofs, int64_t offset, int64_t size)
 {
    if (!m_bConnected)
       return -1;
-
-   fstream ofs(file, ios::out | ios::binary);
 
    if (ofs.bad() || ofs.fail())
       return -1;
@@ -229,21 +231,34 @@ int64_t TCPTransport::recvfile(const char* file, const int64_t& offset, const in
    }
 
    delete [] buf;
-   ofs.close();
+
    return recd;
 }
 
-int TCPTransport::getLocalIP(string& ip)
+bool TCPTransport::isConnected()
+{
+   return m_bConnected;
+}
+
+int64_t TCPTransport::getRealSndSpeed()
+{
+   return -1;
+}
+
+int TCPTransport::getLocalAddr(std::string& ip, int& port)
 {
    sockaddr_in addr;
    socklen_t size = sizeof(sockaddr_in);
 
-   if (getsockname(m_iSocket, (sockaddr*)&addr, &size) < 0)
+   if (::getsockname(m_iSocket, (sockaddr*)&addr, &size) < 0)
       return -1;
 
-   char tmp[64];
+   char clienthost[NI_MAXHOST];
+   char clientport[NI_MAXSERV];
+   getnameinfo((sockaddr*)&addr, size, clienthost, sizeof(clienthost), clientport, sizeof(clientport), NI_NUMERICHOST|NI_NUMERICSERV);
 
-   ip = inet_ntop(AF_INET, &(addr.sin_addr), tmp, 64);
+   ip = clienthost;
+   port = atoi(clientport);
 
-   return 1;
+   return 0;
 }

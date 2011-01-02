@@ -863,7 +863,8 @@ int Client::lookup(const int32_t& key, Address& serv_addr)
 int Client::retrieveMasterInfo(string& certfile)
 {
    TCPTransport t;
-   t.open(NULL, 0);
+   int port = 0;
+   t.open(port);
    if (t.connect(m_strServerIP.c_str(), m_iServerPort - 1) < 0)
       return SectorError::E_CONNECTION;
 
@@ -874,10 +875,16 @@ int Client::retrieveMasterInfo(string& certfile)
    certfile = "master_node.cert";
 #endif
 
+   fstream ofs(certfile.c_str(), ios::binary | ios::trunc);
+   if (ofs.fail())
+      return -1;
+
    int32_t size = 0;
    t.recv((char*)&size, 4);
-   int64_t recvsize = t.recvfile(certfile.c_str(), 0, size);
+   int64_t recvsize = t.recvfile(ofs, 0, size);
    t.close();
+
+   ofs.close();
 
    if (recvsize <= 0)
       return SectorError::E_BROKENPIPE;

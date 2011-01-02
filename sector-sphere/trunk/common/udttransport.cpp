@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 01/02/2011
 *****************************************************************************/
 
 
@@ -24,12 +24,14 @@ written by
    #include <sys/types.h>
    #include <sys/socket.h>
    #include <arpa/inet.h>
+   #include <netdb.h>
 #else
    #include <windows.h>
 #endif
 
 #include <fstream>
 #include <cstring>
+#include <cstdlib>
 #include "udttransport.h"
 
 using namespace std;
@@ -89,7 +91,7 @@ int UDTTransport::listen()
    return UDT::listen(m_Socket, 1024);
 }
 
-int UDTTransport::accept(UDTTransport& t, sockaddr* addr, int* addrlen)
+UDTTransport* UDTTransport::accept(string& ip, int& port)
 {
    timeval tv;
    UDT::UDSET readfds;
@@ -103,32 +105,51 @@ int UDTTransport::accept(UDTTransport& t, sockaddr* addr, int* addrlen)
    int res = UDT::select(1, &readfds, NULL, NULL, &tv);
 
    if ((res == UDT::ERROR) || (!UD_ISSET(m_Socket, &readfds)))
-      return -1;
+      return NULL;
 
-   t.m_Socket = UDT::accept(m_Socket, addr, addrlen);
+   UDTTransport* t = new UDTTransport;
 
-   if (t.m_Socket == UDT::INVALID_SOCK)
-      return -1;
+   sockaddr_in addr;
+   int addrlen = sizeof(addr);
+   t->m_Socket = UDT::accept(m_Socket, (sockaddr*)&addr, &addrlen);
 
-   return 0;
+   if (t->m_Socket == UDT::INVALID_SOCK)
+   {
+      delete t;
+      return NULL;
+   }
+
+   char clienthost[NI_MAXHOST];
+   char clientport[NI_MAXSERV];
+   getnameinfo((sockaddr*)&addr, addrlen, clienthost, sizeof(clienthost), clientport, sizeof(clientport), NI_NUMERICHOST|NI_NUMERICSERV);
+
+   ip = clienthost;
+   port = atoi(clientport);
+
+   return t;
 }
 
-int UDTTransport::connect(const char* ip, int port)
+int UDTTransport::connect(const string& ip, int port)
 {
    sockaddr_in serv_addr;
    serv_addr.sin_family = AF_INET;
    serv_addr.sin_port = htons(port);
    #ifndef WIN32
-      inet_pton(AF_INET, ip, &serv_addr.sin_addr);
+      inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr);
    #else
-      serv_addr.sin_addr.s_addr = inet_addr(ip);
+      serv_addr.sin_addr.s_addr = inet_addr(ip.c_str());
    #endif
-      memset(&(serv_addr.sin_zero), '\0', 8);
+   memset(&(serv_addr.sin_zero), '\0', 8);
 
    if (UDT::ERROR == UDT::connect(m_Socket, (sockaddr*)&serv_addr, sizeof(serv_addr)))
       return -1;
 
    return 1;
+}
+
+int UDTTransport::close()
+{
+   return UDT::close(m_Socket);
 }
 
 int UDTTransport::send(const char* buf, int size)
@@ -171,11 +192,6 @@ int64_t UDTTransport::recvfile(fstream& ifs, int64_t offset, int64_t size)
    return UDT::recvfile(m_Socket, ifs, offset, size);
 }
 
-int UDTTransport::close()
-{
-   return UDT::close(m_Socket);
-}
-
 bool UDTTransport::isConnected()
 {
    return (UDT::send(m_Socket, NULL, 0, 0) == 0);
@@ -196,8 +212,20 @@ int64_t UDTTransport::getRealSndSpeed()
    return int64_t(8.0 * perf.pktSent * mss / (perf.usSndDuration / 1000000.0));
 }
 
-int UDTTransport::getsockname(sockaddr* addr)
+int UDTTransport::getLocalAddr(std::string& ip, int& port)
 {
+   sockaddr_in addr;
    int size = sizeof(sockaddr_in);
-   return UDT::getsockname(m_Socket, addr, &size);
+
+   if (UDT::getsockname(m_Socket, (sockaddr*)&addr, &size) < 0)
+      return -1;
+
+   char clienthost[NI_MAXHOST];
+   char clientport[NI_MAXSERV];
+   getnameinfo((sockaddr*)&addr, size, clienthost, sizeof(clienthost), clientport, sizeof(clientport), NI_NUMERICHOST|NI_NUMERICSERV);
+
+   ip = clienthost;
+   port = atoi(clientport);
+
+   return 0;
 }
