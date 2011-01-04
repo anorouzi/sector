@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 01/04/2011
 *****************************************************************************/
 
 #include <common.h>
@@ -215,6 +215,7 @@ bool Metadata::initLC()
    m_pbLegalChar[39] = true; // ' 
    m_pbLegalChar[40] = true; // (
    m_pbLegalChar[41] = true; // )
+   m_pbLegalChar[42] = true; // )
    m_pbLegalChar[43] = true; // +
    m_pbLegalChar[45] = true; // -
    m_pbLegalChar[46] = true; // .
@@ -225,6 +226,7 @@ bool Metadata::initLC()
       m_pbLegalChar[i] = true;
    }
 
+   m_pbLegalChar[63] = true; // ?
    m_pbLegalChar[64] = true; // @
 
    // A - Z
