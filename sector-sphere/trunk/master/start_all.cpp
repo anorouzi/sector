@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/14/2010
+   Yunhong Gu, last updated 01/05/2011
 *****************************************************************************/
 
 #include <sector.h>
@@ -32,6 +32,100 @@ void help()
    cout << "start_all [-s slaves.list] [-l slave_screen_log_output]" << endl;
 }
 
+bool skip(char* line)
+{
+   if (*line == '\0')
+      return true;
+
+   int i = 0;
+   int n = strlen(line);
+   for (; i < n; ++ i)
+   {
+      if ((line[i] != ' ') && (line[i] != '\t'))
+         break;
+   }
+
+   if ((i == n) || (line[i] == '#'))
+      return true;
+
+   return false;
+}
+
+int parse(char* line, string& addr, string& base, string& param)
+{
+   //FORMAT: addr(username@IP) base [param]
+
+   char* start = line;
+
+   // skip all blanks and TABs
+   while ((*start == ' ') || (*start == '\t'))
+      ++ start;
+   if (*start == '\0')
+      return -1;
+
+   char* end = start;
+   while ((*end != ' ') && (*end != '\t') && (*end != '\0'))
+      ++ end;
+   if (*end == '\0')
+      return -1;
+
+   char orig = *end;
+   *end = '\0';
+   addr = start;
+   *end = orig;
+
+
+   // skip all blanks and TABs
+   start = end;
+   while ((*start == ' ') || (*start == '\t'))
+      ++ start;
+   if (*start == '\0')
+      return -1;
+
+   end = start;
+   while ((*end != ' ') && (*end != '\t') && (*end != '\0'))
+      ++ end;
+
+   orig = *end;
+   *end = '\0';
+   base = start;
+   *end = orig;
+
+
+   // skip all blanks and TABs
+   start = end;
+   while ((*start == ' ') || (*start == '\t'))
+      ++ start;
+
+   // parameter is optional
+   if (*start == '\0')
+      return 0;
+
+   param = start;
+
+   return 0;
+}
+
+int parse(char* line, string& key, string& val)
+{
+   //FORMAT:  *KEY=VAL
+
+   char* start = line + 1;
+   while (*line != '=')
+   {
+      if (*line == '\0')
+         return -1;
+      line ++;
+   }
+   *line = '\0';
+
+   key = start;
+
+   val = line + 1;
+
+   return 0;
+}
+
 int main(int argc, char** argv)
 {
    string sector_home;
@@ -41,13 +135,6 @@ int main(int argc, char** argv)
       help();
       return -1;
    }
-
-   string cmd = string("nohup " + sector_home + "/master/start_master > /dev/null &");
-   int result = system(cmd.c_str());
-   cout << "start master ...\n";
-
-   cout << "result: = " << result << endl;
-
 
    CmdLineParser clp;
    clp.parse(argc, argv);
@@ -68,6 +155,12 @@ int main(int argc, char** argv)
       }
    }
 
+   // starting master
+   string cmd = string("nohup " + sector_home + "/master/start_master > /dev/null &");
+   system(cmd.c_str());
+   cout << "start master ...\n";
+
+   // starting slaves on the slave list
    ifstream ifs(slaves_list.c_str());
    if (ifs.bad() || ifs.fail())
    {
@@ -76,6 +169,9 @@ int main(int argc, char** argv)
    }
 
    int count = 0;
+   string addr, base, param;
+   // global config
+   string mh, mp, log, h, ds;
 
    while (!ifs.eof())
    {
@@ -90,46 +186,59 @@ int main(int argc, char** argv)
       char line[256];
       line[0] = '\0';
       ifs.getline(line, 256);
-      if (*line == '\0')
+
+      if (skip(line))
          continue;
 
-      int i = 0;
-      int n = strlen(line);
-      for (; i < n; ++ i)
+      if (*line == '*')
       {
-         if ((line[i] != ' ') && (line[i] != '\t'))
-            break;
-      }
+         // global configuration for slaves
+         string key, val;
+         if (parse(line, key, val) == 0)
+         {
+            if ("DATA_DIRECTORY" == key)
+               h = val;
+            else if ("LOG_LEVEL" == key)
+               log = val;
+            else if ("MASTER_ADDRESS" == key)
+            {
+               mh = val.substr(0, val.find(':'));
+               mp = val.substr(mh.length() + 1, val.length() - mh.length() - 1);
+            }
+            else if ("MAX_DATA_SIZE" == key)
+               ds = val;
+            else
+               cout << "WARNING: unrecognized option (ignored): " << line << endl;
+         }
 
-      if ((i == n) && (line[i] == '#'))
          continue;
-
-      char newline[256];
-      bool blank = false;
-      char* p = newline;
-      for (; i <= n; ++ i)
-      {
-         if ((line[i] == ' ') || (line[i] == '\t'))
-         {
-            if (!blank)
-               *p++ = ' ';
-            blank = true;
-         }
-         else
-         {
-            *p++ = line[i];
-            blank = false;
-         }
       }
 
-      string base = newline;
-      base = base.substr(base.find(' ') + 1, base.length());
+      if (parse(line, addr, base, param) < 0)
+      {
+         cout << "WARNING: incorrect slave line format (skipped): " << line << endl;
+         continue;
+      }
 
-      string addr = newline;
-      addr = addr.substr(0, addr.find(' '));
+      string global_conf = "";
+      if (!mh.empty())
+         global_conf += string(" -mh ") + mh;
+      if (!mp.empty())
+         global_conf += string(" -mp ") + mp;
+      if (!h.empty())
+         global_conf += string(" -h ") + h;
+      if (!log.empty())
+         global_conf += string(" -log ") + log;
+      if (!ds.empty())
+         global_conf += string(" -ds ") + ds;
 
-      //TODO: source .bash_profile to include more environments variables
-      string cmd = (string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + base + "/slave/start_slave " + base + " &> " + slave_screen_log + "&\" &");
+      string start_slave = base + "/slave/start_slave";
+
+      // slave specific config will overwrite global config; these will overwrite local config, if exists
+      param = global_conf + " " + param;
+
+      //TODO: source .bash_profile on slave node to include more environments variables
+      string cmd = (string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + start_slave + " " + base + " " + param + " &> " + slave_screen_log + "&\" &");
       system(cmd.c_str());
 
       cout << "start slave at " << addr << endl;

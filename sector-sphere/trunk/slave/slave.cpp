@@ -56,22 +56,25 @@ Slave::~Slave()
    CGuard::releaseCond(m_RunCond);
 }
 
-int Slave::init(const char* base)
+int Slave::init(const string* base, const SlaveConf* global_conf)
 {
-   if (NULL != base)
-      m_strBase = base;
+   if ((NULL != base) && (base->length() > 0))
+      m_strBase = *base;
    else if (ConfLocation::locate(m_strBase) < 0)
    {
       cerr << "unable to locate configuration file; quit.\n";
       return -1;
    }
 
-   string conf = m_strBase + "/conf/slave.conf";
-   if (m_SysConfig.init(conf) < 0)
+   string conf_file = m_strBase + "/conf/slave.conf";
+   if ((m_SysConfig.init(conf_file) < 0) && (NULL == global_conf))
    {
       cerr << "unable to locate or initialize from configuration file; quit.\n";
       return -1;
    }
+
+   // Global Configuration will overwrite local configurations
+   m_SysConfig.set(global_conf);
 
    // obtain master IP address
    m_strMasterHost = m_SysConfig.m_strMasterHost;

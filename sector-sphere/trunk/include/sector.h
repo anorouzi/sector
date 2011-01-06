@@ -44,7 +44,7 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.6 build 11/23/2010.";
+const std::string SectorVersion = "Sector version 2.6 build 01/04/2011.";
 
 
 struct Address
@@ -420,7 +420,7 @@ private:
    int m_iLineCount;
 };
 
-enum MetaForm {MEMORY = 1, DISK};
+enum MetaForm {DEFAULT, MEMORY, DISK};
 
 class SECTOR_API ClientConf
 {

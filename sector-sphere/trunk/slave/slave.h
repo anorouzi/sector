@@ -144,6 +144,7 @@ public:
    SlaveConf();
 
    int init(const std::string& path);
+   int set(const SlaveConf* global);
 
 public:
    std::string m_strMasterHost;
@@ -165,7 +166,7 @@ public:
    ~Slave();
 
 public:
-   int init(const char* base = NULL);
+   int init(const std::string* base = NULL, const SlaveConf* global_conf = NULL);
    int connect();
    void run();
    void close();

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 01/04/2011
 *****************************************************************************/
 
 #include <slave.h>
@@ -26,20 +26,29 @@ using namespace std;
 
 SlaveConf::SlaveConf():
 m_strMasterHost(),
-m_iMasterPort(6000),
-m_strHomeDir("./"),
-m_llMaxDataSize(-1),
-m_iMaxServiceNum(64),
+m_iMasterPort(0),
+m_strHomeDir(),
+m_llMaxDataSize(0),
+m_iMaxServiceNum(0),
 m_strLocalIP(),
 m_strPublicIP(),
 m_iClusterID(0),
-m_MetaType(MEMORY),
-m_iLogLevel(1)
+m_MetaType(DEFAULT),
+m_iLogLevel(0)
 {
 }
 
 int SlaveConf::init(const string& path)
 {
+   // initialize these values; a slave must call init()
+   // cannot initialize the following values in constructor because they are reserved for global conf
+   m_iMasterPort = 6000;
+   m_strHomeDir = "./";
+   m_llMaxDataSize = -1;
+   m_iMaxServiceNum = 64;
+   m_MetaType = MEMORY;
+   m_iLogLevel = 1;
+
    ConfParser parser;
    Param param;
 
@@ -109,3 +118,40 @@ int SlaveConf::init(const string& path)
    return 0;
 }
 
+int SlaveConf::set(const SlaveConf* global)
+{
+   if (NULL == global)
+      return 0;
+
+   if (global->m_strMasterHost.length() > 0)
+      m_strMasterHost = global->m_strMasterHost;
+
+   if (global->m_iMasterPort > 0)
+      m_iMasterPort = global->m_iMasterPort;
+
+   if (global->m_strHomeDir.length() > 0)
+      m_strHomeDir = global->m_strHomeDir;
+
+   if (global->m_llMaxDataSize != 0)
+      m_llMaxDataSize = global->m_llMaxDataSize;
+
+   if (global->m_iMaxServiceNum > 0)
+      m_iMaxServiceNum = global->m_iMaxServiceNum;
+
+   if (global->m_strLocalIP.length() > 0)
+      m_strLocalIP = global->m_strLocalIP;
+
+   if (global->m_strPublicIP.length() > 0)
+      m_strPublicIP = global->m_strPublicIP;
+
+   if (global->m_iClusterID > 0)
+      m_iClusterID = global->m_iClusterID;
+
+   if (global->m_MetaType != DEFAULT)
+      m_MetaType = global->m_MetaType;
+
+   if (global->m_iLogLevel > 0)
+      m_iLogLevel = global->m_iLogLevel;
+
+   return 0;
+}
