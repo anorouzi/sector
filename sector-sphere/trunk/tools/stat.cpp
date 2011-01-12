@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,13 +16,31 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 01/10/2011
 *****************************************************************************/
 
 #include <iostream>
 #include <sector.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netdb.h>
 
 using namespace std;
+
+string getDNSName(const string& ip)
+{
+   sockaddr_in addr;
+   addr.sin_family = AF_INET;
+
+   if (inet_pton(addr.sin_family, ip.c_str(), &addr.sin_addr) != 1)
+      return ip;
+
+   char clienthost[NI_MAXHOST];
+   if (getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
+      return ip;
+
+   return clienthost;
+}
 
 int main(int argc, char** argv)
 {
@@ -59,7 +77,7 @@ int main(int argc, char** argv)
          cout << "Location:" << endl;
          for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
          {
-            cout << i->m_strIP << ":" << i->m_iPort << endl;
+            cout << i->m_strIP << ":" << i->m_iPort << "\t" << getDNSName(i->m_strIP) << endl;
          }
       }
    }

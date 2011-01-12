@@ -55,6 +55,10 @@ int parse(char* line, string& addr, string& base, string& param)
 {
    //FORMAT: addr(username@IP) base [param]
 
+   addr.clear();
+   base.clear();
+   param.clear();
+
    char* start = line;
 
    // skip all blanks and TABs
@@ -169,8 +173,6 @@ int main(int argc, char** argv)
    }
 
    int count = 0;
-   string addr, base, param;
-   // global config
    string mh, mp, log, h, ds;
 
    while (!ifs.eof())
@@ -214,6 +216,7 @@ int main(int argc, char** argv)
          continue;
       }
 
+      string addr, base, param;
       if (parse(line, addr, base, param) < 0)
       {
          cout << "WARNING: incorrect slave line format (skipped): " << line << endl;

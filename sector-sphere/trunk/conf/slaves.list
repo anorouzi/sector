@@ -4,6 +4,7 @@
 #This is optional. Refer to slave.conf for meaning of keys.
 *MASTER_ADDRESS=localhost:6000
 *DATA_DIRECTORY=/home/u2/yunhong/work/data
+*MAX_DATA_SIZE=102400
 
 yunhong@192.168.136.1 /home/yunhong/sector-sphere
 yunhong@192.168.136.2 /home/yunhong/sector-sphere
@@ -12,6 +13,7 @@ yunhong@192.168.136.3 /home/yunhong/sector-sphere
 #the global config applies to all slaves following to it,
 #until a new global config value reset it
 *DATA_DIRECTORY=/home/u2/yunhong/work/data
+*MAX_DATA_SIZE=
 
 yunhong@172.31.0.1 /home/yunhong/sector-sphere
 yunhong@172.31.0.2 /home/yunhong/sector-sphere

@@ -60,11 +60,8 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
 {
    if ((NULL != base) && (base->length() > 0))
       m_strBase = *base;
-   else if (ConfLocation::locate(m_strBase) < 0)
-   {
-      cerr << "unable to locate configuration file; quit.\n";
-      return -1;
-   }
+   else
+      ConfLocation::locate(m_strBase);
 
    string conf_file = m_strBase + "/conf/slave.conf";
    if ((m_SysConfig.init(conf_file) < 0) && (NULL == global_conf))
@@ -1216,6 +1213,7 @@ void* Slave::worker(void* param)
       if (self->m_SysConfig.m_llMaxDataSize > 0)
       {
          int64_t avail_limit = self->m_SysConfig.m_llMaxDataSize - self->m_SlaveStat.m_llDataSize;
+
          if (avail_limit < 0)
             avail_limit = 0;
          if (avail_limit < self->m_SlaveStat.m_llAvailSize)
