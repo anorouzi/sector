@@ -24,7 +24,9 @@ int main(int argc, char** argv)
       else if (i->first == "mp")
          global_conf.m_iMasterPort = atoi(i->second.c_str());
       else if (i->first == "h")
+      {
          global_conf.m_strHomeDir = i->second;
+      }
       else if (i->first == "ds")
          global_conf.m_llMaxDataSize = atoll(i->second.c_str()) * 1024 * 1024;
       else if (i->first == "log")

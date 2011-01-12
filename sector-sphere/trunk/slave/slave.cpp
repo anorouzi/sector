@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/28/2010
+   Yunhong Gu, last updated 01/12/2011
 *****************************************************************************/
 
 #include "slave.h"
@@ -58,13 +58,14 @@ Slave::~Slave()
 
 int Slave::init(const string* base, const SlaveConf* global_conf)
 {
-   if ((NULL != base) && (base->length() > 0))
+   bool base_found = true;
+   if ((NULL != base) && !base->empty())
       m_strBase = *base;
-   else
-      ConfLocation::locate(m_strBase);
+   else if (ConfLocation::locate(m_strBase) < 0)
+      base_found = false;
 
    string conf_file = m_strBase + "/conf/slave.conf";
-   if ((m_SysConfig.init(conf_file) < 0) && (NULL == global_conf))
+   if ((base_found && (m_SysConfig.init(conf_file) < 0) && !global_conf) || (!base_found && !global_conf))
    {
       cerr << "unable to locate or initialize from configuration file; quit.\n";
       return -1;
@@ -91,8 +92,12 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
    m_GMP.init(0);
    m_iLocalPort = m_GMP.getPort();
 
-   // initialize local directory
+   // initialize local directory, m_strHomeDir must end with a "/"
    m_strHomeDir = m_SysConfig.m_strHomeDir;
+   if (m_strHomeDir.empty())
+      m_strHomeDir = "./";
+   else if (m_strHomeDir[m_strHomeDir.length() - 1] != '/')
+      m_strHomeDir.append(1, '/');
 
    // check local directory
    if (createSysDir() < 0)
@@ -113,7 +118,7 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
       m_pLocalFile = new Index;
    else
       m_pLocalFile = new Index2;
-   m_pLocalFile->init(m_SysConfig.m_strHomeDir + ".metadata");
+   m_pLocalFile->init(m_strHomeDir + ".metadata");
    m_pLocalFile->scan(m_strHomeDir.c_str(), "/");
 
    m_SectorLog.insert("Sector slave started.");
@@ -130,7 +135,7 @@ int Slave::connect()
 
    // calculate total available disk size
    struct statfs64 slavefs;
-   statfs64(m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+   statfs64(m_strHomeDir.c_str(), &slavefs);
    int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
 
    m_iSlaveID = -1;
@@ -1205,7 +1210,7 @@ void* Slave::worker(void* param)
 
       // calculate total available disk size
       struct statvfs64 slavefs;
-      statvfs64(self->m_SysConfig.m_strHomeDir.c_str(), &slavefs);
+      statvfs64(self->m_strHomeDir.c_str(), &slavefs);
       self->m_SlaveStat.m_llAvailSize = slavefs.f_bavail * slavefs.f_bsize;
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
 
