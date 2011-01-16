@@ -739,6 +739,8 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       if (id < 0)
       {
          //this is the first master that the slave connect to; send these information to the slave
+
+         // check number of files only, directories need not to be removed.
          size = branch->getTotalFileNum("/");
          if (size <= 0)
             slvconn.send((char*)&size, 4);
@@ -752,9 +754,9 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
             if (size > 0)
                slvconn.sendfile(conflict_list.c_str(), 0, size);
+            LocalFS::rmdir(conflict_list);
 
-//DEBUG ONLY!!!!!!!!!!!!!
-//            LocalFS::rmdir(conflict_list);
+            m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogStringTag(LogTag::END);
          }
 
          // send the list of masters to the new slave
@@ -2791,11 +2793,6 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          Address addr;
          if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
             continue;
-
-cout << "REMOVE " << *i << " " << attr.m_sLocation.size() << endl;
-for (set<Address, AddrComp>::iterator k = attr.m_sLocation.begin(); k != attr.m_sLocation.end(); ++ k)
-  cout << k->m_strIP << endl;
-cout << "choose " << addr.m_strIP << endl;
 
          self->removeReplica(*i, addr);
       }

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2011
+   Yunhong Gu, last updated 01/16/2011
 *****************************************************************************/
 
 #include "slave.h"
@@ -234,15 +234,17 @@ int Slave::connect()
          attic->list_r("/", fl);
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
          {
-//DEBUG: to be removed
-
-cout << "ATTIC " << *i << endl;
-
+            // remove it from local file system
             string dst = ".attic/";
             size_t p = i->rfind('/');
             if (p != string::npos)
                dst += i->substr(0, p);
             move(*i, dst, "");
+
+            // remove it from the local metadata
+            m_pLocalFile->remove(*i);
+
+            m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_2) << "CONFLICT -> ATTIC: " << *i << LogStringTag(LogTag::END);
          }
 
          attic->clear();
@@ -1019,8 +1021,8 @@ string Slave::reviseSysCmdPath(const string& path)
 int Slave::move(const string& src, const string& dst, const string& newname)
 {
    createDir(dst);
-   system((string("mv ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + dst + newname)).c_str());
-   return 1;
+   system((string("mv -f ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + dst + newname)).c_str());
+   return 0;
 }
 
 

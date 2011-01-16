@@ -922,7 +922,12 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
          if (i->second.m_bIsDir && s->second.m_bIsDir)
          {
             // directories with same name
+
             merge(s->second.m_mDirectory, i->second.m_mDirectory, replica);
+
+            // if all files have been successfully merged, remove the directory name
+            if (i->second.m_mDirectory.empty())
+               tbd.push_back(i->first);
          }
          else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) 
                   && (i->second.m_llSize == s->second.m_llSize) 
@@ -939,8 +944,6 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
          {
             //DEBUG ONLY
             cout << "conflict " << i->first << " size " << i->second.m_llSize << " " << s->second.m_llSize << " TS " << i->second.m_llTimeStamp << " " << s->second.m_llTimeStamp << endl; 
-            if (!i->second.m_sLocation.empty())
-               cout << "LOC " << (i->second.m_sLocation.begin()->m_strIP) << endl;
          }
       }
    }
