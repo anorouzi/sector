@@ -1,7 +1,8 @@
 version 2.6
 
+fixed a bug that can cause moving legal files to .attic on slave, when conflicts are present
 add ability to control slave configs from master
-improved conclict data store ".attic", will be able to restore in future versions
+improved conflict data store ".attic", will be able to restore in future versions
 SPE result buffer management bug fix; much faster now for large UDF results with few buckets
 faster SPE job schedulling at client
 per-file replication factor, replication distance, and restricted locations

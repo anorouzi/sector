@@ -78,7 +78,7 @@ public:
    void setLevel(const int level);
 
    void insert(const char* text, const int level = 1);
-   void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level = 1);
+   void logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const int res, const char* info = NULL, const int level = 1);
 
    SectorLog& operator<<(const LogStringTag& tag);
    SectorLog& operator<<(const std::string& message);

@@ -584,7 +584,9 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << LogStringTag(LogTag::END);
+      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) 
+                  << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid 
+                  << LogStringTag(LogTag::END);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 

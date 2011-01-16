@@ -163,13 +163,16 @@ void SectorLog::insert(const char* text, const int level)
    insert_(text, level);
 }
 
-void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const char* res, const char* slave, const int level)
+void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const int res, const char* info, const int level)
 {
    if (level > m_iLevel)
       return;
 
    char* text = new char[128 + strlen(file)];
-   sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %s  SLAVE: %s", user, ip, cmd, file, res, slave);
+   if (res >= 0)
+      sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d  SLAVE: %s", user, ip, cmd, file, res, info);
+   else
+      sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d", user, ip, cmd, file, res);
    insert(text, level);
    delete [] text;
 }
