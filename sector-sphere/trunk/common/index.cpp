@@ -939,6 +939,8 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
          {
             //DEBUG ONLY
             cout << "conflict " << i->first << " size " << i->second.m_llSize << " " << s->second.m_llSize << " TS " << i->second.m_llTimeStamp << " " << s->second.m_llTimeStamp << endl; 
+            if (!i->second.m_sLocation.empty())
+               cout << "LOC " << (i->second.m_sLocation.begin()->m_strIP) << endl;
          }
       }
    }
