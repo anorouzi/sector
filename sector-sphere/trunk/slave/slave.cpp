@@ -234,6 +234,10 @@ int Slave::connect()
          attic->list_r("/", fl);
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
          {
+//DEBUG: to be removed
+
+cout << "ATTIC " << *i << endl;
+
             string dst = ".attic/";
             size_t p = i->rfind('/');
             if (p != string::npos)

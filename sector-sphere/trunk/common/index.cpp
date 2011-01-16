@@ -40,7 +40,7 @@ written by
    #include <stdio.h>
    #include <strsafe.h>
 #endif
-
+#include <iostream>
 using namespace std;
 
 Index::Index()
@@ -934,6 +934,11 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
             for (set<Address, AddrComp>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
                s->second.m_sLocation.insert(*a);
             tbd.push_back(i->first);
+         }
+         else
+         {
+            //DEBUG ONLY
+            cout << "conflict " << i->first << " size " << i->second.m_llSize << " " << s->second.m_llSize << " TS " << i->second.m_llTimeStamp << " " << s->second.m_llTimeStamp << endl; 
          }
       }
    }

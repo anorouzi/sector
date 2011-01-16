@@ -744,14 +744,15 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
          else
          {
-            branch->serialize("/", m_strHomeDir + ".tmp/" + ip + ".left");
+            string conflict_list = m_strHomeDir + ".tmp/" + ip + ".left";
+            branch->serialize("/", conflict_list);
             struct stat st;
-            stat((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), &st);
+            stat(conflict_list.c_str(), &st);
             size = st.st_size;
             slvconn.send((char*)&size, 4);
             if (size > 0)
-               slvconn.sendfile((m_strHomeDir + ".tmp/" + ip + ".left").c_str(), 0, size);
-            LocalFS::rmdir(m_strHomeDir + ".tmp/" + ip + ".left");
+               slvconn.sendfile(conflict_list.c_str(), 0, size);
+            LocalFS::rmdir(conflict_list);
          }
 
          // send the list of masters to the new slave
@@ -2785,10 +2786,14 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          SNode attr;
          if (self->m_pMetadata->lookup(*i, attr) < 0)
             continue;
-
          Address addr;
          if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
             continue;
+
+cout << "REMOVE " << *i << " " << attr.m_sLocation.size() << endl;
+for (set<Address, AddrComp>::iterator k = attr.m_sLocation.begin(); k != attr.m_sLocation.end(); ++ k)
+  cout << k->m_strIP << endl;
+cout << "choose " << addr.m_strIP << endl;
 
          self->removeReplica(*i, addr);
       }
