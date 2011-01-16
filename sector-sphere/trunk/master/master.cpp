@@ -752,7 +752,9 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
             if (size > 0)
                slvconn.sendfile(conflict_list.c_str(), 0, size);
-            LocalFS::rmdir(conflict_list);
+
+//DEBUG ONLY!!!!!!!!!!!!!
+//            LocalFS::rmdir(conflict_list);
          }
 
          // send the list of masters to the new slave
