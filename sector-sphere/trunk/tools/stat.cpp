@@ -24,20 +24,26 @@ written by
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <cstring>
 
 using namespace std;
 
 string getDNSName(const string& ip)
 {
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
+   struct addrinfo hints, *peer;
 
-   if (inet_pton(addr.sin_family, ip.c_str(), &addr.sin_addr) != 1)
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+
+   if (0 != getaddrinfo(ip.c_str(), NULL, &hints, &peer))
       return ip;
 
    char clienthost[NI_MAXHOST];
-   if (getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
+   if (getnameinfo(peer->ai_addr, peer->ai_addrlen, clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
       return ip;
+
+   freeaddrinfo(peer);
 
    return clienthost;
 }

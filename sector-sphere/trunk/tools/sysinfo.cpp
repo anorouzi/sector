@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,15 +16,21 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/06/2010
+   Yunhong Gu, last updated 01/16/2011
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <arpa/inet.h>
+   #include <sys/socket.h>
+   #include <netdb.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+   #include <time.h>
+#endif
 #include <sector.h>
 #include <iostream>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netdb.h>
-
+#include <cstring>
 
 using namespace std;
 
@@ -142,15 +148,20 @@ string formatSize(const int64_t& size)
 
 string getDNSName(const string& ip)
 {
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
+   struct addrinfo hints, *peer;
 
-   if (inet_pton(addr.sin_family, ip.c_str(), &addr.sin_addr) != 1)
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+
+   if (0 != getaddrinfo(ip.c_str(), NULL, &hints, &peer))
       return ip;
 
    char clienthost[NI_MAXHOST];
-   if (getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
+   if (getnameinfo(peer->ai_addr, peer->ai_addrlen, clienthost, sizeof(clienthost), NULL, 0, NI_NAMEREQD) < 0)
       return ip;
+
+   freeaddrinfo(peer);
 
    return clienthost;
 }

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/15/2010
+   Yunhong Gu, last updated 01/16/2011
 *****************************************************************************/
 
 #include <slave.h>
@@ -945,8 +945,7 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
 
    for (int i = 0; i < dest.m_iLocNum; ++ i)
    {
-      set<int> tmp;
-      ResByLoc[i] = tmp;
+      ResByLoc[i].clear();
       SizeByLoc[i] = 0;
    }
 
@@ -969,6 +968,14 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
       int i = p->first;
       if (++ p == ResByLoc.end())
          p = ResByLoc.begin();
+
+      if (ResByLoc[i].empty())
+      {
+         //skip empty buckets
+         ResByLoc.erase(i);
+         SizeByLoc.erase(i);
+         continue;
+      }
 
       // retrieve bucket location/address
       char* dstip = dest.m_pcOutputLoc + i * 80;

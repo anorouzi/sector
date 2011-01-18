@@ -1219,16 +1219,22 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
       }
 
-      // remove this slave from the transaction
-      int r = m_TransManager.updateSlave(transid, slaveid);
-      m_SlaveManager.decActTrans(slaveid);
-
-      // unlock the file, if this is a file operation, and all slaves have completed
-      // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
-      if ((t.m_iType == TransType::FILE) && (r == 0))
+      if ((t.m_iType == TransType::FILE) || (t.m_iType == TransType::REPLICA))
       {
-         processWriteResults(t.m_strFile, t.m_mResults);
-         m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
+         //TODO: slave should send another trans status report
+         //leave this report dedicated to file status only
+
+         // remove this slave from the transaction
+         int r = m_TransManager.updateSlave(transid, slaveid);
+         m_SlaveManager.decActTrans(slaveid);
+
+         // unlock the file, if this is a file operation, and all slaves have completed
+         // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
+         if (r == 0)
+         {
+            processWriteResults(t.m_strFile, t.m_mResults);
+            m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
+         }
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -1596,7 +1602,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "stat", msg->getData(), 0, "", LogLevel::LEVEL_9);
+      m_SectorLog.logUserActivity(user->m_strName.c_str(), ip.c_str(), "stat", attr.m_strName.c_str(), 0, "", LogLevel::LEVEL_9);
 
       break;
    }
