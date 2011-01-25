@@ -226,6 +226,7 @@ bool Metadata::initLC()
       m_pbLegalChar[i] = true;
    }
 
+   m_pbLegalChar[61] = true; // =
    m_pbLegalChar[63] = true; // ?
    m_pbLegalChar[64] = true; // @
 

@@ -124,6 +124,8 @@ private:
    int addRecentPR(const CPeerRecord& pr);
 
 private:
+   //TODO: use hash table and linked list to implement the record cache
+
    std::set<CPeerRecord*, CFPeerRec> m_sPeerRec;
    std::set<CPeerRecord*, CFPeerRecByTS> m_sPeerRecByTS;
    std::map<std::string, int> m_mRTT;
