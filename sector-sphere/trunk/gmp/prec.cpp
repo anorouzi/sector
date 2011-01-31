@@ -235,7 +235,7 @@ int CPeerManagement::addRecentPR(const CPeerRecord& pr)
          CPeerRecord& p = i->second.front();
          if (ts - p.m_llTimeStamp < 10 * 1000000)
             break;
-         i->second.erase(i->second.begin());
+         i->second.pop_front();
       }
       i->second.push_back(pr);
    }

@@ -26,6 +26,10 @@ written by
 #include <transport.h>
 #include <udt.h>
 
+//TODO + NOTE: this UDT transport implementation is not fine tuned to any special data center configuration
+//In a production system, the UDT performance can be further tuned for better performance
+//E.g., MTU can be set to 9000 is jumbo frame is enabled; fixed rate can be used in a bottleneck free data center
+
 class UDTTransport: public Transport
 {
 public:

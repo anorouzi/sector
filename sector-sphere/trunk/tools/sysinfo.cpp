@@ -166,7 +166,7 @@ string getDNSName(const string& ip)
    return clienthost;
 }
 
-void print(const SysStat& s)
+void print(const SysStat& s, bool address = false)
 {
    cout << "Sector System Information:" << endl;
    time_t st = s.m_llStartTime;
@@ -239,30 +239,63 @@ void print(const SysStat& s)
            << format(formatSize(i->m_llTotalOutputData), 12)
            << endl;
 
+      if (!address)
+         continue;
+
       cout << format("", 10)
            << getDNSName(i->m_strIP) << ":"
            << i->m_strDataDir << endl;
    }
 }
 
-int main(int argc, char** /*argv*/)
+void help()
+{
+   cout << "sector_sysinfo [-a]" << endl;
+}
+
+int main(int argc, char** argv)
 {
    cout << SectorVersion << endl;
-
-   if (argc != 1)
-   {
-      cerr << "USAGE: sysinfo\n";
-      return -1;
-   }
 
    Sector client;
    if (Utility::login(client) < 0)
       return -1;
 
+   bool address = false;
+
+   CmdLineParser clp;
+   if (clp.parse(argc, argv) < 0)
+   {
+      help();
+      return -1;
+   }
+
+   for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
+   {
+      if (i->first == "a")
+         address = true;
+      else
+      {
+         help();
+         return -1;
+      }
+   }
+
+   for (vector<string>::const_iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
+   {
+      if (*i == "a")
+         address = true;
+      else
+      {
+         help();
+         return -1;
+      }
+   }
+
    SysStat sys;
    int result = client.sysinfo(sys);
    if (result >= 0)
-      print(sys);
+      print(sys, address);
    else
       Utility::print_error(result);
 

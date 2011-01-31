@@ -31,7 +31,7 @@ written by
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sector.h>
-
+#include <iostream>
 using namespace std;
 
 int ConfLocation::locate(string& loc)
@@ -222,46 +222,44 @@ bool WildCard::isWildCard(const string& path)
 
 bool WildCard::match(const string& card, const string& path)
 {
-   const char* p = card.c_str();
-   const char* q = path.c_str();
+   // this wildcard match code is a modified version based on the one from this website:
+   // http://xoomer.virgilio.it/acantato/dev/wildcard/wildmatch.html
 
-   unsigned int i = 0;
-   unsigned int j = 0;
-   while ((i < card.length()) && (j < path.length()))
+   char* pat = (char*)card.c_str();
+   char* str = (char*)path.c_str();
+   char* p;
+   char* s;
+   bool star = false;
+
+LoopStart:
+   for (s = str, p = pat; *s; ++s, ++p) 
    {
-      switch (p[i])
+      switch (*p) 
       {
-      case '*':
-         if (i == card.length() - 1)
-            return true;
-
-         while (p[i] == '*')
-            ++ i;
-
-         for (; j < path.length(); ++ j)
-         {
-            if (((q[j] == p[i]) || (p[i] == '?') ) && match(p + i, q + j))
-               return true;
-         }
-
-         return false;
-
       case '?':
          break;
 
+      case '*':
+         star = true;
+         str = s;
+         pat = p;
+         do {++ pat;} while (*pat == '*');
+         if (!*pat) return true;
+         goto LoopStart;
+
       default:
-         if (p[i] != q[j])
-            return false;
+         if (*s != *p)
+            goto StarCheck;
       }
+   } 
 
-      ++ i;
-      ++ j;
-   }
+   while (*p == '*') ++p;
+   return (!*p);
 
-   if ((i != card.length()) || (j != path.length()))
-      return false;
-
-   return true;
+StarCheck:
+   if (!star) return false;
+   ++ str;
+   goto LoopStart;
 }
 
 bool WildCard::contain(const string& card, const string& path)

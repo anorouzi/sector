@@ -209,7 +209,6 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
       }
    }
 
-   // crypto key should only be set once per connection
    if (m_bSecure)
    {
       memcpy(m_pcKey, m_pClient->m_pcCryptoKey, 16);

@@ -38,6 +38,7 @@ m_strChecksum(""),
 m_iReplicaNum(1),
 m_iReplicaDist(65536)
 {
+   m_llTimeStamp = time(NULL);
    m_sLocation.clear();
    m_mDirectory.clear();
 }

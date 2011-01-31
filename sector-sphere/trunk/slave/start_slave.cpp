@@ -32,7 +32,10 @@ int main(int argc, char** argv)
       else if (i->first == "log")
          global_conf.m_iLogLevel = atoi(i->second.c_str());
       else
+      {
          cout << "warning: unrecognized flag " << i->first << endl;
+         help();
+      }
    }
 
    string base = "";

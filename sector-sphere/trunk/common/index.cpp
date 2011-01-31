@@ -1176,6 +1176,8 @@ void Index::refreshRepSetting(const string& path, int default_num, int default_d
 
 int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
 {
+   //TODO: use wildcard match each level of dir, instead of contain()
+
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
       string abs_path = path;

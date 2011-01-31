@@ -2775,10 +2775,6 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
       self->m_ReplicaLock.acquire();
 
-//DEBUG TO BE REMOVED
-cout << "current number of files to be replicated: " << self->m_vstrToBeReplicated.size() << endl;
-
-
       // check replica, create or remove replicas if necessary
       if (self->m_vstrToBeReplicated.empty())
       {
@@ -2807,10 +2803,6 @@ cout << "current number of files to be replicated: " << self->m_vstrToBeReplicat
          int pos = r->find('\t');
          string src = r->substr(0, pos);
          string dst = r->substr(pos + 1, r->length());
-
-//DEBUG TO BE REMOVED
-cout << "Replicate: " << src << " --> " << dst << endl;
-
 
          if (src != dst)
          {

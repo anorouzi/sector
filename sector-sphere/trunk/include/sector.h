@@ -44,7 +44,7 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.6 build 01/04/2011.";
+const std::string SectorVersion = "Sector version 2.6 build 01/26/2011.";
 
 
 struct Address
@@ -247,7 +247,6 @@ public:
 
 public:
    int init(const std::vector<std::string>& files);
-
    int init(const int& num);
    void setOutputPath(const std::string& path, const std::string& name);
    void setOutputLoc(const unsigned int& bucket, const Address& addr);

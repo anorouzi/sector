@@ -37,6 +37,11 @@ int main(int argc, char** argv)
    if (Utility::login(client) < 0)
       return -1;
 
+   //TODO: check original name first, continue to test wildcard if failed
+   //file name may contain real * and ?
+
+   //TODO: parse multiple level of wild card directories, such as */*.cpp
+
    string path = argv[1];
    string orig = path;
    bool wc = WildCard::isWildCard(path);
