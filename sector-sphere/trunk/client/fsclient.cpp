@@ -22,7 +22,7 @@ written by
 
 #include <common.h>
 #include <fsclient.h>
-
+#include <iostream>
 using namespace std;
 
 FSClient* Client::createFSClient()
@@ -70,8 +70,10 @@ m_llCurWritePos(0),
 m_bRead(false),
 m_bWrite(false),
 m_bSecure(false),
-m_bLocal(false),
-m_pcLocalPath(NULL),
+m_bReadLocal(false),
+m_bWriteLocal(false),
+m_strLocalPath(),
+m_LocalFile(),
 m_iWriteBufSize(1000000),
 m_WriteLog(),
 m_llLastFlushTime(0),
@@ -83,7 +85,6 @@ m_bOpened(false)
 FSClient::~FSClient()
 {
    m_bOpened = false;
-   delete [] m_pcLocalPath;
 
    delete m_pEncoder;
    delete m_pDecoder;
@@ -194,18 +195,41 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
 
    if (m_strSlaveIP == localip)
    {
-      // the file is on the same node, check if the file can be read directly
+      // the file is on the same node, check if the file can be read/written directly
       int32_t cmd = 6;
       m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
       int size = 0;
-      delete [] m_pcLocalPath;
-      m_pcLocalPath = NULL;
-      if (m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, m_pcLocalPath, size) > 0)
+      char* tmp = NULL;
+      if (m_pClient->m_DataChn.recv(m_strSlaveIP, m_iSlaveDataPort, m_iSession, tmp, size) > 0)
       {
-         fstream test((m_pcLocalPath + filename).c_str(), ios::binary | ios::in);
-         if (!test.bad() && !test.fail())
-            m_bLocal = true;
-         test.close();
+         m_strLocalPath = tmp;
+         ios::openmode mode = ios::binary;
+
+         if (m_bRead)
+         {
+            fstream test((m_strLocalPath + m_strFileName).c_str(), ios::binary | ios::in);
+            if (!test.fail())
+            {
+               m_bReadLocal = true;
+               mode |= ios::in;
+            }
+            test.close();
+         }
+
+         if (m_bWrite && (m_vReplicaAddress.size() == 1))
+         {
+            fstream test((m_strLocalPath + m_strFileName).c_str(), ios::binary | ios::out);
+            if (!test.fail())
+            {
+               m_bWriteLocal = true;
+               mode |= ios::out;
+            }
+            test.close();
+         }
+
+         m_LocalFile.open((m_strLocalPath + m_strFileName).c_str(), mode);
+         if (m_LocalFile.fail())
+            m_bReadLocal = m_bWriteLocal = false;
       }
    }
 
@@ -308,12 +332,10 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
       realsize = int(m_llSize - m_llCurReadPos);
 
    // optimization on local file; read directly outside Sector
-   if (m_bLocal)
+   if (m_bReadLocal)
    {
-      fstream ifs((m_pcLocalPath + m_strFileName).c_str(), ios::binary | ios::in);
-      ifs.seekg(m_llCurReadPos);
-      ifs.read(buf, realsize);
-      ifs.close();
+      m_LocalFile.seekg(m_llCurReadPos);
+      m_LocalFile.read(buf, realsize);
       m_llCurReadPos += realsize;
       return realsize;
    }
@@ -387,6 +409,15 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    CGuard fg(m_FileLock);
 
    m_llCurWritePos = offset;
+
+   // optimization on local file; write directly outside Sector
+   if (m_bWriteLocal)
+   {
+      m_LocalFile.seekp(m_llCurWritePos);
+      m_LocalFile.write(buf, size);
+      m_llCurWritePos += size;
+      return size;
+   }
 
    // send write msg from the end of the chain, so that if the client is broken, all replicas should be still the same
    for (vector<Address>::reverse_iterator i = m_vReplicaAddress.rbegin(); i != m_vReplicaAddress.rend(); ++ i)
@@ -622,14 +653,19 @@ int FSClient::close()
       }
    }
 
-   //m_pClient->m_DataChn.releaseCoder();
-
    m_pClient->m_Cache.remove(m_strFileName);
 
+   // reset all flags so that another file can be opened
+   m_strSlaveIP = "";
+   delete m_pEncoder;
+   delete m_pDecoder;
    m_strFileName = "";
-
-   delete [] m_pcLocalPath;
-   m_pcLocalPath = NULL;
+   m_bReadLocal = false;
+   m_bWriteLocal = false;
+   m_strLocalPath = "";
+   m_LocalFile.close();
+   m_llLastFlushTime = 0;
+   m_bOpened = false;
 
    return 0;
 }

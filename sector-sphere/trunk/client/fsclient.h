@@ -25,6 +25,7 @@ written by
 #include <writelog.h>
 #include <client.h>
 #include <vector>
+#include <fstream>
 
 class FSClient
 {
@@ -80,8 +81,10 @@ private:
    bool m_bWrite;		// write permission
    bool m_bSecure;		// if the data transfer should be secure
 
-   bool m_bLocal;		// if this file exist on the same node, i.e., local file
-   char* m_pcLocalPath;		// path of the file if it is local
+   bool m_bReadLocal;		// if this file exist on the same node and can be read directly
+   bool m_bWriteLocal;		// if this file exist on the same node and can be written directly 
+   std::string m_strLocalPath;	// path of the file if it is local
+   std::fstream m_LocalFile;	// file stream for local IO
 
    int m_iWriteBufSize;		// write buffer size
    WriteLog m_WriteLog;		// write log

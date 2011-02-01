@@ -59,8 +59,7 @@ unsigned int WINAPI Slave::fileHandler(void* p)
    bool bWrite = mode & 2;
    bool bSecure = mode & 16;
 
-   int change = FileChangeType::FILE_UPDATE_NO;
-
+   int orig_timestamp = -1;
    int last_timestamp = 0;
 
    self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
@@ -73,7 +72,7 @@ unsigned int WINAPI Slave::fileHandler(void* p)
       // release transactions and file locks
       self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
       self->m_pLocalFile->unlock(sname, key, mode);
-      self->report(master_ip, master_port, transid, sname, change);
+      self->report(master_ip, master_port, transid, sname, +FileChangeType::FILE_UPDATE_NO);
 
       return NULL;
    }
@@ -91,7 +90,7 @@ unsigned int WINAPI Slave::fileHandler(void* p)
    }
 
    //create a new directory or file in case it does not exist
-   if (mode > 1)
+   if (bWrite)
    {
       self->createDir(sname.substr(0, sname.rfind('/')));
 
@@ -100,7 +99,10 @@ unsigned int WINAPI Slave::fileHandler(void* p)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
-         change = FileChangeType::FILE_UPDATE_WRITE;
+      }
+      else
+      {
+         orig_timestamp = t.st_mtime;
       }
    }
 
@@ -213,9 +215,6 @@ unsigned int WINAPI Slave::fileHandler(void* p)
             // update write log
             writelog.insert(offset, size);
 
-            // file has been changed
-            change = FileChangeType::FILE_UPDATE_WRITE;
-
             break;
          }
 
@@ -325,9 +324,6 @@ unsigned int WINAPI Slave::fileHandler(void* p)
 
             // update write log
             writelog.insert(0, size);
-
-            // file has been changed
-            change = FileChangeType::FILE_UPDATE_WRITE;
 
             break;
          }
@@ -459,6 +455,14 @@ unsigned int WINAPI Slave::fileHandler(void* p)
 
    // report to master the task is completed
    // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
+   int change = FileChangeType::FILE_UPDATE_NO;
+   if (bWrite)
+   {
+      struct stat64 t;
+      stat64(filename.c_str(), &t);
+      if (t.st_mtime != orig_timestamp)
+         change = FileChangeType::FILE_UPDATE_WRITE;
+   }
    self->report(master_ip, master_port, transid, sname, change);
 
    if (bSecure)
