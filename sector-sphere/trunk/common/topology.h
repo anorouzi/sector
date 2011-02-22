@@ -56,6 +56,9 @@ public:
    int m_iDataPort;					// UDT data channel port number
 
    std::string m_strStoragePath;			// data storage path on the local file system
+   std::string m_strAddr;               		// username@hostname/ip
+   std::string m_strBase;               		// $SECTOR_HOME location on the slave
+   std::string m_strOption;             		// slave options
 
    int64_t m_llAvailDiskSpace;				// available disk space
    int64_t m_llTotalFileSize;				// total data size

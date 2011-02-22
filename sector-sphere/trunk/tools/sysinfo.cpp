@@ -174,7 +174,16 @@ void print(const SysStat& s, bool address = false)
    cout << "Available Disk Size:         " << formatSize(s.m_llAvailDiskSpace)<< endl;
    cout << "Total File Size:             " << formatSize(s.m_llTotalFileSize) << endl;
    cout << "Total Number of Files:       " << s.m_llTotalFileNum << endl;
-   cout << "Total Number of Slave Nodes: " << s.m_llTotalSlaves << endl;
+   cout << "Total Number of Slave Nodes: " << s.m_llTotalSlaves;
+
+   vector<int> slave_count(4);
+   fill(slave_count.begin(), slave_count.end(), 0);
+   for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
+   {
+      if ((i->m_iStatus >= 0) && (i->m_iStatus < 4))
+         slave_count[i->m_iStatus] ++;
+   }
+   cout << " (" << slave_count[0] << " Normal " << slave_count[1] << " Down " << slave_count[2] << " DiskFull " << slave_count[3] << " Error)\n";
 
    cout << "-----------------------------------------------------------------------\n";
    cout << format("MASTER_ID", 10) << format("IP", 16) << "PORT" << endl;

@@ -521,8 +521,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       Param3* p = new Param3;
       p->serv_instance = this;
       p->transid = *(int32_t*)msg->getData();
-      p->src = msg->getData() + 4;
-      p->dst = msg->getData() + 4 + p->src.length() + 1;
+      p->dir = *(int32_t*)(msg->getData() + 4);
+      p->src = msg->getData() + 8;
+      p->dst = msg->getData() + 8 + p->src.length() + 1;
 
       p->master_ip = ip;
       p->master_port = port;
@@ -1223,7 +1224,7 @@ void* Slave::worker(void* param)
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
 
       // users may limit the maximum disk size used by Sector
-      if (self->m_SysConfig.m_llMaxDataSize > 0)
+      if (self->m_SysConfig.m_llMaxDataSize >= 0)
       {
          int64_t avail_limit = self->m_SysConfig.m_llMaxDataSize - self->m_SlaveStat.m_llDataSize;
 

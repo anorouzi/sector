@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/16/2011
+   Yunhong Gu, last updated 02/21/2011
 *****************************************************************************/
 
 #include <common.h>
@@ -128,7 +128,7 @@ int Master::init()
       m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
 
    // load slave list and addresses
-   loadSlaveAddr(m_strSectorHome + "/conf/slaves.list");
+   loadSlaveStartInfo(m_strSectorHome + "/conf/slaves.list", m_sSlaveStartInfo);
 
    // add "slave" as a special user
    User* au = new User;
@@ -376,64 +376,48 @@ int Master::run()
       // check each slave node
       // if probe fails, remove the metadata of the data on the node, and create new replicas
 
-      map<int, Address> bad;
-      map<int, Address> lost;
-      map<int, Address> retry;
-      map<int, Address> dead;
+      map<int, SlaveNode> bad;
+      map<int, SlaveNode> lost;
+      map<int, SlaveNode> retry;
+      map<int, SlaveNode> dead;
       m_SlaveManager.checkBadAndLost(bad, lost, retry, dead, m_SysConfig.m_iSlaveTimeOut * 1000000LL, m_SysConfig.m_iSlaveRetryTime * 1000000LL);
 
-      for (map<int, Address>::iterator i = bad.begin(); i != bad.end(); ++ i)
+      for (map<int, SlaveNode>::iterator i = bad.begin(); i != bad.end(); ++ i)
       {
          m_SectorLog.insert(("Bad slave detected " + i->second.m_strIP + ".").c_str());
          //TODO: create replica for files on the bad nodes, gradually move data out of those nodes
       }
 
-      for (map<int, Address>::iterator i = lost.begin(); i != lost.end(); ++ i)
+      for (map<int, SlaveNode>::iterator i = lost.begin(); i != lost.end(); ++ i)
       {
          m_SectorLog.insert(("Slave lost " + i->second.m_strIP + ".").c_str());
 
-         removeSlave(i->first, i->second);
+         Address addr;
+         addr.m_strIP = i->second.m_strIP;
+         addr.m_iPort = i->second.m_iPort;
+         removeSlave(i->first, addr);
 
-         map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);
-         if (sa != m_mSlaveAddrRec.end())
-         {
-            m_SectorLog.insert(("Restart slave " + sa->second.m_strAddr + " " + sa->second.m_strBase).c_str());
+         m_SectorLog.insert(("Restart slave " + i->second.m_strAddr + " " + i->second.m_strBase).c_str());
 
-            // kill and restart the slave
-            //system((string("ssh ") + sa->second.m_strAddr + " killall -9 start_slave").c_str());
+         SectorMsg newmsg;
+         newmsg.setType(8);
+         int msgid = 0;
+         m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
 
-            SectorMsg newmsg;
-            newmsg.setType(8);
-            int msgid = 0;
-            m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
-
-#ifndef WIN32
-            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
-#else
-            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/bin/start_slave " + sa->second.m_strBase + " &> NULL &\"").c_str());
-#endif
-         }
+         startSlave(i->second.m_strAddr, i->second.m_strBase, i->second.m_strOption);
       }
 
-      for (map<int, Address>::iterator i = retry.begin(); i != retry.end(); ++ i)
+      for (map<int, SlaveNode>::iterator i = retry.begin(); i != retry.end(); ++ i)
       {
-         map<string, SlaveAddr>::iterator sa = m_mSlaveAddrRec.find(i->second.m_strIP);
-         if (sa != m_mSlaveAddrRec.end())
-         {
-            SectorMsg newmsg;
-            newmsg.setType(8);
-            int msgid = 0;
-            m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
+         SectorMsg newmsg;
+         newmsg.setType(8);
+         int msgid = 0;
+         m_GMP.sendto(i->second.m_strIP, i->second.m_iPort, msgid, &newmsg);
 
-#ifndef WIN32
-            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/slave/start_slave " + sa->second.m_strBase + " &> /dev/null &\"").c_str());
-#else
-            system((string("ssh ") + sa->second.m_strAddr + " \"" + sa->second.m_strBase + "/bin/start_slave " + sa->second.m_strBase + " &> NULL &\"").c_str());
-#endif
-         }
+         startSlave(i->second.m_strAddr, i->second.m_strBase, i->second.m_strOption);
       }
 
-      for (map<int, Address>::iterator i = dead.begin(); i != dead.end(); ++ i)
+      for (map<int, SlaveNode>::iterator i = dead.begin(); i != dead.end(); ++ i)
       {
          m_SectorLog.insert(("Slave " + i->second.m_strIP + " has been failed for a long time; Give it up now.").c_str());
          m_SlaveManager.remove(i->first);
@@ -722,6 +706,17 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       sn.m_llCurrCPUUsed = 0;
       sn.m_llTotalInputData = 0;
       sn.m_llTotalOutputData = 0;
+
+      SlaveStartInfo ssi;
+      ssi.m_strIP = sn.m_strIP;
+      ssi.m_strStoragePath = sn.m_strStoragePath;
+      set<SlaveStartInfo>::iterator p = m_sSlaveStartInfo.find(ssi);
+      if (p != m_sSlaveStartInfo.end())
+      {
+         sn.m_strBase = p->m_strBase;
+         sn.m_strAddr = p->m_strAddr;
+         sn.m_strOption = p->m_strOption;
+      }
 
       if (m_SlaveManager.insert(sn) < 0)
       {
@@ -2861,6 +2856,8 @@ int Master::createReplica(const string& src, const string& dst)
    if (m_pMetadata->lookup(src.c_str(), attr) < 0)
       return -1;
 
+   int32_t dir = 0;
+
    SlaveNode sn;
    if (attr.m_bIsDir)
    {
@@ -2886,6 +2883,8 @@ int Master::createReplica(const string& src, const string& dst)
          if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
             return -1;
       }
+
+      dir = 1;
    }
    else
    {
@@ -2913,8 +2912,9 @@ int Master::createReplica(const string& src, const string& dst)
    SectorMsg msg;
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
-   msg.setData(4, src.c_str(), src.length() + 1);
-   msg.setData(4 + src.length() + 1, dst.c_str(), dst.length() + 1);
+   msg.setData(4, (char*)&dir, 4);
+   msg.setData(8, src.c_str(), src.length() + 1);
+   msg.setData(8 + src.length() + 1, dst.c_str(), dst.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
@@ -2924,6 +2924,9 @@ int Master::createReplica(const string& src, const string& dst)
 
    m_TransManager.addSlave(transid, sn.m_iNodeID);
    m_SlaveManager.incActTrans(sn.m_iNodeID);
+
+   if (attr.m_bIsDir)
+      return 0;
 
    // replicate index file to the same location
    string idx = src + ".idx";
@@ -2936,8 +2939,9 @@ int Master::createReplica(const string& src, const string& dst)
 
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
-   msg.setData(4, idx.c_str(), idx.length() + 1);
-   msg.setData(4 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
+   msg.setData(4, (char*)&dir, 4);
+   msg.setData(8, idx.c_str(), idx.length() + 1);
+   msg.setData(8 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
@@ -2963,61 +2967,6 @@ int Master::removeReplica(const std::string& filename, const Address& addr)
    m_pMetadata->removeReplica(filename, addr);
 
    return 0;
-}
-
-void Master::loadSlaveAddr(const string& file)
-{   
-   ifstream ifs(file.c_str(), ios::in);
-
-   if (ifs.bad() || ifs.fail())
-      return;
-
-   while (!ifs.eof())
-   {
-      char line[256];
-      line[0] = '\0';
-      ifs.getline(line, 256);
-      if (*line == '\0')
-         continue;
-
-      int i = 0;
-      int n = strlen(line);
-      for (; i < n; ++ i)
-      {
-         if ((line[i] != ' ') && (line[i] != '\t'))
-            break;
-      }
-
-      if ((i == n) && (line[i] == '#'))
-         continue;
-
-      char newline[256];
-      bool blank = false;
-      char* p = newline;
-      for (; i <= n; ++ i)
-      {
-         if ((line[i] == ' ') || (line[i] == '\t'))
-         {
-            if (!blank)
-               *p++ = ' ';
-            blank = true;
-         }
-         else
-         {
-            *p++ = line[i];
-            blank = false;
-         }
-      }
-
-      SlaveAddr sa;
-      sa.m_strAddr = newline;
-      sa.m_strAddr = sa.m_strAddr.substr(0, sa.m_strAddr.find(' '));
-      sa.m_strBase = newline;
-      sa.m_strBase = sa.m_strBase.substr(sa.m_strBase.find(' ') + 1, sa.m_strBase.length());
-      string ip = sa.m_strAddr.substr(sa.m_strAddr.find('@') + 1, sa.m_strAddr.length());
-
-      m_mSlaveAddrRec[ip] = sa;
-   }
 }
 
 int Master::serializeSysStat(char*& buf, int& size)
@@ -3207,4 +3156,24 @@ int Master::chooseDataToMove(vector<string>& path, const Address& addr, const in
 
    delete branch;
    return 0;
+}
+
+void Master::startSlave(const std::string& addr, const std::string& base, const std::string& option, const std::string& log)
+{
+   //TODO: source .bash_profile on slave node to include more environments variables
+   string slave_screen_log = "/dev/null";
+   if (!log.empty())
+      slave_screen_log = log;
+
+   #ifndef WIN32
+      string start_slave = base + "/slave/start_slave";
+      string cmd = (string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + start_slave + " " + base + " " + option + " &> " + slave_screen_log + "&\" &");
+   #else
+      string cmd = (string("ssh ") + i->second.m_strAddr + " \"" + i->second.m_strBase + "/bin/start_slave " + i->second.m_strBase + " &> NULL &\"");
+   #endif
+   system(cmd.c_str());
+
+   #ifdef DEBUG
+      cout << cmd << endl;
+   #endif
 }

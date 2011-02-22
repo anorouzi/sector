@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/10/2010
+   Yunhong Gu, last updated 02/13/2010
 *****************************************************************************/
 
 #include "dcclient.h"
@@ -603,7 +603,9 @@ int DCClient::checkSPE()
 #endif
          }
          else
+         {
             s->second.m_pDS->m_iStatus = 0;
+         }
 
          s->second.m_pDS->m_iSPEID = -1;
 
@@ -719,6 +721,7 @@ int DCClient::startSPE(SPE& s, DS* d)
    {
       d->m_iSPEID = s.m_iID;
       d->m_iStatus = 1;
+      d->m_iRetryNum ++;
       s.m_iStatus = 2;
       s.m_iProgress = 0;
       s.m_StartTime = CTimer::getTime();

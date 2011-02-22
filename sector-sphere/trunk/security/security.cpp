@@ -150,7 +150,7 @@ int32_t SServer::generateKey()
 #ifndef WIN32
    void* SServer::process(void* p)
 #else
-    DWORD WINAPI SServer::process(void* p)
+   DWORD WINAPI SServer::process(void* p)
 #endif
 {
    SServer* self = ((Param*)p)->sserver;

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/11/2010
+   Yunhong Gu, last updated 02/06/2011
 *****************************************************************************/
 
 
@@ -489,6 +489,7 @@ unsigned int WINAPI Slave::copy(void* p)
 {
    Slave* self = ((Param3*)p)->serv_instance;
    int transid = ((Param3*)p)->transid;
+   int dir = ((Param3*)p)->dir;
    string src = ((Param3*)p)->src;
    string dst = ((Param3*)p)->dst;
    string master_ip = ((Param3*)p)->master_ip;
@@ -502,13 +503,20 @@ unsigned int WINAPI Slave::copy(void* p)
 
    bool success = true;
 
-   queue<string> tr;
-   tr.push(src);
+   queue<string> tr;	// files to be replicated
+   queue<string> td;	// directories to be explored
 
-   while (!tr.empty())
+   if (dir > 0)
+      td.push(src);
+   else
+      tr.push(src);
+
+   while (!td.empty())
    {
-      string src_path = tr.front();
-      tr.pop();
+      // If the file to be replicated is a directory, recursively list all files first
+
+      string src_path = td.front();
+      td.pop();
 
       // try list this path
       SectorMsg msg;
@@ -545,12 +553,21 @@ unsigned int WINAPI Slave::copy(void* p)
             int t = filelist.find(';', s);
             SNode sn;
             sn.deserialize(filelist.substr(s, t - s).c_str());
-            tr.push(src_path + "/" + sn.m_strName);
+            if (sn.m_bIsDir)
+               td.push(src_path + "/" + sn.m_strName);
+            else
+               tr.push(src_path + "/" + sn.m_strName);
             s = t + 1;
          }
 
          continue;
       }
+   }
+
+   while (!tr.empty())
+   {
+      string src_path = tr.front();
+      tr.pop();
 
       SNode tmp;
       if (self->m_pLocalFile->lookup(src_path.c_str(), tmp) >= 0)
@@ -558,6 +575,7 @@ unsigned int WINAPI Slave::copy(void* p)
          //if file is local, copy directly
          //note that in this case, src != dst, therefore this is a regular "cp" command, not a system replication
 
+         //IMPORTANT!!!
          //local files must be read directly from local disk, and cannot be read via datachn due to its limitation
 
          string dst_path = dst;
@@ -575,6 +593,7 @@ unsigned int WINAPI Slave::copy(void* p)
       else
       {
          // open the file and copy it to local
+         SectorMsg msg;
          msg.setType(110);
          msg.setKey(0);
 
@@ -587,6 +606,9 @@ unsigned int WINAPI Slave::copy(void* p)
          msg.setData(12, src_path.c_str(), len_name);
          int32_t len_opt = 0;
          msg.setData(12 + len_name, (char*)&len_opt, 4);
+
+         Address addr;
+         self->m_Routing.lookup(src_path, addr);
 
          if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {

@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/14/2010
+   Yunhong Gu, last updated 02/08/2011
 *****************************************************************************/
 
 #include <sector.h>
@@ -24,31 +24,13 @@ written by
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <master.h>
 
 using namespace std;
 
 void help()
 {
    cout << "stop_all [-s slaves_list]" << endl;
-}
-
-bool skip(char* line)
-{
-   if (*line == '\0')
-      return true;
-
-   int i = 0;
-   int n = strlen(line);
-   for (; i < n; ++ i)
-   {
-      if ((line[i] != ' ') && (line[i] != '\t'))
-         break;
-   }
-
-   if ((i == n) || (line[i] == '#') || (line[i] == '*'))
-      return true;
-
-   return false;
 }
 
 
@@ -88,28 +70,16 @@ int main(int argc, char** argv)
    system("killall -9 start_master");
    cout << "master node stopped\n";
 
-   ifstream ifs(slaves_list.c_str());
-   if (ifs.bad() || ifs.fail())
+   set<SlaveStartInfo, SSIComp> ssi;
+   if (Master::loadSlaveStartInfo(slaves_list, ssi) < 0)
    {
-      cerr << "no slave list found!\n";
+      cerr << "unable to load slave information from " << slaves_list << endl;
       return -1;
    }
 
-   while (!ifs.eof())
+   for (set<SlaveStartInfo, SSIComp>::iterator i = ssi.begin(); i != ssi.end(); ++ i)
    {
-      char line[256];
-      line[0] = '\0';
-      ifs.getline(line, 256);
-
-      if (skip(line))
-         continue;
-
-      string addr = line;
-      addr = addr.substr(0, addr.find(' '));
-
-      cout << "stopping slave node at " << addr << endl;
-
-      system((string("ssh -o StrictHostKeychecking=no ") + addr + " killall -9 start_slave &").c_str());
+      system((string("ssh -o StrictHostKeychecking=no ") + i->m_strAddr + " killall -9 start_slave &").c_str());
    }
 
    return 0;

@@ -1,5 +1,6 @@
 version 2.6
 
+optimized write performance to local node
 fixed a bug that can cause moving legal files to .attic on slave, when conflicts are present
 add ability to control slave configs from master
 improved conflict data store ".attic", will be able to restore in future versions

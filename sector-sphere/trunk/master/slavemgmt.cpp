@@ -385,7 +385,6 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
    gettimeofday(&t, 0);
    srand(t.tv_usec);
 
-   // clear this in case there is already data in it
    sl.clear();
 
    if (m_mSlaveList.empty())
@@ -416,6 +415,9 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
       // no available nodes for READ_ONLY operation
       if ((mode & SF_MODE::WRITE) == 0)
          return 0;
+
+
+      //TODO: optimize the node selection process; no need to scan all nodes
 
       set<int> avail;
 
@@ -622,7 +624,7 @@ int SlaveManager::updateSlaveTS(const Address& addr)
    return 0;
 }
 
-int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& lost, map<int, Address>& retry, map<int, Address>& dead, const int64_t& timeout, const int64_t& retrytime)
+int SlaveManager::checkBadAndLost(map<int, SlaveNode>& bad, map<int, SlaveNode>& lost, map<int, SlaveNode>& retry, map<int, SlaveNode>& dead, const int64_t& timeout, const int64_t& retrytime)
 {
    CGuardEx sg(m_SlaveLock);
 
@@ -638,13 +640,11 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
          // if the node is already marked down, try to restart or remove permanently
          if (CTimer::getTime() - i->second.m_llLastUpdateTime >= (uint64_t)retrytime)
          {
-            dead[i->first].m_strIP = i->second.m_strIP;
-            dead[i->first].m_iPort = i->second.m_iPort;
+            dead[i->first] = i->second;
          }
          else
          {
-            retry[i->first].m_strIP = i->second.m_strIP;
-            retry[i->first].m_iPort = i->second.m_iPort;
+            retry[i->first] = i->second;
          }
 
          continue;
@@ -660,16 +660,14 @@ int SlaveManager::checkBadAndLost(map<int, Address>& bad, map<int, Address>& los
       // if received more than half votes, it is bad
       if (i->second.m_sBadVote.size() * 2 > m_mSlaveList.size())
       {
-         bad[i->first].m_strIP = i->second.m_strIP;
-         bad[i->first].m_iPort = i->second.m_iPort;
+         bad[i->first] = i->second;
          i->second.m_iStatus = SlaveStatus::BAD;
       }
 
       // detect slave timeout
       if (CTimer::getTime() - i->second.m_llLastUpdateTime >= (uint64_t)timeout)
       {
-         lost[i->first].m_strIP = i->second.m_strIP;
-         lost[i->first].m_iPort = i->second.m_iPort;
+         lost[i->first] = i->second;
          i->second.m_iStatus = SlaveStatus::DOWN;
       }
    }
@@ -1043,7 +1041,7 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    if (dist < 0)
       return SectorError::E_NODISK;
 
-   // chose nearest node first then least busy node, a random one if thest first two conditions equal
+   // chose nearest node first then least busy node, a random one if the first two conditions equal
    // TODO: this code can be slightly optimized
 
    int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();

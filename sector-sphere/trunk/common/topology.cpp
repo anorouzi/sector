@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 02/08/2011
 *****************************************************************************/
 
 
@@ -41,6 +41,9 @@ m_strPublicIP("0.0.0.0"),
 m_iPort(0),
 m_iDataPort(0),
 m_strStoragePath("/tmp"),
+m_strAddr(""),
+m_strBase("/opt/sector"),
+m_strOption(""),
 m_llAvailDiskSpace(0),
 m_llTotalFileSize(0),
 m_llTimeStamp(-1),

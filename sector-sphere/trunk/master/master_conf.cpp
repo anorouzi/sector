@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,9 +16,14 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/05/2010
+   Yunhong Gu, last updated 02/03/2011
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <arpa/inet.h>
+   #include <sys/socket.h>
+   #include <netdb.h>
+#endif
 #include <master.h>
 #include <sstream>
 #include <iostream>
@@ -267,4 +272,211 @@ void ReplicaConf::getRestrictedLoc(const std::string& path, vector<int>& loc)
          loc = i->second;
       }
    }
+}
+
+bool SlaveStartInfo::skip(const char* line)
+{
+   if (*line == '\0')
+      return true;
+
+   int i = 0;
+   int n = strlen(line);
+   for (; i < n; ++ i)
+   {
+      if ((line[i] != ' ') && (line[i] != '\t'))
+         break;
+   }
+
+   if ((i == n) || (line[i] == '#'))
+      return true;
+
+   return false;
+}
+
+int SlaveStartInfo::parse(char* line, string& addr, string& base, string& param)
+{
+   //FORMAT: addr(username@IP) base [param]
+
+   addr.clear();
+   base.clear();
+   param.clear();
+
+   char* start = line;
+
+   // skip all blanks and TABs
+   while ((*start == ' ') || (*start == '\t'))
+      ++ start;
+   if (*start == '\0')
+      return -1;
+
+   char* end = start;
+   while ((*end != ' ') && (*end != '\t') && (*end != '\0'))
+      ++ end;
+   if (*end == '\0')
+      return -1;
+
+   char orig = *end;
+   *end = '\0';
+   addr = start;
+   *end = orig;
+
+
+   // skip all blanks and TABs
+   start = end;
+   while ((*start == ' ') || (*start == '\t'))
+      ++ start;
+   if (*start == '\0')
+      return -1;
+
+   end = start;
+   while ((*end != ' ') && (*end != '\t') && (*end != '\0'))
+      ++ end;
+
+   orig = *end;
+   *end = '\0';
+   base = start;
+   *end = orig;
+
+
+   // skip all blanks and TABs
+   start = end;
+   while ((*start == ' ') || (*start == '\t'))
+      ++ start;
+
+   // parameter is optional
+   if (*start == '\0')
+      return 0;
+
+   param = start;
+
+   return 0;
+}
+
+int SlaveStartInfo::parse(char* line, string& key, string& val)
+{
+   //FORMAT:  *KEY=VAL
+
+   char* start = line + 1;
+   while (*line != '=')
+   {
+      if (*line == '\0')
+         return -1;
+      line ++;
+   }
+   *line = '\0';
+
+   key = start;
+
+   val = line + 1;
+
+   return 0;
+}
+
+string SlaveStartInfo::getIP(const char* name)
+{
+   struct addrinfo hints, *peer;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+
+   if (0 != getaddrinfo(name, NULL, &hints, &peer))
+      return name;
+
+   char clienthost[NI_MAXHOST];
+   if (getnameinfo(peer->ai_addr, peer->ai_addrlen, clienthost, sizeof(clienthost), NULL, 0, NI_NUMERICHOST) < 0)
+      return name;
+
+   freeaddrinfo(peer);
+
+   return clienthost;
+}
+
+int Master::loadSlaveStartInfo(const std::string& file, set<SlaveStartInfo, SSIComp>& ssi)
+{
+   // starting slaves on the slave list
+   ifstream ifs(file.c_str());
+   if (ifs.fail())
+   {
+      cout << "no slave list found at " << file << endl;
+      return -1;
+   }
+
+   int count = 0;
+   string mh, mp, log, h, ds;
+
+   while (!ifs.eof())
+   {
+      if (++ count == 64)
+      {
+         // wait a while to avoid too many incoming slaves crashing the master
+         // TODO: check number of active slaves so far
+         sleep(1);
+         count = 0;
+      }
+
+      char line[256];
+      line[0] = '\0';
+      ifs.getline(line, 256);
+
+      if (SlaveStartInfo::skip(line))
+         continue;
+
+      if (*line == '*')
+      {
+         // global configuration for slaves
+         string key, val;
+         if (SlaveStartInfo::parse(line, key, val) == 0)
+         {
+            if ("DATA_DIRECTORY" == key)
+               h = val;
+            else if ("LOG_LEVEL" == key)
+               log = val;
+            else if ("MASTER_ADDRESS" == key)
+            {
+               mh = val.substr(0, val.find(':'));
+               mp = val.substr(mh.length() + 1, val.length() - mh.length() - 1);
+            }
+            else if ("MAX_DATA_SIZE" == key)
+               ds = val;
+            else
+               cout << "WARNING: unrecognized option (ignored): " << line << endl;
+         }
+
+         continue;
+      }
+
+      SlaveStartInfo info;
+
+      if (SlaveStartInfo::parse(line, info.m_strAddr, info.m_strBase, info.m_strOption) < 0)
+      {
+         cout << "WARNING: incorrect slave line format (skipped): " << line << endl;
+         continue;
+      }
+
+      string global_conf = "";
+      if (!mh.empty())
+         global_conf += string(" -mh ") + mh;
+      if (!mp.empty())
+         global_conf += string(" -mp ") + mp;
+      if (!h.empty())
+      {
+         global_conf += string(" -h ") + h;
+         info.m_strStoragePath = mh;
+      }
+      if (!log.empty())
+         global_conf += string(" -log ") + log;
+      if (!ds.empty())
+         global_conf += string(" -ds ") + ds;
+
+      // slave specific config will overwrite global config; these will overwrite local config, if exists
+      info.m_strOption = global_conf + " " + info.m_strOption;
+
+      // get IP address
+      info.m_strIP = SlaveStartInfo::getIP(info.m_strAddr.substr(info.m_strAddr.find('@'), info.m_strAddr.length()).c_str());
+
+      ssi.insert(info);
+   }
+
+   return 0;
 }

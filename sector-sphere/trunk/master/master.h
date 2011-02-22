@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 02/08/2011
 *****************************************************************************/
 
 #ifndef __SECTOR_MASTER_H__
@@ -37,11 +37,6 @@ written by
 #include <threadpool.h>
 #include <osportable.h>
 	
-struct SlaveAddr
-{
-   std::string m_strAddr;				// slave IP address
-   std::string m_strBase;				// slave executable "start_slave" path
-};
 
 class MasterConf
 {
@@ -87,6 +82,45 @@ private:
 
 private:
    int64_t m_llTimeStamp;
+};
+
+class SlaveStartInfo
+{
+friend class Master;
+
+public:
+   std::string m_strIP;			// IP address, numerical
+   std::string m_strAddr;		// username@hostname/ip
+   std::string m_strBase;		// $SECTOR_HOME location on the slave
+   std::string m_strStoragePath;	// local storage path
+   std::string m_strOption;		// slave options
+
+private:
+   static bool skip(const char* line);
+   static int parse(char* line, std::string& addr, std::string& base, std::string& param);
+   static int parse(char* line, std::string& key, std::string& val);
+   static std::string getIP(const char* name);
+};
+
+struct SSIComp
+{
+   // Slave is differentiated by IP, storage path, and base
+   bool operator()(const SlaveStartInfo& s1, const SlaveStartInfo& s2)
+   {
+      int c1 = strcmp(s1.m_strIP.c_str(), s2.m_strIP.c_str());
+      if (c1 == 0)
+      {
+         int c2 = strcmp(s1.m_strStoragePath.c_str(), s2.m_strStoragePath.c_str());
+         if (c2 == 0)
+         {
+            return strcmp(s1.m_strBase.c_str(), s2.m_strBase.c_str());
+         }
+
+         return c2 > 0;
+      }
+      
+      return c1 > 0;
+   }
 };
 
 class Master
@@ -209,8 +243,10 @@ private:
    uint32_t m_iRouterKey;				// identification for this master
 
 private:
-   std::map<std::string, SlaveAddr> m_mSlaveAddrRec;	// slave and its executale path
-   void loadSlaveAddr(const std::string& file);
+   std::set<SlaveStartInfo, SSIComp> m_sSlaveStartInfo;	// information on how to start a slave
+
+public:
+   static int loadSlaveStartInfo(const std::string& file, std::set<SlaveStartInfo, SSIComp>& ssi);
 
 private:
    int64_t m_llStartTime;
@@ -219,6 +255,9 @@ private:
    #ifdef DEBUG
    int processDebugCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    #endif
+
+public:
+   static void startSlave(const std::string& addr, const std::string& base, const std::string& option, const std::string& log = "");
 };
 
 #endif

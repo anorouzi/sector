@@ -55,7 +55,7 @@ public:
    int updateSlaveList(std::vector<Address>& sl, int64_t& last_update_time);
    int updateSlaveInfo(const Address& addr, const char* info, const int& len);
    int updateSlaveTS(const Address& addr);
-   int checkBadAndLost(std::map<int, Address>& bad, std::map<int, Address>& lost, std::map<int, Address>& retry, std::map<int, Address>& dead, const int64_t& timeout, const int64_t& retrytime);
+   int checkBadAndLost(std::map<int, SlaveNode>& bad, std::map<int, SlaveNode>& lost, std::map<int, SlaveNode>& retry, std::map<int, SlaveNode>& dead, const int64_t& timeout, const int64_t& retrytime);
    int serializeSlaveList(char*& buf, int& size);
    int deserializeSlaveList(int num, const char* buf, int size);
    int getSlaveID(const Address& addr);
