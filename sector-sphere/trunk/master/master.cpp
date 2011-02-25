@@ -667,6 +667,17 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
    if (res > 0)
    {
       SlaveNode sn;
+
+      size = 0;
+      slvconn.recv((char*)&size, 4);
+      if (size > 0)
+      {
+         char* tmp = new char[size];
+         slvconn.recv(tmp, size);
+         sn.m_strBase = Metadata::revisePath(tmp);
+         delete [] tmp;
+      }
+
       sn.m_iNodeID = res;
       sn.m_strIP = ip;
       slvconn.recv((char*)&sn.m_iPort, 4);
@@ -707,13 +718,14 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       sn.m_llTotalInputData = 0;
       sn.m_llTotalOutputData = 0;
 
+      // locate slave start information, for automatic restart when necessary
       SlaveStartInfo ssi;
       ssi.m_strIP = sn.m_strIP;
       ssi.m_strStoragePath = sn.m_strStoragePath;
+      ssi.m_strBase = sn.m_strBase;
       set<SlaveStartInfo>::iterator p = m_sSlaveStartInfo.find(ssi);
       if (p != m_sSlaveStartInfo.end())
       {
-         sn.m_strBase = p->m_strBase;
          sn.m_strAddr = p->m_strAddr;
          sn.m_strOption = p->m_strOption;
       }

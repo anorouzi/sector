@@ -60,7 +60,7 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
 {
    bool base_found = true;
    if ((NULL != base) && !base->empty())
-      m_strBase = *base;
+      m_strBase = Metadata::revisePath(*base);
    else if (ConfLocation::locate(m_strBase) < 0)
       base_found = false;
 
@@ -93,7 +93,7 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
    m_iLocalPort = m_GMP.getPort();
 
    // initialize local directory, m_strHomeDir must end with a "/"
-   m_strHomeDir = m_SysConfig.m_strHomeDir;
+   m_strHomeDir = Metadata::revisePath(m_SysConfig.m_strHomeDir);
    if (m_strHomeDir.empty())
       m_strHomeDir = "./";
    else if (m_strHomeDir[m_strHomeDir.length() - 1] != '/')
@@ -166,11 +166,11 @@ int Slave::connect()
 
       if (first)
       {
-         secconn.getLocalIP(m_strLocalHost);
+         secconn.getLocalIP(m_strLocalIP);
 
          // init data exchange channel
          m_iDataPort = 0;
-         if (m_DataChn.init(m_strLocalHost, m_iDataPort) < 0)
+         if (m_DataChn.init(m_strLocalIP, m_iDataPort) < 0)
          {
             cerr << "unable to create data channel.\n";
             secconn.close();
@@ -181,6 +181,7 @@ int Slave::connect()
       int32_t cmd = 1;
       secconn.send((char*)&cmd, 4);
 
+      //send information about home dir to the master, storage path is to differentiate multiple slaves on the same node
       int32_t size = m_strHomeDir.length() + 1;
       secconn.send((char*)&size, 4);
       secconn.send(m_strHomeDir.c_str(), size);
@@ -193,6 +194,12 @@ int Slave::connect()
          return res;
       }
 
+      // send base dir, so that master can automatically restart this slave
+      size = m_strBase.length() + 1;
+      secconn.send((char*)&size, 4);
+      secconn.send(m_strBase.c_str(), size);
+
+      //send slave node information to the master
       secconn.send((char*)&m_iLocalPort, 4);
       secconn.send((char*)&m_iDataPort, 4);
       secconn.send((char*)&(availdisk), 8);
@@ -201,6 +208,7 @@ int Slave::connect()
       if (first)
          m_iSlaveID = res;
 
+      //send local metadata
       struct stat s;
       stat((m_strHomeDir + ".tmp/metadata.dat").c_str(), &s);
       size = s.st_size;

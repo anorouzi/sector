@@ -454,6 +454,9 @@ int Master::loadSlaveStartInfo(const std::string& file, set<SlaveStartInfo, SSIC
          continue;
       }
 
+      // all path name must be standardized as they will be compared for exact match
+      info.m_strBase = Metadata::revisePath(info.m_strBase);
+
       string global_conf = "";
       if (!mh.empty())
          global_conf += string(" -mh ") + mh;
@@ -473,7 +476,7 @@ int Master::loadSlaveStartInfo(const std::string& file, set<SlaveStartInfo, SSIC
       info.m_strOption = global_conf + " " + info.m_strOption;
 
       // get IP address
-      info.m_strIP = SlaveStartInfo::getIP(info.m_strAddr.substr(info.m_strAddr.find('@'), info.m_strAddr.length()).c_str());
+      info.m_strIP = SlaveStartInfo::getIP(info.m_strAddr.substr(info.m_strAddr.find('@') + 1, info.m_strAddr.length()).c_str());
 
       ssi.insert(info);
    }

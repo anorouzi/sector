@@ -343,7 +343,7 @@ private:
    DataChn m_DataChn;			// data exchange channel
    int m_iDataPort;			// data channel port
 
-   std::string m_strLocalHost;		// local host IP address
+   std::string m_strLocalIP;		// local host IP address
    int m_iLocalPort;			// local port number
 
    std::string m_strMasterHost;		// host name of the master node
@@ -353,7 +353,7 @@ private:
    std::string m_strHomeDir;     	// data directory
    time_t m_HomeDirMTime;		// last modified time
 
-   std::string m_strBase;               // the local directory that stores Sector configuration files
+   std::string m_strBase;               // $SECTOR_HOME
    SlaveConf m_SysConfig;		// system configuration
    Metadata* m_pLocalFile;		// local file index
    SlaveStat m_SlaveStat;		// slave statistics

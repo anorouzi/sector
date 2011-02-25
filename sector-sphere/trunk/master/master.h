@@ -110,7 +110,9 @@ struct SSIComp
       int c1 = strcmp(s1.m_strIP.c_str(), s2.m_strIP.c_str());
       if (c1 == 0)
       {
-         int c2 = strcmp(s1.m_strStoragePath.c_str(), s2.m_strStoragePath.c_str());
+         int c2 = 0;
+         if (!s1.m_strStoragePath.empty() && !s2.m_strStoragePath.empty())
+            c2 = strcmp(s1.m_strStoragePath.c_str(), s2.m_strStoragePath.c_str());
          if (c2 == 0)
          {
             return strcmp(s1.m_strBase.c_str(), s2.m_strBase.c_str());
