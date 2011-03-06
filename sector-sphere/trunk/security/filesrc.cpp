@@ -280,7 +280,6 @@ int FileSrc::parseUser(User& user, const char* name, const char* ufile)
             string rp = Metadata::revisePath(*i);
             if (rp.length() > 0)
                user.m_vstrWriteList.push_back(rp);
-cout << "write " << rp << endl;
          }
       }
       else if ("EXEC_PERMISSION" == param.m_strName)

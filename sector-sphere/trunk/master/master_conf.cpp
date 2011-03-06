@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/03/2011
+   Yunhong Gu, last updated 03/06/2011
 *****************************************************************************/
 
 #ifndef WIN32
@@ -198,7 +198,7 @@ bool ReplicaConf::refresh(const string& path)
             {
                string rp = Metadata::revisePathNoLimit(path);
                vector<int> topo;
-               Topology::parseTopo(rp.c_str(), topo);
+               Topology::parseTopo(loc.c_str(), topo);
                if ((rp.length() > 0) && !topo.empty())
                   m_mRestrictedLoc[rp] = topo;
             }
@@ -422,6 +422,7 @@ int Master::loadSlaveStartInfo(const std::string& file, set<SlaveStartInfo, SSIC
       if (SlaveStartInfo::skip(line))
          continue;
 
+      //option line must NOT be preceded with blank or TAB
       if (*line == '*')
       {
          // global configuration for slaves

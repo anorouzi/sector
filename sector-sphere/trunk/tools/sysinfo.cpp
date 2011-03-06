@@ -183,7 +183,7 @@ void print(const SysStat& s, bool address = false)
       if ((i->m_iStatus >= 0) && (i->m_iStatus < 4))
          slave_count[i->m_iStatus] ++;
    }
-   cout << " (" << slave_count[0] << " Normal " << slave_count[1] << " Down " << slave_count[2] << " DiskFull " << slave_count[3] << " Error)\n";
+   cout << " (" << slave_count[1] << " Normal " << slave_count[0] << " Down " << slave_count[2] << " DiskFull " << slave_count[3] << " Error)\n";
 
    cout << "-----------------------------------------------------------------------\n";
    cout << format("MASTER_ID", 10) << format("IP", 16) << "PORT" << endl;

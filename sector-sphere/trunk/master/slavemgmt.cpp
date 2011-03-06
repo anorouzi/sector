@@ -318,7 +318,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          continue;
 
       // if a location restriction is applied to the file, only limited nodes can be chosen
-      if (NULL != restrict_loc)
+      if ((NULL != restrict_loc) && (!restrict_loc->empty()))
       {
          if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
             continue;

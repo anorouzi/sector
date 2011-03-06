@@ -581,6 +581,7 @@ int Master::stop()
 
       if (secconn.send((char*)&cmd, 4) < 0)
       {
+cout << "reconnect\n";
          //if the permanent connection to the security server is broken, re-connect
          secconn.close();
          secconn.open(NULL, 0);
@@ -2884,7 +2885,7 @@ int Master::createReplica(const string& src, const string& dst)
          if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
             return -1;
 
-         if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist) < 0)
+         if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
             return -1;
       }
       else
@@ -2892,7 +2893,10 @@ int Master::createReplica(const string& src, const string& dst)
          //TODO: get total dir size
 
          set<Address, AddrComp> empty;
-         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
+         int rd = m_ReplicaConf.getReplicaDist(dst, m_SysConfig.m_iReplicaDist);
+         vector<int> rl;
+         m_ReplicaConf.getRestrictedLoc(dst, rl);
+         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
             return -1;
       }
 
@@ -2906,13 +2910,16 @@ int Master::createReplica(const string& src, const string& dst)
          if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
             return -1;
 
-         if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist) < 0)
+         if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
             return -1;
       }
       else
       {
          set<Address, AddrComp> empty;
-         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize) < 0)
+         int rd = m_ReplicaConf.getReplicaDist(dst, m_SysConfig.m_iReplicaDist);
+         vector<int> rl;
+         m_ReplicaConf.getRestrictedLoc(dst, rl);
+         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
             return -1;
       }
    }
