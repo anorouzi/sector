@@ -127,8 +127,8 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
       ts -= unitsize;
    }
 
-   outsize = op  - output;
-   return 1;
+   outsize = op - output;
+   return 0;
 }
 
 int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int& outsize)
@@ -164,6 +164,6 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
    }
 
    outsize = op - output;
-   return 1;
+   return 0;
 }
 

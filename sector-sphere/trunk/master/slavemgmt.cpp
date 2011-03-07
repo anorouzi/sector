@@ -439,7 +439,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
          }
 
          // if there is location restriction on the file, check path as well
-         if (NULL != restrict_loc)
+         if ((NULL != restrict_loc) && (!restrict_loc->empty()))
          {
             if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
                continue;

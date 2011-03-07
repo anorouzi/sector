@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/06/2011
+   Yunhong Gu, last updated 03/07/2011
 *****************************************************************************/
 
 #ifndef WIN32
@@ -466,7 +466,7 @@ int Master::loadSlaveStartInfo(const std::string& file, set<SlaveStartInfo, SSIC
       if (!h.empty())
       {
          global_conf += string(" -h ") + h;
-         info.m_strStoragePath = mh;
+         info.m_strStoragePath = h;
       }
       if (!log.empty())
          global_conf += string(" -log ") + log;

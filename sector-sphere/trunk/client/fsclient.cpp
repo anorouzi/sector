@@ -658,7 +658,9 @@ int FSClient::close()
    // reset all flags so that another file can be opened
    m_strSlaveIP = "";
    delete m_pEncoder;
+   m_pEncoder = NULL;
    delete m_pDecoder;
+   m_pDecoder = NULL;
    m_strFileName = "";
    m_bReadLocal = false;
    m_bWriteLocal = false;
