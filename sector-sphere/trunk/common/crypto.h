@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 03/07/2011
 *****************************************************************************/
 
 #ifndef __CRYPTO_H__
@@ -47,7 +47,7 @@ private:
    int m_iCoderType;		// 1: encoder, -1:decoder
 
    static const int g_iEncBlockSize = 1024;
-   static const int g_iDecBlockSize = 1032;
+   static const int g_iDecBlockSize = 1024;
 };
 
 #endif

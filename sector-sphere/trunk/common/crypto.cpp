@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 03/07/2011
 *****************************************************************************/
 
 
@@ -103,11 +103,11 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
    unsigned char* ip = input;
    unsigned char* op = output;
 
+   int len = 0;
    for (int ts = insize; ts > 0; )
    {
       int unitsize = (ts < g_iEncBlockSize) ? ts : g_iEncBlockSize;
 
-      int len;
       if (EVP_EncryptUpdate(&m_CTX, op, &len, ip, unitsize) != 1)
       {
          printf ("error in encrypt update\n");
@@ -116,16 +116,16 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
 
       ip += unitsize;
       op += len;
-
-      if (EVP_EncryptFinal(&m_CTX, op, &len) != 1)
-      {
-          printf ("error in encrypt final\n");
-          return 0;
-      }
-
-      op += len;
       ts -= unitsize;
    }
+
+   // the last block, padding
+   if (EVP_EncryptFinal(&m_CTX, op, &len) != 1)
+   {
+       printf ("error in encrypt final\n");
+       return 0;
+   }
+   op += len;
 
    outsize = op - output;
    return 0;
@@ -139,6 +139,7 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
    unsigned char* ip = input;
    unsigned char* op = output;
 
+   int len = 0;
    for (int ts = insize; ts > 0; )
    {
       int unitsize = (ts < g_iDecBlockSize) ? ts : g_iDecBlockSize;
@@ -152,16 +153,16 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
 
       ip += unitsize;
       op += len;
-
-      if (EVP_DecryptFinal(&m_CTX, op, &len) != 1)
-      {
-         printf("error in decrypt final\n");
-         return 0;
-      }
-
-      op += len;
       ts -= unitsize;
    }
+
+   // decrypt last block
+   if (EVP_DecryptFinal(&m_CTX, op, &len) != 1)
+   {
+      printf("error in decrypt final\n");
+      return 0;
+   }
+   op += len;
 
    outsize = op - output;
    return 0;
