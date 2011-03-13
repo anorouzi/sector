@@ -44,7 +44,7 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.6 build 01/26/2011.";
+const std::string SectorVersion = "Sector version 2.6 build 03/13/2011.";
 
 
 struct Address
@@ -96,6 +96,7 @@ public:
    int64_t m_llAvailDiskSpace;
    int64_t m_llTotalFileSize;
    int64_t m_llTotalFileNum;
+   int64_t m_llUnderReplicated;
 
    int64_t m_llTotalSlaves;
 

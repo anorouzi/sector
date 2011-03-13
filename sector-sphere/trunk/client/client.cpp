@@ -769,8 +769,9 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
    sys.m_llAvailDiskSpace = *(int64_t*)(buf + 8);
    sys.m_llTotalFileSize = *(int64_t*)(buf + 16);
    sys.m_llTotalFileNum = *(int64_t*)(buf + 24);
+   sys.m_llUnderReplicated = *(int64_t*)(buf + 32);
 
-   char* p = buf + 32;
+   char* p = buf + 40;
    int c = *(int32_t*)p;
    sys.m_vCluster.resize(c);
    p += 4;

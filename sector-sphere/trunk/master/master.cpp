@@ -3002,15 +3002,16 @@ int Master::serializeSysStat(char*& buf, int& size)
    int slave_size = 0;
    m_SlaveManager.serializeSlaveInfo(slave_info, slave_size);
 
-   size = 32 + cluster_size + slave_size + master_size;
+   size = 40 + cluster_size + slave_size + master_size;
    buf = new char[size];
 
    *(int64_t*)buf = m_llStartTime;
    *(int64_t*)(buf + 8) = m_SlaveManager.getTotalDiskSpace();
    *(int64_t*)(buf + 16) = m_pMetadata->getTotalDataSize("/");
    *(int64_t*)(buf + 24) = m_pMetadata->getTotalFileNum("/");
+   *(int64_t*)(buf + 32) = m_vstrToBeReplicated.size();
 
-   char* p = buf + 32;
+   char* p = buf + 40;
    memcpy(p, cluster_info, cluster_size);
    delete [] cluster_info;
    p += cluster_size;

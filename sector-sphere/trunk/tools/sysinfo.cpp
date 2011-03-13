@@ -173,7 +173,7 @@ void print(const SysStat& s, bool address = false)
    cout << "Running since:               " << ctime(&st);
    cout << "Available Disk Size:         " << formatSize(s.m_llAvailDiskSpace)<< endl;
    cout << "Total File Size:             " << formatSize(s.m_llTotalFileSize) << endl;
-   cout << "Total Number of Files:       " << s.m_llTotalFileNum << endl;
+   cout << "Total Number of Files:       " << s.m_llTotalFileNum << " (" << s.m_llUnderReplicated << " under replicated)" << endl;
    cout << "Total Number of Slave Nodes: " << s.m_llTotalSlaves;
 
    vector<int> slave_count(4);
