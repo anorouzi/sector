@@ -723,7 +723,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       ssi.m_strIP = sn.m_strIP;
       ssi.m_strStoragePath = sn.m_strStoragePath;
       ssi.m_strBase = sn.m_strBase;
-      set<SlaveStartInfo>::iterator p = m_sSlaveStartInfo.find(ssi);
+      set<SlaveStartInfo, SSIComp>::iterator p = m_sSlaveStartInfo.find(ssi);
       if (p != m_sSlaveStartInfo.end())
       {
          sn.m_strAddr = p->m_strAddr;
@@ -3189,7 +3189,7 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
       string start_slave = base + "/slave/start_slave";
       string cmd = (string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + start_slave + " " + base + " " + option + " &> " + slave_screen_log + "&\" &");
    #else
-      string cmd = (string("ssh ") + i->second.m_strAddr + " \"" + i->second.m_strBase + "/bin/start_slave " + i->second.m_strBase + " &> NULL &\"");
+      string cmd = (string("ssh ") + addr + " \"" + "/bin/start_slave " + base + " " + option + " &> NULL &\"");
    #endif
    system(cmd.c_str());
 

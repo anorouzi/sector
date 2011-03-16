@@ -24,6 +24,7 @@ written by
 #define __TRANSPORT_H__
 
 #include <string>
+#include <udt.h>
 
 class Transport
 {

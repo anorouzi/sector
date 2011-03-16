@@ -83,16 +83,20 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 {
    CGuardEx lg(m_LogLock);
 
+   #ifndef WIN32
+   int key = pthread_self();
+   #else
+   int key = GetCurrentThreadId();
+   #endif
+
    if (tag.m_iTag == LogTag::START)
    {
       LogString ls;
       ls.m_iLevel = tag.m_iLevel;
-      int key = pthread_self();
       m_mStoredString[key] = ls;
    }
    else if (tag.m_iTag == LogTag::END)
    {
-      int key = pthread_self();
       map<int, LogString>::iterator i = m_mStoredString.find(key);
       if (i != m_mStoredString.end())
       {
@@ -108,7 +112,12 @@ SectorLog& SectorLog::operator<<(const std::string& message)
 {
    CGuardEx lg(m_LogLock);
 
+   #ifndef WIN32
    int key = pthread_self();
+   #else
+   int key = GetCurrentThreadId();
+   #endif
+
    map<int, LogString>::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
    {
@@ -122,7 +131,12 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
 {
    CGuardEx lg(m_LogLock);
 
+   #ifndef WIN32
    int key = pthread_self();
+   #else
+   int key = GetCurrentThreadId();
+   #endif
+
    map<int, LogString>::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
    {

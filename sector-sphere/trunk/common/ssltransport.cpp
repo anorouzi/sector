@@ -33,6 +33,7 @@ written by
 #endif
 #include <string.h>
 #include <fstream>
+#include <sstream>
 #include <sector.h>
 #include "ssltransport.h"
 
@@ -111,26 +112,38 @@ int SSLTransport::initClientCTX(const char* cert)
 
 int SSLTransport::open(const char* ip, const int& port)
 {
-   if ((m_iSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-      return SectorError::E_RESOURCE;
+   struct addrinfo hints, *local;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   stringstream service;
+   service << port;
+
+   if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &local))
+      return -1;
+
+   m_iSocket = socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
    if ((NULL == ip) && (0 == port))
+   {
+      freeaddrinfo(local);
       return 0;
-
-   sockaddr_in addr;
-   memset(&addr, 0, sizeof(sockaddr_in));
-   addr.sin_addr.s_addr = INADDR_ANY;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(port);
+   }
 
    int reuse = 1;
    ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
-   if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
+   if (::bind(m_iSocket, local->ai_addr, local->ai_addrlen) < 0)
    {
       cerr << "SSL socket unable to bind on address " << ip << " " << port << endl;
+      freeaddrinfo(local);
       return SectorError::E_RESOURCE;
    }
+
+   freeaddrinfo(local);
 
    return 0;
 }
@@ -177,25 +190,29 @@ int SSLTransport::connect(const char* host, const int& port)
    if (NULL == m_pCTX)
       return -1;
 
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(port);
-   hostent* he = gethostbyname(host);
+   addrinfo hints, *peer;
 
-   if (NULL == he)
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   char buffer[64];
+   sprintf(buffer, "%d", port);
+
+   if (0 != getaddrinfo(host, buffer, &hints, &peer))
    {
       cerr << "SSL connect: invalid address " << host << " " << port << endl;
       return SectorError::E_CONNECTION;
    }
 
-   addr.sin_addr.s_addr = ((in_addr*)he->h_addr)->s_addr;
-   memset(addr.sin_zero, '\0', sizeof(addr.sin_zero));
-
-   if (::connect(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
+   if (::connect(m_iSocket, peer->ai_addr, peer->ai_addrlen) < 0)
    {
-      cerr << "SSL connect: unable to connect to server.\n";
+      freeaddrinfo(peer);
       return SectorError::E_CONNECTION;
    }
+
+   freeaddrinfo(peer);
 
    m_pSSL = SSL_new(m_pCTX);
    SSL_set_fd(m_pSSL, m_iSocket);
@@ -213,9 +230,9 @@ int SSLTransport::connect(const char* host, const int& port)
       return SectorError::E_SECURITY;
    }
 
-   X509* peer = SSL_get_peer_certificate(m_pSSL);
+   X509* peer_cert = SSL_get_peer_certificate(m_pSSL);
    char peer_CN[256];
-   X509_NAME_get_text_by_NID(X509_get_subject_name(peer), NID_commonName, peer_CN, 256);
+   X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert), NID_commonName, peer_CN, 256);
    //if (strcasecmp(peer_CN, host))
    //{
    //   cerr << "server name does not match.\n";

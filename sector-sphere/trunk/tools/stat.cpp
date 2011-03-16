@@ -19,11 +19,19 @@ written by
    Yunhong Gu, last updated 01/10/2011
 *****************************************************************************/
 
-#include <iostream>
+
+#ifndef WIN32
+   #include <arpa/inet.h>
+   #include <sys/socket.h>
+   #include <netdb.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+   #include <windows.h>
+   #include <time.h>
+#endif
 #include <sector.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netdb.h>
+#include <iostream>
 #include <cstring>
 
 using namespace std;

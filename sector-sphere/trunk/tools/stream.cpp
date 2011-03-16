@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,14 +16,18 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
 #include <sector.h>
 #include <probot.h>
 #include <cstdlib>
-#include <sys/time.h>
 #include <iostream>
+#ifndef WIN32
+   #include <sys/time.h>
+#else
+   #include <time.h>
+#endif
 
 using namespace std;
 

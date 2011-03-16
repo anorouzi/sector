@@ -82,7 +82,11 @@ int main(int argc, char** argv)
       {
          // wait a while to avoid too many incoming slaves crashing the master
          // TODO: check number of active slaves so far
+         #ifndef WIN32
          sleep(1);
+         #else
+         Sleep(1000);
+         #endif
          count = 0;
       }
 

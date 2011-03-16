@@ -22,16 +22,19 @@ written by
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <sys/ioctl.h>
-#include <dirent.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/time.h>
 #include <iostream>
 #include <sector.h>
+
+#ifndef WIN32
+   #include <sys/types.h>
+   #include <sys/stat.h>
+   #include <unistd.h>
+   #include <sys/ioctl.h>
+   #include <dirent.h>
+   #include <sys/time.h>
+#endif
 
 using namespace std;
 

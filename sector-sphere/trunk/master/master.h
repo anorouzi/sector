@@ -115,7 +115,7 @@ struct SSIComp
             c2 = strcmp(s1.m_strStoragePath.c_str(), s2.m_strStoragePath.c_str());
          if (c2 == 0)
          {
-            return strcmp(s1.m_strBase.c_str(), s2.m_strBase.c_str());
+            return (strcmp(s1.m_strBase.c_str(), s2.m_strBase.c_str()) > 0);
          }
 
          return c2 > 0;

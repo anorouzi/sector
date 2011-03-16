@@ -43,7 +43,7 @@ using namespace std;
 #ifdef WIN32
 #if _WIN32_WINNT <= _WIN32_WINNT_WS03
 
-const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
+const char *inet_ntop(int af, const void *src, char *dst, int cnt)
 {
    if (af == AF_INET)
    {

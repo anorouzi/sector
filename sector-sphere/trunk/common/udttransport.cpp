@@ -26,12 +26,15 @@ written by
    #include <arpa/inet.h>
    #include <netdb.h>
 #else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
    #include <windows.h>
 #endif
 
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
+#include <sstream>
 #include "udttransport.h"
 
 using namespace std;
@@ -56,22 +59,38 @@ void UDTTransport::release()
 
 int UDTTransport::open(int& port, bool rendezvous, bool reuseaddr)
 {
-   m_Socket = UDT::socket(AF_INET, SOCK_STREAM, 0);
+   struct addrinfo hints, *local;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   stringstream service;
+   service << port;
+
+   if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &local))
+      return -1;
+
+   m_Socket = UDT::socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
    if (UDT::INVALID_SOCK == m_Socket)
+   {
+      freeaddrinfo(local);
       return -1;
+   }
 
    UDT::setsockopt(m_Socket, 0, UDT_REUSEADDR, &reuseaddr, sizeof(bool));
 
-   sockaddr_in my_addr;
-   my_addr.sin_family = AF_INET;
-   my_addr.sin_port = htons(port);
-   my_addr.sin_addr.s_addr = INADDR_ANY;
-   memset(&(my_addr.sin_zero), '\0', 8);
-
-   if (UDT::bind(m_Socket, (sockaddr*)&my_addr, sizeof(my_addr)) == UDT::ERROR)
+   if (UDT::bind(m_Socket, local->ai_addr, local->ai_addrlen) == UDT::ERROR)
+   {
+      freeaddrinfo(local);
       return -1;
+   }
 
+   freeaddrinfo(local);
+
+   sockaddr_in my_addr;
    int size = sizeof(sockaddr_in);
    UDT::getsockname(m_Socket, (sockaddr*)&my_addr, &size);
    port = ntohs(my_addr.sin_port);
@@ -131,20 +150,27 @@ UDTTransport* UDTTransport::accept(string& ip, int& port)
 
 int UDTTransport::connect(const string& ip, int port)
 {
-   sockaddr_in serv_addr;
-   serv_addr.sin_family = AF_INET;
-   serv_addr.sin_port = htons(port);
-   #ifndef WIN32
-      inet_pton(AF_INET, ip.c_str(), &serv_addr.sin_addr);
-   #else
-      serv_addr.sin_addr.s_addr = inet_addr(ip.c_str());
-   #endif
-   memset(&(serv_addr.sin_zero), '\0', 8);
+   struct addrinfo hints, *peer;
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
 
-   if (UDT::ERROR == UDT::connect(m_Socket, (sockaddr*)&serv_addr, sizeof(serv_addr)))
+   stringstream service;
+   service << port;
+
+   if (0 != getaddrinfo(ip.c_str(), service.str().c_str(), &hints, &peer))
       return -1;
 
-   return 1;
+   if (UDT::ERROR == UDT::connect(m_Socket, peer->ai_addr, peer->ai_addrlen))
+   {
+      freeaddrinfo(peer);
+      return -1;
+   }
+
+   freeaddrinfo(peer);
+
+   return 0;
 }
 
 int UDTTransport::close()

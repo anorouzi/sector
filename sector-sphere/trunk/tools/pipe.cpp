@@ -19,10 +19,12 @@ written by
    Yunhong Gu, last updated 01/12/2010
 *****************************************************************************/
 
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#ifndef WIN32
+   #include <sys/time.h>
+   #include <sys/types.h>
+   #include <sys/stat.h>
+   #include <unistd.h>
+#endif
 #include <stdio.h>
 #include <iostream>
 #include <sector.h>
@@ -103,7 +105,7 @@ int main(int argc, char** argv)
    client.releaseSectorFile(f);
 
    gettimeofday(&t2, 0);
-   float throughput = total_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
+   double throughput = total_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
 
    cerr << "Pipeline accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 

@@ -1,4 +1,4 @@
-/*****************************************************************************
+/****************************************************************************
 Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -94,7 +94,11 @@ int main(int argc, char** argv)
 
       time_t t = i->m_llTimeStamp;
       char buf[64];
-      ctime_r(&t, buf);
+      #ifndef WIN32
+         ctime_r(&t, buf);
+      #else
+         ctime_s(buf, 64, &t);
+      #endif
       for (char* p = buf; *p != '\n'; ++ p)
          cout << *p;
 
@@ -115,7 +119,11 @@ int main(int argc, char** argv)
 
       time_t t = i->m_llTimeStamp;
       char buf[64];
-      ctime_r(&t, buf);
+      #ifndef WIN32
+         ctime_r(&t, buf);
+      #else
+         ctime_s(buf, 64, &t);
+      #endif
       for (char* p = buf; *p != '\n'; ++ p)
          cout << *p;
 

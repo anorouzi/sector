@@ -71,10 +71,6 @@ written by
     typedef HANDLE pthread_cond_t;
     typedef DWORD pthread_key_t;
 
-    inline int pthread_self(void) {
-        return GetCurrentThreadId();
-    }
-
     #define unlink _unlink
     #define snprintf _snprintf_s
     #define atoll _atoi64
@@ -85,7 +81,7 @@ written by
     #define     S_ISREG(mode)    S_ISTYPE((mode), _S_IFREG)
 
     #if _WIN32_WINNT <= _WIN32_WINNT_WS03
-    const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt);
+    const char *inet_ntop(int af, const void *src, char *dst, int cnt);
     int inet_pton(int af, const char* s, void* d);
     #endif
 #endif

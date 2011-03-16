@@ -22,7 +22,12 @@ written by
 
 #include <writelog.h>
 #include <slave.h>
-#include <utime.h>
+#ifndef WIN32
+   #include <utime.h>
+#else
+   #include <sys/types.h>
+   #include <sys/utime.h>
+#endif
 
 using namespace std;
 

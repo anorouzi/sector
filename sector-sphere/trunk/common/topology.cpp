@@ -22,10 +22,18 @@ written by
 
 #ifndef WIN32
    #include <unistd.h>
+   #include <sys/types.h>
    #include <sys/socket.h>
    #include <arpa/inet.h>
+   #include <netdb.h>
    #include <sys/time.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+   #include <windows.h>
 #endif
+
+
 #include <topology.h>
 #include <sys/types.h>
 #include <fstream>
@@ -181,15 +189,8 @@ int Topology::init(const char* topoconf)
 int Topology::lookup(const char* ip, vector<int>& path)
 {
    in_addr addr;
-#ifndef WIN32
    if (inet_pton(AF_INET, ip, &addr) < 0)
       return -1;
-#else
-   addr.s_addr = inet_addr(ip);
-   if (addr.s_addr == INADDR_NONE)
-      return -1;
-#endif
-
    uint32_t digitip = ntohl(addr.s_addr);
 
    for (vector<TopoMap>::iterator i = m_vTopoMap.begin(); i != m_vTopoMap.end(); ++ i)
@@ -334,20 +335,11 @@ int Topology::parseIPRange(const char* ip, uint32_t& digit, uint32_t& mask)
    buf[i] = '\0';
 
    in_addr addr;
-#ifndef WIN32
    if (inet_pton(AF_INET, buf, &addr) < 0)
    {
       delete [] buf;
       return -1;
    }
-#else
-   addr.s_addr = inet_addr(buf);
-   if (addr.s_addr == INADDR_NONE)
-   {
-      delete [] buf;
-      return -1;
-   }
-#endif
 
    digit = ntohl(addr.s_addr);
    mask = 0xFFFFFFFF;

@@ -23,6 +23,9 @@ written by
    #include <arpa/inet.h>
    #include <sys/socket.h>
    #include <netdb.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
 #endif
 #include <master.h>
 #include <sstream>
@@ -402,19 +405,10 @@ int Master::loadSlaveStartInfo(const std::string& file, set<SlaveStartInfo, SSIC
       return -1;
    }
 
-   int count = 0;
    string mh, mp, log, h, ds;
 
    while (!ifs.eof())
    {
-      if (++ count == 64)
-      {
-         // wait a while to avoid too many incoming slaves crashing the master
-         // TODO: check number of active slaves so far
-         sleep(1);
-         count = 0;
-      }
-
       char line[256];
       line[0] = '\0';
       ifs.getline(line, 256);

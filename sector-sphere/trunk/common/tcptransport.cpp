@@ -34,6 +34,7 @@ written by
 #include <tcptransport.h>
 #include <cstring>
 #include <cstdlib>
+#include <sstream>
 #include <iostream>
 #include <fstream>
 
@@ -53,22 +54,31 @@ TCPTransport::~TCPTransport()
 
 int TCPTransport::open(int& port, bool rendezvous, bool reuseaddr)
 {
-   if ((m_iSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-      return SectorError::E_RESOURCE;
+   struct addrinfo hints, *local;
 
-   sockaddr_in addr;
-   memset(&addr, 0, sizeof(sockaddr_in));
-   addr.sin_addr.s_addr = INADDR_ANY;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(port);
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_STREAM;
+
+   stringstream service;
+   service << port;
+
+   if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &local))
+      return -1;
+
+   m_iSocket = socket(local->ai_family, local->ai_socktype, local->ai_protocol);
 
    int reuse = reuseaddr;
    ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
 
-   if (::bind(m_iSocket, (sockaddr*)&addr, sizeof(sockaddr_in)) < 0)
+   if (::bind(m_iSocket, local->ai_addr, local->ai_addrlen) < 0)
    {
+      freeaddrinfo(local);
       return SectorError::E_RESOURCE;
    }
+
+   freeaddrinfo(local);
 
    return 0;
 }
@@ -114,7 +124,7 @@ int TCPTransport::connect(const string& host, int port)
    hints.ai_family = AF_INET;
    hints.ai_socktype = SOCK_STREAM;
 
-   char buffer[16];
+   char buffer[64];
    sprintf(buffer, "%d", port);
 
    if (0 != getaddrinfo(host.c_str(), buffer, &hints, &peer))

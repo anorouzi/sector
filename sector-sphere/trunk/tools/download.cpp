@@ -24,6 +24,11 @@ written by
 #else
    #include <unistd.h>
    #include <sys/ioctl.h>
+   #include <sys/time.h>
+   #include <sys/vfs.h>
+   #include <sys/statvfs.h>
+   #include <sys/stat.h>
+   #include <sys/types.h>
 #endif
 
 #include <fstream>
@@ -31,11 +36,6 @@ written by
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/time.h>
-#include <sys/vfs.h>
-#include <sys/statvfs.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <iostream>
 #include <sector.h>
 

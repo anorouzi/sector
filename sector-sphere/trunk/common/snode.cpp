@@ -19,7 +19,9 @@ written by
    Yunhong Gu, last updated 10/13/2010
 *****************************************************************************/
 
-
+#ifdef WIN32
+   #include <time.h>
+#endif
 #include <fstream>
 #include <cstring>
 #include <cstdlib>
@@ -117,7 +119,7 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
-   m_bIsDir = atoi(tmp);
+   m_bIsDir = (atoi(tmp) != 0);
 
    if (stop)
    {
