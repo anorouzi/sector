@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/15/2010
+   Yunhong Gu, last updated 03/15/2011
 *****************************************************************************/
 
 #include <fcntl.h>
@@ -179,6 +179,7 @@ int main(int argc, char** argv)
    int replica_num = 1;
    string ip = "";
    string cluster = "";
+   int parallel = 1;  // concurrent uploading multiple files
 
    bool encryption = false;
 
@@ -190,6 +191,8 @@ int main(int argc, char** argv)
          ip = i->second;
       else if (i->first == "c")
          cluster = i->second;
+      else if (i->first == "p")
+         parallel = atoi(i->second.c_str());
       else
       {
          help();
