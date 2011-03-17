@@ -116,10 +116,8 @@ int Master::init()
       return -1;
    }
 
-   if (m_SysConfig.m_MetaType == MEMORY)
-      m_pMetadata = new Index;
-   else
-      m_pMetadata = new Index2;
+   // currently only in-memory metadata is supported
+   m_pMetadata = new Index;
    m_pMetadata->init(m_strHomeDir + ".metadata");
 
    // set and configure replication strategies
@@ -703,10 +701,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
 
       // accept existing data on the new slave and merge it with the master metadata
       Metadata* branch = NULL;
-      if (m_SysConfig.m_MetaType == MEMORY)
-         branch = new Index;
-      else
-         branch = new Index2;
+      branch = new Index;
       branch->init(m_strHomeDir + ".tmp/" + ip);
       branch->deserialize("/", m_strHomeDir + ".tmp/" + ip + ".dat", &addr);
       branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);

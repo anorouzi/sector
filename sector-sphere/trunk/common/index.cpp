@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 09/02/2010
+   Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
 
@@ -30,17 +30,8 @@ written by
 #include <cstring>
 #include <time.h>
 #include <sector.h>
-
-#ifndef WIN32
-   #include <dirent.h>
-   #include <unistd.h>
-#else
-   #include <windows.h>
-   #include <tchar.h> 
-   #include <stdio.h>
-   #include <strsafe.h>
-#endif
 #include <iostream>
+
 using namespace std;
 
 Index::Index()
@@ -780,27 +771,21 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
 
 int Index::scan(const string& currdir, map<string, SNode>& metadata)
 {
-#ifndef WIN32
-   dirent **namelist;
-   int n = scandir(currdir.c_str(), &namelist, 0, alphasort);
-
-   if (n < 0)
+   vector<SNode> filelist;
+   if (LocalFS::list_dir(currdir, filelist) < 0)
       return -1;
 
    metadata.clear();
 
-   for (int i = 0; i < n; ++ i)
+   for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       // skip "." and ".."
-      if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
-      {
-         free(namelist[i]);
+      if (i->m_strName.empty() || (i->m_strName == ".") || (i->m_strName == ".."))
          continue;
-      }
 
       // check file name
       bool bad = false;
-      for (char *p = namelist[i]->d_name, *q = namelist[i]->d_name + strlen(namelist[i]->d_name); p != q; ++ p)
+      for (char *p = (char*)i->m_strName.c_str(), *q = p + i->m_strName.length(); p != q; ++ p)
       {
          if ((*p == 10) || (*p == 13))
          {
@@ -811,97 +796,18 @@ int Index::scan(const string& currdir, map<string, SNode>& metadata)
       if (bad)
          continue;
 
-      struct stat64 s;
-      if (stat64((currdir + namelist[i]->d_name).c_str(), &s) < 0)
-         continue;
-
       // skip system file and directory
-      if (S_ISDIR(s.st_mode) && (namelist[i]->d_name[0] == '.'))
-      {
-         free(namelist[i]);
+      if (i->m_bIsDir && (i->m_strName.c_str()[0] == '.'))
          continue;
-      }
 
-      SNode sn;
-      metadata[namelist[i]->d_name] = sn;
-      map<string, SNode>::iterator mi = metadata.find(namelist[i]->d_name);
-      mi->second.m_strName = namelist[i]->d_name;
+      metadata[i->m_strName] = *i;
+      map<string, SNode>::iterator mi = metadata.find(i->m_strName);
 
-      mi->second.m_llSize = s.st_size;
-      mi->second.m_llTimeStamp = s.st_mtime;
-
-      if (S_ISDIR(s.st_mode))
-      {
-         mi->second.m_bIsDir = true;
-         scan(currdir + namelist[i]->d_name + "/", mi->second.m_mDirectory);
-      }
-      else
-      {
-         mi->second.m_bIsDir = false;
-      }
-
-      free(namelist[i]);
+      if (mi->second.m_bIsDir)
+         scan(currdir + mi->first + "/", mi->second.m_mDirectory);
    }
-   free(namelist);
 
    return metadata.size();
-#else
-   WIN32_FIND_DATA ffd;
-   LARGE_INTEGER filesize;
-   TCHAR szDir[MAX_PATH];
-   size_t length_of_arg;
-   HANDLE hFind = INVALID_HANDLE_VALUE;
-   DWORD dwError=0;
-
-   StringCchLength(currdir.c_str(), MAX_PATH, &length_of_arg);
-
-   if (length_of_arg > (MAX_PATH - 3))
-      return -1;
-
-   StringCchCopy(szDir, MAX_PATH, currdir.c_str());
-   StringCchCat(szDir, MAX_PATH, TEXT("\\*"));
-
-   // Find the first file in the directory.
-   hFind = FindFirstFile(szDir, &ffd);
-   if (INVALID_HANDLE_VALUE == hFind) 
-      return dwError;
-   
-   // List all the files in the directory with some info about them.
-   do
-   {
-      SNode sn;
-      metadata[ffd.cFileName] = sn;
-      map<string, SNode>::iterator mi = metadata.find(ffd.cFileName);
-      mi->second.m_strName = ffd.cFileName;
-      mi->second.m_llSize = 0;
-      mi->second.m_llTimeStamp = 0;
-
-      if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-      {
-         mi->second.m_bIsDir = true;
-         scan(ffd.cFileName, mi->second.m_mDirectory);
-      }
-      else
-      {
-         filesize.LowPart = ffd.nFileSizeLow;
-         filesize.HighPart = ffd.nFileSizeHigh;
-     	 mi->second.m_llSize = filesize.QuadPart;
-
-         LARGE_INTEGER ts;
-         ts.LowPart = ffd.ftLastWriteTime.dwLowDateTime;
-         ts.HighPart = ffd.ftLastWriteTime.dwHighDateTime;
-         mi->second.m_llTimeStamp = ts.QuadPart;
-      }
-   }
-   while (FindNextFile(hFind, &ffd) != 0);
- 
-   dwError = GetLastError();
-   if (dwError != ERROR_NO_MORE_FILES) 
-      return -1;
-
-   FindClose(hFind);
-   return metadata.size();
-#endif
 }
 
 int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const unsigned int& replica)
@@ -942,8 +848,9 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
          }
          else
          {
-            //DEBUG ONLY
-            cout << "conflict " << i->first << " size " << i->second.m_llSize << " " << s->second.m_llSize << " TS " << i->second.m_llTimeStamp << " " << s->second.m_llTimeStamp << endl; 
+            #ifdef DEBUG
+            cerr << "conflict " << i->first << " size " << i->second.m_llSize << " " << s->second.m_llSize << " TS " << i->second.m_llTimeStamp << " " << s->second.m_llTimeStamp << endl; 
+            #endif
          }
       }
    }

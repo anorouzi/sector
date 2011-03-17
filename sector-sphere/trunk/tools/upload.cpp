@@ -26,14 +26,10 @@ written by
 #include <errno.h>
 #include <iostream>
 #include <sector.h>
-
+#include <osportable.h>
 #ifndef WIN32
    #include <sys/types.h>
    #include <sys/stat.h>
-   #include <unistd.h>
-   #include <sys/ioctl.h>
-   #include <dirent.h>
-   #include <sys/time.h>
 #endif
 
 using namespace std;
@@ -128,27 +124,19 @@ int getFileList(const string& path, vector<string>& fl)
       if (stat64((path + "/.nosplit").c_str(), &s) > 0)
          fl.push_back(path + "/.nosplit");
 
-      dirent **namelist;
-      int n = scandir(path.c_str(), &namelist, 0, alphasort);
-
-      if (n < 0)
+      vector<SNode> curr_fl;
+      if (LocalFS::list_dir(path, curr_fl) < 0)
          return -1;
 
-      for (int i = 0; i < n; ++ i)
+      for (vector<SNode>::iterator i = curr_fl.begin(); i != curr_fl.end(); ++ i)
       {
-         // skip "." and ".." and hidden directory
-         if (namelist[i]->d_name[0] == '.')
-         {
-            free(namelist[i]);
-            continue;
-         }
-
-         string subdir = path + "/" + namelist[i]->d_name;
-
-         if (stat64(subdir.c_str(), &s) < 0)
+         // skip "." and ".."
+         if ((i->m_strName == ".") || (i->m_strName == ".."))
             continue;
 
-         if (S_ISDIR(s.st_mode))
+         string subdir = path + "/" + i->m_strName;
+
+         if (i->m_bIsDir)
             getFileList(subdir, fl);
          else
             fl.push_back(subdir);
@@ -230,6 +218,7 @@ int main(int argc, char** argv)
 
    bool success = true;
 
+   // upload multiple files/dirs
    clp.m_vParams.erase(clp.m_vParams.begin() + clp.m_vParams.size() - 1);
    for (vector<string>::iterator i = clp.m_vParams.begin(); i < clp.m_vParams.end(); ++ i)
    {
@@ -260,27 +249,23 @@ int main(int argc, char** argv)
             orig = orig.substr(p + 1, orig.length() - p);
          }
 
-         dirent **namelist;
-         int n = scandir(path.c_str(), &namelist, 0, alphasort);
-
-         if (n < 0)
+         //if this is a wildcard, list all files in the current dir, choose those matched ones
+         vector<SNode> curr_fl;
+         if (LocalFS::list_dir(path, curr_fl) < 0)
             return -1;
 
-         for (int i = 0; i < n; ++ i)
+         for (vector<SNode>::iterator s = curr_fl.begin(); s != curr_fl.end(); ++ s)
          {
-            // skip "." and ".." and hidden directory
-            if (namelist[i]->d_name[0] == '.')
-            {
-               free(namelist[i]);
+            // skip "." and ".."
+            if ((s->m_strName == ".") || (s->m_strName == ".."))
                continue;
-            }
 
-            if (WildCard::match(orig, namelist[i]->d_name))
+            if (WildCard::match(orig, s->m_strName))
             {
                if (path == ".")
-                  getFileList(namelist[i]->d_name, fl);
+                  getFileList(s->m_strName, fl);
                else
-                  getFileList(path + "/" + namelist[i]->d_name, fl);
+                  getFileList(path + "/" + s->m_strName, fl);
             }
          }
       }
@@ -300,8 +285,10 @@ int main(int argc, char** argv)
       else
          olddir = olddir.substr(0, p);
 
+      // upload all files in the file list
       for (vector<string>::const_iterator i = fl.begin(); i != fl.end(); ++ i)
       {
+         // process directory name change: /src/mydata -> /dst/mydata
          string dst = *i;
          if (olddir.length() > 0)
             dst.replace(0, olddir.length(), newdir);

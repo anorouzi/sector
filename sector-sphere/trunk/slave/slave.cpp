@@ -21,7 +21,6 @@ written by
 
 #include "slave.h"
 #include <ssltransport.h>
-#include <dirent.h>
 #include <netdb.h>
 #include <sys/vfs.h>
 #include <sys/statvfs.h>
@@ -114,10 +113,7 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
    system((string("cp ") + m_strBase + "/slave/sphere/*.so " + m_strHomeDir + "/.sphere/perm/").c_str());
 
    cout << "scanning " << m_strHomeDir << endl;
-   if (m_SysConfig.m_MetaType == MEMORY)
-      m_pLocalFile = new Index;
-   else
-      m_pLocalFile = new Index2;
+   m_pLocalFile = new Index;
    m_pLocalFile->init(m_strHomeDir + ".metadata");
    m_pLocalFile->scan(m_strHomeDir.c_str(), "/");
 
@@ -230,10 +226,7 @@ int Slave::connect()
          secconn.recvfile((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), 0, size);
 
          Metadata* attic = NULL;
-         if (m_SysConfig.m_MetaType == MEMORY)
-            attic = new Index;
-         else
-            attic = new Index2;
+         attic = new Index;
          attic->init(m_strHomeDir + ".tmp/metadata.left");
          attic->deserialize("/", m_strHomeDir + ".tmp/metadata.left.dat", NULL);
          unlink((m_strHomeDir + ".tmp/metadata.left.dat").c_str());

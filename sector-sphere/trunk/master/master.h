@@ -26,7 +26,6 @@ written by
 #include <gmp.h>
 #include <log.h>
 #include <index.h>
-#include <index2.h>
 #include <vector>
 #include <ssltransport.h>
 #include <topology.h>

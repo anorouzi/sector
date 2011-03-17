@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,11 +16,10 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
-#include <dirent.h>
-#include <sys/stat.h>
+#include <osportable.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -131,39 +130,25 @@ int FileSrc::loadACL(vector<IPRange>& acl, const string& path)
 
 int FileSrc::loadUsers(map<string, User>& users, const string& path)
 {
-   dirent **namelist;
-   int n = scandir(path.c_str(), &namelist, 0, alphasort);
-
-   if (n < 0)
+   vector<SNode> filelist;
+   if (LocalFS::list_dir(path, filelist) < 0)
       return -1;
 
    users.clear();
 
-   for (int i = 0; i < n; ++ i)
+   for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       // skip "." and ".."
-      if ((strcmp(namelist[i]->d_name, ".") == 0) || (strcmp(namelist[i]->d_name, "..") == 0))
-      {
-         free(namelist[i]);
+      if (i->m_strName.empty() || (i->m_strName.c_str()[0] == '.'))
          continue;
-      }
 
-      struct stat s;
-      stat((path + "/" + namelist[i]->d_name).c_str(), &s);
-
-      if (S_ISDIR(s.st_mode))
-      {
-         free(namelist[i]);
+      if (i->m_bIsDir)
          continue;
-      }
 
       User u;
-      if (parseUser(u, namelist[i]->d_name, (path + "/" + namelist[i]->d_name).c_str()) >= 0)
+      if (parseUser(u, i->m_strName.c_str(), (path + "/" + i->m_strName).c_str()) >= 0)
          users[u.m_strName] = u;
-
-      free(namelist[i]);
    }
-   free(namelist);
 
    return users.size();
 }

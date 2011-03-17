@@ -28,7 +28,6 @@ written by
 #include <gmp.h>
 #include <datachn.h>
 #include <index.h>
-#include <index2.h>
 #include <log.h>
 #include <routing.h>
 #include <transaction.h>

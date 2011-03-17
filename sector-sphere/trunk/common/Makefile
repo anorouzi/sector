@@ -6,7 +6,6 @@ OBJS = osportable.o \
        snode.o \
        meta.o \
        index.o \
-       index2.o \
        memobj.o \
        transaction.o \
        topology.o \
