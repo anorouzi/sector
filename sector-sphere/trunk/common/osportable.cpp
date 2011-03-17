@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/04/2010
+   Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
 #include <osportable.h>
@@ -31,6 +31,8 @@ written by
 #ifndef WIN32
    #include <dirent.h>
    #include <unistd.h>
+   #include <sys/vfs.h>
+   #include <sys/statvfs.h>
 #else
    #include <windows.h>
    #include <tchar.h>
@@ -100,6 +102,171 @@ int inet_pton(int af, const char* s, void* d)
 #endif
 #endif
 
+
+CMutex::CMutex()
+{
+#ifndef WIN32   // TODO: add error checking
+   pthread_mutex_init(&m_lock, NULL);
+#else
+   ::InitializeCriticalSection (&m_lock);
+#endif
+}
+
+CMutex::~CMutex()
+{
+#ifndef WIN32
+   pthread_mutex_destroy(&m_lock);
+#else
+   ::DeleteCriticalSection (&m_lock);
+#endif
+}
+
+bool CMutex::acquire()
+{
+   bool locked = true;
+#ifndef WIN32
+   int iret = pthread_mutex_lock(&m_lock);
+   locked = (iret == 0);
+#else
+   ::EnterCriticalSection(&m_lock);
+#endif
+   return locked;
+}
+
+bool CMutex::release() 
+{
+   bool unlocked = true;
+#ifndef WIN32
+   int iret = pthread_mutex_unlock(&m_lock);
+   unlocked = (iret == 0);
+#else
+   ::LeaveCriticalSection(&m_lock);
+#endif
+   return unlocked;
+}
+
+bool CMutex::trylock()
+{
+   bool locked = false;
+#ifndef WIN32
+   int iret = pthread_mutex_trylock(&m_lock);
+   locked = (iret == 0);
+#else
+   BOOL result = ::TryEnterCriticalSection (&m_lock);
+   locked = (result == TRUE);
+#endif
+   return locked;
+}
+
+CGuardEx::CGuardEx(CMutex& mutex): 
+m_lock(mutex)
+{
+   m_Locked = m_lock.acquire();
+}
+
+CGuardEx::~CGuardEx()
+{
+   if (m_Locked)
+   {
+      m_lock.release();
+      m_Locked = false;
+   }
+}
+
+CCond::CCond()
+{
+#ifndef WIN32
+   pthread_cond_init(&m_Cond, NULL);
+#else
+   m_Cond = ::CreateEvent(NULL, false, false, NULL);
+#endif
+}
+
+CCond::~CCond()
+{
+#ifndef WIN32
+   pthread_cond_destroy(&m_Cond);
+#else
+   ::CloseHandle(m_Cond);
+#endif
+}
+
+bool CCond::signal()
+{
+#ifndef WIN32
+   return (pthread_cond_signal(&m_Cond) == 0);
+#else
+   return (::SetEvent(m_Cond) == TRUE);
+#endif
+}
+
+bool CCond::broadcast()
+{
+#ifndef WIN32
+   int rc = pthread_cond_broadcast(&m_Cond);
+   return (rc == 0);
+#else
+   return (::SetEvent(m_Cond) == TRUE);
+#endif
+}
+
+#ifndef WIN32
+timeval& CCond::adjust (timeval & t)
+{
+   const int ONE_MILLION = 1000000;
+   if (t.tv_usec < 0)
+   {
+       t.tv_usec += ONE_MILLION ;
+       t.tv_sec -- ;
+   } 
+   else if (t.tv_usec > ONE_MILLION) 
+   {
+      t.tv_usec -= ONE_MILLION ;
+      t.tv_sec ++ ;
+   }
+   return t;
+}
+#endif
+
+bool CCond::wait(CMutex & mutex)
+{
+#ifndef WIN32
+   int rc = pthread_cond_wait(&m_Cond, &mutex.m_lock);
+   return (rc == 0);
+#else
+   mutex.release();  // mimic Posix behavior
+   DWORD dw = WaitForSingleObject(m_Cond, INFINITE);
+   mutex.acquire();  // mimic Posix behavior
+   return (dw == WAIT_OBJECT_0);
+#endif
+}
+
+bool CCond::wait (CMutex & mutex, unsigned long msecs, bool * timedout)
+{
+#ifndef WIN32
+   timeval t;
+   gettimeofday(&t, NULL);
+   t.tv_sec += (msecs / 1000);
+   t.tv_usec += (msecs % 1000);
+   adjust (t);
+   // Convert from timeval to timespec
+   timespec ts;
+   ts.tv_sec  = t.tv_sec;
+   ts.tv_nsec = t.tv_usec * 1000;   // convert micro-seconds to nano-seconds
+
+   int rc = pthread_cond_timedwait(&m_Cond, &mutex.m_lock, &ts);
+   if (timedout)
+      *timedout = (rc == ETIMEDOUT);
+   return (rc == 0);
+#else
+   mutex.release();  // mimic Posix behavior
+   DWORD dw = WaitForSingleObject(m_Cond, msecs);
+   mutex.acquire();  // mimic Posix behavior
+   if (timedout)
+      *timedout = (dw == WAIT_TIMEOUT);
+   return (dw == WAIT_OBJECT_0);
+#endif
+}
 
 
 RWLock::RWLock()
@@ -345,3 +512,14 @@ string LocalFS::reviseSysCmdPath(const string& path)
    return rpath;
 }
 
+int LocalFS::get_dir_space(const string& path, int64_t& avail)
+{
+#ifndef WIN32
+   struct statfs64 slavefs;
+   statfs64(path.c_str(), &slavefs);
+   avail = slavefs.f_bfree * slavefs.f_bsize;
+   return 0;
+#else
+   return GetDiskFreeSpaceEx(path.c_str(), &avail, NULL, NULL);
+#endif
+}

@@ -34,7 +34,7 @@ using namespace std;
 #ifndef WIN32
 void* Slave::fileHandler(void* p)
 #else
-unsigned int WINAPI Slave::fileHandler(void* p)
+DWORD WINAPI Slave::fileHandler(LPVOID p)
 #endif
 {
    Slave* self = ((Param2*)p)->serv_instance;
@@ -489,7 +489,7 @@ unsigned int WINAPI Slave::fileHandler(void* p)
 #ifndef WIN32
 void* Slave::copy(void* p)
 #else
-unsigned int WINAPI Slave::copy(void* p)
+DWORD WINAPI Slave::copy(LPVOID p)
 #endif
 {
    Slave* self = ((Param3*)p)->serv_instance;

@@ -16,17 +16,24 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/16/2011
+   Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <netdb.h>
+   #include <sys/vfs.h>
+   #include <sys/statvfs.h>
+   #include <unistd.h>
+   #include <sys/times.h>
+   #include <utime.h>
+#else
+   #include <sys/utime.h>
+   #include <windows.h>
+   #include <stdio.h>
+   #include <psapi.h>
+#endif
 #include "slave.h"
 #include <ssltransport.h>
-#include <netdb.h>
-#include <sys/vfs.h>
-#include <sys/statvfs.h>
-#include <unistd.h>
-#include <sys/times.h>
-#include <utime.h>
 #include <common.h>
 #include <iostream>
 #include <sstream>
@@ -129,10 +136,8 @@ int Slave::connect()
 
    string cert = m_strBase + "/conf/master_node.cert";
 
-   // calculate total available disk size
-   struct statfs64 slavefs;
-   statfs64(m_strHomeDir.c_str(), &slavefs);
-   int64_t availdisk = slavefs.f_bfree * slavefs.f_bsize;
+   int64_t availdisk;
+   LocalFS::get_dir_space(m_strHomeDir, availdisk);
 
    m_iSlaveID = -1;
 
@@ -310,8 +315,8 @@ void Slave::run()
    pthread_t worker_thread;
    pthread_create(&worker_thread, NULL, worker, this);
 #else
-   unsigned int ThreadID;
-   worker_thread = (HANDLE)_beginthreadex(NULL, 0, worker, this, NULL, &ThreadID);
+   DWORD ThreadID;
+   HANDLE worker_thread = CreateThread(NULL, 0, worker, this, 0, &ThreadID);
 #endif
 
    while (m_bRunning)
@@ -394,9 +399,13 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
 
       m_bRunning = false;
 
+      #ifndef WIN32
       pthread_mutex_lock(&m_RunLock);
       pthread_cond_signal(&m_RunCond);
       pthread_mutex_unlock(&m_RunLock);
+      #else
+      ::SetEvent(m_RunCond);
+      #endif
 
       break;
    }
@@ -505,10 +514,8 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       pthread_create(&file_handler, NULL, fileHandler, p);
       pthread_detach(file_handler);
 #else
-      unsigned int ThreadID;
-      HANDLE file_handler = (HANDLE)_beginthreadex(NULL, 0, fileHandler, p, NULL, &ThreadID);
-      if (file_handler)
-         CloseHandle(file_handler);
+      DWORD ThreadID;
+      HANDLE file_handler = CreateThread(NULL, 0, fileHandler, p, NULL, &ThreadID);
 #endif
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -538,10 +545,8 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       pthread_create(&replica_handler, NULL, copy, p);
       pthread_detach(replica_handler);
 #else
-      unsigned int ThreadID;
-      HANDLE replica_handler = (HANDLE)_beginthreadex(NULL, 0, copy, p, NULL, &ThreadID);
-      if (replica_handler)
-         CloseHandle(replica_handler);
+      DWORD ThreadID;
+      HANDLE replica_handler = CreateThread(NULL, 0, copy, p, NULL, &ThreadID);
 #endif
 
       m_GMP.sendto(ip, port, id, msg);
@@ -597,10 +602,8 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       pthread_create(&spe_handler, NULL, SPEHandler, p);
       pthread_detach(spe_handler);
 #else
-      unsigned int ThreadID;
-      HANDLE spe_handler = (HANDLE)_beginthreadex(NULL, 0, SPEHandler, p, NULL, &ThreadID);
-      if (spe_handler)
-         CloseHandle(spe_handler);
+      DWORD ThreadID;
+      HANDLE spe_handler = CreateThread(NULL, 0, SPEHandler, p, NULL, &ThreadID);
 #endif
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -649,10 +652,8 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       pthread_create(&spe_shuffler, NULL, SPEShuffler, p);
       pthread_detach(spe_shuffler);
 #else
-      unsigned int ThreadID;
-      HANDLE spe_shuffler = (HANDLE)_beginthreadex(NULL, 0, SPEShuffler, p, NULL, &ThreadID);
-      if (spe_shuffler)
-         CloseHandle(spe_shuffler);
+      DWORD ThreadID;
+      HANDLE spe_shuffler = CreateThread(NULL, 0, SPEShuffler, p, NULL, &ThreadID);
 #endif
 
       *(int32_t*)msg->getData() = gmp->getPort();
@@ -1003,7 +1004,7 @@ int Slave::createSysDir()
 
    if (LocalFS::mkdir(m_strHomeDir + ".attic") < 0)
       return -1;
-   //TODO: check slave.conf option to defice if to clean .attic
+   //TODO: check slave.conf option to decide if to clean .attic
    //LocalFS::clean_dir(m_strHomeDir + ".attic");
 
    return 0;
@@ -1041,8 +1042,6 @@ void SlaveStat::init()
    m_mSysIndOutput.clear();
    m_mCliIndInput.clear();
    m_mCliIndOutput.clear();
-
-   pthread_mutex_init(&m_StatLock, 0);
 }
 
 void SlaveStat::refresh()
@@ -1083,14 +1082,24 @@ void SlaveStat::refresh()
    times(&cputime);
    m_llCurrCPUUsed = (cputime.tms_utime + cputime.tms_stime) * 1000000LL / hz;
 #else
-    m_llCurrMemUsed = GetWSPrivateMemory(::GetProcessId(::GetCurrentProcess()));
-    m_llCurrCPUUsed = GetCpuProcUsage (::GetCurrentProcess());
+   PROCESS_MEMORY_COUNTERS pmc;
+   GetProcessMemoryInfo(::GetCurrentProcess(), &pmc, sizeof(pmc));
+   m_llCurrMemUsed = pmc.WorkingSetSize;
+
+   FILETIME kernel, user;
+   GetProcessTimes(::GetCurrentProcess(), NULL, NULL, &kernel, &user);
+   ULARGE_INTEGER k, u;
+   k.LowPart = kernel.dwLowDateTime;
+   k.HighPart = kernel.dwHighDateTime;
+   u.LowPart = user.dwLowDateTime;
+   u.HighPart = user.dwHighDateTime;
+   m_llCurrCPUUsed = (k.QuadPart + u.QuadPart) / 10000000;
 #endif
 }
 
 void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
 {
-   pthread_mutex_lock(&m_StatLock);
+   CGuardEx sg(m_StatLock);
 
    map<string, int64_t>::iterator a;
 
@@ -1142,8 +1151,6 @@ void SlaveStat::updateIO(const string& ip, const int64_t& size, const int& type)
       a->second += size;
       m_llTotalOutputData += size;
    }
-
-   pthread_mutex_unlock(&m_StatLock);
 }
 
 int SlaveStat::serializeIOStat(char*& buf, int& size)
@@ -1151,7 +1158,7 @@ int SlaveStat::serializeIOStat(char*& buf, int& size)
    size = (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
    buf = new char[size];
 
-   pthread_mutex_lock(&m_StatLock);
+   CGuardEx sg(m_StatLock);
 
    char* p = buf;
    *(int32_t*)p = m_mSysIndInput.size();
@@ -1190,12 +1197,14 @@ int SlaveStat::serializeIOStat(char*& buf, int& size)
       p += 24;
    }
 
-   pthread_mutex_unlock(&m_StatLock);
-
    return (m_mSysIndInput.size() + m_mSysIndOutput.size() + m_mCliIndInput.size() + m_mCliIndOutput.size()) * 24 + 16;
 }
 
+#ifndef WIN32
 void* Slave::worker(void* param)
+#else
+DWORD WINAPI Slave::worker(LPVOID param)
+#endif
 {
    Slave* self = (Slave*)param;
 
@@ -1218,10 +1227,8 @@ void* Slave::worker(void* param)
       if (CTimer::getTime() - last_report_time < 30000000)
          continue;
 
-      // calculate total available disk size
-      struct statvfs64 slavefs;
-      statvfs64(self->m_strHomeDir.c_str(), &slavefs);
-      self->m_SlaveStat.m_llAvailSize = slavefs.f_bavail * slavefs.f_bsize;
+      // get total available disk size and file size
+      LocalFS::get_dir_space(self->m_strHomeDir.c_str(), self->m_SlaveStat.m_llAvailSize);
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
 
       // users may limit the maximum disk size used by Sector

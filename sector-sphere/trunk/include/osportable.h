@@ -17,6 +17,8 @@ the License.
 /*****************************************************************************
 written by
    Sergio Ruiz, last updated 10/03/2010
+updated by
+   Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
 #ifndef __OS_PORTABLE_H__
@@ -92,58 +94,12 @@ class CMutex
 friend class CCond;
 
 public:
-    CMutex()
-    {
-#ifndef WIN32   // TODO: add error checking
-       pthread_mutex_init(&m_lock, NULL);
-#else
-       ::InitializeCriticalSection (&m_lock);
-#endif
-    }
+    CMutex();
+    ~CMutex();
 
-    ~CMutex()
-    {
-#ifndef WIN32
-        pthread_mutex_destroy(&m_lock);
-#else
-        ::DeleteCriticalSection (&m_lock);
-#endif
-    }
-
-    inline bool acquire() {
-        bool locked = true;
-#ifndef WIN32
-        int iret = pthread_mutex_lock(&m_lock);
-        locked = (iret == 0);
-#else
-        ::EnterCriticalSection(&m_lock);
-#endif
-        return locked;
-    }
-
-    inline bool release() {
-        bool unlocked = true;
-#ifndef WIN32
-        int iret = pthread_mutex_unlock(&m_lock);
-        unlocked = (iret == 0);
-#else
-        ::LeaveCriticalSection(&m_lock);
-#endif
-        return unlocked;
-    }
-
-    inline bool trylock() {
-        bool locked = false;
-#ifndef WIN32
-        int iret = pthread_mutex_trylock(&m_lock);
-        locked = (iret == 0);
-#else
-        BOOL result = ::TryEnterCriticalSection (&m_lock);
-        locked = (result == TRUE);
-#endif
-        return locked;
-    }
-
+    bool acquire();
+    bool release();
+    bool trylock();
 
 private:
 #ifdef WIN32
@@ -158,19 +114,8 @@ private:
 class CGuardEx
 {
 public:
-    // Automatically lock in constructor
-    CGuardEx(CMutex& mutex)
-    : m_lock(mutex) {
-        m_Locked = m_lock.acquire();
-    }
-
-    // Automatically unlock in destructor
-    ~CGuardEx()    {
-        if (m_Locked) {
-            m_lock.release();
-            m_Locked = false;
-        }
-    }
+    CGuardEx(CMutex& mutex);
+    ~CGuardEx();
 
 private:
    CMutex& m_lock;            // Alias name of the mutex to be protected
@@ -182,91 +127,18 @@ private:
 class CCond
 {
 public:
-    CCond() {
-#ifndef WIN32
-        pthread_cond_init(&m_Cond, NULL);
-#else
-        m_Cond = ::CreateEvent(NULL, false, false, NULL);
-#endif
-    }
+    CCond();
+    ~CCond();
  
-    ~CCond() {
-#ifndef WIN32
-        pthread_cond_destroy(&m_Cond);
-#else
-        ::CloseHandle(m_Cond);
-#endif
-    }
- 
-    bool signal() {
-#ifndef WIN32
-        return (pthread_cond_signal(&m_Cond) == 0);
-#else
-        return (::SetEvent(m_Cond) == TRUE);
-#endif
-    }
- 
-    bool broadcast() {
-#ifndef WIN32
-        int rc = pthread_cond_broadcast(&m_Cond);
-        return (rc == 0);
-#else
-        return (::SetEvent(m_Cond) == TRUE);
-#endif
-    }
+    bool signal();
+    bool broadcast();
 
 #ifndef WIN32
-    #define ONE_MILLION    1000000
-    inline timeval& adjust (timeval & t)
-    {
-        if (t.tv_usec < 0) {
-            t.tv_usec += ONE_MILLION ;
-            t.tv_sec -- ;
-        } else if (t.tv_usec > ONE_MILLION) {
-            t.tv_usec -= ONE_MILLION ;
-            t.tv_sec ++ ;
-        }
-        return t;
-    }
+    inline timeval& adjust (timeval & t);
 #endif
 
-    bool wait (CMutex & mutex) {  // wait forever
-#ifndef WIN32
-        int rc = pthread_cond_wait(&m_Cond, &mutex.m_lock);
-        return (rc == 0);
-#else
-        mutex.release();  // mimic Posix behavior
-        DWORD dw = WaitForSingleObject(m_Cond, INFINITE);
-        mutex.acquire();  // mimic Posix behavior
-        return (dw == WAIT_OBJECT_0);
-#endif
-    }
-
-    bool wait (CMutex & mutex, unsigned long msecs, bool * timedout = NULL) {
-#ifndef WIN32
-        timeval t;
-        gettimeofday(&t, NULL);
-        t.tv_sec += (msecs / 1000);
-        t.tv_usec += (msecs % 1000);
-        adjust (t);
-        // Convert from timeval to timespec
-        timespec ts;
-        ts.tv_sec  = t.tv_sec;
-        ts.tv_nsec = t.tv_usec * 1000;   // convert micro-seconds to nano-seconds
- 
-        int rc = pthread_cond_timedwait(&m_Cond, &mutex.m_lock, &ts);
-        if (timedout)
-            *timedout = (rc == ETIMEDOUT);
-        return (rc == 0);
-#else
-        mutex.release();  // mimic Posix behavior
-        DWORD dw = WaitForSingleObject(m_Cond, msecs);
-        mutex.acquire();  // mimic Posix behavior
-        if (timedout)
-            *timedout = (dw == WAIT_TIMEOUT);
-        return (dw == WAIT_OBJECT_0);
-#endif
-    }
+    bool wait (CMutex & mutex);
+    bool wait (CMutex & mutex, unsigned long msecs, bool * timedout = NULL);
 
 private:
 #ifndef WIN32
@@ -319,6 +191,7 @@ public:
    static int clean_dir(const std::string& path);
    static int list_dir(const std::string& path, std::vector<SNode>& filelist);
    static int stat(const std::string& path, SNode& s);
+   static int get_dir_space(const std::string& path, int64_t& avail);
 
 private:
    static std::string reviseSysCmdPath(const std::string& path);

@@ -128,7 +128,7 @@ public:
    int serializeIOStat(char*& buf, int& size);
 
 private:
-   pthread_mutex_t m_StatLock;
+   CMutex m_StatLock;
 
 public: // io statistics type
    static const int SYS_IN = 1;
@@ -278,11 +278,11 @@ private:
    static void* SPEShuffler(void* p5);
    static void* SPEShufflerEx(void* p5);
 #else
-   static unsigned int WINAPI fileHandler(void* p2);
-   static unsigned int WINAPI copy(void* p3);
-   static unsigned int WINAPI SPEHandler(void* p4);
-   static unsigned int WINAPI SPEShuffler(void* p5);
-   static unsigned int WINAPI SPEShufflerEx(void* p5);
+   static DWORD WINAPI fileHandler(LPVOID p2);
+   static DWORD WINAPI copy(LPVOID p3);
+   static DWORD WINAPI SPEHandler(LPVOID p4);
+   static DWORD WINAPI SPEShuffler(LPVOID p5);
+   static DWORD WINAPI SPEShufflerEx(LPVOID p5);
 #endif
 
 private: // Sphere operations
@@ -332,7 +332,7 @@ private: // worker thread, report status, garbage collection, etc.
 #ifndef WIN32
    static void* worker(void* param);
 #else
-   static unsigned int WINAPI worker(void* param);
+   static DWORD WINAPI worker(LPVOID param);
 #endif
 
 private:

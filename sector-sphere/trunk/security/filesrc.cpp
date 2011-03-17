@@ -19,10 +19,15 @@ written by
    Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
+#ifndef WIN32
+   #include <sys/types.h>
+   #include <sys/socket.h>
+   #include <arpa/inet.h>
+#else
+   #include <winsock2.h>
+   #include <ws2tcpip.h>
+#endif
 #include <osportable.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <iostream>
 #include <fstream>
 #include <filesrc.h>

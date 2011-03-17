@@ -172,7 +172,7 @@ void SPEDestination::reset(const int& buckets)
 #ifndef WIN32
 void* Slave::SPEHandler(void* p)
 #else
-unsigned int WINAPI Slave::SPEHandler(void* p)
+DWORD WINAPI Slave::SPEHandler(LPVOID p)
 #endif
 {
    Slave* self = ((Param4*)p)->serv_instance;
@@ -546,7 +546,7 @@ unsigned int WINAPI Slave::SPEHandler(void* p)
 #ifndef WIN32
 void* Slave::SPEShuffler(void* p)
 #else
-unsigned WINAPI Slave::SPEShuffler(void* p)
+DWORD WINAPI Slave::SPEShuffler(LPVOID p)
 #endif
 {
    Slave* self = ((Param5*)p)->serv_instance;
