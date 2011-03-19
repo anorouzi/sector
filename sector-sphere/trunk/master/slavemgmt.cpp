@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/16/2011
+   Yunhong Gu, last updated 03/19/2011
 *****************************************************************************/
 
 
@@ -1047,19 +1047,20 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    // TODO: this code can be slightly optimized
 
    int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
-   vector<int>::iterator n = dist_vec[dist].begin();
-   for (int i = 0; i < r; ++ i)
-      n ++;
+   int n = dist_vec[dist][r];
 
-   sn = m_mSlaveList[*n];
+   sn = m_mSlaveList[n];
    if (sn.m_iActiveTrans == 0)
       return 0;
 
-   for (vector<int>::iterator i = dist_vec[dist].begin(); i != dist_vec[dist].end(); ++ i)
+   // if the chose node already serves other transactions, choose the next one with minimum number of transactions
+   for (int i = r + 1, max = r + dist_vec[dist].size(); i < max; ++ i)
    {
-      if (m_mSlaveList[*i].m_iActiveTrans < sn.m_iActiveTrans)
+      int index = i % dist_vec[dist].size();
+
+      if (m_mSlaveList[dist_vec[dist][index]].m_iActiveTrans < sn.m_iActiveTrans)
       {
-         sn = m_mSlaveList[*i];
+         sn = m_mSlaveList[dist_vec[dist][index]];
          if (sn.m_iActiveTrans == 0)
             break;
       }

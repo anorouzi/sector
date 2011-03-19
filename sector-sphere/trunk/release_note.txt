@@ -1,5 +1,6 @@
 version 2.6
 
+fix a bug in FSCache that uses wrong timestamps
 automatic slave restart supports multiple slaves on a single node now
 optimized write performance to local node
 fixed a bug that can cause moving legal files to .attic on slave, when conflicts are present
