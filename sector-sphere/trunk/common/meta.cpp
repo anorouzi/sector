@@ -212,6 +212,7 @@ bool Metadata::initLC()
    }
 
    m_pbLegalChar[32] = true; // Space
+   m_pbLegalChar[36] = true; // $
    m_pbLegalChar[39] = true; // ' 
    m_pbLegalChar[40] = true; // (
    m_pbLegalChar[41] = true; // )

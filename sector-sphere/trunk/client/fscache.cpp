@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/23/2010
+   Yunhong Gu, last updated 03/17/2011
 *****************************************************************************/
 
 #include <string.h>
@@ -71,7 +71,7 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
       r.m_bChange = false;
       r.m_llTimeStamp = ts;
       r.m_llSize = size;
-      r.m_llLastAccessTime = CTimer::getTime();
+      r.m_llLastAccessTime = CTimer::getTime() / 1000000;
       m_mOpenedFiles[path] = r;
 
       return;
@@ -82,7 +82,7 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
       s->second.m_bChange = true;
       s->second.m_llTimeStamp = ts;
       s->second.m_llSize = size;
-      s->second.m_llLastAccessTime = CTimer::getTime();
+      s->second.m_llLastAccessTime = CTimer::getTime() / 1000000;
    }
 
    if (first)
@@ -144,13 +144,13 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
    if (s == m_mOpenedFiles.end())
       return -1;
 
-   s->second.m_llLastAccessTime = CTimer::getTime();
+   s->second.m_llLastAccessTime = CTimer::getTime() / 1000000;
 
    CacheBlock cb;
    cb.m_llOffset = offset;
    cb.m_llSize = size;
-   cb.m_llCreateTime = CTimer::getTime();
-   cb.m_llLastAccessTime = CTimer::getTime();
+   cb.m_llCreateTime = s->second.m_llLastAccessTime;
+   cb.m_llLastAccessTime = s->second.m_llLastAccessTime;
    cb.m_pcBlock = block;
    cb.m_bWrite = write;
 
@@ -222,7 +222,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
       if ((offset >= i->m_llOffset) && (i->m_llSize - (offset - i->m_llOffset) >= size))
       {
          memcpy(buf, i->m_pcBlock + offset - i->m_llOffset, int(size));
-         i->m_llLastAccessTime = CTimer::getTime();
+         i->m_llLastAccessTime = CTimer::getTime() / 1000000;
          // update the file's last access time; it must equal to the block's last access time
          s->second.m_llLastAccessTime = i->m_llLastAccessTime;
          return size;
@@ -242,7 +242,7 @@ int Cache::shrink()
       return 0;
 
    string last_file = "";
-   int64_t latest_time = CTimer::getTime();
+   int64_t latest_time = CTimer::getTime() / 1000000;
 
    // find the file with the earliest last access time
    for (map<string, InfoBlock>::iterator i = m_mOpenedFiles.begin(); i != m_mOpenedFiles.end(); ++ i)
@@ -267,7 +267,7 @@ int Cache::shrink()
       return 0;
    }
 
-   latest_time = CTimer::getTime();
+   latest_time = CTimer::getTime() / 1000000;
    list<CacheBlock>::iterator d = c->second.end();
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
    {

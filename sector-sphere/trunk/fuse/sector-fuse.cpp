@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
    sector_ops.read = SectorFS::read;
    sector_ops.write = SectorFS::write;
    sector_ops.flush = SectorFS::flush;
+   sector_ops.fsync = SectorFS::fsync;
    sector_ops.release = SectorFS::release;
    sector_ops.utime = SectorFS::utime;
    sector_ops.utimens = SectorFS::utimens;

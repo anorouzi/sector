@@ -442,7 +442,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
          m_llSize = m_llCurWritePos;
 
       // update the file stat information in local cache, for correct stat() call and invalidate related read cache
-      m_pClient->m_Cache.update(m_strFileName, CTimer::getTime(), m_llSize);
+      m_pClient->m_Cache.update(m_strFileName, CTimer::getTime() / 1000000, m_llSize);
 
       // keep the data in cache, in case write is not completed
       char* data = new char[sentsize];
