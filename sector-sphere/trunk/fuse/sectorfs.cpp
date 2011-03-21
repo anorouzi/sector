@@ -354,6 +354,12 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    else if (fi->flags & O_RDWR)
       permission = SF_MODE::READ | SF_MODE::WRITE;
 
+   if (fi->flags & O_TRUNC)
+      permission |= SF_MODE::TRUNC;
+
+   if (fi->flags & O_APPEND)
+      permission |= SF_MODE::APPEND;
+
    int r = f->open(path, permission);
    if (r < 0)
    {

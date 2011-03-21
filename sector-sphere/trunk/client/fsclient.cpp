@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/25/2010
+   Yunhong Gu, last updated 03/20/2011
 *****************************************************************************/
 
 
@@ -154,12 +154,6 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
    m_bWrite = mode & 2;
    m_bSecure = mode & 16;
 
-   // check APPEND
-   if (mode & 8)
-      m_llCurWritePos = m_llSize;
-
-   //TODO: handle TRUNC
-
    // receiving all replica nodes
    int32_t slave_num = *(int32_t*)(msg.getData() + 20);
    int offset = 24;
@@ -232,6 +226,14 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
             m_bReadLocal = m_bWriteLocal = false;
       }
    }
+
+   // check TRUNC
+   if ((mode & 4) && m_bWrite)
+      m_llSize = 0;
+
+   // check APPEND
+   if (mode & 8)
+      m_llCurWritePos = m_llSize;
 
    if (m_bSecure)
    {

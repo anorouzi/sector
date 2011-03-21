@@ -62,6 +62,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    // IO permissions
    bool bRead = mode & 1;
    bool bWrite = mode & 2;
+   bool trunc = mode & 4;
    bool bSecure = mode & 16;
 
    int orig_timestamp = -1;
@@ -119,7 +120,10 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    WriteLog writelog;
 
    fstream fhandle;
-   fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
+   if (!trunc)
+      fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
+   else
+      fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary | ios::trunc);
 
    // a file session is successful one when the client issue a close() request
    bool success = false;
