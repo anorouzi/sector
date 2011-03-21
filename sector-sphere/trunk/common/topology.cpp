@@ -61,6 +61,7 @@ m_llTotalInputData(0),
 m_llTotalOutputData(0),
 m_llLastUpdateTime(0),
 m_iStatus(1),
+m_bDiskLowWarning(false),
 m_llLastVoteTime(-1),
 m_iActiveTrans(0)
 {

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/21/2011
+   Yunhong Gu, last updated 03/20/2011
 *****************************************************************************/
 
 #include <common.h>
@@ -1245,7 +1245,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       //   msg->setType(-msg->getType());
       m_GMP.sendto(ip, port, id, msg);
       m_ReplicaLock.acquire();
-      if (!m_vstrToBeReplicated.empty())
+      if (m_Replication.getTotalNum() > 0)
          m_ReplicaCond.signal();
       m_ReplicaLock.release();
 
@@ -1907,7 +1907,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
          // sector_cp can be used to create replicas of a file/dir, if src == dst
          m_ReplicaLock.acquire();
-         m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), src + "\t" + dst);
+         ReplicaJob job;
+         job.m_strSource = src;
+         job.m_strDest = dst;
+         m_Replication.push(job);
          m_ReplicaCond.signal();
          m_ReplicaLock.release();
 
@@ -1969,7 +1972,11 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
          string target = *i;
          target.replace(0, rep.length(), dst);
-         m_vstrToBeReplicated.insert(m_vstrToBeReplicated.begin(), *i + "\t" + target);
+         ReplicaJob job;
+         job.m_strSource = *i;
+         job.m_strDest = target;
+         job.m_iPriority = 1; // cp has a higher priority than regular replication
+         m_Replication.push(job);
       }
       m_ReplicaCond.signal();
       m_ReplicaLock.release();
@@ -2774,14 +2781,22 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
          self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
 
+      vector<string> under_replicated;
       vector<string> over_replicated;
 
       self->m_ReplicaLock.acquire();
 
       // check replica, create or remove replicas if necessary
-      if (self->m_vstrToBeReplicated.empty())
+      if (self->m_Replication.getTotalNum() == 0)
       {
-         self->m_pMetadata->checkReplica("/", self->m_vstrToBeReplicated, over_replicated);
+         self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
+
+         for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)
+         {
+            ReplicaJob job;
+            job.m_strSource = job.m_strDest = *i;
+            self->m_Replication.push(job);
+         }
 
          // create replicas for files on slaves without enough disk space
          // so that some files can be removed from these nodes
@@ -2792,37 +2807,31 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             vector<string> path;
             self->chooseDataToMove(path, i->second, i->first);
             for (vector<string>::iterator i = path.begin(); i != path.end(); ++ i)
-               self->m_vstrToBeReplicated.push_back(*i);
+            {
+               ReplicaJob job;
+               job.m_strSource = job.m_strDest = *i;
+               job.m_bForceReplicate = true;
+               self->m_Replication.push(job);
+            }
          }
       }
 
-      vector<string>::iterator r = self->m_vstrToBeReplicated.begin();
-
-      for (; r != self->m_vstrToBeReplicated.end(); ++ r)
+      while (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() < self->m_SlaveManager.getNumberOfSlaves())
       {
-         if (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() >= self->m_SlaveManager.getNumberOfSlaves())
+         // only create replica when the system is not busy
+         // TODO: this should be further optimized
+
+         ReplicaJob job;
+         if (self->m_Replication.pop(job) < 0)
             break;
 
-         int pos = r->find('\t');
-         string src = r->substr(0, pos);
-         string dst = r->substr(pos + 1, r->length());
-
-         if (src != dst)
+         // avoid creat a replica that is already being replicated
+         if ((job.m_strSource != job.m_strDest) || (self->m_sstrOnReplicate.find(job.m_strSource) == self->m_sstrOnReplicate.end()))
          {
-            self->createReplica(src, dst);
+            self->createReplica(job);
          }
-         else
-         {
-            // avoid replicating a file that is currently being replicated
-            if (self->m_sstrOnReplicate.find(src) != self->m_sstrOnReplicate.end())
-               continue;
 
-            self->createReplica(src, dst);
-         }
       }
-
-      // remove those already been replicated
-      self->m_vstrToBeReplicated.erase(self->m_vstrToBeReplicated.begin(), r);
 
       self->m_ReplicaLock.release();
 
@@ -2858,10 +2867,10 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    return NULL;
 }
 
-int Master::createReplica(const string& src, const string& dst)
+int Master::createReplica(const ReplicaJob& job)
 {
    SNode attr;
-   if (m_pMetadata->lookup(src.c_str(), attr) < 0)
+   if (m_pMetadata->lookup(job.m_strSource.c_str(), attr) < 0)
       return -1;
 
    int32_t dir = 0;
@@ -2869,11 +2878,11 @@ int Master::createReplica(const string& src, const string& dst)
    SlaveNode sn;
    if (attr.m_bIsDir)
    {
-      if (src == dst)
+      if (job.m_strSource == job.m_strDest)
       {
          // only nosplit dir can be replicated as a whole
          SNode sub_attr;
-         if (m_pMetadata->lookup((src + "/.nosplit").c_str(), sub_attr) < 0)
+         if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
             return -1;
 
          // do not over replicate
@@ -2888,9 +2897,9 @@ int Master::createReplica(const string& src, const string& dst)
          //TODO: get total dir size
 
          set<Address, AddrComp> empty;
-         int rd = m_ReplicaConf.getReplicaDist(dst, m_SysConfig.m_iReplicaDist);
+         int rd = m_ReplicaConf.getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
          vector<int> rl;
-         m_ReplicaConf.getRestrictedLoc(dst, rl);
+         m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
          if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
             return -1;
       }
@@ -2899,10 +2908,10 @@ int Master::createReplica(const string& src, const string& dst)
    }
    else
    {
-      if (src == dst)
+      if (job.m_strSource == job.m_strDest)
       {
          // do not over replicate
-         if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
+         if ((attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum) && !job.m_bForceReplicate)
             return -1;
 
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
@@ -2911,28 +2920,28 @@ int Master::createReplica(const string& src, const string& dst)
       else
       {
          set<Address, AddrComp> empty;
-         int rd = m_ReplicaConf.getReplicaDist(dst, m_SysConfig.m_iReplicaDist);
+         int rd = m_ReplicaConf.getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
          vector<int> rl;
-         m_ReplicaConf.getRestrictedLoc(dst, rl);
+         m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
          if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
             return -1;
       }
    }
 
-   int transid = m_TransManager.create(TransType::REPLICA, 0, 111, dst, 0);
-   if (src == dst)
-      m_sstrOnReplicate.insert(src);
+   int transid = m_TransManager.create(TransType::REPLICA, 0, 111, job.m_strDest, 0);
+   if (job.m_strSource == job.m_strDest)
+      m_sstrOnReplicate.insert(job.m_strSource);
 
    SectorMsg msg;
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
    msg.setData(4, (char*)&dir, 4);
-   msg.setData(8, src.c_str(), src.length() + 1);
-   msg.setData(8 + src.length() + 1, dst.c_str(), dst.length() + 1);
+   msg.setData(8, job.m_strSource.c_str(), job.m_strSource.length() + 1);
+   msg.setData(8 + job.m_strSource.length() + 1, job.m_strDest.c_str(), job.m_strDest.length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
-      m_sstrOnReplicate.erase(src);
+      m_sstrOnReplicate.erase(job.m_strSource);
       return -1;
    }
 
@@ -2943,19 +2952,19 @@ int Master::createReplica(const string& src, const string& dst)
       return 0;
 
    // replicate index file to the same location
-   string idx = src + ".idx";
+   string idx = job.m_strSource + ".idx";
    if (m_pMetadata->lookup(idx.c_str(), attr) < 0)
       return 0;
 
-   transid = m_TransManager.create(TransType::REPLICA, 0, 111, dst + ".idx", 0);
-   if (src == dst)
+   transid = m_TransManager.create(TransType::REPLICA, 0, 111, job.m_strDest + ".idx", 0);
+   if (job.m_strSource == job.m_strDest)
       m_sstrOnReplicate.insert(idx);
 
    msg.setType(111);
    msg.setData(0, (char*)&transid, 4);
    msg.setData(4, (char*)&dir, 4);
    msg.setData(8, idx.c_str(), idx.length() + 1);
-   msg.setData(8 + idx.length() + 1, (dst + ".idx").c_str(), (dst + ".idx").length() + 1);
+   msg.setData(8 + idx.length() + 1, (job.m_strDest + ".idx").c_str(), (job.m_strDest + ".idx").length() + 1);
 
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
@@ -3004,7 +3013,7 @@ int Master::serializeSysStat(char*& buf, int& size)
    *(int64_t*)(buf + 8) = m_SlaveManager.getTotalDiskSpace();
    *(int64_t*)(buf + 16) = m_pMetadata->getTotalDataSize("/");
    *(int64_t*)(buf + 24) = m_pMetadata->getTotalFileNum("/");
-   *(int64_t*)(buf + 32) = m_vstrToBeReplicated.size();
+   *(int64_t*)(buf + 32) = m_Replication.getTotalNum();
 
    char* p = buf + 40;
    memcpy(p, cluster_info, cluster_size);

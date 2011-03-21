@@ -35,7 +35,8 @@ void help()
 
 
 int main(int argc, char** argv)
-{   string sector_home;
+{
+   string sector_home;
    if (ConfLocation::locate(sector_home) < 0)
    {
       cerr << "no Sector information located; nothing to stop.\n";
@@ -79,6 +80,7 @@ int main(int argc, char** argv)
 
    for (set<SlaveStartInfo, SSIComp>::iterator i = ssi.begin(); i != ssi.end(); ++ i)
    {
+      cout << "stop slave at " << i->m_strAddr << endl;
       system((string("ssh -o StrictHostKeychecking=no ") + i->m_strAddr + " killall -9 start_slave &").c_str());
    }
 

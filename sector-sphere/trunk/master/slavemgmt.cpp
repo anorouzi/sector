@@ -601,7 +601,10 @@ int SlaveManager::updateSlaveInfo(const Address& addr, const char* info, const i
    if (s->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace)
       s->second.m_iStatus = SlaveStatus::DISKFULL;
    else
+   {
       s->second.m_iStatus = SlaveStatus::NORMAL;
+      s->second.m_bDiskLowWarning = false;
+   }
 
    return 0;
 }
@@ -990,14 +993,15 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
 
    lowdisk.clear();
 
-   uint64_t size = 0;
+   int64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
       if (i->second.m_iStatus == SlaveStatus::NORMAL)
-         size += i->second.m_llAvailDiskSpace;
+         size += i->second.m_llAvailDiskSpace;      
    }
 
-   int64_t avg = size / m_mSlaveList.size();
+   if (!m_mSlaveList.empty())
+      size /= m_mSlaveList.size();
 
    //TODO: using "target" value as key may cause certain low disk node to be ignored.
    // such node may be included again in the next round of check.
@@ -1005,16 +1009,19 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
 
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      if (i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace)
+      if ((i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace) && (!i->second.m_bDiskLowWarning))
       {
          int64_t target;
-         if (avg > m_llSlaveMinDiskSpace)
-            target = avg  - i->second.m_llAvailDiskSpace;
+         if (size > m_llSlaveMinDiskSpace)
+            target = size - i->second.m_llAvailDiskSpace;
          else
             target = m_llSlaveMinDiskSpace - i->second.m_llAvailDiskSpace;
 
          lowdisk[target].m_strIP = i->second.m_strIP;
          lowdisk[target].m_iPort = i->second.m_iPort;
+
+         i->second.m_iStatus = SlaveStatus::DISKFULL;
+         i->second.m_bDiskLowWarning = true;
       }
    }
 

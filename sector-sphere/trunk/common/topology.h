@@ -75,6 +75,7 @@ public:
 
    int64_t m_llLastUpdateTime;				// last update time
    int m_iStatus;					// 0: inactive 1: active-normal 2: active-disk full/read only 3: bad
+   bool m_bDiskLowWarning;                              // if the disk low warning info has been updated to the master
 
    std::set<int> m_sBadVote;				// set of bad votes by other slaves
    int64_t m_llLastVoteTime;				// timestamp of last vote

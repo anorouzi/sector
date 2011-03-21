@@ -35,6 +35,7 @@ written by
 #include <user.h>
 #include <threadpool.h>
 #include <osportable.h>
+#include <replica.h>
 	
 
 class MasterConf
@@ -202,13 +203,12 @@ private: // replication
    CMutex m_ReplicaLock;
    CCond m_ReplicaCond;
 
-   // string format: <src file>,<dst file>
-   std::vector<std::string> m_vstrToBeReplicated;	// list of files to be replicated/copied
+   Replication m_Replication;				// list of files to be replicated
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
    ReplicaConf m_ReplicaConf;				// special replications
 
-   int createReplica(const std::string& src, const std::string& dst);
+   int createReplica(const ReplicaJob& job);
    int removeReplica(const std::string& filename, const Address& addr);
 
    int processWriteResults(const std::string& filename, std::map<int, std::string> results);
