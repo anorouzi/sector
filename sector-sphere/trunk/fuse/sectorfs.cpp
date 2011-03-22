@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/02/2010
+   Yunhong Gu, last updated 03/21/2011
 *****************************************************************************/
 
 
@@ -323,6 +323,18 @@ int SectorFS::truncate(const char *, off_t)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   SectorFile* f = g_SectorClient.createSectorFile();
+   int r = f->open(path, SF_MODE::WRITE | SF_MODE::TRUNC);
+   if (r < 0)
+   {
+      if (r == SectorError::E_MASTER)
+         g_bConnected = false;
+
+      return translateErr(r);
+   }
+   f->close();
+   g_SectorClient.releaseSectorFile(f);
 
    return 0;
 }

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/14/2011
+   Yunhong Gu, last updated 03/20/2011
 *****************************************************************************/
 
 #ifndef WIN32
@@ -229,7 +229,7 @@ void print(const SysStat& s, bool address = false)
         << format("AvailDisk", 12)
         << format("TotalFile", 12)
         << format("Memory", 12)
-        << format("CPU(us)", 12)
+        << format("CPU(us)", 14)
         << format("NetIn", 12)
         << format("NetOut", 12)
         << endl;
@@ -243,7 +243,7 @@ void print(const SysStat& s, bool address = false)
            << format(formatSize(i->m_llAvailDiskSpace), 12)
            << format(formatSize(i->m_llTotalFileSize), 12)
            << format(formatSize(i->m_llCurrMemUsed), 12)
-           << format(i->m_llCurrCPUUsed, 12)
+           << format(i->m_llCurrCPUUsed, 14)
            << format(formatSize(i->m_llTotalInputData), 12)
            << format(formatSize(i->m_llTotalOutputData), 12)
            << endl;
