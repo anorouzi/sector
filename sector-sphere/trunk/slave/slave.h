@@ -266,8 +266,8 @@ private:
       int psize;                // parameter size
 
       std::queue<Bucket>* bq;	// job queue for bucket data delivery
-      pthread_mutex_t* bqlock;
-      pthread_cond_t* bqcond;
+      CMutex* bqlock;
+      CCond* bqcond;
       int64_t* pending;		// pending incoming data size
    };
 
@@ -367,8 +367,8 @@ private:
 private: //slave status
    bool m_bRunning;			// slave running status; used to terminate the slave when set to false
 
-   pthread_mutex_t m_RunLock;
-   pthread_cond_t m_RunCond;
+   CMutex m_RunLock;
+   CCond m_RunCond;
 
    bool m_bDiskHealth;                  // disk health
    bool m_bNetworkHealth;               // network health

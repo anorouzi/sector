@@ -197,10 +197,10 @@ int SSLTransport::connect(const char* host, const int& port)
    hints.ai_family = AF_INET;
    hints.ai_socktype = SOCK_STREAM;
 
-   char buffer[64];
-   sprintf(buffer, "%d", port);
+   stringstream portstr;
+   portstr << port;
 
-   if (0 != getaddrinfo(host, buffer, &hints, &peer))
+   if (0 != getaddrinfo(host, portstr.str().c_str(), &hints, &peer))
    {
       cerr << "SSL connect: invalid address " << host << " " << port << endl;
       return SectorError::E_CONNECTION;

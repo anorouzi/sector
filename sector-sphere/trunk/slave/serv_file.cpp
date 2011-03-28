@@ -100,15 +100,15 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    {
       self->createDir(sname.substr(0, sname.rfind('/')));
 
-      struct stat64 t;
-      if (stat64(filename.c_str(), &t) == -1)
+      SNode s;
+      if (LocalFS::stat(filename.c_str(), s) < 0)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
       }
       else
       {
-         orig_timestamp = t.st_mtime;
+         orig_timestamp = s.m_llTimeStamp;
       }
    }
 
@@ -467,9 +467,9 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    int change = FileChangeType::FILE_UPDATE_NO;
    if (bWrite)
    {
-      struct stat64 t;
-      stat64(filename.c_str(), &t);
-      if (t.st_mtime != orig_timestamp)
+      SNode s;
+      LocalFS::stat(filename.c_str(), s);
+      if (s.m_llTimeStamp != orig_timestamp)
          change = FileChangeType::FILE_UPDATE_WRITE;
    }
    self->report(master_ip, master_port, transid, sname, change);
@@ -712,7 +712,7 @@ DWORD WINAPI Slave::copy(LPVOID p)
       // if the file has been modified during the replication, remove this replica
       int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
       if (self->report(master_ip, master_port, transid, dst, type) < 0)
-         unlink((rhome + rfile).c_str());
+         LocalFS::erase(rhome + rfile);
    }
    else
    {

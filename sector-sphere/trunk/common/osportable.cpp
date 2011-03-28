@@ -106,18 +106,18 @@ int inet_pton(int af, const char* s, void* d)
 CMutex::CMutex()
 {
 #ifndef WIN32   // TODO: add error checking
-   pthread_mutex_init(&m_lock, NULL);
+   pthread_mutex_init(&m_Lock, NULL);
 #else
-   ::InitializeCriticalSection (&m_lock);
+   ::InitializeCriticalSection (&m_Lock);
 #endif
 }
 
 CMutex::~CMutex()
 {
 #ifndef WIN32
-   pthread_mutex_destroy(&m_lock);
+   pthread_mutex_destroy(&m_Lock);
 #else
-   ::DeleteCriticalSection (&m_lock);
+   ::DeleteCriticalSection (&m_Lock);
 #endif
 }
 
@@ -125,10 +125,10 @@ bool CMutex::acquire()
 {
    bool locked = true;
 #ifndef WIN32
-   int iret = pthread_mutex_lock(&m_lock);
+   int iret = pthread_mutex_lock(&m_Lock);
    locked = (iret == 0);
 #else
-   ::EnterCriticalSection(&m_lock);
+   ::EnterCriticalSection(&m_Lock);
 #endif
    return locked;
 }
@@ -137,10 +137,10 @@ bool CMutex::release()
 {
    bool unlocked = true;
 #ifndef WIN32
-   int iret = pthread_mutex_unlock(&m_lock);
+   int iret = pthread_mutex_unlock(&m_Lock);
    unlocked = (iret == 0);
 #else
-   ::LeaveCriticalSection(&m_lock);
+   ::LeaveCriticalSection(&m_Lock);
 #endif
    return unlocked;
 }
@@ -149,27 +149,27 @@ bool CMutex::trylock()
 {
    bool locked = false;
 #ifndef WIN32
-   int iret = pthread_mutex_trylock(&m_lock);
+   int iret = pthread_mutex_trylock(&m_Lock);
    locked = (iret == 0);
 #else
-   BOOL result = ::TryEnterCriticalSection (&m_lock);
+   BOOL result = ::TryEnterCriticalSection (&m_Lock);
    locked = (result == TRUE);
 #endif
    return locked;
 }
 
 CGuardEx::CGuardEx(CMutex& mutex): 
-m_lock(mutex)
+m_Lock(mutex)
 {
-   m_Locked = m_lock.acquire();
+   m_bLocked = m_Lock.acquire();
 }
 
 CGuardEx::~CGuardEx()
 {
-   if (m_Locked)
+   if (m_bLocked)
    {
-      m_lock.release();
-      m_Locked = false;
+      m_Lock.release();
+      m_bLocked = false;
    }
 }
 
@@ -231,7 +231,7 @@ timeval& CCond::adjust (timeval & t)
 bool CCond::wait(CMutex & mutex)
 {
 #ifndef WIN32
-   int rc = pthread_cond_wait(&m_Cond, &mutex.m_lock);
+   int rc = pthread_cond_wait(&m_Cond, &mutex.m_Lock);
    return (rc == 0);
 #else
    mutex.release();  // mimic Posix behavior
@@ -241,7 +241,7 @@ bool CCond::wait(CMutex & mutex)
 #endif
 }
 
-bool CCond::wait (CMutex & mutex, unsigned long msecs, bool * timedout)
+bool CCond::wait(CMutex & mutex, unsigned long msecs, bool * timedout)
 {
 #ifndef WIN32
    timeval t;
@@ -254,7 +254,7 @@ bool CCond::wait (CMutex & mutex, unsigned long msecs, bool * timedout)
    ts.tv_sec  = t.tv_sec;
    ts.tv_nsec = t.tv_usec * 1000;   // convert micro-seconds to nano-seconds
 
-   int rc = pthread_cond_timedwait(&m_Cond, &mutex.m_lock, &ts);
+   int rc = pthread_cond_timedwait(&m_Cond, &mutex.m_Lock, &ts);
    if (timedout)
       *timedout = (rc == ETIMEDOUT);
    return (rc == 0);
@@ -359,7 +359,7 @@ RWGuard::~RWGuard()
 
 
 
-int LocalFS::mkdir(const std::string& path)
+int LocalFS::mkdir(const string& path)
 {
 #ifndef WIN32
    if ((-1 == ::mkdir(path.c_str(), S_IRWXU)) && (errno != EEXIST))
@@ -372,7 +372,7 @@ int LocalFS::mkdir(const std::string& path)
 #endif
 }
 
-int LocalFS::rmdir(const std::string& path)
+int LocalFS::rmdir(const string& path)
 {
    string cmd;
 
@@ -387,14 +387,23 @@ int LocalFS::rmdir(const std::string& path)
    return 0;
 }
 
-int LocalFS::clean_dir(const std::string& path)
+int LocalFS::erase(const string& filename)
+{
+#ifndef WIN32
+   return unlink(filename.c_str());
+#else
+   return _unlink(filename.c_str());
+#endif
+}
+
+int LocalFS::clean_dir(const string& path)
 {
    string cmd;
 
 #ifndef WIN32
    cmd = "rm -rf " + reviseSysCmdPath(path) + "/*";
 #else
-   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(path) + "\*";
+   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(path) + "/*";
 #endif
 
    system(cmd.c_str());
@@ -402,7 +411,7 @@ int LocalFS::clean_dir(const std::string& path)
    return 0;
 }
 
-int LocalFS::list_dir(const std::string& path, vector<SNode>& filelist)
+int LocalFS::list_dir(const string& path, vector<SNode>& filelist)
 {
 #ifndef WIN32
    dirent **namelist;
@@ -464,7 +473,7 @@ int LocalFS::list_dir(const std::string& path, vector<SNode>& filelist)
 #endif
 }
 
-int LocalFS::stat(const std::string& path, SNode& sn)
+int LocalFS::stat(const string& path, SNode& sn)
 {
 #ifndef WIN32
    struct stat64 st;
@@ -482,7 +491,11 @@ int LocalFS::stat(const std::string& path, SNode& sn)
    else
       sn.m_strName = path.substr(pos + 1, path.length() - pos);
 
-   sn.m_bIsDir = S_ISDIR(st.st_mode) ? 1 : 0;
+#ifndef WIN32
+   sn.m_bIsDir = S_ISDIR(st.st_mode) ? true : false;
+#else
+   sn.m_bIsDir = _S_IFDIR(st.st_mode) ? true : false;
+#endif
    sn.m_llTimeStamp = st.st_mtime;
    sn.m_llSize = st.st_size;
 
@@ -520,6 +533,9 @@ int LocalFS::get_dir_space(const string& path, int64_t& avail)
    avail = slavefs.f_bfree * slavefs.f_bsize;
    return 0;
 #else
-   return GetDiskFreeSpaceEx(path.c_str(), &avail, NULL, NULL);
+   ULARGE_INTEGER val;
+   int ret = GetDiskFreeSpaceEx(path.c_str(), &val, NULL, NULL);
+   avail = val.QuadPart;
+   return 0;
 #endif
 }

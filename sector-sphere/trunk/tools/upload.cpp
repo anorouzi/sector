@@ -43,8 +43,8 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
 {
    //check if file already exists
 
-   struct stat64 st;
-   if (stat64(file, &st) < 0)
+   SNode s;
+   if (LocalFS::stat(file, s) < 0)
    {
       cout << "cannot locate source file " << file << endl;
       return -1;
@@ -53,24 +53,22 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
    SNode attr;
    if (client.stat(dst, attr) >= 0)
    {
-      if (attr.m_llSize == st.st_size)
+      if (attr.m_llSize == s.m_llSize)
       {
          cout << "destination file " << dst << " exists on Sector FS. skip.\n";
          return 0;
       }
    }
 
+   cout << "uploading " << file << " of " << s.m_llSize << " bytes" << endl;
+
    timeval t1, t2;
    gettimeofday(&t1, 0);
-
-   struct stat64 s;
-   stat64(file, &s);
-   cout << "uploading " << file << " of " << s.st_size << " bytes" << endl;
 
    SectorFile* f = client.createSectorFile();
 
    SF_OPT option;
-   option.m_llReservedSize = s.st_size;
+   option.m_llReservedSize = s.m_llSize;
    if (option.m_llReservedSize <= 0)
       option.m_llReservedSize = 1;
    option.m_iReplicaNum = rep_num;
@@ -97,7 +95,7 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
    if (result >= 0)
    {
       gettimeofday(&t2, 0);
-      float throughput = s.st_size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
+      float throughput = s.m_llSize * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
 
       cout << "Uploading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
    }
@@ -115,13 +113,14 @@ int getFileList(const string& path, vector<string>& fl)
 {
    fl.push_back(path);
 
-   struct stat64 s;
-   stat64(path.c_str(), &s);
+   SNode s;
+   if (LocalFS::stat(path.c_str(), s) < 0)
+      return -1;
 
-   if (S_ISDIR(s.st_mode))
+   if (s.m_bIsDir)
    {
       // if there is a ".nosplit" file, must upload this file the first in the directory, subsequent files will be uploaded to the same node
-      if (stat64((path + "/.nosplit").c_str(), &s) > 0)
+      if (LocalFS::stat((path + "/.nosplit").c_str(), s) > 0)
          fl.push_back(path + "/.nosplit");
 
       vector<SNode> curr_fl;
@@ -226,8 +225,8 @@ int main(int argc, char** argv)
       bool wc = WildCard::isWildCard(*i);
       if (!wc)
       {
-         struct stat64 st;
-         if (stat64(i->c_str(), &st) < 0)
+         SNode s;
+         if (LocalFS::stat(i->c_str(), s) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
             return -1;
@@ -295,11 +294,11 @@ int main(int argc, char** argv)
          else
             dst = newdir + "/" + dst;
 
-         struct stat64 s;
-         if (stat64(i->c_str(), &s) < 0)
+         SNode s;
+         if (LocalFS::stat(i->c_str(), s) < 0)
             continue;
 
-         if (S_ISDIR(s.st_mode))
+         if (s.m_bIsDir)
             client.mkdir(dst);
          else
          {

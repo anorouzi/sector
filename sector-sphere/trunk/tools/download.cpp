@@ -31,6 +31,7 @@ written by
    #include <sys/types.h>
 #endif
 
+#include <osportable.h>
 #include <fstream>
 #include <fcntl.h>
 #include <stdio.h>
@@ -188,9 +189,9 @@ int main(int argc, char** argv)
    clp.m_vParams.erase(clp.m_vParams.begin() + clp.m_vParams.size() - 1);
 
    // check destination directory, which must exist
-   struct stat64 st;
-   int r = stat64(newdir.c_str(), &st);
-   if ((r < 0) || !S_ISDIR(st.st_mode))
+   SNode s;
+   int r = LocalFS::stat(newdir.c_str(), s);
+   if ((r < 0) || !s.m_bIsDir)
    {
       cerr << "ERROR: destination directory does not exist.\n";
       return -1;
@@ -267,7 +268,7 @@ int main(int argc, char** argv)
          string localdir = dst.substr(0, dst.rfind('/'));
 
          // if localdir does not exist, create it
-         if (stat64(localdir.c_str(), &st) < 0)
+         if (LocalFS::stat(localdir.c_str(), s) < 0)
          {
             for (unsigned int p = 1; p < localdir.length(); ++ p)
             {

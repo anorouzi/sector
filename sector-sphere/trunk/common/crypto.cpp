@@ -34,10 +34,10 @@ written by
 #include "crypto.h"
 
 Crypto::Crypto():
-m_pcKey(),
-m_pcIV(),
 m_iCoderType(0)
 {
+   memset(m_pcKey, 0, 16);
+   memset(m_pcIV, 0, 8);
 }
 
 Crypto::~Crypto()

@@ -68,20 +68,6 @@ updated by
         return err;
     }
 
-    typedef HANDLE pthread_t;
-    typedef HANDLE pthread_mutex_t;
-    typedef HANDLE pthread_cond_t;
-    typedef DWORD pthread_key_t;
-
-    #define unlink _unlink
-    #define snprintf _snprintf_s
-    #define atoll _atoi64
-    #define stat64 _stat64
-
-    #define     S_ISDIR(m)  (((m)&_S_IFMT) == _S_IFDIR)
-    #define     S_ISTYPE(mode, mask)  (((mode) & _S_IFMT) == (mask))
-    #define     S_ISREG(mode)    S_ISTYPE((mode), _S_IFREG)
-
     #if _WIN32_WINNT <= _WIN32_WINNT_WS03
     const char *inet_ntop(int af, const void *src, char *dst, int cnt);
     int inet_pton(int af, const char* s, void* d);
@@ -103,9 +89,9 @@ public:
 
 private:
 #ifdef WIN32
-   CRITICAL_SECTION m_lock;           // mutex to be protected
+   CRITICAL_SECTION m_Lock;           // mutex to be protected
 #else
-   pthread_mutex_t m_lock;            // allow public access for now, to use with pthread_cond_t
+   pthread_mutex_t m_Lock;            // allow public access for now, to use with pthread_cond_t
 #endif
 
    CMutex& operator=(const CMutex&);
@@ -118,8 +104,8 @@ public:
     ~CGuardEx();
 
 private:
-   CMutex& m_lock;            // Alias name of the mutex to be protected
-   bool m_Locked;             // Locking status
+   CMutex& m_Lock;            // Alias name of the mutex to be protected
+   bool m_bLocked;            // Locking status
 
    CGuardEx& operator=(const CGuardEx&);
 };
@@ -134,11 +120,11 @@ public:
     bool broadcast();
 
 #ifndef WIN32
-    inline timeval& adjust (timeval & t);
+    inline timeval& adjust(timeval & t);
 #endif
 
-    bool wait (CMutex & mutex);
-    bool wait (CMutex & mutex, unsigned long msecs, bool * timedout = NULL);
+    bool wait(CMutex & mutex);
+    bool wait(CMutex & mutex, unsigned long msecs, bool * timedout = NULL);
 
 private:
 #ifndef WIN32
@@ -188,6 +174,7 @@ class LocalFS
 public:
    static int mkdir(const std::string& path);
    static int rmdir(const std::string& path);
+   static int erase(const std::string& filename);
    static int clean_dir(const std::string& path);
    static int list_dir(const std::string& path, std::vector<SNode>& filelist);
    static int stat(const std::string& path, SNode& s);

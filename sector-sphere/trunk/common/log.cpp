@@ -25,7 +25,12 @@ written by
 #include <time.h>
 #include <string>
 #include <cstring>
+#include <sstream>
 #include <iostream>
+
+#ifdef WIN32
+#define snprintf sprintf_s
+#endif
 
 using namespace std;
 
@@ -57,10 +62,10 @@ int SectorLog::init(const char* path)
 #endif
    m_iDay = date.tm_mday;
 
-   char fn[32];
-   sprintf(fn, "%d.%d.%d.log", date.tm_mon + 1, date.tm_mday, date.tm_year + 1900);
+   stringstream fn;
+   fn << date.tm_mon + 1 << "." << date.tm_mday << "." << date.tm_year + 1900;
 
-   m_LogFile.open((m_strLogPath + "/" + fn).c_str(), ios::app);
+   m_LogFile.open((m_strLogPath + "/" + fn.str()).c_str(), ios::app);
 
    if (m_LogFile.bad() || m_LogFile.fail())
       return -1;
@@ -140,9 +145,9 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
    map<int, LogString>::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
    {
-      char buf[64];
-      sprintf(buf, "%lld", (long long)val);
-      i->second.m_strLog += buf;
+      stringstream valstr;
+      valstr << val;
+      i->second.m_strLog += valstr.str();
    }
 
    return *this;
@@ -165,7 +170,7 @@ void SectorLog::insert_(const char* text, const int level)
 
    time_t t = time(NULL);
    char ct[64];
-   sprintf(ct, "%s", ctime(&t));
+   snprintf(ct, 64, "%s", ctime(&t));
    ct[strlen(ct) - 1] = '\0';
    m_LogFile << ct << "\t" << text << endl;
    m_LogFile.flush();
@@ -182,11 +187,12 @@ void SectorLog::logUserActivity(const char* user, const char* ip, const char* cm
    if (level > m_iLevel)
       return;
 
-   char* text = new char[128 + strlen(file)];
+   int size = 128 + strlen(file);
+   char* text = new char[size];
    if (res >= 0)
-      sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d  SLAVE: %s", user, ip, cmd, file, res, info);
+      snprintf(text, size, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d  SLAVE: %s", user, ip, cmd, file, res, info);
    else
-      sprintf(text, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d", user, ip, cmd, file, res);
+      snprintf(text, size, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d", user, ip, cmd, file, res);
    insert(text, level);
    delete [] text;
 }
@@ -206,7 +212,7 @@ void SectorLog::checkLogFile()
    m_iDay = date.tm_mday;
 
    char fn[32];
-   sprintf(fn, "%d.%d.%d.log", date.tm_mon + 1, date.tm_mday, date.tm_year + 1900);
+   snprintf(fn, 32, "%d.%d.%d.log", date.tm_mon + 1, date.tm_mday, date.tm_year + 1900);
 
    m_LogFile.close();
    m_LogFile.open((m_strLogPath + "/" + fn).c_str(), ios::app);

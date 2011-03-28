@@ -21,8 +21,13 @@ written by
 
 #include <slave.h>
 #include <sphere.h>
-#include <dlfcn.h>
 #include <algorithm>
+#ifndef WIN32
+   #include <dlfcn.h>
+#else
+   #define snprintf sprintf_s
+#endif
+
 
 using namespace std;
 
@@ -372,7 +377,8 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
          timeval t;
          gettimeofday(&t, NULL);
          unsigned int seed = t.tv_sec * 1000000 + t.tv_usec;
-         int ds_thresh = 32000000 * ((rand_r(&seed) % 7) + 1);
+         srand(seed);
+         int ds_thresh = 32000000 * ((rand() % 7) + 1);
          if ((result.m_llTotalDataSize >= ds_thresh) && (buckets != 0))
             deliverystatus = self->deliverResult(buckets, result, dest);
 
@@ -398,9 +404,9 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
       // process files
       if (0 == unitrows)
       {
-         struct stat64 s;
-         stat64((self->m_strHomeDir + datafile).c_str(), &s);
-         int64_t filesize = s.st_size;
+         SNode s;
+         LocalFS::stat((self->m_strHomeDir + datafile).c_str(), s);
+         int64_t filesize = s.m_llSize;
 
          input.m_pcUnit = block;
          input.m_iRows = -1;
@@ -424,7 +430,8 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
             timeval t;
             gettimeofday(&t, NULL);
             unsigned int seed = t.tv_sec * 1000000 + t.tv_usec;
-            int ds_thresh = 32000000 * ((rand_r(&seed) % 7) + 1);
+            srand(seed);
+            int ds_thresh = 32000000 * ((rand() % 7) + 1);
             if ((result.m_llTotalDataSize >= ds_thresh) && (buckets != 0))
                deliverystatus = self->deliverResult(buckets, result, dest);
 
@@ -566,8 +573,8 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
    int master_port = ((Param5*)p)->master_port;
 
    queue<Bucket>* bq = NULL;
-   pthread_mutex_t* bqlock = NULL;
-   pthread_cond_t* bqcond = NULL;
+   CMutex* bqlock = NULL;
+   CCond* bqcond = NULL;
    int64_t* pendingSize = NULL;
    pthread_t shufflerex;
 
@@ -585,10 +592,8 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
          self->acceptLibrary(key, client_ip, client_data_port, transid);
 
       bq = new queue<Bucket>;
-      bqlock = new pthread_mutex_t;
-      pthread_mutex_init(bqlock, NULL);
-      bqcond = new pthread_cond_t;
-      pthread_cond_init(bqcond, NULL);
+      bqlock = new CMutex;
+      bqcond = new CCond;
       pendingSize = new int64_t;
       *pendingSize = 0;
 
@@ -600,8 +605,8 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
 #ifndef WIN32
       pthread_create(&shufflerex, NULL, SPEShufflerEx, p);
 #else
-      unsigned int ThreadID;
-      shufflerex = (HANDLE)_beginthreadex(NULL, 0, SPEShufflerEx, p, NULL, &ThreadID);
+      DWORD ThreadID;
+      shufflerex = CreateThread(NULL, 0, SPEShufflerEx, p, NULL, &ThreadID);
 #endif
 
       self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogStringTag(LogTag::END);
@@ -622,10 +627,10 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
          Bucket b;
          b.totalnum = -1;
          b.totalsize = 0;
-         pthread_mutex_lock(bqlock);
+         bqlock->acquire();
          bq->push(b);
-         pthread_cond_signal(bqcond);
-         pthread_mutex_unlock(bqlock);
+         bqcond->signal();
+         bqlock->release();
 
          break;
       }
@@ -655,11 +660,11 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
          if (!self->m_DataChn.isConnected(speip, b.src_dataport))
             self->m_DataChn.connect(speip, b.src_dataport);
 
-         pthread_mutex_lock(bqlock);
+         bqlock->acquire();
          bq->push(b);
          *pendingSize += b.totalsize;
-         pthread_cond_signal(bqcond);
-         pthread_mutex_unlock(bqlock);
+         bqcond->signal();
+         bqlock->release();
       }
    }
 
@@ -671,8 +676,6 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
       WaitForSingleObject(shufflerex, INFINITE);
 #endif
 
-      pthread_mutex_destroy(bqlock);
-      pthread_cond_destroy(bqcond);
       delete bqlock;
       delete bqcond;
       delete pendingSize;
@@ -703,7 +706,7 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
 #ifndef WIN32
 void* Slave::SPEShufflerEx(void* p)
 #else
-    unsigned int WINAPI Slave::SPEShufflerEx(void* p)
+DWORD WINAPI Slave::SPEShufflerEx(LPVOID p)
 #endif
 {
    Slave* self = ((Param5*)p)->serv_instance;
@@ -717,8 +720,8 @@ void* Slave::SPEShufflerEx(void* p)
    string master_ip = ((Param5*)p)->master_ip;
    int master_port = ((Param5*)p)->master_port;
    queue<Bucket>* bq = ((Param5*)p)->bq;
-   pthread_mutex_t* bqlock = ((Param5*)p)->bqlock;
-   pthread_cond_t* bqcond = ((Param5*)p)->bqcond;
+   CMutex* bqlock = ((Param5*)p)->bqlock;
+   CCond* bqcond = ((Param5*)p)->bqcond;
    int64_t* pendingSize = ((Param5*)p)->pending;
    delete (Param5*)p;
 
@@ -727,11 +730,12 @@ void* Slave::SPEShufflerEx(void* p)
    // remove old result data files
    for (int i = 0; i < bucketnum; ++ i)
    {
-      char* tmp = new char[self->m_strHomeDir.length() + path.length() + localfile.length() + 64];
-      sprintf(tmp, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
-      unlink(tmp);
-      sprintf(tmp, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
-      unlink(tmp);
+      int size = self->m_strHomeDir.length() + path.length() + localfile.length() + 64;
+      char* tmp = new char[size];
+      snprintf(tmp, size, "%s.%d", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
+      LocalFS::erase(tmp);
+      snprintf(tmp, size, "%s.%d.idx", (self->m_strHomeDir + path + "/" + localfile).c_str(), i);
+      LocalFS::erase(tmp);
       delete [] tmp;
    }
 
@@ -744,13 +748,13 @@ void* Slave::SPEShufflerEx(void* p)
 
    while (true)
    {
-      pthread_mutex_lock(bqlock);
+      bqlock->acquire();
       while (bq->empty())
-         pthread_cond_wait(bqcond, bqlock);
+         bqcond->wait(*bqlock);
       Bucket b = bq->front();
       bq->pop();
       *pendingSize -= b.totalsize;
-      pthread_mutex_unlock(bqlock);
+      bqlock->release();
 
       if (b.totalnum == -1)
          break;
@@ -1004,7 +1008,11 @@ int Slave::sendResultToBuckets(const int& buckets, const SPEResult& result, cons
          if (++ tn >= ResByLoc.size())
          {
             tn = 0;
+            #ifndef WIN32
             usleep(100000);
+            #else
+            Sleep(100);
+            #endif
          }
          continue;
       }
@@ -1047,13 +1055,14 @@ int Slave::acceptLibrary(const int& key, const string& ip, int port, int session
       char* buf = NULL;
       m_DataChn.recv(ip, port, session, buf, size);
 
-      char* path = new char[m_strHomeDir.length() + 64];
-      sprintf(path, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
+      int buflen = m_strHomeDir.length() + 64;
+      char* path = new char[buflen];
+      snprintf(path, buflen, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
 
       struct stat s;
       if (stat((string(path) + "/" + lib).c_str(), &s) < 0)
       {
-         ::mkdir(path, S_IRWXU);
+         LocalFS::mkdir(path);
 
          fstream ofs((string(path) + "/" + lib).c_str(), ios::out | ios::trunc | ios::binary);
          ofs.write(buf, size);
@@ -1080,6 +1089,8 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
 {
    char path[64];
    sprintf(path, "%d", key);
+
+#ifndef WIN32
    lh = dlopen((m_strHomeDir + ".sphere/" + path + "/" + lib + ".so").c_str(), RTLD_LAZY);
    if (NULL == lh)
    {
@@ -1094,10 +1105,14 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
    }
 
    return 0;
+#else
+   return -1;
+#endif
 }
 
 int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& process)
 {
+#ifndef WIN32
    if (NULL == lh)
       return -1;
 
@@ -1109,10 +1124,14 @@ int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& proce
    }
 
    return 0;
+#else
+   return -1;
+#endif
 }
 
 int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITION& partition)
 {
+#ifndef WIN32
    if (NULL == lh)
       return -1;
 
@@ -1126,10 +1145,14 @@ int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITIO
    }
 
    return 0;
+#else
+   return -1;
+#endif
 }
 
 int Slave::getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, MR_REDUCE& reduce)
 {
+#ifndef WIN32
    if (NULL == lh)
       return -1;
 
@@ -1143,15 +1166,21 @@ int Slave::getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, 
    }
 
    return 0;
-
+#else
+   return -1;
+#endif
 }
 
 int Slave::closeLibrary(void* lh)
 {
+#ifndef WIN32
    if (NULL == lh)
       return -1;
 
    return dlclose(lh);
+#else
+   return -1;
+#endif
 }
 
 int Slave::sort(const string& bucket, MR_COMPARE comp, MR_REDUCE red)

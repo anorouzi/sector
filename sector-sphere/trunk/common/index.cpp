@@ -25,6 +25,8 @@ written by
 #include <index.h>
 #include <set>
 #include <stack>
+#include <queue>
+#include <sstream>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <cstring>
@@ -416,7 +418,30 @@ int Index::removeReplica(const string& path, const Address& addr)
       currdir = &(s->second.m_mDirectory);
    }
 
-   s->second.m_sLocation.erase(addr);
+   // if this is a single file, remove the address from its location list
+   if (!s->second.m_bIsDir)
+   {
+      s->second.m_sLocation.erase(addr);
+      return 0;
+   }
+
+   // if this is a directory, remove the address from all files in the directory
+   queue<SNode*> fq;
+   fq.push(&s->second);
+   while (!fq.empty())
+   {
+      SNode* p = fq.front();
+      fq.pop();
+      if (p->m_bIsDir)
+      {
+         for (map<string, SNode>::iterator i = p->m_mDirectory.begin(); i != p->m_mDirectory.end(); ++ i)
+            fq.push(&i->second);
+      }
+      else
+      {
+         p->m_sLocation.erase(addr);
+      }
+   }
 
    return 0;
 }
@@ -634,18 +659,18 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
    if (!s->second.m_bIsDir)
    {
       string idx = *dir.rbegin() + ".idx";
-      int rows = -1;
+      int64_t rows = -1;
       map<string, SNode>::iterator i = updir->find(idx);
       if (i != updir->end())
          rows = i->second.m_llSize / 8 - 1;
 
-      char buf[1024];
-      sprintf(buf, "%s %lld %d", file.c_str(), (long long int)s->second.m_llSize, rows);
+      stringstream buf;
+      buf << file << " " << s->second.m_llSize << " " << rows;
 
       for (set<Address, AddrComp>::iterator j = s->second.m_sLocation.begin(); j != s->second.m_sLocation.end(); ++ j)
-         sprintf(buf + strlen(buf), " %s %d", j->m_strIP.c_str(), j->m_iPort);
+         buf << " " << j->m_strIP << " " << j->m_iPort;
 
-      result.push_back(buf);
+      result.push_back(buf.str());
    }
 
    return collectDataInfo(file, *currdir, result);
@@ -929,18 +954,18 @@ int Index::collectDataInfo(const string& path, const map<string, SNode>& currdir
             continue;
 
          string idx = i->first + ".idx";
-         int rows = -1;
+         int64_t rows = -1;
          map<string, SNode>::const_iterator j = currdir.find(idx);
          if (j != currdir.end())
             rows = j->second.m_llSize / 8 - 1;
 
-         char buf[1024];
-         sprintf(buf, "%s %lld %d", (path + "/" + i->first).c_str(), (long long int)i->second.m_llSize, rows);
+         stringstream buf;
+         buf << path + "/" + i->first << " " << i->second.m_llSize << " " << rows;
 
          for (set<Address, AddrComp>::iterator k = i->second.m_sLocation.begin(); k != i->second.m_sLocation.end(); ++ k)
-            sprintf(buf + strlen(buf), " %s %d", k->m_strIP.c_str(), k->m_iPort);
+            buf << " " << k->m_strIP << " " << k->m_iPort;
 
-         result.push_back(buf);
+         result.push_back(buf.str());
       }
       else
          collectDataInfo((path + "/" + i->first).c_str(), i->second.m_mDirectory, result);

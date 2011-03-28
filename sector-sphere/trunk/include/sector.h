@@ -84,8 +84,6 @@ public:
 public:
    int serialize(char*& buf) const;
    int deserialize(const char* buf);
-   int serialize2(const std::string& file) const;
-   int deserialize2(const std::string& file);
 };
 
 class SECTOR_API SysStat

@@ -26,6 +26,7 @@ written by
 #ifdef WIN32
    #include <sys/types.h>
    #include <sys/stat.h>
+   #define atoll _atol64
 #endif
 
 using namespace std;
@@ -983,7 +984,7 @@ int DCClient::prepareInput()
    for (vector<string>::iterator i = datainfo.begin(); i != datainfo.end(); ++ i)
    {
       char* buf = new char[i->length() + 2];
-      strcpy(buf, i->c_str());
+      strncpy(buf, i->c_str(), i->length() + 2);
       buf[strlen(buf) + 1] = '\0';
 
       //file_name 800 -1 192.168.136.30 37209 192.168.136.32 39805
@@ -999,14 +1000,10 @@ int DCClient::prepareInput()
 
       *f = p;
       p = p + strlen(p) + 1;
-#ifndef WIN32
       *s = atoll(p);
-#else
-      *s = _atoi64(p);
-#endif
       m_pInput->m_llSize += *s;
       p = p + strlen(p) + 1;
-      *r = atoi(p);
+      *r = atoll(p);
       p = p + strlen(p) + 1;
 
       if (*r == -1)

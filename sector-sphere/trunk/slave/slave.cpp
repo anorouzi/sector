@@ -51,15 +51,11 @@ m_bRunning(false),
 m_bDiskHealth(true),
 m_bNetworkHealth(true)
 {
-   CGuard::createMutex(m_RunLock);
-   CGuard::createCond(m_RunCond);
 }
 
 Slave::~Slave()
 {
    delete m_pLocalFile;
-   CGuard::releaseMutex(m_RunLock);
-   CGuard::releaseCond(m_RunCond);
 }
 
 int Slave::init(const string* base, const SlaveConf* global_conf)
@@ -210,9 +206,9 @@ int Slave::connect()
          m_iSlaveID = res;
 
       //send local metadata
-      struct stat s;
-      stat((m_strHomeDir + ".tmp/metadata.dat").c_str(), &s);
-      size = s.st_size;
+      SNode s;
+      LocalFS::stat(m_strHomeDir + ".tmp/metadata.dat", s);
+      size = s.m_llSize;
       secconn.send((char*)&size, 4);
       secconn.sendfile((m_strHomeDir + ".tmp/metadata.dat").c_str(), 0, size);
 
@@ -234,7 +230,7 @@ int Slave::connect()
          attic = new Index;
          attic->init(m_strHomeDir + ".tmp/metadata.left");
          attic->deserialize("/", m_strHomeDir + ".tmp/metadata.left.dat", NULL);
-         unlink((m_strHomeDir + ".tmp/metadata.left.dat").c_str());
+         LocalFS::erase((m_strHomeDir + ".tmp/metadata.left.dat").c_str());
 
          vector<string> fl;
          attic->list_r("/", fl);
@@ -289,7 +285,7 @@ int Slave::connect()
 
    SSLTransport::destroy();
 
-   unlink((m_strHomeDir + ".tmp/metadata.dat").c_str());
+   LocalFS::erase((m_strHomeDir + ".tmp/metadata.dat").c_str());
 
    // initialize slave statistics
    m_SlaveStat.init();
@@ -396,17 +392,10 @@ int Slave::processSysCmd(const string& ip, const int port, int id, SectorMsg* ms
    case 8: // stop
    {
       // stop the slave node
-
       m_bRunning = false;
-
-      #ifndef WIN32
-      pthread_mutex_lock(&m_RunLock);
-      pthread_cond_signal(&m_RunCond);
-      pthread_mutex_unlock(&m_RunLock);
-      #else
-      ::SetEvent(m_RunCond);
-      #endif
-
+      m_RunLock.acquire();
+      m_RunCond.signal();
+      m_RunLock.release();
       break;
    }
 
@@ -748,12 +737,12 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
    if (change > 0)
    {
-      struct stat64 s;
-      if (stat64((m_strHomeDir + filename).c_str(), &s) >= 0)
+      SNode s;
+      if (LocalFS::stat((m_strHomeDir + filename).c_str(), s) >= 0)
       {
          filelist.push_back(filename);
 
-         if (S_ISDIR(s.st_mode))
+         if (s.m_bIsDir)
             getFileList(filename, filelist);
       }
       else
@@ -791,20 +780,9 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
    {
       for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
-         struct stat64 s;
-         if (-1 == stat64((m_strHomeDir + *i).c_str(), &s))
-            continue;
-
          SNode sn;
-         sn.m_strName = *i;
-         sn.m_bIsDir = S_ISDIR(s.st_mode) ? 1 : 0;
-         sn.m_llTimeStamp = s.st_mtime;
-         sn.m_llSize = s.st_size;
-
-         Address addr;
-         addr.m_strIP = "127.0.0.1";
-         addr.m_iPort = 0;
-         sn.m_sLocation.insert(addr);
+         if (LocalFS::stat((m_strHomeDir + *i).c_str(), sn) < 0)
+            continue;
 
          if (change == FileChangeType::FILE_UPDATE_WRITE)
          {
@@ -954,7 +932,7 @@ int Slave::createDir(const string& path)
    for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
    {
       currpath += *i;
-      if ((-1 == ::mkdir(currpath.c_str(), S_IRWXU)) && (errno != EEXIST))
+      if ((LocalFS::mkdir(currpath) < 0) && (errno != EEXIST))
          return -1;
       currpath += "/";
    }
@@ -965,9 +943,8 @@ int Slave::createDir(const string& path)
 int Slave::createSysDir()
 {
    // check local directory
-   struct stat s;
-
-   if ((stat(m_strHomeDir.c_str(), &s) < 0) || (!S_ISDIR(s.st_mode)))
+   SNode s;
+   if ((LocalFS::stat(m_strHomeDir, s) < 0) || !s.m_bIsDir)
    {
       if (errno != ENOENT)
          return -1;
@@ -1213,15 +1190,7 @@ DWORD WINAPI Slave::worker(LPVOID param)
 
    while (self->m_bRunning)
    {
-      timeval t;
-      gettimeofday(&t, NULL);
-      timespec ts;
-      ts.tv_sec  = t.tv_sec + 30;
-      ts.tv_nsec = t.tv_usec * 1000;
-
-      pthread_mutex_lock(&self->m_RunLock);
-      pthread_cond_timedwait(&self->m_RunCond, &self->m_RunLock, &ts);
-      pthread_mutex_unlock(&self->m_RunLock);
+      self->m_RunCond.wait(self->m_RunLock, 30000);
 
       // report to master every half minute
       if (CTimer::getTime() - last_report_time < 30000000)

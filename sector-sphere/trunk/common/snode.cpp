@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,11 +16,13 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/13/2010
+   Yunhong Gu, last updated 03/27/2011
 *****************************************************************************/
 
 #ifdef WIN32
    #include <time.h>
+   #define atoll _atoi64
+   #define snprintf sprintf_s
 #endif
 #include <fstream>
 #include <cstring>
@@ -52,34 +54,39 @@ SNode::~SNode()
 int SNode::serialize(char*& buf) const
 {
    int namelen = m_strName.length();
+   int size = namelen + 256 + m_sLocation.size() * 256;
    try
    {
-      buf = new char[namelen + 256 + m_sLocation.size() * 256];
+      buf = new char[size];
    }
    catch (...)
    {
       return -1;
    }
 
-   sprintf(buf, "%d,%s,%d,%lld,%lld,%d,%d", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize, m_iReplicaNum, m_iReplicaDist);
+   snprintf(buf, size, "%d,%s,%d,%lld,%lld,%d,%d", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize, m_iReplicaNum, m_iReplicaDist);
    char* p = buf + strlen(buf);
+   size -= strlen(buf);
    for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
    {
-      sprintf(p, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
-      p = p + strlen(p);
+      snprintf(p, size, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
+      int len = strlen(p);
+      p = p + len;
+      size -= len;
    }
    return 0;
 }
 
 int SNode::deserialize(const char* buf)
 {
-   char* buffer = new char[strlen(buf) + 1];
+   int size = strlen(buf) + 1;
+   char* buffer = new char[size];
    char* tmp = buffer;
 
    bool stop = true;
 
    // file name
-   strcpy(tmp, buf);
+   strncpy(tmp, buf, size);
    for (unsigned int i = 0; i < strlen(tmp); ++ i)
    {
       if (tmp[i] == ',')
@@ -139,11 +146,7 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
-#ifndef WIN32
    m_llTimeStamp = atoll(tmp);
-#else
-   m_llTimeStamp = _atoi64(tmp);
-#endif
 
    if (stop)
    {
@@ -163,11 +166,7 @@ int SNode::deserialize(const char* buf)
          break;
       }
    }
-#ifndef WIN32
    m_llSize = atoll(tmp);
-#else
-   m_llSize = _atoi64(tmp);
-#endif
 
    if (stop)
    {
@@ -251,81 +250,5 @@ int SNode::deserialize(const char* buf)
    }
 
    delete [] buffer;
-   return 0;
-}
-
-int SNode::serialize2(const string& file) const
-{
-   string tmp = file;
-   size_t p = tmp.rfind('/');
-   struct stat s;
-   if (stat(tmp.c_str(), &s) < 0)
-   {
-      string cmd = string("mkdir -p ") + tmp.substr(0, p);
-      system(cmd.c_str());
-   }
-
-   if (m_bIsDir)
-   {
-      string cmd = string("mkdir ") + file;
-      system(cmd.c_str());
-      return 0;
-   }
-
-   fstream ofs(file.c_str(), ios::out | ios::trunc);
-   ofs << m_llSize << endl;
-   ofs << m_llTimeStamp << endl;
-
-   for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
-   {
-      ofs << i->m_strIP << endl;
-      ofs << i->m_iPort << endl;
-   }
-   ofs.close();
-
-   return 0;
-}
-
-int SNode::deserialize2(const string& file)
-{
-   struct stat s;
-   if (stat(file.c_str(), &s))
-      return -1;
-
-   size_t p = file.rfind('/');
-   if (p == string::npos)
-      m_strName = file;
-   else
-      m_strName = file.substr(p + 1);
-
-#ifndef WIN32
-   if (S_ISDIR(s.st_mode))
-#else
-   if ((s.st_mode & S_IFMT) == S_IFDIR)
-#endif
-   {
-      m_bIsDir = true;
-      m_llSize = s.st_size;
-      m_llTimeStamp = s.st_mtime;
-   }
-   else
-   {
-      m_bIsDir = false; 
-
-      fstream ifs(file.c_str(), ios::in);
-      ifs >> m_llSize;
-      ifs >> m_llTimeStamp;
-      while (!ifs.eof())
-      {
-         Address addr;
-         ifs >> addr.m_strIP;
-         if (addr.m_strIP.length() == 0)
-            break;
-         ifs >> addr.m_iPort;
-         m_sLocation.insert(addr);
-      }
-      ifs.close();
-   }
-
    return 0;
 }

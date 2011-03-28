@@ -124,10 +124,10 @@ int TCPTransport::connect(const string& host, int port)
    hints.ai_family = AF_INET;
    hints.ai_socktype = SOCK_STREAM;
 
-   char buffer[64];
-   sprintf(buffer, "%d", port);
+   stringstream portstr;
+   portstr << port;
 
-   if (0 != getaddrinfo(host.c_str(), buffer, &hints, &peer))
+   if (0 != getaddrinfo(host.c_str(), portstr.str().c_str(), &hints, &peer))
    {
       return SectorError::E_CONNECTION;
    }

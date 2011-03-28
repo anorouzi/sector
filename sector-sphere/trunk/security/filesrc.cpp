@@ -26,6 +26,7 @@ written by
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
+   #define atoll _atoi64
 #endif
 #include <osportable.h>
 #include <iostream>

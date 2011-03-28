@@ -376,7 +376,7 @@ int Topology::parseTopo(const char* topo, vector<int>& tm)
 {
    int size = strlen(topo);
    char* buf = new char [size + 32];
-   strcpy(buf, topo);
+   strncpy(buf, topo, size + 32);
 
    for (int i = 0; i < size; ++ i)
    {

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2011
+   Yunhong Gu, last updated 03/27/2011
 *****************************************************************************/
 
 #ifndef WIN32
@@ -123,7 +123,7 @@ int ConfParser::getNextParam(Param& param)
    while (m_ptrLine != m_vstrLines.end())
    {
       char buf[1024];
-      strcpy(buf, m_ptrLine->c_str());
+      strncpy(buf, m_ptrLine->c_str(), 1024);
 
       // no blanks or tabs in front of name line
       if ((' ' == buf[0]) || ('\t' == buf[0]))
@@ -148,7 +148,7 @@ int ConfParser::getNextParam(Param& param)
       m_iLineCount ++;
       while (m_ptrLine != m_vstrLines.end())
       {
-         strcpy(buf, m_ptrLine->c_str());
+         strncpy(buf, m_ptrLine->c_str(), 1024);
 
          if (('\0' == *buf) || ('\t' != *buf))
             break;

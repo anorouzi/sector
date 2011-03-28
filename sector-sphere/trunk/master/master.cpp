@@ -305,7 +305,7 @@ int Master::join(const char* ip, const int& port)
    s.recv((char*)&size, 4);
    s.recvfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
    m_pMetadata->deserialize("/", m_strHomeDir + ".tmp/master_meta.dat", NULL);
-   unlink(".tmp/master_meta.dat");
+   LocalFS::erase(".tmp/master_meta.dat");
 
    s.close();
 
@@ -705,7 +705,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       branch->init(m_strHomeDir + ".tmp/" + ip);
       branch->deserialize("/", m_strHomeDir + ".tmp/" + ip + ".dat", &addr);
       branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
-      unlink((m_strHomeDir + ".tmp/" + ip + ".dat").c_str());
+      LocalFS::erase(m_strHomeDir + ".tmp/" + ip + ".dat");
 
       sn.m_llTotalFileSize = branch->getTotalDataSize("/");
       sn.m_llCurrMemUsed = 0;
@@ -965,7 +965,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       size = st.st_size;
       mstconn.send((char*)&size, 4);
       mstconn.sendfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
-      unlink((m_strHomeDir + ".tmp/master_meta.dat").c_str());
+      LocalFS::erase(m_strHomeDir + ".tmp/master_meta.dat");
 
       // send new master info to all existing masters
       for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
@@ -2752,6 +2752,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    msg.setData(0, (char*)&code, 4);
    msg.m_iDataLength = SectorMsg::m_iHdrSize + 4;
    m_GMP.sendto(ip, port, id, &msg);
+
+   m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_9) << "REJECTED REQ " << ip << " " << port << " " << id << " " << code << LogStringTag(LogTag::END);
 }
 
 #ifndef WIN32
@@ -2850,6 +2852,14 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          SNode attr;
          if (self->m_pMetadata->lookup(*i, attr) < 0)
             continue;
+
+         // remove a directory, this must be a dir with .nosplit
+         if (attr.m_bIsDir)
+         {
+            if (self->m_pMetadata->lookup(*i + "/.nosplit", attr) < 0)
+               continue;
+         }
+
          Address addr;
          if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
             continue;
