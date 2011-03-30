@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/20/2011
+   Yunhong Gu, last updated 03/30/2011
 *****************************************************************************/
 
 #include <common.h>
@@ -691,9 +691,12 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       if (id > 0)
          sn.m_iNodeID = id;
 
+      stringstream tmp_meta_file;
+      tmp_meta_file << m_strHomeDir << ".tmp/" << sn.m_iNodeID << ".dat";
+
       size = 0;
       slvconn.recv((char*)&size, 4);
-      slvconn.recvfile((m_strHomeDir + ".tmp/" + ip + ".dat").c_str(), 0, size);
+      slvconn.recvfile(tmp_meta_file.str().c_str(), 0, size);
 
       Address addr;
       addr.m_strIP = ip;
@@ -702,10 +705,10 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       // accept existing data on the new slave and merge it with the master metadata
       Metadata* branch = NULL;
       branch = new Index;
-      branch->init(m_strHomeDir + ".tmp/" + ip);
-      branch->deserialize("/", m_strHomeDir + ".tmp/" + ip + ".dat", &addr);
+      branch->init(tmp_meta_file.str());
+      branch->deserialize("/", tmp_meta_file.str(), &addr);
       branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
-      LocalFS::erase(m_strHomeDir + ".tmp/" + ip + ".dat");
+      LocalFS::erase(tmp_meta_file.str());
 
       sn.m_llTotalFileSize = branch->getTotalDataSize("/");
       sn.m_llCurrMemUsed = 0;
