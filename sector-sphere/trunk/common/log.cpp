@@ -63,7 +63,7 @@ int SectorLog::init(const char* path)
    m_iDay = date.tm_mday;
 
    stringstream fn;
-   fn << date.tm_mon + 1 << "." << date.tm_mday << "." << date.tm_year + 1900;
+   fn << date.tm_mon + 1 << "." << date.tm_mday << "." << date.tm_year + 1900 << ".log";
 
    m_LogFile.open((m_strLogPath + "/" + fn.str()).c_str(), ios::app);
 
