@@ -786,6 +786,9 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
          if (LocalFS::stat((m_strHomeDir + *i).c_str(), sn) < 0)
             continue;
 
+         // IMPORTANT: this name must be full path so that both local index and master index can be updated properly
+         sn.m_strName = *i;
+
          if (change == FileChangeType::FILE_UPDATE_WRITE)
          {
             // file may be created on write; in this case, create a new meta entry instead of update non-existing one
