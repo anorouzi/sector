@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/16/2010
+   Yunhong Gu, last updated 04/01/2011
 *****************************************************************************/
 
 #include <sys/time.h>
@@ -147,35 +147,32 @@ int main(int argc, char** argv)
 
    int interval = 1;
 
-   for (list<string>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   while (!filelist.empty())
    {
-      SNode sn;
-      if (client.stat(*i, sn) < 0)
+      for (list<string>::iterator i = filelist.begin(); i != filelist.end();)
       {
-         cout << "file " << sn.m_strName << " is lost.\n";
-         break;
-      }
-
-      if ((sn.m_sLocation.size() >= thresh) || (int(sn.m_sLocation.size()) >= sn.m_iReplicaNum))
-      {
-         list<string>::iterator j = i ++;
-         filelist.erase(i);
-         i = j;
-      }
-      else
-      {
-         if ((result = client.copy(*i, *i)) < 0)
+         SNode sn;
+         if (client.stat(*i, sn) < 0)
          {
-            Utility::print_error(result);
+            cout << "file " << sn.m_strName << " is lost.\n";
             break;
          }
-      }
 
-      if (filelist.empty())
-      {
-         cout << "all files have enough replicas.\n";
-         result = 0;
-         break;
+         if ((sn.m_sLocation.size() >= thresh) || (int(sn.m_sLocation.size()) >= sn.m_iReplicaNum))
+         {
+            list<string>::iterator j = i;
+            ++ i;
+            filelist.erase(j);
+         }
+         else
+         {
+            if ((result = client.copy(*i, *i)) < 0)
+            {
+               Utility::print_error(result);
+               break;
+            }
+            ++ i;
+         }
       }
 
       timeval curr_time;
@@ -186,9 +183,16 @@ int main(int argc, char** argv)
          break;
       }
 
+      //TODO: sleep diff for the last time
       sleep(interval);
       if (interval < 16)
          interval <<= 1;
+   }
+
+   if (filelist.empty())
+   {
+      cout << "all files have enough replicas.\n";
+      result = 0;
    }
 
    Utility::logout(client);
