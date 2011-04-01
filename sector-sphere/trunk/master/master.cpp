@@ -64,8 +64,8 @@ int Master::init()
       return -1;
    }
 
-   struct stat s;
-   if (stat((m_strSectorHome + "/conf/topology.conf").c_str(), &s) < 0)
+   SNode s;
+   if (LocalFS::stat(m_strSectorHome + "/conf/topology.conf", s) < 0)
    {
       cerr << "Warning: no topology configuration found.\n";
    }
@@ -80,7 +80,7 @@ int Master::init()
    m_SectorLog.init((m_strHomeDir + "/.log").c_str());
    m_SectorLog.setLevel(m_SysConfig.m_iLogLevel);
 
-   if (stat(m_strHomeDir.c_str(), &s) < 0)
+   if (LocalFS::stat(m_strHomeDir, s) < 0)
    {
       if (errno != ENOENT)
       {
@@ -108,9 +108,9 @@ int Master::init()
    LocalFS::mkdir(m_strHomeDir + ".tmp");
    LocalFS::mkdir(m_strHomeDir + ".log");
 
-   if ((stat((m_strHomeDir + ".metadata").c_str(), &s) < 0)
-      || (stat((m_strHomeDir + ".tmp").c_str(), &s) < 0)
-      || (stat((m_strHomeDir + ".log").c_str(), &s) < 0))
+   if ((LocalFS::stat(m_strHomeDir + ".metadata", s) < 0)
+      || (LocalFS::stat(m_strHomeDir + ".tmp", s) < 0)
+      || (LocalFS::stat(m_strHomeDir + ".log", s) < 0))
    {
       cerr << "unable to create home directory " << m_strHomeDir << endl;
       return -1;
@@ -303,9 +303,10 @@ int Master::join(const char* ip, const int& port)
    // recv metadata
    size = 0;
    s.recv((char*)&size, 4);
-   s.recvfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
-   m_pMetadata->deserialize("/", m_strHomeDir + ".tmp/master_meta.dat", NULL);
-   LocalFS::erase(".tmp/master_meta.dat");
+   string metafile = m_strHomeDir + ".tmp/master_meta.dat";
+   s.recvfile(metafile.c_str(), 0, size);
+   m_pMetadata->deserialize("/", metafile, NULL);
+   LocalFS::erase(metafile);
 
    s.close();
 
@@ -751,15 +752,15 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
          else
          {
-            string conflict_list = m_strHomeDir + ".tmp/" + ip + ".left";
-            branch->serialize("/", conflict_list);
+            string left_file = tmp_meta_file.str() + ".left";
+            branch->serialize("/", left_file);
             struct stat st;
-            stat(conflict_list.c_str(), &st);
+            stat(left_file.c_str(), &st);
             size = st.st_size;
             slvconn.send((char*)&size, 4);
             if (size > 0)
-               slvconn.sendfile(conflict_list.c_str(), 0, size);
-            LocalFS::rmdir(conflict_list);
+               slvconn.sendfile(left_file.c_str(), 0, size);
+            LocalFS::rmdir(left_file);
 
             m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogStringTag(LogTag::END);
          }
@@ -961,14 +962,15 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       }
 
       // send metadata
-      m_pMetadata->serialize("/", m_strHomeDir + ".tmp/master_meta.dat");
+      string metafile = m_strHomeDir + ".tmp/master_meta.dat";
+      m_pMetadata->serialize("/", metafile);
 
       struct stat st;
-      stat((m_strHomeDir + ".tmp/master_meta.dat").c_str(), &st);
+      stat(metafile.c_str(), &st);
       size = st.st_size;
       mstconn.send((char*)&size, 4);
-      mstconn.sendfile((m_strHomeDir + ".tmp/master_meta.dat").c_str(), 0, size);
-      LocalFS::erase(m_strHomeDir + ".tmp/master_meta.dat");
+      mstconn.sendfile(metafile.c_str(), 0, size);
+      LocalFS::erase(metafile);
 
       // send new master info to all existing masters
       for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
@@ -2768,17 +2770,26 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    Master* self = (Master*)s;
 
    int64_t last_replica_erase_time = CTimer::getTime();
+   int init_count = 15;
 
    while (self->m_Status == RUNNING)
    {
+      // wait for 60 seconds for each check
+      self->m_ReplicaLock.acquire();
+      self->m_ReplicaCond.wait(self->m_ReplicaLock, 60*1000);
+      self->m_ReplicaLock.release();
+
       // only the first master is responsible for replica checking
       if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
       {
-#ifndef WIN32
-         sleep(60);
-#else
-         Sleep(60 * 1000);
-#endif
+         continue;
+      }
+
+      // initially the master should wait longer because slave may join slower
+      // we will wait for 15 minutes before the first check
+      if (init_count > 0)
+      {
+         -- init_count;
          continue;
       }
 
@@ -2821,21 +2832,19 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          }
       }
 
-      while (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() < self->m_SlaveManager.getNumberOfSlaves())
+      while (true)
       {
-         // only create replica when the system is not busy
-         // TODO: this should be further optimized
-
          ReplicaJob job;
          if (self->m_Replication.pop(job) < 0)
             break;
 
-         // avoid creat a replica that is already being replicated
-         if ((job.m_strSource != job.m_strDest) || (self->m_sstrOnReplicate.find(job.m_strSource) == self->m_sstrOnReplicate.end()))
-         {
-            self->createReplica(job);
-         }
+         if (self->createReplica(job) < 0)
+            continue;
 
+         // only create replica when the system is not busy
+         // TODO: this should be further optimized
+         if (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
+            break;
       }
 
       self->m_ReplicaLock.release();
@@ -2869,12 +2878,6 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
          self->removeReplica(*i, addr);
       }
-
-
-      // wait for 60 seconds until next check
-      self->m_ReplicaLock.acquire();
-      self->m_ReplicaCond.wait(self->m_ReplicaLock, 60*1000);
-      self->m_ReplicaLock.release();
    }
 
    return NULL;
@@ -2896,6 +2899,10 @@ int Master::createReplica(const ReplicaJob& job)
          // only nosplit dir can be replicated as a whole
          SNode sub_attr;
          if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
+            return -1;
+
+         // do not create multiple replicas at the same time
+         if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
             return -1;
 
          // do not over replicate
@@ -2923,6 +2930,10 @@ int Master::createReplica(const ReplicaJob& job)
    {
       if (job.m_strSource == job.m_strDest)
       {
+         // do not create multiple replicas at the same time
+         if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
+            return -1;
+
          // do not over replicate
          if ((attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum) && !job.m_bForceReplicate)
             return -1;
