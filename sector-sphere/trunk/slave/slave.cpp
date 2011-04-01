@@ -137,7 +137,8 @@ int Slave::connect()
 
    m_iSlaveID = -1;
 
-   m_pLocalFile->serialize("/", m_strHomeDir + ".tmp/metadata.dat");
+   string metafile = m_strHomeDir + ".tmp/metadata.dat";
+   m_pLocalFile->serialize("/", metafile);
 
    set<Address, AddrComp> masters;
    Address m;
@@ -207,10 +208,10 @@ int Slave::connect()
 
       //send local metadata
       SNode s;
-      LocalFS::stat(m_strHomeDir + ".tmp/metadata.dat", s);
+      LocalFS::stat(metafile, s);
       size = s.m_llSize;
       secconn.send((char*)&size, 4);
-      secconn.sendfile((m_strHomeDir + ".tmp/metadata.dat").c_str(), 0, size);
+      secconn.sendfile(metafile.c_str(), 0, size);
 
       if (!first)
       {
@@ -224,13 +225,14 @@ int Slave::connect()
 
       if (size > 0)
       {
-         secconn.recvfile((m_strHomeDir + ".tmp/metadata.left.dat").c_str(), 0, size);
+         string leftfile = m_strHomeDir + ".tmp/metadata.left.dat";
+         secconn.recvfile(leftfile.c_str(), 0, size);
 
          Metadata* attic = NULL;
          attic = new Index;
-         attic->init(m_strHomeDir + ".tmp/metadata.left");
-         attic->deserialize("/", m_strHomeDir + ".tmp/metadata.left.dat", NULL);
-         LocalFS::erase((m_strHomeDir + ".tmp/metadata.left.dat").c_str());
+         attic->init(leftfile);
+         attic->deserialize("/", leftfile, NULL);
+         LocalFS::erase(leftfile);
 
          vector<string> fl;
          attic->list_r("/", fl);
@@ -285,7 +287,7 @@ int Slave::connect()
 
    SSLTransport::destroy();
 
-   LocalFS::erase((m_strHomeDir + ".tmp/metadata.dat").c_str());
+   LocalFS::erase(metafile);
 
    // initialize slave statistics
    m_SlaveStat.init();
