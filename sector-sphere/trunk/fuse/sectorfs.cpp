@@ -61,9 +61,7 @@ int SectorFS::getattr(const char* path, struct stat* st)
    int r = g_SectorClient.stat(path, s);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -102,9 +100,7 @@ int SectorFS::mkdir(const char* path, mode_t /*mode*/)
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -119,9 +115,7 @@ int SectorFS::unlink(const char* path)
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return -1;
    }
 
@@ -136,9 +130,7 @@ int SectorFS::rmdir(const char* path)
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return -1;
    }
 
@@ -153,9 +145,7 @@ int SectorFS::rename(const char* src, const char* dst)
    int r = g_SectorClient.move(src, dst);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -171,9 +161,7 @@ int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
    int r = g_SectorClient.sysinfo(s);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -196,9 +184,7 @@ int SectorFS::utime(const char* path, struct utimbuf* ubuf)
    int r = g_SectorClient.utime(path, ubuf->modtime);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -213,9 +199,7 @@ int SectorFS::utimens(const char* path, const struct timespec tv[2])
    int r = g_SectorClient.utime(path, tv[1].tv_sec);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -236,9 +220,7 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
    int r = g_SectorClient.list(path, filelist);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
 
@@ -308,9 +290,7 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    int r = f->open(path, SF_MODE::WRITE);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
    f->close();
@@ -328,9 +308,7 @@ int SectorFS::truncate(const char *, off_t)
    int r = f->open(path, SF_MODE::WRITE | SF_MODE::TRUNC);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       return translateErr(r);
    }
    f->close();
@@ -375,9 +353,7 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    int r = f->open(path, permission);
    if (r < 0)
    {
-      if (r == SectorError::E_MASTER)
-         g_bConnected = false;
-
+      checkConnection(r);
       g_SectorClient.releaseSectorFile(f);
       pthread_mutex_unlock(&m_OpenFileLock);
       return translateErr(r);
@@ -523,4 +499,10 @@ int SectorFS::restart()
    g_bConnected = true;
 
    return 0;
+}
+
+void SectorFS::checkConnection(const int res)
+{
+   if ((res == SectorError::E_MASTER) || (res == SectorError::E_EXPIRED))
+      g_bConnected = false;
 }

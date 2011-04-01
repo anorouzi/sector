@@ -103,6 +103,7 @@ private:
 private:
    static int translateErr(int sferr);
    static int restart();
+   static void checkConnection();
 
 private:
    static const int g_iBlockSize = 512;
