@@ -1207,7 +1207,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
             m_ReplicaLock.acquire();
-            m_sstrOnReplicate.erase(sn.m_strName);
+            m_sstrOnReplicate.erase(Metadata::revisePath(sn.m_strName));
             m_ReplicaLock.release();
          }
       }
@@ -1434,6 +1434,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
          removeSlave(i->first, i->second);
          m_SlaveManager.remove(i->first);
+
+         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "**Shutdown Slave " <<i->second.m_strIP << " " <<  i->second.m_iPort << " by request from " << ip << LogStringTag(LogTag::END);
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -1583,30 +1585,6 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       attr.serialize(buf);
       msg->setData(0, buf, strlen(buf) + 1);
       delete [] buf;
-
-      int c = 0;
-
-      if (!attr.m_bIsDir)
-      {
-         for (set<Address, AddrComp>::iterator i = attr.m_sLocation.begin(); i != attr.m_sLocation.end(); ++ i)
-         {
-            msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
-            msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
-            ++ c;
-         }
-      }
-      else
-      {
-         set<Address, AddrComp> addr;
-         m_pMetadata->lookup(attr.m_strName.c_str(), addr);
-
-         for (set<Address, AddrComp>::iterator i = addr.begin(); i != addr.end(); ++ i)
-         {
-            msg->setData(128 + c * 68, i->m_strIP.c_str(), i->m_strIP.length() + 1);
-            msg->setData(128 + c * 68 + 64, (char*)&(i->m_iPort), 4);
-            ++ c;
-         }
-      }
 
       m_GMP.sendto(ip, port, id, msg);
 
