@@ -335,6 +335,7 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
    }
+   pthread_mutex_unlock(&m_OpenFileLock);
 
    SectorFile* f = g_SectorClient.createSectorFile();
 
@@ -355,7 +356,6 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    {
       checkConnection(r);
       g_SectorClient.releaseSectorFile(f);
-      pthread_mutex_unlock(&m_OpenFileLock);
       return translateErr(r);
    }
 
@@ -364,9 +364,10 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    t->m_iCount = 1;
    t->m_pHandle = f;
 
+   pthread_mutex_lock(&m_OpenFileLock);
    m_mOpenFileList[path] = t;
-
    pthread_mutex_unlock(&m_OpenFileLock);
+
    return 0;
 }
 
@@ -375,15 +376,9 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
-   pthread_mutex_lock(&m_OpenFileLock);
-   map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
-   if (t == m_mOpenFileList.end())
-   {
-      pthread_mutex_unlock(&m_OpenFileLock);
+   SectorFile* h = lookup(path);
+   if (NULL == h)
       return -EBADF;
-   }
-   SectorFile* h = t->second->m_pHandle;
-   pthread_mutex_unlock(&m_OpenFileLock);
 
    // FUSE read buffer is too small; we use prefetch buffer to improve read performance
    int r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
@@ -398,15 +393,9 @@ int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
-   pthread_mutex_lock(&m_OpenFileLock);
-   map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
-   if (t == m_mOpenFileList.end())
-   {
-      pthread_mutex_unlock(&m_OpenFileLock);
+   SectorFile* h = lookup(path);
+   if (NULL == h)
       return -EBADF;
-   }
-   SectorFile* h = t->second->m_pHandle;
-   pthread_mutex_unlock(&m_OpenFileLock);
 
    return h->write(buf, offset, size);
 }
@@ -433,21 +422,30 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
       pthread_mutex_unlock(&m_OpenFileLock);
       return -EBADF;
    }
-
    t->second->m_iCount --;
+   int count = t->second->m_iCount;
+   SectorFile* h = t->second->m_pHandle;
+   pthread_mutex_unlock(&m_OpenFileLock);
 
-   if (t->second->m_iCount > 0)
+   if (count > 0)
+      return 0;
+
+   // file close/release may take some time. so do it out of mutex protection
+   h->close();
+   g_SectorClient.releaseSectorFile(h);
+
+   // delete sector-fuse file handle
+   pthread_mutex_lock(&m_OpenFileLock);
+   t = m_mOpenFileList.find(path);
+   if (t == m_mOpenFileList.end())
    {
       pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
    }
-
-   t->second->m_pHandle->close();
-   g_SectorClient.releaseSectorFile(t->second->m_pHandle);
    delete t->second;
    m_mOpenFileList.erase(t);
-
    pthread_mutex_unlock(&m_OpenFileLock);
+
    return 0;
 }
 
@@ -461,9 +459,9 @@ int SectorFS::lock(const char *, struct fuse_file_info *, int, struct flock *)
    return 0;
 }
 
-int SectorFS::translateErr(int sferr)
+int SectorFS::translateErr(int err)
 {
-   switch (sferr)
+   switch (err)
    {
    case SectorError::E_PERMISSION:
       return -EACCES;
@@ -475,6 +473,9 @@ int SectorFS::translateErr(int sferr)
       return -EEXIST;
 
    case SectorError::E_MASTER:
+      return -EHOSTDOWN;
+
+   case SectorError::E_CONNECTION:
       return -EHOSTDOWN;
    }
 
@@ -501,8 +502,24 @@ int SectorFS::restart()
    return 0;
 }
 
-void SectorFS::checkConnection(const int& res)
+void SectorFS::checkConnection(int res)
 {
    if ((res == SectorError::E_MASTER) || (res == SectorError::E_EXPIRED))
       g_bConnected = false;
 }
+
+static SectorFile* SectorFS::lookup(const string& path)
+{
+   pthread_mutex_lock(&m_OpenFileLock);
+   map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
+   if (t == m_mOpenFileList.end())
+   {
+      pthread_mutex_unlock(&m_OpenFileLock);
+      return NULL;
+   }
+   SectorFile* h = t->second->m_pHandle;
+   pthread_mutex_unlock(&m_OpenFileLock);
+
+   return h;
+}
+

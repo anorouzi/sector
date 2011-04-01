@@ -101,9 +101,10 @@ private:
    static pthread_mutex_t m_OpenFileLock;
 
 private:
-   static int translateErr(int sferr);
+   static int translateErr(int err);
    static int restart();
-   static void checkConnection(const int& res);
+   static void checkConnection(int res);
+   static SectorFile* lookup(const std::string& path);
 
 private:
    static const int g_iBlockSize = 512;
