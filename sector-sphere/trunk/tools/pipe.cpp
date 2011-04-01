@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/12/2010
+   Yunhong Gu, last updated 04/01/2011
 *****************************************************************************/
 
 #ifndef WIN32
@@ -65,11 +65,12 @@ int main(int argc, char** argv)
       char* buf = new char[size];
       int read_size = size;
 
+      // read data from sdtin and write to Sector
       while(true)
       {
          read_size = read(0, buf, size);
          if (read_size <= 0)
-             break;
+            break;
          f->write(buf, read_size);
          total_size += read_size;
       }
@@ -85,17 +86,17 @@ int main(int argc, char** argv)
       }
 
       int size = 1000000;
-      char* buf = new char[size + 1];
+      char* buf = new char[size];
       int read_size = size;
 
+      // read data from Sector and write to stdout
       while(!f->eof())
       {
          read_size = f->read(buf, size);
          if (read_size <= 0)
-             break;
+            break;
          total_size += read_size;
-         buf[read_size + 1] = 0;
-         printf("%s", buf);
+         write(1, buf, read_size);
       }
 
       delete [] buf;
