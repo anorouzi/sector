@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/02/2010
+   Yunhong Gu, last updated 04/01/2011
 *****************************************************************************/
 
 
@@ -103,7 +103,7 @@ private:
 private:
    static int translateErr(int sferr);
    static int restart();
-   static void checkConnection();
+   static void checkConnection(const int& res);
 
 private:
    static const int g_iBlockSize = 512;

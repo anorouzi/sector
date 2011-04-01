@@ -299,7 +299,7 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    return open(path, info);
 }
 
-int SectorFS::truncate(const char *, off_t)
+int SectorFS::truncate(const char* path, off_t)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
@@ -501,7 +501,7 @@ int SectorFS::restart()
    return 0;
 }
 
-void SectorFS::checkConnection(const int res)
+void SectorFS::checkConnection(const int& res)
 {
    if ((res == SectorError::E_MASTER) || (res == SectorError::E_EXPIRED))
       g_bConnected = false;
