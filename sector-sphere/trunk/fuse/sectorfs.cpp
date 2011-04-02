@@ -437,13 +437,11 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    // delete sector-fuse file handle
    pthread_mutex_lock(&m_OpenFileLock);
    t = m_mOpenFileList.find(path);
-   if (t == m_mOpenFileList.end())
+   if (t != m_mOpenFileList.end())
    {
-      pthread_mutex_unlock(&m_OpenFileLock);
-      return 0;
+      delete t->second;
+      m_mOpenFileList.erase(t);
    }
-   delete t->second;
-   m_mOpenFileList.erase(t);
    pthread_mutex_unlock(&m_OpenFileLock);
 
    return 0;
@@ -508,7 +506,7 @@ void SectorFS::checkConnection(int res)
       g_bConnected = false;
 }
 
-static SectorFile* SectorFS::lookup(const string& path)
+SectorFile* SectorFS::lookup(const string& path)
 {
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
