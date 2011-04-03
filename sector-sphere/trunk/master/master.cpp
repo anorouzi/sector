@@ -2748,49 +2748,45 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    Master* self = (Master*)s;
 
    int64_t last_replica_erase_time = CTimer::getTime();
-   int init_count = 15;
+   int64_t start_time = CTimer::getTime();
+
+   vector<string> under_replicated;
+   vector<string> over_replicated;
 
    while (self->m_Status == RUNNING)
    {
-      // wait for 60 seconds for each check
+      // wait for 60 seconds for the next check
       self->m_ReplicaLock.acquire();
       self->m_ReplicaCond.wait(self->m_ReplicaLock, 60*1000);
       self->m_ReplicaLock.release();
 
-      // only the first master is responsible for replica checking
-      if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
-      {
-         continue;
-      }
-
-      // initially the master should wait longer because slave may join slower
-      // we will wait for 15 minutes before the first check
-      if (init_count > 0)
-      {
-         -- init_count;
-         continue;
-      }
-
-      // refresh special replication settings
-      if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
-         self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
-
-      vector<string> under_replicated;
-      vector<string> over_replicated;
-
-      self->m_ReplicaLock.acquire();
-
       // check replica, create or remove replicas if necessary
       if (self->m_Replication.getTotalNum() == 0)
       {
+         // only the first master is responsible for replica checking
+         if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
+            continue;
+
+         // initially the master should wait longer because slave may join slower
+         // we will wait for 15 minutes before the first check
+         if (CTimer::getTime() - start_time < 15 * 60 * 1000000LL)
+            continue;
+
+         // refresh special replication settings
+         if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
+            self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
+
+         // TODO:: optimize this process: if there are too many files, this scan may kill the master
          self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
 
+         self->m_ReplicaLock.acquire();
          for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)
          {
             ReplicaJob job;
             job.m_strSource = job.m_strDest = *i;
             self->m_Replication.push(job);
          }
+         self->m_ReplicaLock.release();
 
          // create replicas for files on slaves without enough disk space
          // so that some files can be removed from these nodes
@@ -2800,6 +2796,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          {
             vector<string> path;
             self->chooseDataToMove(path, i->second, i->first);
+            self->m_ReplicaLock.acquire();
             for (vector<string>::iterator i = path.begin(); i != path.end(); ++ i)
             {
                ReplicaJob job;
@@ -2807,25 +2804,29 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                job.m_bForceReplicate = true;
                self->m_Replication.push(job);
             }
+            self->m_ReplicaLock.release();
          }
       }
 
+      // start any replication jobs in queue
       while (true)
       {
-         ReplicaJob job;
-         if (self->m_Replication.pop(job) < 0)
-            break;
-
-         if (self->createReplica(job) < 0)
-            continue;
-
          // only create replica when the system is not busy
          // TODO: this should be further optimized
          if (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
             break;
-      }
 
-      self->m_ReplicaLock.release();
+         ReplicaJob job;
+         self->m_ReplicaLock.acquire();
+         int res = self->m_Replication.pop(job);
+         self->m_ReplicaLock.release();
+
+         if (res < 0)
+            break;
+
+         if (self->createReplica(job) < 0)
+            continue;
+      }
 
 
       // over replication should be erased at a longer period, we use 1 hour 
@@ -2844,11 +2845,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             continue;
 
          // remove a directory, this must be a dir with .nosplit
-         if (attr.m_bIsDir)
-         {
-            if (self->m_pMetadata->lookup(*i + "/.nosplit", attr) < 0)
-               continue;
-         }
+         if ((attr.m_bIsDir) && (self->m_pMetadata->lookup(*i + "/.nosplit", attr) < 0))
+            continue;
 
          Address addr;
          if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
