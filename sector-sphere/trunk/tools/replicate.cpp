@@ -144,11 +144,16 @@ int main(int argc, char** argv)
 
    timeval t;
    gettimeofday(&t, NULL);
+   int exp_time = t.tv_sec + timeout;
 
    int interval = 1;
+   int total = -1;
+   int new_total = 0;
 
    while (!filelist.empty())
    {
+      new_total = 0;
+
       for (list<string>::iterator i = filelist.begin(); i != filelist.end();)
       {
          SNode sn;
@@ -158,7 +163,9 @@ int main(int argc, char** argv)
             break;
          }
 
-         if ((sn.m_sLocation.size() >= thresh) || (int(sn.m_sLocation.size()) >= sn.m_iReplicaNum))
+         int diff = (sn.m_iReplicaNum > int(thresh)) ? (thresh - sn.m_sLocation.size()) : (sn.m_iReplicaNum - int(sn.m_sLocation.size()));
+
+         if (diff <= 0)
          {
             list<string>::iterator j = i;
             ++ i;
@@ -172,21 +179,35 @@ int main(int argc, char** argv)
                break;
             }
             ++ i;
+
+            new_total += diff;
          }
       }
 
       timeval curr_time;
       gettimeofday(&curr_time, NULL);
-      if ((curr_time.tv_sec - t.tv_sec) > timeout)
+      if (curr_time.tv_sec > exp_time)
       {
          cout << "timeout.\n";
          break;
       }
 
       //TODO: sleep diff for the last time
-      sleep(interval);
-      if (interval < 16)
+      if (interval < exp_time - curr_time.tv_sec)
+         sleep(interval);
+      else
+         sleep(exp_time - curr_time.tv_sec);
+
+      // wait longer if no progress, otherwise continue to wait for 1 sec
+      if ((total > 0) && (new_total < total))
+      {
+         total = new_total;
+         interval = 1;
+      }
+      else if (interval < 16)
+      {
          interval <<= 1;
+      }
    }
 
    if (filelist.empty())
