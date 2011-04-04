@@ -55,15 +55,25 @@ struct LogString
    std::string m_strLog;
 };
 
-class LogStringTag
+struct LogStringTag
 {
-public:
-   LogStringTag(const int tag, const int level = LogLevel::SCREEN);
+   LogStringTag() {}
+   LogStringTag(const int tag, const int level = LogLevel::SCREEN): m_iTag(tag), m_iLevel(level) {}
 
-public:
-   int m_iLevel;
    int m_iTag;
+   int m_iLevel;
 };
+
+struct LogStart: LogStringTag
+{
+   LogStart(const int level = LogLevel::SCREEN) {m_iTag = LogTag::START; m_iLevel = level;}
+};
+
+struct LogEnd: LogStringTag
+{
+   LogEnd() {m_iTag = LogTag::END;};
+};
+
 
 class SectorLog
 {

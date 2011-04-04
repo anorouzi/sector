@@ -361,7 +361,7 @@ int Master::run()
       m_UserManager.checkInactiveUsers(iu, m_SysConfig.m_iClientTimeOut);
       for (vector<User*>::iterator i = iu.begin(); i != iu.end(); ++ i)
       {
-         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " timeout. Kicked out." << LogStringTag(LogTag::END);
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " timeout. Kicked out." << LogEnd();
          delete *i;
       }
 
@@ -733,7 +733,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       {
          branch->clear();
          delete branch;
-         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogStringTag(LogTag::END);
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogEnd();
          return -1;
       }
 
@@ -762,7 +762,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
                slvconn.sendfile(left_file.c_str(), 0, size);
             LocalFS::rmdir(left_file);
 
-            m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogStringTag(LogTag::END);
+            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogEnd();
          }
 
          // send the list of masters to the new slave
@@ -787,11 +787,11 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       branch->clear();
       delete branch;
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << ip << ":" << sn.m_iPort << " joined." << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << ":" << sn.m_iPort << " joined." << LogEnd();
    }
    else
    {
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogEnd();
    }
 
    return 0;
@@ -868,7 +868,7 @@ int Master::processUserJoin(SSLTransport& cliconn,
 
       m_UserManager.insert(au);
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << user << " login from " << ip << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " login from " << ip << LogEnd();
 
       if (ukey <= 0)
       {
@@ -896,7 +896,7 @@ int Master::processUserJoin(SSLTransport& cliconn,
    }
    else
    {
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << user << " login rejected from " << ip << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " login rejected from " << ip << LogEnd();
    }
 
    return 0;
@@ -1259,7 +1259,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
    case 2: // client logout
    {
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "User " << user->m_strName << " logout from " << ip << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " logout from " << ip << LogEnd();
 
       m_UserManager.remove(key);
 
@@ -1435,7 +1435,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          removeSlave(i->first, i->second);
          m_SlaveManager.remove(i->first);
 
-         m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "**Shutdown Slave " <<i->second.m_strIP << " " <<  i->second.m_iPort << " by request from " << ip << LogStringTag(LogTag::END);
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "**Shutdown Slave " <<i->second.m_strIP << " " <<  i->second.m_iPort << " by request from " << ip << LogEnd();
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -2736,7 +2736,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    msg.m_iDataLength = SectorMsg::m_iHdrSize + 4;
    m_GMP.sendto(ip, port, id, &msg);
 
-   m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_9) << "REJECTED REQ " << ip << " " << port << " " << id << " " << code << LogStringTag(LogTag::END);
+   m_SectorLog << LogStart(LogLevel::LEVEL_9) << "REJECTED REQ " << ip << " " << port << " " << id << " " << code << LogEnd();
 }
 
 #ifndef WIN32

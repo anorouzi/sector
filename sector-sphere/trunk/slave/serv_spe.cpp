@@ -199,15 +199,15 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
    SectorMsg msg;
    bool init_success = true;
 
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect " << ip << " " << dataport << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "SPE starts " << ip << " " << dataport << LogEnd();
 
    if (self->m_DataChn.connect(ip, dataport) < 0)
    {
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "failed to connect to spe client " << ip << ":" << ctrlport << " " << function << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::LEVEL_2) << "failed to connect to spe client " << ip << ":" << ctrlport << " " << function << LogEnd();
       init_success = false;
    }
 
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "connected." << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "connected." << LogEnd();
 
    // read outupt parameters
    int buckets = 0;
@@ -245,7 +245,7 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
    self->openLibrary(key, function, lh);
    if (NULL == lh)
    {
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "failed to open SPE library " << ip << ":" << ctrlport << " " << function << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::LEVEL_2) << "failed to open SPE library " << ip << ":" << ctrlport << " " << function << LogEnd();
       init_success = false;
    }
 
@@ -293,7 +293,7 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
       sprintf(dest.m_pcLocalFileID, ".%d", dsid);
       delete [] dataseg;
 
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "new job " << datafile << " " << offset << " " << totalrows << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "new job " << datafile << " " << offset << " " << totalrows << LogEnd();
 
       int64_t* index = NULL;
       if ((totalrows > 0) && (rows != 0))
@@ -461,7 +461,7 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
       else
          progress = 100;
 
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "completed " << progress << " " << ip << " " << ctrlport << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "SPE completed " << progress << " " << ip << " " << ctrlport << LogEnd();
 
       msg.setData(4, (char*)&progress, 4);
 
@@ -508,7 +508,7 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
 
    gettimeofday(&t2, 0);
    int duration = t2.tv_sec - t1.tv_sec;
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "comp server closed " << ip << " " << ctrlport << " " << duration << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "comp server closed " << ip << " " << ctrlport << " " << duration << LogEnd();
 
    delete [] param;
 
@@ -609,7 +609,7 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
       shufflerex = CreateThread(NULL, 0, SPEShufflerEx, p, NULL, &ThreadID);
 #endif
 
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::SCREEN) << "SPE Shuffler " << path << " " << localfile << " " << bucketnum << LogEnd();
    }
 
    while (init_success)
@@ -689,7 +689,7 @@ DWORD WINAPI Slave::SPEShuffler(LPVOID p)
       int id = 0;
       self->m_GMP.sendto(client_ip.c_str(), client_port, id, &msg);
 
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "bucket completed 100 " << client_ip << " " << client_port << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "bucket completed 100 " << client_ip << " " << client_port << LogEnd();
    }
 
    gmp->close();
@@ -1099,7 +1099,7 @@ int Slave::openLibrary(const int& key, const string& lib, void*& lh)
 
       if (NULL == lh)
       {
-         m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << dlerror() << LogStringTag(LogTag::END);
+         m_SectorLog << LogStart(LogLevel::LEVEL_2) << "Open Library Error: " << dlerror() << LogEnd();
          return -1;
       }
    }
@@ -1119,7 +1119,7 @@ int Slave::getSphereFunc(void* lh, const string& function, SPHERE_PROCESS& proce
    process = (SPHERE_PROCESS)dlsym(lh, function.c_str());
    if (NULL == process)
    {
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << dlerror() << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_2) << "Open Library Error: " << dlerror() << LogEnd();
       return -1;
    }
 
@@ -1140,7 +1140,7 @@ int Slave::getMapFunc(void* lh, const string& function, MR_MAP& map, MR_PARTITIO
    partition = (MR_PARTITION)dlsym(lh, (function + "_partition").c_str());
    if (NULL == partition)
    {
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "retriving Partition " << dlerror() << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_2) << "Open Library Error: " << dlerror() << LogEnd();
       return -1;
    }
 
@@ -1161,7 +1161,7 @@ int Slave::getReduceFunc(void* lh, const string& function, MR_COMPARE& compare, 
    compare = (MR_COMPARE)dlsym(lh, (function + "_compare").c_str());
    if (NULL == compare)
    {
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "retriving Compare " << dlerror() << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_2) << "Open Library Error: " << dlerror() << LogEnd();
       return -1;
    }
 

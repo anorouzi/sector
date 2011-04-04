@@ -26,7 +26,7 @@ written by
 #ifdef WIN32
    #include <sys/types.h>
    #include <sys/stat.h>
-   #define atoll _atol64
+   #define atoll _atoi64
 #endif
 
 using namespace std;

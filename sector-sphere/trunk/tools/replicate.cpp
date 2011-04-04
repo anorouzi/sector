@@ -68,7 +68,7 @@ int main(int argc, char** argv)
    }
 
    unsigned int thresh = 65536;
-   int timeout = 0;
+   int timeout = 3600 * 24; // default wait for one day
 
    CmdLineParser clp;
    if (clp.parse(argc, argv) < 0)
@@ -82,7 +82,11 @@ int main(int argc, char** argv)
       if (i->first == "w")
          thresh = atoi(i->second.c_str());
       else if (i->first == "t")
+      {
          timeout = atoi(i->second.c_str());
+         if (timeout < 0)
+            timeout = INT_MAX;
+      }
       else
       {
          help();

@@ -34,11 +34,6 @@ written by
 
 using namespace std;
 
-LogStringTag::LogStringTag(const int tag, const int level)
-{
-   m_iTag = tag;
-   m_iLevel = level;
-}
 
 SectorLog::SectorLog():
 m_iLevel(1),
@@ -124,10 +119,16 @@ SectorLog& SectorLog::operator<<(const std::string& message)
    #endif
 
    map<int, LogString>::iterator i = m_mStoredString.find(key);
-   if (i != m_mStoredString.end())
+   if (i == m_mStoredString.end())
    {
-      i->second.m_strLog += message;
+      // no start tag, use default: level = SCREEN
+      LogString ls;
+      ls.m_iLevel = LogLevel::SCREEN;
+      m_mStoredString[key] = ls;
+      i = m_mStoredString.find(key);
    }
+
+   i->second.m_strLog += message;
 
    return *this;
 }

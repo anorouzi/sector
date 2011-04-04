@@ -68,12 +68,11 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    int orig_timestamp = -1;
    int last_timestamp = 0;
 
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "rendezvous connect source " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "connecting to " << client_ip << " " << client_port << " " << filename << LogEnd();
 
    if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
    {
-      self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_2) << "failed to connect to file client " << client_ip << " " << client_port << " " << filename << LogStringTag(LogTag::END);
+      self->m_SectorLog << LogStart(LogLevel::LEVEL_2) << "failed to connect to file client " << client_ip << " " << client_port << " " << filename << LogEnd();
 
       // release transactions and file locks
       self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
@@ -82,8 +81,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
       return NULL;
    }
-
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "connected." <<  LogStringTag(LogTag::END);
 
    Crypto* encoder = NULL;
    Crypto* decoder = NULL;
@@ -452,8 +449,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "file server closed " << src_ip << " " << src_port << " " << (long long)avgWS << " " << (long long)avgRS << LogStringTag(LogTag::END);
-   self->m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << (long long)avgWS << " " << (long long)avgRS << LogStringTag(LogTag::END);
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << (long long)avgWS << " " << (long long)avgRS << LogEnd();
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

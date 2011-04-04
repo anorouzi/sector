@@ -1,5 +1,7 @@
 version 2.6
 
+replication process improved, bug fixes
+improved Sector-FUSE locking, faster concurrent data access
 fix a bug in FSCache that uses wrong timestamps
 automatic slave restart supports multiple slaves on a single node now
 optimized write performance to local node

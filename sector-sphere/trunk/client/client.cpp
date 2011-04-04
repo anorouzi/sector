@@ -86,6 +86,7 @@ int Client::init(const string& server, const int& port)
    if (getaddrinfo(server.c_str(), NULL, NULL, &result) != 0)
       return SectorError::E_ADDR;
 
+   m_sMasters.clear();
    m_strServerHost = server;
 
    char hostip[NI_MAXHOST];
@@ -302,9 +303,6 @@ int Client::close()
 {
    if (-- m_iCount == 0)
    {
-      if (m_iKey > 0)
-         logout();
-
 #ifndef WIN32
       pthread_mutex_lock(&m_KALock);
       m_bActive = false;
@@ -320,6 +318,8 @@ int Client::close()
       m_strServerHost = "";
       m_strServerIP = "";
       m_iServerPort = 0;
+      m_sMasters.clear();
+      m_iKey = 0;
       m_GMP.close();
       UDTTransport::release();
 

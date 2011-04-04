@@ -248,7 +248,7 @@ int Slave::connect()
             // remove it from the local metadata
             m_pLocalFile->remove(*i);
 
-            m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_2) << "CONFLICT -> ATTIC: " << *i << LogStringTag(LogTag::END);
+            m_SectorLog << LogStart(LogLevel::LEVEL_2) << "CONFLICT -> ATTIC: " << *i << LogEnd();
          }
 
          attic->clear();
@@ -322,7 +322,7 @@ void Slave::run()
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
          break;
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::SCREEN) << "recv cmd " << ip << " " << port << " type " << msg->getType() << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_9) << "recv cmd " << ip << " " << port << " type " << msg->getType() << LogEnd();
 
       // a slave only accepts commands from the masters
       Address addr;
@@ -417,7 +417,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       createDir(msg->getData());
       // TODO: update metatdata
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "created new directory " << msg->getData() << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "created new directory " << msg->getData() << LogEnd();
 
       break;
    }
@@ -435,7 +435,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
       move(src, dst, newname);
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogEnd();
 
       break;
    }
@@ -450,7 +450,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
       system(sysrm.c_str());
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file " << path << " is deleted." << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file " << path << " is deleted." << LogEnd();
 
       break;
    }
@@ -464,7 +464,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       ut.modtime = *(int64_t*)(msg->getData() + strlen(path) + 1);;
       utime((m_strHomeDir + path).c_str(), &ut);
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "dir/file " << path << " timestamp changed " << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file " << path << " timestamp changed " << LogEnd();
 
       break;
    }
@@ -496,7 +496,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
          break;
       }
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogEnd();
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -527,7 +527,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "creating replica " << p->src << " " << p->dst << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "creating replica " << p->src << " " << p->dst << LogEnd();
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -582,9 +582,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) 
-                  << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid 
-                  << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "starting SPE ... " << p->speid << " " << p->client_data_port << " " << p->function << " " << p->transid << LogEnd();
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -634,7 +632,7 @@ int Slave::processDCCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      m_SectorLog << LogStringTag(LogTag::START, LogLevel::LEVEL_3) << "starting SPE Bucket ... " << p->filename << " " << p->key << " " << p->type << " " << p->transid << LogStringTag(LogTag::END);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "starting SPE Bucket ... " << p->filename << " " << p->key << " " << p->type << " " << p->transid << LogEnd();
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
