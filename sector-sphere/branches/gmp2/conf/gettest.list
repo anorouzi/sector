@@ -1,0 +1,237 @@
+#masters can set these global configuration to overwrite slave local configuration
+
+#or the slave may not have local config.
+
+#KEYs must start with a "*" charactor, in order to differentiate themselves from slave address
+
+#This is optional. Refer to slave.conf for meaning of keys.
+
+*MASTER_ADDRESS=nbq-qnt-app80:6000
+
+ 
+
+# Old cluster on quant nodes
+
+*DATA_DIRECTORY=/scratch/sector
+
+*MAX_DATA_SIZE=102400
+
+ 
+
+apprun@10.124.152.47 /opt/sector
+
+apprun@10.124.152.48 /opt/sector
+
+apprun@10.124.152.56 /opt/sector
+
+apprun@10.124.152.51 /opt/sector
+
+apprun@10.124.152.41 /opt/sector
+
+apprun@10.124.152.52 /opt/sector
+
+apprun@10.124.152.53 /opt/sector
+
+apprun@10.124.152.55 /opt/sector
+
+apprun@10.124.152.54 /opt/sector
+
+apprun@10.124.152.81 /opt/sector
+
+apprun@10.124.152.61 /opt/sector
+
+apprun@10.124.152.62 /opt/sector
+
+apprun@10.124.152.64 /opt/sector
+
+apprun@10.124.152.65 /opt/sector
+
+apprun@10.124.152.66 /opt/sector
+
+apprun@10.124.152.67 /opt/sector
+
+apprun@10.124.150.63 /opt/sector
+
+apprun@10.124.150.64 /opt/sector
+
+apprun@10.124.150.103 /opt/sector
+
+apprun@10.124.150.104 /opt/sector
+
+apprun@10.124.150.105 /opt/sector
+
+apprun@10.124.150.107 /opt/sector
+
+apprun@10.124.150.106 /opt/sector
+
+apprun@10.124.150.108 /opt/sector
+
+apprun@10.124.150.109 /opt/sector
+
+apprun@10.124.150.134 /opt/sector
+
+ 
+
+# Storage nodes
+
+*DATA_DIRECTORY=/storage/vol1/sector
+
+*MAX_DATA_SIZE=
+
+#nbq-dsg-storage01
+
+apprun@10.124.13.79 /opt/sector/conf
+
+#nbq-dsg-storage02
+
+apprun@10.124.13.87 /opt/sector/conf
+
+#nbq-dsg-storage03
+
+apprun@10.124.13.88 /opt/sector/conf
+
+#nbq-dsg-storage04
+
+apprun@10.124.13.89 /opt/sector/conf
+
+#nbq-dsg-storage05
+
+apprun@10.124.13.90 /opt/sector/conf
+
+#nbq-dsg-storage06
+
+apprun@10.124.13.91 /opt/sector/conf
+
+#nbq-dsg-storage07
+
+apprun@10.124.13.92 /opt/sector/conf
+
+#nbq-dsg-storage08
+
+apprun@10.124.13.93 /opt/sector/conf
+
+#nbq-dsg-storage09
+
+apprun@10.124.13.94 /opt/sector/conf
+
+#nbq-dsg-backup01
+
+apprun@10.124.13.56 /opt/sector/conf
+
+#nbq-dsg-backup02
+
+apprun@10.124.13.57 /opt/sector/conf
+
+#nbq-dsg-backup03
+
+#apprun@10.124.13.78 /opt/sector/conf
+
+ 
+
+ 
+
+*DATA_DIRECTORY=/storage/vol2/sector
+
+#nbq-dsg-storage01
+
+apprun@10.124.13.79 /opt/sector/conf
+
+#nbq-dsg-storage02
+
+apprun@10.124.13.87 /opt/sector/conf
+
+#nbq-dsg-storage03
+
+apprun@10.124.13.88 /opt/sector/conf
+
+#nbq-dsg-storage04
+
+apprun@10.124.13.89 /opt/sector/conf
+
+#nbq-dsg-storage05
+
+apprun@10.124.13.90 /opt/sector/conf
+
+#nbq-dsg-storage06
+
+apprun@10.124.13.91 /opt/sector/conf
+
+#nbq-dsg-storage07
+
+apprun@10.124.13.92 /opt/sector/conf
+
+#nbq-dsg-storage08
+
+apprun@10.124.13.93 /opt/sector/conf
+
+#nbq-dsg-storage09
+
+apprun@10.124.13.94 /opt/sector/conf
+
+#nbq-dsg-backup01
+
+apprun@10.124.13.56 /opt/sector/conf
+
+#nbq-dsg-backup02
+
+apprun@10.124.13.57 /opt/sector/conf
+
+#nbq-dsg-backup03
+
+#apprun@10.124.13.78 /opt/sector/conf
+
+ 
+
+ 
+
+*DATA_DIRECTORY=/storage/vol3/sector
+
+#nbq-dsg-storage01
+
+apprun@10.124.13.79 /opt/sector/conf
+
+#nbq-dsg-storage02
+
+apprun@10.124.13.87 /opt/sector/conf
+
+#nbq-dsg-storage03
+
+apprun@10.124.13.88 /opt/sector/conf
+
+#nbq-dsg-storage04
+
+apprun@10.124.13.89 /opt/sector/conf
+
+#nbq-dsg-storage05
+
+apprun@10.124.13.90 /opt/sector/conf
+
+#nbq-dsg-storage06
+
+apprun@10.124.13.91 /opt/sector/conf
+
+#nbq-dsg-storage07
+
+apprun@10.124.13.92 /opt/sector/conf
+
+#nbq-dsg-storage08
+
+apprun@10.124.13.93 /opt/sector/conf
+
+#nbq-dsg-storage09
+
+apprun@10.124.13.94 /opt/sector/conf
+
+#nbq-dsg-backup01
+
+apprun@10.124.13.56 /opt/sector/conf
+
+#nbq-dsg-backup02
+
+apprun@10.124.13.57 /opt/sector/conf
+
+#nbq-dsg-backup03
+
+# Will be used for experiments with 10G
+
+#apprun@10.124.13.78 /opt/sector/conf
