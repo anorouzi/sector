@@ -162,7 +162,7 @@ void SectorLog::insert_(const char* text, const int level)
    char ct[64];
    snprintf(ct, 64, "%s", ctime(&t));
    ct[strlen(ct) - 1] = '\0';
-   m_LogFile << ct << "\t" << text << endl;
+   m_LogFile << ct << "\t" << "LEVEL: " << level << "\t" << text << endl;
    m_LogFile.flush();
 }
 

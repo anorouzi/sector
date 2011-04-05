@@ -10,7 +10,7 @@ void help()
 
 int main(int argc, char** argv)
 {
-   cout << SectorVersion << endl;
+   cout << SectorVersionString << endl;
 
    SlaveConf global_conf;
 

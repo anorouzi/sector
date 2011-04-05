@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 10/10/2010
+   Yunhong Gu, last updated 04/05/2011
 *****************************************************************************/
 
 
@@ -44,7 +44,8 @@ written by
 #endif
 
 
-const std::string SectorVersion = "Sector version 2.6 build 04/01/2011.";
+const int32_t SectorVersion = 2006031; // FORMAT 3-digit Major 3-digit Minor 3-digit revision
+const std::string SectorVersionString = "Sector version 2.6 build 04/05/2011.";
 
 
 struct Address

@@ -236,6 +236,10 @@ int Master::join(const char* ip, const int& port)
       return -1;
    }
 
+   // send version number first
+   s.send((char*)&SectorVersion, 4);
+
+   // master join command type = 3;
    int cmd = 3;
    s.send((char*)&cmd, 4);
    int32_t key = -1;
@@ -570,6 +574,24 @@ int Master::stop()
       //int port = p->port;
       delete p;
 
+      int32_t version;
+      if (s->recv((char*)&version, 4) < 0)
+      {
+         s->close();
+         delete s;
+         continue;
+      }
+
+      if (version != SectorVersion)
+      {
+         // TODO: more advanced version check, currently they must be the same
+         int32_t res = SectorError::E_VERSION;
+         s->send((char*)&res, 4);
+         s->close();
+         delete s;
+         continue;
+      }
+
       int32_t cmd;
       if (s->recv((char*)&cmd, 4) < 0)
       {
@@ -585,7 +607,8 @@ int Master::stop()
          secconn.open(NULL, 0);
          if (secconn.connect(self->m_SysConfig.m_strSecServIP.c_str(), self->m_SysConfig.m_iSecServPort) < 0)
          {
-            cmd = SectorError::E_NOSECSERV;
+            int32_t res = SectorError::E_NOSECSERV;
+            s->send((char*)&res, 4);
             s->close();
             delete s;
             continue;
@@ -633,7 +656,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       delete [] tmp;
    }
 
-   int32_t res = -1;
+   int32_t res = SectorError::E_SECURITY;
    char slaveIP[64];
    strcpy(slaveIP, ip.c_str());
    secconn.send(slaveIP, 64);
@@ -815,7 +838,7 @@ int Master::processUserJoin(SSLTransport& cliconn,
    strcpy(clientIP, ip.c_str());
    secconn.send(clientIP, 64);
 
-   int32_t key = -1;
+   int32_t key = SectorError::E_SECURITY;
    secconn.recv((char*)&key, 4);
 
    if ((key > 0) && (ukey > 0))
@@ -908,7 +931,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
    char masterIP[64];
    strcpy(masterIP, ip.c_str());
    secconn.send(masterIP, 64);
-   int32_t res = -1;
+   int32_t res = SectorError::E_SECURITY;
    secconn.recv((char*)&res, 4);
 
    if (res > 0)
@@ -2777,6 +2800,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
 
          // TODO:: optimize this process: if there are too many files, this scan may kill the master
+         under_replicated.clear();
+         over_replicated.clear();
          self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
 
          if (!under_replicated.empty())

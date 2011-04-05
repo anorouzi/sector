@@ -176,6 +176,10 @@ int Slave::connect()
          }
       }
 
+      // send in the version first
+      secconn.send((char*)&SectorVersion, 4);
+
+      // slave join command type = 1
       int32_t cmd = 1;
       secconn.send((char*)&cmd, 4);
 

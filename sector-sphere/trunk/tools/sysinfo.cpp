@@ -264,7 +264,7 @@ void help()
 
 int main(int argc, char** argv)
 {
-   cout << SectorVersion << endl;
+   cout << SectorVersionString << endl;
 
    Sector client;
    if (Utility::login(client) < 0)

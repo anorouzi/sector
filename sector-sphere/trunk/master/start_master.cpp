@@ -27,7 +27,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   cout << SectorVersion << endl;
+   cout << SectorVersionString << endl;
 
    Master m;
 

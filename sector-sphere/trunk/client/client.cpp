@@ -137,6 +137,10 @@ int Client::login(const string& username, const string& password, const char* ce
    if ((result = secconn.connect(m_strServerHost.c_str(), m_iServerPort)) < 0)
       return result;
 
+   // send in the client version first
+   secconn.send((char*)&SectorVersion, 4);
+
+   // client login type = 2
    int cmd = 2;
    secconn.send((char*)&cmd, 4);
 
@@ -152,8 +156,9 @@ int Client::login(const string& username, const string& password, const char* ce
    m_iKey = -1;
    secconn.recv((char*)&m_iKey, 4);
 
+   // Login error
    if (m_iKey < 0)
-      return SectorError::E_SECURITY;
+      return m_iKey;
 
    int32_t port = m_GMP.getPort();
    secconn.send((char*)&port, 4);
@@ -240,6 +245,10 @@ int Client::login(const string& serv_ip, const int& serv_port)
    if ((result = secconn.connect(serv_ip.c_str(), serv_port)) < 0)
       return result;
 
+   // send in the client version first
+   secconn.send((char*)&SectorVersion, 4);
+
+   // client connect type = 2
    int cmd = 2;
    secconn.send((char*)&cmd, 4);
 
