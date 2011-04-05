@@ -678,6 +678,9 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
 
 int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over)
 {
+   under.clear();
+   over.clear();
+
    RWGuard mg(m_MetaLock, RW_READ);
 
    vector<string> dir;
