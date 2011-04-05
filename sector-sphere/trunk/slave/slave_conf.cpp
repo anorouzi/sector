@@ -22,6 +22,10 @@ written by
 #include <slave.h>
 #include <iostream>
 
+#ifdef WIN32
+   #define atoll _atoi64
+#endif
+
 using namespace std;
 
 SlaveConf::SlaveConf():
@@ -84,11 +88,7 @@ int SlaveConf::init(const string& path)
       }
       else if ("MAX_DATA_SIZE" == param.m_strName)
       {
-#ifndef WIN32
          m_llMaxDataSize = atoll(param.m_vstrValue[0].c_str()) * 1024 * 1024;
-#else
-         m_llMaxDataSize = _atoi64(param.m_vstrValue[0].c_str()) * 1024 * 1024;
-#endif
       }
       else if ("MAX_SERVICE_INSTANCE" == param.m_strName)
          m_iMaxServiceNum = atoi(param.m_vstrValue[0].c_str());

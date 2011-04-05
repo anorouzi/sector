@@ -494,7 +494,7 @@ int LocalFS::stat(const string& path, SNode& sn)
 #ifndef WIN32
    sn.m_bIsDir = S_ISDIR(st.st_mode) ? true : false;
 #else
-   sn.m_bIsDir = _S_IFDIR(st.st_mode) ? true : false;
+   sn.m_bIsDir = (_S_IFDIR & st.st_mode) ? true : false;
 #endif
    sn.m_llTimeStamp = st.st_mtime;
    sn.m_llSize = st.st_size;

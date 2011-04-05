@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 04/04/2011
 *****************************************************************************/
 
 
@@ -29,7 +29,8 @@ written by
 #include <iostream>
 
 #ifdef WIN32
-#define snprintf sprintf_s
+   #define snprintf sprintf_s
+   #define pthread_self() GetCurrentThreadId()
 #endif
 
 using namespace std;
@@ -83,11 +84,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 {
    CGuardEx lg(m_LogLock);
 
-   #ifndef WIN32
    int key = pthread_self();
-   #else
-   int key = GetCurrentThreadId();
-   #endif
 
    if (tag.m_iTag == LogTag::START)
    {
@@ -112,11 +109,7 @@ SectorLog& SectorLog::operator<<(const std::string& message)
 {
    CGuardEx lg(m_LogLock);
 
-   #ifndef WIN32
    int key = pthread_self();
-   #else
-   int key = GetCurrentThreadId();
-   #endif
 
    map<int, LogString>::iterator i = m_mStoredString.find(key);
    if (i == m_mStoredString.end())
@@ -137,11 +130,7 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
 {
    CGuardEx lg(m_LogLock);
 
-   #ifndef WIN32
    int key = pthread_self();
-   #else
-   int key = GetCurrentThreadId();
-   #endif
 
    map<int, LogString>::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
@@ -183,19 +172,20 @@ void SectorLog::insert(const char* text, const int level)
    insert_(text, level);
 }
 
-void SectorLog::logUserActivity(const char* user, const char* ip, const char* cmd, const char* file, const int res, const char* info, const int level)
+void SectorLog::logUserActivity(const char* user, const int uid, const char* ip, const char* cmd, const char* file, const int res, const char* info, const int level)
 {
    if (level > m_iLevel)
       return;
 
-   int size = 128 + strlen(file);
-   char* text = new char[size];
-   if (res >= 0)
-      snprintf(text, size, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d  SLAVE: %s", user, ip, cmd, file, res, info);
-   else
-      snprintf(text, size, "user request => USER: %s  IP: %s  CMD: %s  FILE/DIR: %s  RESULT: %d", user, ip, cmd, file, res);
-   insert(text, level);
-   delete [] text;
+   stringstream buf;
+   buf << "user request => USER: " << user << " UID: " << uid << " IP: " << ip << " CMD: " << cmd;
+   if (NULL != file)
+      buf << " PATH: " << file;
+   buf << " RESULT: " << res;
+   if (NULL != info)
+      buf << " SLAVE: " << info;
+
+   insert(buf.str().c_str(), level);
 }
 
 void SectorLog::checkLogFile()

@@ -24,6 +24,7 @@ written by
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
+   #define pthread_self() GetCurrentThreadId()
 #endif
 #include <ssltransport.h>
 #include <tcptransport.h>
@@ -51,16 +52,12 @@ m_bActive(false),
 m_iID(0)
 {
    CGuard::createMutex(m_MasterSetLock);
-   CGuard::createMutex(m_KALock);
-   CGuard::createCond(m_KACond);
    CGuard::createMutex(m_IDLock);
 }
 
 Client::~Client()
 {
    CGuard::releaseMutex(m_MasterSetLock);
-   CGuard::releaseMutex(m_KALock);
-   CGuard::releaseCond(m_KACond);
    CGuard::releaseMutex(m_IDLock);
 }
 
@@ -303,15 +300,14 @@ int Client::close()
 {
    if (-- m_iCount == 0)
    {
-#ifndef WIN32
-      pthread_mutex_lock(&m_KALock);
+      m_KALock.acquire();
       m_bActive = false;
-      pthread_cond_signal(&m_KACond);
-      pthread_mutex_unlock(&m_KALock);
+      m_KACond.signal();
+      m_KALock.release();
+
+#ifndef WIN32
       pthread_join(m_KeepAlive, NULL);
 #else
-      m_bActive = false;
-      SetEvent(m_KACond);
       WaitForSingleObject(m_KeepAlive, INFINITE);
 #endif
 
@@ -690,22 +686,13 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
    Client* self = (Client*)param;
    int64_t last_heart_beat_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
+   srand(pthread_self());
 
    while (self->m_bActive)
    {
-#ifndef WIN32
-      timeval t;
-      gettimeofday(&t, NULL);
-      timespec ts;
-      ts.tv_sec  = t.tv_sec + 1;
-      ts.tv_nsec = t.tv_usec * 1000;
-
-      pthread_mutex_lock(&self->m_KALock);
-      pthread_cond_timedwait(&self->m_KACond, &self->m_KALock, &ts);
-      pthread_mutex_unlock(&self->m_KALock);
-#else
-      WaitForSingleObject(self->m_KACond, 1000);
-#endif
+      self->m_KALock.acquire();
+      self->m_KACond.wait(self->m_KALock, 1000);
+      self->m_KALock.release();
 
       if (!self->m_bActive)
          break;
@@ -722,16 +709,19 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
       CGuard::leaveCS(self->m_IDLock);
 
 
-      // send a heart beat to masters every 60 seconds
-      if (CTimer::getTime() - last_heart_beat_time < 60000000)
+      // send a heart beat to masters every 60 - 120 seconds
+      int offset = rand() % 60;
+      if (CTimer::getTime() - last_heart_beat_time < (60 + offset) * 1000000ULL)
          continue;
 
+      // make a copy of the master addresses because the RPC can take some time to complete and block other calls
       vector<Address> ml;
       CGuard::enterCS(self->m_MasterSetLock);
       for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
          ml.push_back(*i);
       CGuard::leaveCS(self->m_MasterSetLock);
 
+      // TODO: optimize with multi_rpc
       for (vector<Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
       {
          // send keep-alive msg to each logged in master
@@ -739,11 +729,16 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
          msg.setKey(self->m_iKey);
          msg.setType(6);
          msg.m_iDataLength = SectorMsg::m_iHdrSize;
-         self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
+         if ((self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
+         {
+            // if the master is down or restarted, remove it from the client
+            CGuard::enterCS(self->m_MasterSetLock);
+            self->m_sMasters.erase(*i);
+            CGuard::leaveCS(self->m_MasterSetLock);
+         }
       }
 
       last_heart_beat_time = CTimer::getTime();
-
 
       // clean broken connections, every hour
       if (CTimer::getTime() - last_gc_time > 3600000000LL)

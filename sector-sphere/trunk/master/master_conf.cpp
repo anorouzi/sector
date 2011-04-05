@@ -26,6 +26,7 @@ written by
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
+   #define atoll _atoi64
 #endif
 #include <master.h>
 #include <sstream>
@@ -103,6 +104,8 @@ int MasterConf::init(const string& path)
       else if ("SLAVE_TIMEOUT" == param.m_strName)
       {
          m_iSlaveTimeOut = atoi(param.m_vstrValue[0].c_str());
+
+         // slave reports every 30 - 60 seconds
          if (m_iSlaveTimeOut < 120)
             m_iSlaveTimeOut = 120;
       }
@@ -114,15 +117,15 @@ int MasterConf::init(const string& path)
       }
       else if ("SLAVE_MIN_DISK_SPACE" == param.m_strName)
       {
-#ifndef WIN32
          m_llSlaveMinDiskSpace = atoll(param.m_vstrValue[0].c_str()) * 1000000;
-#else
-         m_llSlaveMinDiskSpace = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
-#endif
       }
       else if ("CLIENT_TIMEOUT" == param.m_strName)
       {
          m_iClientTimeOut = atoi(param.m_vstrValue[0].c_str());
+
+         // client only sends heartbeat every 60 - 120 seconds, so this value cannot be too small
+         if (m_iClientTimeOut < 300)
+            m_iClientTimeOut = 300;
       }
       else if ("LOG_LEVEL" == param.m_strName)
       {

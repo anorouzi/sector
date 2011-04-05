@@ -1190,10 +1190,13 @@ DWORD WINAPI Slave::worker(LPVOID param)
 
    int64_t last_report_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
+   srand(pthread_self());
 
    while (self->m_bRunning)
    {
-      self->m_RunCond.wait(self->m_RunLock, 30000);
+      // report every 30 - 60 seconds
+      int wait_time = 30 + rand() % 30; // seconds
+      self->m_RunCond.wait(self->m_RunLock, wait_time * 1000);
 
       // report to master every half minute
       if (CTimer::getTime() - last_report_time < 30000000)

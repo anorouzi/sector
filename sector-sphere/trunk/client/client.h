@@ -133,9 +133,9 @@ private:
 
 protected: // the following are used for keeping alive with the masters
    bool m_bActive;
-   pthread_t m_KeepAlive;
-   pthread_cond_t m_KACond;
-   pthread_mutex_t m_KALock;
+   pthread_t m_KeepAlive;   
+   CCond m_KACond;
+   CMutex m_KALock;
 #ifndef WIN32
    static void* keepAlive(void*);
 #else

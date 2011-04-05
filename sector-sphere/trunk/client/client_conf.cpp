@@ -26,6 +26,10 @@ written by
 #include <sys/stat.h>
 #include <iostream>
 
+#ifdef WIN32
+   #define atoll _atoi64
+#endif
+
 using namespace std;
 
 ClientConf::ClientConf():
@@ -83,11 +87,7 @@ int ClientConf::init(const string& path)
       }
       else if ("MAX_CACHE_SIZE" == param.m_strName)
       {
-#ifndef WIN32
          m_llMaxCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
-#else
-         m_llMaxCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
-#endif
       }
       else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
       {
@@ -95,14 +95,12 @@ int ClientConf::init(const string& path)
       }
       else if ("MAX_READ_CACHE_SIZE" == param.m_strName)
       {
-#ifndef WIN32
          m_llMaxWriteCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
-#else
-         m_llMaxWriteCacheSize = _atoi64(param.m_vstrValue[0].c_str()) * 1000000;
-#endif
       }
       else
+      {
          cerr << "unrecongnized client.conf parameter: " << param.m_strName << endl;
+      }
    }
 
    parser.close();
