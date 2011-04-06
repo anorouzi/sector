@@ -41,14 +41,6 @@ public class SNode
      */
     private long size;
     /**
-     * Read lock flag.
-     */
-    private int readLock;
-    /**
-     * Write lock flag.
-     */
-    private int writeLock;
-    /**
      * IP address(es) of nodes where file is located.
      */
     private String[] locations;
@@ -123,42 +115,6 @@ public class SNode
      */
     public void setSize(long newSize) {
         this.size = newSize;
-    }
-
-    /**
-     * Get the value of the readLock field.
-     *
-     * @return The readLock value.
-     */
-    public int getReadLock() {
-        return readLock;
-    }
-
-    /**
-     * Set the value of the readLock value.
-     *
-     * @param newReadLock The new readLock value.
-     */
-    public void setReadLock(int newReadLock) {
-        this.readLock = newReadLock;
-    }
-
-    /**
-     * Get the value of the writeLock field.
-     *
-     * @return The writeLock value.
-     */
-    public int getWriteLock() {
-        return writeLock;
-    }
-
-    /**
-     * Set the value of the writeLock field.
-     *
-     * @param newWriteLock The new writeLock value.
-     */
-    public void setWriteLock(int newWriteLock) {
-        this.writeLock = newWriteLock;
     }
 
     /**

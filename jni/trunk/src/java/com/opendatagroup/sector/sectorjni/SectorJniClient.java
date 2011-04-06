@@ -40,7 +40,7 @@ public class SectorJniClient
                                           long clientPtr );
     private final static native SNode stat( String path, long clientPtr );
     private final static native SNode[] list( String path, long clientPtr );
-    private final static native long openFile( String filename, int mode );
+    private final static native long openFile( String filename, int mode, long clientPtr );
     private final static native int closeFile( long filehandle );
     private final static native byte[] read( long filehandle, long len );
     private final static native byte[] read( long filehandle,
@@ -56,8 +56,8 @@ public class SectorJniClient
                                            int pos );
     private final static native long tellg( long filehandle );    
     private final static native long tellp( long filehandle );
-    private final static native int upload( String src, String dest );
-    private final static native int download( String src, String dest );
+    private final static native int upload( String src, String dest, long clientPtr);
+    private final static native int download( String src, String dest, long clientPtr );
 
     // These are called from Sector Inoput/Output Channel only
     // Input channel
@@ -125,7 +125,7 @@ public class SectorJniClient
      */
     public int sectorInit( String host, int port )
     {
-        long clientPtr = init( host, port );
+        clientPtr = init( host, port );
         if( clientPtr == -1L ) {
             return( -1 );
         }
@@ -264,7 +264,7 @@ public class SectorJniClient
     public long sectorOpenFile( String filename, int mode )
         throws IOException
     {
-        long fileHandle = openFile( filename, mode );
+        long fileHandle = openFile( filename, mode, clientPtr );
         if( fileHandle == -1 ) {
             throw new IOException( "Error opening file " + filename +
                                    ", mode=" + mode );
@@ -394,7 +394,7 @@ public class SectorJniClient
      */
     public int sectorUpload( String src, String dest )
     {
-        return( upload( src, dest ) );
+        return( upload( src, dest, clientPtr ) );
     }
 
     /**
@@ -407,7 +407,7 @@ public class SectorJniClient
      */
     public int sectorDownload( String src, String dest )
     {
-        return( download( src, dest ) );
+        return( download( src, dest, clientPtr ) );
     }
 
     // Channel Methods

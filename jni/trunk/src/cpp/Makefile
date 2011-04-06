@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-CCFLAGS = -I$(SECTOR_HOME)/common -I$(SECTOR_HOME)/client -I$(SECTOR_HOME)/gmp -I$(SECTOR_HOME)/udt -I$(SECTOR_HOME)/security -I$(JDK_HOME)/include -I$(JDK_HOME)/include/linux
+CCFLAGS = -I$(SECTOR_HOME)/common -I$(SECTOR_HOME)/client -I$(SECTOR_HOME)/gmp -I$(SECTOR_HOME)/include -I$(SECTOR_HOME)/udt -I$(SECTOR_HOME)/security -I$(JDK_HOME)/include -I$(JDK_HOME)/include/linux
 
 LDFLAGS = -L$(SECTOR_HOME)/lib -lclient -lsecurity -lrpc -ludt -lcommon -lssl -lpthread -lstdc++
 

@@ -19,9 +19,9 @@
 #include <jni.h>
 #include <string>
 #include "com_opendatagroup_sector_sectorjni_SectorJniClient.h"
-#include "constant.h"
-#include "index.h"
-#include "fsclient.h"
+#include "sector.h"
+#include "sphere.h"
+#include "osportable.h"
 
 using std::cerr;
 using std::cout;
@@ -377,9 +377,11 @@ JNIEXPORT jlong JNICALL
 Java_com_opendatagroup_sector_sectorjni_SectorJniClient_openFile( JNIEnv* env,
                                                                   jclass jcls,
                                                                   jstring filename,
-                                                                  jint mode )
+                                                                  jint mode,
+                                                                  jlong cptr )
 {
-    SectorFile* f = new SectorFile();
+    Sector* sector = (Sector*)cptr;
+    SectorFile* f = sector->createSectorFile();
 
     string filestr = getStr( env, filename );
     if( filestr.empty() ) {
@@ -629,9 +631,11 @@ JNIEXPORT jint JNICALL
 Java_com_opendatagroup_sector_sectorjni_SectorJniClient_upload( JNIEnv* env,
                                                                 jclass jcls,
                                                                 jstring src,
-                                                                jstring dest )
+                                                                jstring dest,
+                                                                jlong cptr)
 {
-    SectorFile f;
+    Sector* sector = (Sector*)cptr;
+    SectorFile* f = sector->createSectorFile();
     int status = 0;
 
     string deststr = getStr( env, dest );
@@ -649,21 +653,21 @@ Java_com_opendatagroup_sector_sectorjni_SectorJniClient_upload( JNIEnv* env,
         return( -1 );
     }
     
-    status = f.open( deststr.c_str(), SF_MODE::WRITE );
+    status = f->open( deststr.c_str(), SF_MODE::WRITE );
     if( status < 0 ) {
         cerr << "SectorJniClient.upload(): error opening destination file " <<
             deststr << ", status=" << status << endl;
         return( status );
     }
     
-    status = f.upload( srcstr.c_str(), false );
+    status = f->upload( srcstr.c_str(), false );
     if( status < 0 ) {
         cerr << "SectorJniClient.upload(): error uploading file " <<
             srcstr << ", status=" << status << endl;
         return( status );
     }
 
-    f.close();
+    f->close();
 
     return( 0 );
 }
@@ -680,9 +684,11 @@ JNIEXPORT jint JNICALL
 Java_com_opendatagroup_sector_sectorjni_SectorJniClient_download( JNIEnv* env,
                                                                   jclass cls,
                                                                   jstring src,
-                                                                  jstring dest )
+                                                                  jstring dest,
+                                                                  jlong cptr)
 {
-    SectorFile f;
+    Sector* sector = (Sector*)cptr;
+    SectorFile* f = sector->createSectorFile();
     int status = 0;
     
     string deststr = getStr( env, dest );
@@ -700,21 +706,21 @@ Java_com_opendatagroup_sector_sectorjni_SectorJniClient_download( JNIEnv* env,
         return( -1 );
     }
 
-    status = f.open( srcstr.c_str(), SF_MODE::READ );
+    status = f->open( srcstr.c_str(), SF_MODE::READ );
     if( status < 0 ) {
         cerr << "SectorJniClient.download(): error opening source file " <<
             srcstr << ", status=" << status << endl;
         return( status );
     }
 
-    status = f.download( deststr.c_str() );
+    status = f->download( deststr.c_str() );
     if( status < 0 ) {
         cerr << "SectorJniClient.download(): error downloading file " <<
             srcstr << ", status=" << status << endl;
         return( status );
     }
 
-    f.close();
+    f->close();
 
     return( 0 );
 }
@@ -808,24 +814,6 @@ jobject createSNode( JNIEnv* env, jclass snodeCls, SNode cppSNode  )
         return( NULL );
     }
     env->SetLongField( obj, fid, cppSNode.m_llTimeStamp );
-
-    fid = env->GetFieldID( snodeCls, "readLock", INT_TYPE );
-    if( fid == NULL ) {
-        cerr <<
-            "SectorJniClient.createSNode(): Error getting readlock field" <<
-            endl;
-        return( NULL );
-    }
-    env->SetIntField( obj, fid, cppSNode.m_iReadLock );
-
-    fid = env->GetFieldID( snodeCls, "writeLock", INT_TYPE );
-    if( fid == NULL ) {
-        cerr <<
-            "SectorJniClient.createSNode(): Error getting writelock field" <<
-            endl;
-        return( NULL );
-    }
-    env->SetIntField( obj, fid, cppSNode.m_iWriteLock );
 
     fid = env->GetFieldID( snodeCls, "locations", "[Ljava/lang/String;" );
     if( fid == NULL ) {
