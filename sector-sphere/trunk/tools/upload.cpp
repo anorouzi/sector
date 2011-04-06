@@ -114,13 +114,13 @@ int getFileList(const string& path, vector<string>& fl)
    fl.push_back(path);
 
    SNode s;
-   if (LocalFS::stat(path.c_str(), s) < 0)
+   if (LocalFS::stat(path, s) < 0)
       return -1;
 
    if (s.m_bIsDir)
    {
       // if there is a ".nosplit" file, must upload this file the first in the directory, subsequent files will be uploaded to the same node
-      if (LocalFS::stat((path + "/.nosplit").c_str(), s) > 0)
+      if (LocalFS::stat(path + "/.nosplit", s) > 0)
          fl.push_back(path + "/.nosplit");
 
       vector<SNode> curr_fl;
@@ -226,7 +226,7 @@ int main(int argc, char** argv)
       if (!wc)
       {
          SNode s;
-         if (LocalFS::stat(i->c_str(), s) < 0)
+         if (LocalFS::stat(*i, s) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
             return -1;
@@ -295,7 +295,7 @@ int main(int argc, char** argv)
             dst = newdir + "/" + dst;
 
          SNode s;
-         if (LocalFS::stat(i->c_str(), s) < 0)
+         if (LocalFS::stat(*i, s) < 0)
             continue;
 
          if (s.m_bIsDir)

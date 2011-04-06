@@ -129,7 +129,7 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
 int getFileList(const string& path, vector<string>& fl, Sector& client)
 {
    SNode attr;
-   if (client.stat(path.c_str(), attr) < 0)
+   if (client.stat(path, attr) < 0)
       return -1;
 
    fl.push_back(path);
@@ -190,7 +190,7 @@ int main(int argc, char** argv)
 
    // check destination directory, which must exist
    SNode s;
-   int r = LocalFS::stat(newdir.c_str(), s);
+   int r = LocalFS::stat(newdir, s);
    if ((r < 0) || !s.m_bIsDir)
    {
       cerr << "ERROR: destination directory does not exist.\n";
@@ -268,7 +268,7 @@ int main(int argc, char** argv)
          string localdir = dst.substr(0, dst.rfind('/'));
 
          // if localdir does not exist, create it
-         if (LocalFS::stat(localdir.c_str(), s) < 0)
+         if (LocalFS::stat(localdir, s) < 0)
          {
             for (unsigned int p = 1; p < localdir.length(); ++ p)
             {

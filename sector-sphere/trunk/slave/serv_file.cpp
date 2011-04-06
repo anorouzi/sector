@@ -98,7 +98,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       self->createDir(sname.substr(0, sname.rfind('/')));
 
       SNode s;
-      if (LocalFS::stat(filename.c_str(), s) < 0)
+      if (LocalFS::stat(filename, s) < 0)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
@@ -464,7 +464,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    if (bWrite)
    {
       SNode s;
-      LocalFS::stat(filename.c_str(), s);
+      LocalFS::stat(filename, s);
       if (s.m_llTimeStamp != orig_timestamp)
          change = FileChangeType::FILE_UPDATE_WRITE;
    }

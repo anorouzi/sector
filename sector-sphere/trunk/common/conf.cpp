@@ -24,7 +24,7 @@ written by
    #include <arpa/inet.h>
    #include <unistd.h>
 #endif
-#include <iostream>
+#include <osportable.h>
 #include <string>
 #include <cstring>
 #include <cstdlib>
@@ -40,20 +40,19 @@ int ConfLocation::locate(string& loc)
 
    loc = "";
 
-   struct stat t;
-
    char* system_env = getenv("SECTOR_HOME");
    if (NULL != system_env)
       loc = system_env;
 
-   if (stat((loc + "/conf").c_str(), &t) == 0)
+   SNode s;
+   if (LocalFS::stat(loc + "/conf", s) == 0)
       return 0;
 
-   if (stat("../conf", &t) == 0)
+   if (LocalFS::stat("../conf", s) == 0)
    {
       loc = "../";
    }
-   else if (stat("/opt/sector/conf", &t) == 0)
+   else if (LocalFS::stat("/opt/sector/conf", s) == 0)
    {
       loc = "/opt/sector";
    }

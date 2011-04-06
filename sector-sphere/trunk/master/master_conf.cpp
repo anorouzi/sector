@@ -149,14 +149,14 @@ m_llTimeStamp(0)
 
 bool ReplicaConf::refresh(const string& path)
 {
-   struct stat s;
-   if (stat(path.c_str(), &s) < 0)
+   SNode s;
+   if (LocalFS::stat(path, s) < 0)
       return false;
 
-   if (s.st_mtime == m_llTimeStamp)
+   if (s.m_llTimeStamp == m_llTimeStamp)
       return false;
 
-   m_llTimeStamp = s.st_mtime;
+   m_llTimeStamp = s.m_llTimeStamp;
 
    ConfParser parser;
    Param param;

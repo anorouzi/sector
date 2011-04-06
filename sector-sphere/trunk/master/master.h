@@ -192,6 +192,7 @@ private:
 
 private:
    inline void reject(const std::string& ip, const int port, int id, int32_t code);
+   inline void logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level);
 
 private: // replication
 #ifndef WIN32

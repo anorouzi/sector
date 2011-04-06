@@ -405,7 +405,7 @@ DWORD WINAPI Slave::SPEHandler(LPVOID p)
       if (0 == unitrows)
       {
          SNode s;
-         LocalFS::stat((self->m_strHomeDir + datafile).c_str(), s);
+         LocalFS::stat(self->m_strHomeDir + datafile, s);
          int64_t filesize = s.m_llSize;
 
          input.m_pcUnit = block;
@@ -1059,8 +1059,8 @@ int Slave::acceptLibrary(const int& key, const string& ip, int port, int session
       char* path = new char[buflen];
       snprintf(path, buflen, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
 
-      struct stat s;
-      if (stat((string(path) + "/" + lib).c_str(), &s) < 0)
+      SNode s;
+      if (LocalFS::stat(string(path) + "/" + lib, s) < 0)
       {
          LocalFS::mkdir(path);
 

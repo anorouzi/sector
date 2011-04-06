@@ -777,13 +777,13 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
          {
             string left_file = tmp_meta_file.str() + ".left";
             branch->serialize("/", left_file);
-            struct stat st;
-            stat(left_file.c_str(), &st);
-            size = st.st_size;
+            SNode s;
+            LocalFS::stat(left_file, s);
+            size = s.m_llSize;
             slvconn.send((char*)&size, 4);
             if (size > 0)
                slvconn.sendfile(left_file.c_str(), 0, size);
-            LocalFS::rmdir(left_file);
+            LocalFS::erase(left_file);
 
             m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogEnd();
          }
@@ -988,9 +988,9 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       string metafile = m_strHomeDir + ".tmp/master_meta.dat";
       m_pMetadata->serialize("/", metafile);
 
-      struct stat st;
-      stat(metafile.c_str(), &st);
-      size = st.st_size;
+      SNode s;
+      LocalFS::stat(metafile, s);
+      size = s.m_llSize;
       mstconn.send((char*)&size, 4);
       mstconn.sendfile(metafile.c_str(), 0, size);
       LocalFS::erase(metafile);
@@ -1311,7 +1311,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          //TODO: send current users, current transactions
       }
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "sysinfo", NULL, 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "sysinfo", NULL, 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -1526,7 +1526,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "ls", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "ls", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1535,7 +1535,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!user->match(dir, rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "ls", dir.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "ls", dir.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1544,7 +1544,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (r < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "ls", dir.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "ls", dir.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1552,7 +1552,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!attr.m_bIsDir)
       {
          reject(ip, port, id, SectorError::E_NOTDIR);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "ls", dir.c_str(), SectorError::E_NOTDIR, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "ls", dir.c_str(), SectorError::E_NOTDIR, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1572,7 +1572,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "ls", dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "ls", dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -1582,7 +1582,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "stat", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "stat", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1591,7 +1591,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!user->match(path, rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "stat", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "stat", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1600,7 +1600,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (r < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "stat", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "stat", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1611,7 +1611,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "stat", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "stat", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -1621,7 +1621,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "mkdir", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "mkdir", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1630,7 +1630,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!user->match(path, rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "mkdir", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "mkdir", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1639,7 +1639,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
          // directory already exist
          reject(ip, port, id, SectorError::E_EXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "mkdir", path.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "mkdir", path.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1651,7 +1651,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (m_SlaveManager.chooseIONode(empty, SF_MODE::WRITE, addr, option) <= 0)
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "mkdir", path.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "mkdir", path.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1669,7 +1669,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "mkdir", path.c_str(), 0, addr.begin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+      logUserActivity(user, "mkdir", path.c_str(), 0, addr.begin()->m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
@@ -1688,7 +1688,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1696,13 +1696,13 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
       if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
       {
          reject(ip, port, id, SectorError::E_EXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1711,14 +1711,14 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((src == "/") || (!user->match(src.c_str(), rwx)))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
       rwx = SF_MODE::WRITE;
       if (!user->match(dst.c_str(), rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1731,13 +1731,13 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (rs < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
       if ((rt >= 0) && (!at.m_bIsDir))
       {
          reject(ip, port, id, SectorError::E_EXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1747,7 +1747,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (m_pMetadata->lock(src.c_str(), key, rwx) < 0)
       {
          reject(ip, port, id, SectorError::E_BUSY);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", src.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", src.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1794,7 +1794,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "move", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "move", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -1804,7 +1804,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "delete", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "delete", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1813,7 +1813,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((path == "/") || !user->match(path, rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "delete", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "delete", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1823,7 +1823,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (n < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "delete", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "delete", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
       else if (attr.m_bIsDir)
@@ -1833,7 +1833,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          {
             // directory not empty
             reject(ip, port, id, SectorError::E_NOEMPTY);
-            m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "delete", path.c_str(), SectorError::E_NOEMPTY, NULL, LogLevel::LEVEL_8);
+            logUserActivity(user, "delete", path.c_str(), SectorError::E_NOEMPTY, NULL, LogLevel::LEVEL_8);
             break;
          }
       }
@@ -1864,7 +1864,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "delete", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "delete", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -1879,7 +1879,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1888,7 +1888,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (m_pMetadata->lookup(src.c_str(), as) < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1896,7 +1896,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (as.m_llSize > (int64_t)m_SlaveManager.getTotalDiskSpace())
       {
          reject(ip, port, id, SectorError::E_NODISK);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", src.c_str(), SectorError::E_NODISK, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", src.c_str(), SectorError::E_NODISK, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1905,7 +1905,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((src == "/") || !user->match(src.c_str(), rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1929,7 +1929,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!user->match(dst.c_str(), rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1939,14 +1939,14 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((rt >= 0) && (!tmp.m_bIsDir))
       {
          reject(ip, port, id, SectorError::E_EXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
       if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1955,7 +1955,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          // destination file cannot exist, no overwite
 
          reject(ip, port, id, SectorError::E_EXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "copy", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1987,7 +1987,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       m_ReplicaCond.signal();
       m_ReplicaLock.release();
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "copy", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "copy", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -1997,7 +1997,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "utime", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "utime", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2006,7 +2006,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((path == "/") || !user->match(path, rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "utime", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "utime", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2014,7 +2014,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (m_pMetadata->lookup(path.c_str(), attr) < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "utime", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "utime", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2040,7 +2040,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "utime", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "utime", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -2064,7 +2064,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!m_Routing.match(path.c_str(), m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open file", path.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "open file", path.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2073,7 +2073,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (!user->match(path.c_str(), rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open file", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "open file", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2088,7 +2088,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          if (!(mode & SF_MODE::WRITE))
          {
             reject(ip, port, id, SectorError::E_NOEXIST);
-            m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open file", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+            logUserActivity(user, "open file", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
             break;
          }
 
@@ -2128,7 +2128,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          if (m_SlaveManager.chooseIONode(candidates, mode, addr, option, sn.m_iReplicaDist, &sn.m_viRestrictedLoc) <= 0)
          {
             reject(ip, port, id, SectorError::E_NODISK);
-            m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open file", path.c_str(), SectorError::E_NODISK, NULL, LogLevel::LEVEL_8);
+            logUserActivity(user, "open file", path.c_str(), SectorError::E_NODISK, NULL, LogLevel::LEVEL_8);
             break;
          }
 
@@ -2150,7 +2150,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          {
             // if this is a directory, cannot open it as a regular file
             reject(ip, port, id, SectorError::E_NOTFILE);
-            m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open file", path.c_str(), SectorError::E_NOTFILE, NULL, LogLevel::LEVEL_8);
+            logUserActivity(user, "open file", path.c_str(), SectorError::E_NOTFILE, NULL, LogLevel::LEVEL_8);
             break;
          }
 
@@ -2158,7 +2158,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          if (r < 0)
          {
             reject(ip, port, id, SectorError::E_BUSY);
-            m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open file", path.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
+            logUserActivity(user, "open file", path.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
             break;
          }
 
@@ -2217,7 +2217,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "open", path.c_str(), 0, addr.rbegin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+      logUserActivity(user, "open", path.c_str(), 0, addr.rbegin()->m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
@@ -2231,7 +2231,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((m_TransManager.retrieve(transid, t) < 0) || (key != t.m_iUserKey))
       {
          reject(ip, port, id, SectorError::E_SECURITY);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "re-open", NULL, SectorError::E_SECURITY, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "re-open", NULL, SectorError::E_SECURITY, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2240,7 +2240,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (attr.m_sLocation.size() <= 1)
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2264,7 +2264,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (addr.empty())
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2282,7 +2282,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if ((m_GMP.rpc(addr.begin()->m_strIP.c_str(), addr.begin()->m_iPort, msg, &response) < 0) || (response.getType() < 0))
       {
          reject(ip, port, id, SectorError::E_RESOURCE);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
       }
 
       m_TransManager.addSlave(transid, addr.begin()->m_iNodeID);
@@ -2296,7 +2296,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, addr.begin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+      logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, addr.begin()->m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
@@ -2320,7 +2320,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if (!user->m_bExec)
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "request SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "request SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2345,7 +2345,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if (notfound)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "request SPE", NULL, SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "request SPE", NULL, SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2359,7 +2359,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "request SPE", NULL, 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "request SPE", NULL, 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -2369,7 +2369,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if (!user->m_bExec)
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "locate SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "locate SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2391,7 +2391,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "locate SPE", NULL, 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "locate SPE", NULL, 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -2401,7 +2401,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if (!user->m_bExec)
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "start SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "start SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2425,7 +2425,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
          m_SlaveManager.decActTrans(slaveid);
 
          reject(ip, port, id, SectorError::E_RESOURCE);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "start SPE", NULL, SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "start SPE", NULL, SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2433,7 +2433,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "start SPE", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
+      logUserActivity(user, "start SPE", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
@@ -2446,7 +2446,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       if (!user->m_bExec || !user->match(path.c_str(), SF_MODE::WRITE))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "start Shuffler", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "start Shuffler", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2469,7 +2469,7 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
          m_SlaveManager.decActTrans(m_SlaveManager.getSlaveID(addr));
 
          reject(ip, port, id, SectorError::E_RESOURCE);
-         m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "start Shuffler", NULL, SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "start Shuffler", NULL, SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -2477,14 +2477,14 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 8;
       m_GMP.sendto(ip, port, id, msg);
 
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "start Shuffler", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
+      logUserActivity(user, "start Shuffler", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
 
    default:
       reject(ip, port, id, SectorError::E_UNKNOWN);
-      m_SectorLog.logUserActivity(user->m_strName.c_str(), key, ip.c_str(), "unknown", NULL, SectorError::E_UNKNOWN, NULL, LogLevel::LEVEL_7);
+      logUserActivity(user, "unknown", NULL, SectorError::E_UNKNOWN, NULL, LogLevel::LEVEL_7);
       return -1;
    }
 
@@ -3233,3 +3233,17 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
       cout << cmd << endl;
    #endif
 }
+
+void Master::logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level)
+{
+   stringstream buf;
+   buf << "user request => USER: " << user->m_strName << " UID: " << user->m_iKey << " IP: " << user->m_strIP << " CMD: " << cmd;
+   if (NULL != file)
+      buf << " PATH: " << file;
+   buf << " RESULT: " << res;
+   if (NULL != info)
+      buf << " SLAVE: " << info;
+
+   m_SectorLog.insert(buf.str().c_str(), level);
+}
+

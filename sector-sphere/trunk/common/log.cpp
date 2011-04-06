@@ -59,7 +59,7 @@ int SectorLog::init(const char* path)
    m_iDay = date.tm_mday;
 
    stringstream fn;
-   fn << date.tm_mon + 1 << "." << date.tm_mday << "." << date.tm_year + 1900 << ".log";
+   fn << date.tm_year + 1900 << "." << date.tm_mon + 1 << "." << date.tm_mday << ".log";
 
    m_LogFile.open((m_strLogPath + "/" + fn.str()).c_str(), ios::app);
 
@@ -172,22 +172,6 @@ void SectorLog::insert(const char* text, const int level)
    insert_(text, level);
 }
 
-void SectorLog::logUserActivity(const char* user, const int uid, const char* ip, const char* cmd, const char* file, const int res, const char* info, const int level)
-{
-   if (level > m_iLevel)
-      return;
-
-   stringstream buf;
-   buf << "user request => USER: " << user << " UID: " << uid << " IP: " << ip << " CMD: " << cmd;
-   if (NULL != file)
-      buf << " PATH: " << file;
-   buf << " RESULT: " << res;
-   if (NULL != info)
-      buf << " SLAVE: " << info;
-
-   insert(buf.str().c_str(), level);
-}
-
 void SectorLog::checkLogFile()
 {
    time_t t = time(NULL);
@@ -202,9 +186,9 @@ void SectorLog::checkLogFile()
 
    m_iDay = date.tm_mday;
 
-   char fn[32];
-   snprintf(fn, 32, "%d.%d.%d.log", date.tm_mon + 1, date.tm_mday, date.tm_year + 1900);
+   stringstream fn;
+   fn << date.tm_year + 1900 << "." << date.tm_mon + 1 << "." << date.tm_mday << ".log";
 
    m_LogFile.close();
-   m_LogFile.open((m_strLogPath + "/" + fn).c_str(), ios::app);
+   m_LogFile.open((m_strLogPath + "/" + fn.str()).c_str(), ios::app);
 }

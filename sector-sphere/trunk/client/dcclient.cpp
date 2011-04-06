@@ -202,13 +202,8 @@ DCClient::~DCClient()
 
 int DCClient::loadOperator(const char* library)
 {
-#ifndef WIN32
-   struct stat st;
-   if (::stat(library, &st) < 0)
-#else
-   struct _stat st;
-   if (_stat(library, &st) < 0)
-#endif
+   SNode s;
+   if (LocalFS::stat(library, s) < 0)
    {
       cerr << "loadOperator: no library found.\n";
       return SectorError::E_LOCALFILE;
@@ -231,7 +226,7 @@ int DCClient::loadOperator(const char* library)
    OP op;
    op.m_strLibrary = dir[dir.size() - 1];
    op.m_strLibPath = library;
-   op.m_iSize = st.st_size;
+   op.m_iSize = s.m_llSize;
    op.m_sUploaded.clear();
 
    m_mOP[op.m_strLibrary] = op;

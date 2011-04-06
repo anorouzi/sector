@@ -742,7 +742,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
    if (change > 0)
    {
       SNode s;
-      if (LocalFS::stat((m_strHomeDir + filename).c_str(), s) >= 0)
+      if (LocalFS::stat(m_strHomeDir + filename, s) >= 0)
       {
          filelist.push_back(filename);
 
@@ -785,7 +785,7 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
       for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
          SNode sn;
-         if (LocalFS::stat((m_strHomeDir + *i).c_str(), sn) < 0)
+         if (LocalFS::stat(m_strHomeDir + *i, sn) < 0)
             continue;
 
          // IMPORTANT: this name must be full path so that both local index and master index can be updated properly
