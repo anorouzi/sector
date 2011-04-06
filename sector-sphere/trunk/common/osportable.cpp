@@ -531,6 +531,12 @@ int LocalFS::get_dir_space(const string& path, int64_t& avail)
    struct statfs64 slavefs;
    statfs64(path.c_str(), &slavefs);
    avail = slavefs.f_bfree * slavefs.f_bsize;
+
+   // Linux's most popular file systems, EXT2/3 reserve 5% for root
+   // so we have to reduce the avilable disk space by 5%
+   // future version should have more advanced approach to determine avail
+   avail = avail * 95 / 100;
+
    return 0;
 #else
    ULARGE_INTEGER val;
