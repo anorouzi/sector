@@ -1060,15 +1060,16 @@ int Slave::acceptLibrary(const int& key, const string& ip, int port, int session
       snprintf(path, buflen, "%s/.sphere/%d", m_strHomeDir.c_str(), key);
 
       SNode s;
-      if (LocalFS::stat(string(path) + "/" + lib, s) < 0)
+      string lib_file = string(path) + "/" + lib;
+      if (LocalFS::stat(lib_file, s) < 0)
       {
          LocalFS::mkdir(path);
 
-         fstream ofs((string(path) + "/" + lib).c_str(), ios::out | ios::trunc | ios::binary);
+         fstream ofs(lib_file.c_str(), ios::out | ios::trunc | ios::binary);
          ofs.write(buf, size);
          ofs.close();
 
-         system((string("chmod +x ") + reviseSysCmdPath(path) + "/" + reviseSysCmdPath(lib)).c_str());
+         ::chmod(lib_file.c_str(), S_IRWXU);
       }
 
       delete [] lib;

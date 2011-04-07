@@ -73,7 +73,9 @@ int main(int argc, char** argv)
       system("rm -f master_node.*");
    }
    else
+   {
       return -1;
+   }
 
    return 0;
 }

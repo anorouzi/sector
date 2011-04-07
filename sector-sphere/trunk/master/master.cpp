@@ -1211,6 +1211,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          sn.m_sLocation.clear();
          sn.m_sLocation.insert(addr);
 
+         //TODO: add log here
+
          if (change == FileChangeType::FILE_UPDATE_WRITE)
          {
             // because there are multiple replicas, wait until all replicas are updated

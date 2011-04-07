@@ -178,10 +178,9 @@ public:
    static int clean_dir(const std::string& path);
    static int list_dir(const std::string& path, std::vector<SNode>& filelist);
    static int stat(const std::string& path, SNode& s);
+   static int rename(const std::string& src, const std::string& dst);
+   static int copy(const std::string& src, const std::string& dst);
    static int get_dir_space(const std::string& path, int64_t& avail);
-
-private:
-   static std::string reviseSysCmdPath(const std::string& path);
 };
 
 

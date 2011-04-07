@@ -589,11 +589,7 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          //copy to .tmp first, then move to real location
          self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
-
-         string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
-         string rsrc = self->reviseSysCmdPath(src_path);
-         string rdst = self->reviseSysCmdPath(dst_path);
-         system(("cp " + rhome + rsrc + " " + rhome + ".tmp/" + rdst).c_str()); 
+         LocalFS::copy(self->m_strHomeDir + src_path, self->m_strHomeDir + ".tmp" + dst_path);
       }
       else
       {
@@ -697,24 +693,21 @@ DWORD WINAPI Slave::copy(LPVOID p)
       }
    }
 
-   string rhome = self->reviseSysCmdPath(self->m_strHomeDir);
-   string rfile = self->reviseSysCmdPath(dst);
    if (success)
    {
       // move from temporary dir to the real dir when the copy is completed
       self->createDir(dst.substr(0, dst.rfind('/')));
-      system(("mv " + rhome + ".tmp" + rfile + " " + rhome + rfile).c_str());
+      LocalFS::rename(self->m_strHomeDir + ".tmp" + dst, self->m_strHomeDir + dst);
 
       // if the file has been modified during the replication, remove this replica
       int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
       if (self->report(master_ip, master_port, transid, dst, type) < 0)
-         LocalFS::erase(rhome + rfile);
+         LocalFS::erase(self->m_strHomeDir + dst);
    }
    else
    {
       // failed, remove all temporary files
-      system(("rm -rf " + rhome + ".tmp" + rfile).c_str());
-
+      LocalFS::erase(self->m_strHomeDir + ".tmp" + dst);
       self->report(master_ip, master_port, transid, "", +FileChangeType::FILE_UPDATE_NO);
    }
 

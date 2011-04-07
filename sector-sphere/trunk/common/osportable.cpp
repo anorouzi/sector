@@ -374,15 +374,8 @@ int LocalFS::mkdir(const string& path)
 
 int LocalFS::rmdir(const string& path)
 {
-   string cmd;
-
-#ifndef WIN32
-   cmd = "rm -rf " + reviseSysCmdPath(path);
-#else
-   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(path);
-#endif
-
-   system(cmd.c_str());
+   clean_dir(path);
+   erase(path);
 
    return 0;
 }
@@ -398,15 +391,25 @@ int LocalFS::erase(const string& filename)
 
 int LocalFS::clean_dir(const string& path)
 {
-   string cmd;
+   SNode s;
+   if (stat(path, s) < 0)
+      return -1;
 
-#ifndef WIN32
-   cmd = "rm -rf " + reviseSysCmdPath(path) + "/*";
-#else
-   cmd = string("rmdir /Q /S \"") + reviseSysCmdPath(path) + "/*";
-#endif
+   if (!s.m_bIsDir)
+   {
+      erase(path);
+      return 0;
+   }
 
-   system(cmd.c_str());
+   vector<SNode> filelist;
+   list_dir(path, filelist);
+
+   for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   {
+      string subdir = path + "/" + i->m_strName;
+      clean_dir(subdir);
+      erase(subdir);
+   }
 
    return 0;
 }
@@ -507,24 +510,6 @@ int LocalFS::stat(const string& path, SNode& sn)
    return 0;
 }
 
-string LocalFS::reviseSysCmdPath(const string& path)
-{
-   string rpath;
-
-#ifndef WIN32
-   for (const char *p = path.c_str(), *q = path.c_str() + path.length(); p != q; ++ p)
-   {
-      if ((*p == 32) || (*p == 34) || (*p == 38) || (*p == 39))
-         rpath.append(1, char(92));
-      rpath.append(1, *p);
-   }
-#else
-   rpath = path;
-#endif
-
-   return rpath;
-}
-
 int LocalFS::get_dir_space(const string& path, int64_t& avail)
 {
 #ifndef WIN32
@@ -538,4 +523,36 @@ int LocalFS::get_dir_space(const string& path, int64_t& avail)
    avail = val.QuadPart;
    return 0;
 #endif
+}
+
+int LocalFS::rename(const std::string& src, const std::string& dst)
+{
+   if (rename(src.c_str(), dst.c_str()) == 0)
+      return 0;
+
+   return -1;
+}
+
+int LocalFS::copy(const std::string& src, const std::string& dst)
+{
+   SNode s;
+   if (stat(src, s) < 0)
+      return -1;
+
+   fstream ifs(src.c_str(), ios::in | ios::binary);
+   fstream ofs(dst.c_str(), ios::in | ios::binary);
+
+   if (ifs.fail() || ofs.fail())
+      return -1;
+
+   // this routine is for small files only, not supposed to be used as general purpose
+   char* buf = new char[s.m_llSize];
+   ifs.read(buf, s.m_llSize);
+   ofs.write(buf, s.m_llSize);
+   delete [] buf;
+
+   ifs.close();
+   ofs.close();
+
+   return 0;
 }

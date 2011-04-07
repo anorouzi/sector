@@ -113,7 +113,13 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
    m_SectorLog.setLevel(m_SysConfig.m_iLogLevel);
 
    //copy permanent sphere libraries
-   system((string("cp ") + m_strBase + "/slave/sphere/*.so " + m_strHomeDir + "/.sphere/perm/").c_str());
+   vector<SNode> filelist;
+   LocalFS::list_dir(m_strBase + "/slave/sphere", filelist);
+   for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
+   {
+      // TODO: check dir and non-.so files
+      LocalFS::copy(m_strBase + "/slave/sphere/" + i->m_strName, m_strHomeDir + "/.sphere/perm/" + i->m_strName);
+   }
 
    cout << "scanning " << m_strHomeDir << endl;
    m_pLocalFile = new Index;
@@ -242,12 +248,8 @@ int Slave::connect()
          attic->list_r("/", fl);
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
          {
-            // remove it from local file system
-            string dst = ".attic/";
-            size_t p = i->rfind('/');
-            if (p != string::npos)
-               dst += i->substr(0, p);
-            move(*i, dst, "");
+            // move it from local file system
+            LocalFS::rename(m_strHomeDir + *i, m_strHomeDir + ".attic/" + *i);
 
             // remove it from the local metadata
             m_pLocalFile->remove(*i);
@@ -437,7 +439,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       newname = Metadata::revisePath(newname);
 
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
-      move(src, dst, newname);
+      LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname);
 
       m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogEnd();
 
@@ -450,9 +452,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       m_pLocalFile->remove(path, true);
 
       //TODO: removed files may be moved to .attic instead of removing immediately, thus users may be able to restore them
-
-      string sysrm = string("rm -rf ") + reviseSysCmdPath(m_strHomeDir) + reviseSysCmdPath(path);
-      system(sysrm.c_str());
+      LocalFS::rmdir(m_strHomeDir + path);
 
       m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file " << path << " is deleted." << LogEnd();
 
@@ -993,27 +993,6 @@ int Slave::createSysDir()
 
    return 0;
 }
-
-string Slave::reviseSysCmdPath(const string& path)
-{
-   string rpath;
-   for (const char *p = path.c_str(), *q = path.c_str() + path.length(); p != q; ++ p)
-   {
-      if ((*p == 32) || (*p == 34) || (*p == 38) || (*p == 39))
-         rpath.append(1, char(92));
-      rpath.append(1, *p);
-   }
-
-   return rpath;
-}
-
-int Slave::move(const string& src, const string& dst, const string& newname)
-{
-   createDir(dst);
-   system((string("mv -f ") + reviseSysCmdPath(m_strHomeDir + src) + " " + reviseSysCmdPath(m_strHomeDir + dst + newname)).c_str());
-   return 0;
-}
-
 
 void SlaveStat::init()
 {

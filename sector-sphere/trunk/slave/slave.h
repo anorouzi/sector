@@ -315,8 +315,6 @@ private: // SpaceDB operations
 private: // local FS operations
    int createDir(const std::string& path);
    int createSysDir();
-   std::string reviseSysCmdPath(const std::string& path);
-   int move(const std::string& src, const std::string& dst, const std::string& newname);
 
 private: // local FS status
    int report(const std::string& master_ip, const int& master_port, const int32_t& transid, const std::string& path, const int32_t& change = 0);
