@@ -59,6 +59,8 @@ public class SectorJniClient
     private final static native int upload( String src, String dest, long clientPtr);
     private final static native int download( String src, String dest, long clientPtr );
 
+    private final static native SysStat sysInfo(long clientPtr);
+    
     // These are called from Sector Inoput/Output Channel only
     // Input channel
     private final static native int channelRead( long fd, ByteBuffer buf,
@@ -410,6 +412,13 @@ public class SectorJniClient
         return( download( src, dest, clientPtr ) );
     }
 
+    /**
+     * @return System information of the whole sector system. Sector equivalent of the 'ls' command.
+     */
+    public SysStat sectorSysInfo() {
+        return ( sysInfo(clientPtr) );
+    }
+    
     // Channel Methods
 
     /**

@@ -38,6 +38,10 @@ using std::vector;
 
 inline string getStr( JNIEnv*, jstring );
 jobject createSNode( JNIEnv*, jclass, SNode  );
+jobject createMasterStat(JNIEnv* env, const SysStat::MasterStat& masterStat);
+jobject createSlaveStat(JNIEnv* env, const SysStat::SlaveStat& slaveStat);
+jobject createClusterStat(JNIEnv* env, const SysStat::ClusterStat& clusterStat);
+jobject createSysStat(JNIEnv* env, const SysStat& sysStat);
 
 /*
  * JNI uses field descriptors to represent Java field types. These are used
@@ -726,6 +730,31 @@ Java_com_opendatagroup_sector_sectorjni_SectorJniClient_download( JNIEnv* env,
 }
 
 /*
+ * Get Sector sys info.
+ */
+JNIEXPORT jobject JNICALL Java_com_opendatagroup_sector_sectorjni_SectorJniClient_sysInfo(
+                                                        JNIEnv * env,
+                                                        jclass cls,
+                                                        jlong cptr) 
+{
+    Sector* sector = (Sector*)cptr;
+    SysStat sysStat;
+
+    int result = sector->sysinfo(sysStat);
+    if( result < 0 ) {
+        cerr << "SectorJniClient.sysInfo(): error get sys info" << "result=" << result << endl;
+        return NULL;
+    }
+
+    jobject obj = createSysStat( env, sysStat);
+    if( obj == NULL ) {
+        return( NULL );
+    }
+
+    return( obj );
+}
+
+/*
  * Convert jstring in "src" to a C++ string. Returns an empty string if
  * memory allocation error occurs.
  */
@@ -840,6 +869,476 @@ jobject createSNode( JNIEnv* env, jclass snodeCls, SNode cppSNode  )
      env->SetObjectField( obj, fid, arr );
     
      return( obj );
+}
+
+/*
+ * Create Master Stat object 
+ */
+jobject createMasterStat(JNIEnv* env, const SysStat::MasterStat& masterStat) {
+    
+    // get MasterStat class
+    jclass cls = env->FindClass("com/opendatagroup/sector/sectorjni/MasterStat");
+    if(cls == NULL) {
+        cerr << "Failed to create MasterStat. MasterStat not found" << endl;
+        return NULL;
+    }
+
+    // get constructor
+    jmethodID constr = env->GetMethodID(cls, "<init>", VOID_TYPE);
+    if(constr == NULL) {
+        cerr << 
+            "Failed to create MasterStat, MasterStat constructor not found" << endl;
+        return NULL;
+    }
+
+    // create a new object
+    jobject obj = env->NewObject(cls, constr);
+    if(obj == NULL) {
+        cerr << 
+            "Failed to create MasterStat, calling constructor failed" << endl;
+        return NULL;
+    }
+
+    // Populate MasterStat fields:
+    jfieldID fid = env->GetFieldID( cls, "id", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createMasterStat(): Error getting id field" << endl;
+        return( NULL );
+    }
+    env->SetIntField(obj, fid, masterStat.m_iID);
+
+    fid = env->GetFieldID(cls, "ip", STRING_TYPE);
+    jstring ip = env->NewStringUTF( masterStat.m_strIP.c_str() );
+    if( ip == NULL ) {
+        cerr <<
+            "SectorJniClient.createMasterStat(): Error getting ip field" << endl;
+        return( NULL );
+    }
+    env->SetObjectField( obj, fid, ip);
+
+    fid = env->GetFieldID( cls, "port", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createMasterStat(): Error getting port field" << endl;
+        return( NULL );
+    }
+    env->SetIntField(obj, fid, masterStat.m_iPort);
+
+    return (obj);
+}
+
+/*
+ * Create Slave Stat object 
+ */
+jobject createSlaveStat(JNIEnv* env, const SysStat::SlaveStat& slaveStat) {
+    
+    // get SlaveStat class
+    jclass cls = env->FindClass("com/opendatagroup/sector/sectorjni/SlaveStat");
+    if(cls == NULL) {
+        cerr << "Failed to create SlaveStat. SlaveStat not found" << endl;
+        return NULL;
+    }
+
+    // get constructor
+    jmethodID constr = env->GetMethodID(cls, "<init>", VOID_TYPE);
+    if(constr == NULL) {
+        cerr << 
+            "Failed to create SlaveStat, SlaveStat constructor not found" << endl;
+        return NULL;
+    }
+
+    // create a new object
+    jobject obj = env->NewObject(cls, constr);
+    if(obj == NULL) {
+        cerr << 
+            "Failed to create SlaveStat, calling constructor failed" << endl;
+        return NULL;
+    }
+
+    // Populate SlaveStat fields:
+    jfieldID fid = env->GetFieldID( cls, "id", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting id field" << endl;
+        return( NULL );
+    }
+    env->SetIntField(obj, fid, slaveStat.m_iID);
+
+    fid = env->GetFieldID(cls, "ip", STRING_TYPE);
+    jstring ip = env->NewStringUTF( slaveStat.m_strIP.c_str() );
+    if( ip == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting ip field" << endl;
+        return( NULL );
+    }
+    env->SetObjectField( obj, fid, ip);
+
+    fid = env->GetFieldID( cls, "port", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting port field" << endl;
+        return( NULL );
+    }
+    env->SetIntField(obj, fid, slaveStat.m_iPort);
+    
+    fid = env->GetFieldID( cls, "lastUpdateTimestamp", TIMESTAMP_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting timestamp field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llTimeStamp );
+
+    fid = env->GetFieldID( cls, "totalDiskSpace", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting totalDiskSpace field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llAvailDiskSpace);
+
+    fid = env->GetFieldID( cls, "totalFileSize", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting totalFileSize field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llTotalFileSize);
+
+    fid = env->GetFieldID( cls, "currMemUsed", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting currMemUsed field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llCurrMemUsed);
+
+    fid = env->GetFieldID( cls, "currCpuUsed", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting currCpuUsed field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llCurrCPUUsed);
+
+    fid = env->GetFieldID( cls, "totalInputData", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting totalInputData field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llTotalInputData);
+
+    fid = env->GetFieldID( cls, "totalOutputData", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting totalOutputData field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, slaveStat.m_llTotalOutputData);
+
+    fid = env->GetFieldID(cls, "dataDir", STRING_TYPE);
+    jstring dataDir = env->NewStringUTF( slaveStat.m_strDataDir.c_str() );
+    if( dataDir == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting dataDir field" << endl;
+        return( NULL );
+    }
+    env->SetObjectField( obj, fid, dataDir);
+
+    fid = env->GetFieldID( cls, "clusterId", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting clusterId field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetIntField( obj, fid, slaveStat.m_iClusterID);
+
+    fid = env->GetFieldID( cls, "status", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSlaveStat(): Error getting status field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetIntField( obj, fid, slaveStat.m_iStatus);
+
+    return (obj);
+}
+
+/*
+ * Create Cluster Stat object 
+ */
+jobject createClusterStat(JNIEnv* env, const SysStat::ClusterStat& clusterStat) {
+    
+    // get ClusterStat class
+    jclass cls = env->FindClass("com/opendatagroup/sector/sectorjni/ClusterStat");
+    if(cls == NULL) {
+        cerr << "Failed to create ClusterStat. ClusterStat not found" << endl;
+        return NULL;
+    }
+
+    // get constructor
+    jmethodID constr = env->GetMethodID(cls, "<init>", VOID_TYPE);
+    if(constr == NULL) {
+        cerr << 
+            "Failed to create ClusterStat, ClusterStat constructor not found" << endl;
+        return NULL;
+    }
+
+    // create a new object
+    jobject obj = env->NewObject(cls, constr);
+    if(obj == NULL) {
+        cerr << 
+            "Failed to create ClusterStat, calling constructor failed" << endl;
+        return NULL;
+    }
+
+    // Populate MasterStat fields:
+    jfieldID fid = env->GetFieldID( cls, "id", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createClusterStat(): Error getting id field" << endl;
+        return( NULL );
+    }
+    env->SetIntField(obj, fid, clusterStat.m_iClusterID);
+
+    fid = env->GetFieldID( cls, "totalNodes", INT_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createClusterStat(): Error getting totalNodes field" << endl;
+        return( NULL );
+    }
+    env->SetIntField(obj, fid, clusterStat.m_iTotalNodes);
+
+    fid = env->GetFieldID( cls, "totalDiskSpace", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createClusterStat(): Error getting totalDiskSpace field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, clusterStat.m_llAvailDiskSpace);
+
+    fid = env->GetFieldID( cls, "totalFileSize", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createClusterStat(): Error getting totalFileSize field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, clusterStat.m_llTotalFileSize);
+
+    fid = env->GetFieldID( cls, "totalInputData", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createClusterStat(): Error getting totalInputData field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, clusterStat.m_llTotalInputData);
+
+    fid = env->GetFieldID( cls, "totalOutputData", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createClusterStat(): Error getting totalOutputData field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, clusterStat.m_llTotalOutputData);
+
+    return (obj);
+}
+
+/*
+ * Create SysStat object 
+ */
+jobject createSysStat(JNIEnv* env, const SysStat& sysStat) {
+    // master stat array    
+    jobjectArray masterStats;
+
+    // slave stat array
+    jobjectArray slaveStats;
+
+    // cluster stat array
+    jobjectArray clusterStats;
+
+    // get SysStat class
+    jclass cls = env->FindClass("com/opendatagroup/sector/sectorjni/SysStat");
+    if(cls == NULL) {
+        cerr << "Failed to create SysStat. SysStat not found" << endl;
+        return NULL;
+    }
+
+    // get constructor
+    jmethodID constr = env->GetMethodID(cls, "<init>", VOID_TYPE);
+    if(constr == NULL) {
+        cerr << 
+            "Failed to create SysStat, SysStat constructor not found" << endl;
+        return NULL;
+    }
+
+    // create a new object
+    jobject obj = env->NewObject(cls, constr);
+    if(obj == NULL) {
+        cerr << 
+            "Failed to create SysStat, calling constructor failed" << endl;
+        return NULL;
+    }
+
+    // Populate SysStat fields:
+    jfieldID fid = env->GetFieldID( cls, "startTime", TIMESTAMP_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting id field" << endl;
+        return( NULL );
+    }
+    env->SetLongField(obj, fid, sysStat.m_llStartTime);
+
+    fid = env->GetFieldID( cls, "startTime", TIMESTAMP_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting id field" << endl;
+        return( NULL );
+    }
+    env->SetLongField(obj, fid, sysStat.m_llStartTime);
+
+    fid = env->GetFieldID( cls, "totalDiskSpace", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting totalDiskSpace field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, sysStat.m_llAvailDiskSpace);
+
+    fid = env->GetFieldID( cls, "totalFileSize", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting totalFileSize field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, sysStat.m_llTotalFileSize);
+
+    fid = env->GetFieldID( cls, "totalFileNum", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting totalFileNum field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, sysStat.m_llTotalFileNum);
+
+    fid = env->GetFieldID( cls, "underReplicated", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting underReplicated field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, sysStat.m_llUnderReplicated);
+
+    fid = env->GetFieldID( cls, "totalSlavesNum", LONG_TYPE );
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting totalSlavesNu field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetLongField( obj, fid, sysStat.m_llTotalSlaves);
+
+    //Master nodes array
+    jclass masterStatClazz = env->FindClass( "com/opendatagroup/sector/sectorjni/MasterStat" );
+    if( masterStatClazz == NULL ) {
+        cerr << "SectorJniClient.createSysStat(): Could not find MasterStat class" << endl;
+        return( NULL );
+    }
+    masterStats = env->NewObjectArray(sysStat.m_vMasterList.size(), masterStatClazz, NULL );
+    for( vector<SysStat::MasterStat>::size_type i = 0; i < sysStat.m_vMasterList.size(); i++ ) {
+
+        SysStat::MasterStat ms = sysStat.m_vMasterList[i];
+        jobject obj = createMasterStat( env, ms);
+        if( obj == NULL ) {
+            cerr << "SectorJniClient.createSysStat(): Could not create MasterStat object" << endl;
+            return( NULL );
+        }
+
+        env->SetObjectArrayElement( masterStats, i, obj );
+    }
+    fid = env->GetFieldID(cls, "masterList", "[Lcom/opendatagroup/sector/sectorjni/MasterStat;");
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting masterList field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetObjectField( obj, fid, masterStats);
+
+    //Slave nodes array
+    jclass slaveStatClazz = env->FindClass( "com/opendatagroup/sector/sectorjni/SlaveStat" );
+    if( slaveStatClazz == NULL ) {
+        cerr << "SectorJniClient.createSysStat(): Could not find SlaveStat class" << endl;
+        return( NULL );
+    }
+    slaveStats = env->NewObjectArray(sysStat.m_vSlaveList.size(), slaveStatClazz, NULL );
+    for( vector<SysStat::SlaveStat>::size_type i = 0; i < sysStat.m_vSlaveList.size(); i++ ) {
+
+        SysStat::SlaveStat ss = sysStat.m_vSlaveList[i];
+        jobject obj = createSlaveStat(env, ss);
+        if( obj == NULL ) {
+            cerr << "SectorJniClient.createSysStat(): Could not create SlaveStat object" << endl;
+            return( NULL );
+        }
+
+        env->SetObjectArrayElement( slaveStats, i, obj );
+    }
+    fid = env->GetFieldID(cls, "slaveList", "[Lcom/opendatagroup/sector/sectorjni/SlaveStat;");
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting slaveList field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetObjectField( obj, fid, slaveStats);
+
+    //Clusters array
+    jclass clusterStatClazz = env->FindClass( "com/opendatagroup/sector/sectorjni/ClusterStat" );
+    if( clusterStatClazz == NULL ) {
+        cerr << "SectorJniClient.createSysStat(): Could not find ClusterStat class" << endl;
+        return( NULL );
+    }
+    clusterStats = env->NewObjectArray(sysStat.m_vCluster.size(), clusterStatClazz, NULL );
+    for( vector<SysStat::ClusterStat>::size_type i = 0; i < sysStat.m_vCluster.size(); i++ ) {
+
+        SysStat::ClusterStat cs = sysStat.m_vCluster[i];
+        jobject obj = createClusterStat(env, cs);
+        if( obj == NULL ) {
+            cerr << "SectorJniClient.createSysStat(): Could not create ClusterStat object" << endl;
+            return( NULL );
+        }
+
+        env->SetObjectArrayElement( clusterStats, i, obj );
+    }
+    fid = env->GetFieldID(cls, "clusterList", "[Lcom/opendatagroup/sector/sectorjni/ClusterStat;");
+    if( fid == NULL ) {
+        cerr <<
+            "SectorJniClient.createSysStat(): Error getting clusterList field" <<
+            endl;
+        return( NULL );
+    }
+    env->SetObjectField( obj, fid, clusterStats);
+   
+    return ( obj );
 }
 
 // Channel Methods
