@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/20/2011
+   Yunhong Gu, last updated 04/08/2011
 *****************************************************************************/
 
 
@@ -642,6 +642,11 @@ int FSClient::close()
 
    CGuard fg(m_FileLock);
 
+   // if file is updated locally, it must be closed BEFORE the slave file is closed
+   // otherwise the slave may not have up-to-date file info to report
+   if (m_bReadLocal || m_bWriteLocal)
+      m_LocalFile.close();
+
    flush_();
 
    for (vector<Address>::iterator i = m_vReplicaAddress.begin(); i != m_vReplicaAddress.end(); ++ i)
@@ -667,7 +672,6 @@ int FSClient::close()
    m_bReadLocal = false;
    m_bWriteLocal = false;
    m_strLocalPath = "";
-   m_LocalFile.close();
    m_llLastFlushTime = 0;
    m_bOpened = false;
 

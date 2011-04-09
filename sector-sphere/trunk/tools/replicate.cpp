@@ -180,10 +180,15 @@ int main(int argc, char** argv)
             if ((result = client.copy(*i, *i)) < 0)
             {
                Utility::print_error(result);
+
+               list<string>::iterator j = i;
+               ++ i;
+               filelist.erase(j);
+
                break;
             }
-            ++ i;
 
+            ++ i;
             new_total += diff;
          }
       }

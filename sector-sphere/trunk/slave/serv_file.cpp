@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/06/2011
+   Yunhong Gu, last updated 04/08/2011
 *****************************************************************************/
 
 
@@ -122,12 +122,12 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    else
       fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary | ios::trunc);
 
-   // a file session is successful one when the client issue a close() request
-   bool success = false;
+   // a file session is successful only if the client issue a close() request
+   bool success = true;
    bool run = true;
    int32_t cmd = 0;
 
-   while (!fhandle.fail() && run && self->m_bDiskHealth && self->m_bNetworkHealth)
+   while (run)
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
          break;
@@ -140,7 +140,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             int tmp = 8 * 2;
             if (self->m_DataChn.recv(client_ip, client_port, transid, param, tmp) < 0)
             {
-               run = false;
+               success = false;
                break;
             }
             int64_t offset = *(int64_t*)param;
@@ -148,13 +148,16 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             delete [] param;
 
             int32_t response = bRead ? 0 : -1;
+            if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+               response = -1;
+
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
                break;
             if (response == -1)
                break;
 
             if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset, size, encoder) < 0)
-               run = false;
+               success = false;
             else
                rb += size;
 
@@ -169,7 +172,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             if (!bWrite)
             {
                // if the client does not have write permission, disconnect it immediately
-               run = false;
+               success = false;
                break;
             }
 
@@ -229,11 +232,13 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             int64_t offset;
             if (self->m_DataChn.recv8(client_ip, client_port, transid, offset) < 0)
             {
-               run = false;
+               success = false;
                break;
             }
 
             int32_t response = bRead ? 0 : -1;
+            if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+               response = -1;
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
                break;
             if (response == -1)
@@ -253,7 +258,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                int64_t block = (tosend < unit) ? tosend : unit;
                if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset + sent, block, encoder) < 0)
                {
-                  run = false;
+                  success = false;
                   break;
                }
 
@@ -274,7 +279,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             if (!bWrite)
             {
                // if the client does not have write permission, disconnect it immediately
-               run = false;
+               success = false;
                break;
             }
 
@@ -282,12 +287,14 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             int64_t size;
             if (self->m_DataChn.recv8(client_ip, client_port, transid, size) < 0)
             {
-               run = false;
+               success = false;
                break;
             }
 
             //TODO: check available size
-            int32_t response = 1;
+            int32_t response = 0;
+            if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+               response = -1;
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
                break;
             if (response == -1)
@@ -308,7 +315,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
                if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, tmp_decoder) < 0)
                {
-                  run = false;
+                  success = false;
                   break;
                }
 
@@ -336,7 +343,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
       case 5: // end session
          // the file has been successfully closed
-         success = true;
          run = false;
          break;
 
@@ -346,6 +352,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
       case 7: // synchronize with the client, make sure write is correct
       {
+         //TODO: merge all three recv() to one
          int32_t size = 0;
          if (self->m_DataChn.recv4(client_ip, client_port, transid, size) < 0)
             break;
@@ -388,6 +395,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             break;
 
          int32_t response = bWrite ? 0 : -1;
+         if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+            response = -1;
          if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
             break;
          if (response == -1)
