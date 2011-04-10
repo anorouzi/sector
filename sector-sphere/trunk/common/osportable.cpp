@@ -383,9 +383,9 @@ int LocalFS::rmdir(const string& path)
 int LocalFS::erase(const string& filename)
 {
 #ifndef WIN32
-   return unlink(filename.c_str());
+   return ::unlink(filename.c_str());
 #else
-   return _unlink(filename.c_str());
+   return ::_unlink(filename.c_str());
 #endif
 }
 
@@ -480,11 +480,11 @@ int LocalFS::stat(const string& path, SNode& sn)
 {
 #ifndef WIN32
    struct stat64 st;
-   if (-1 == stat64(path.c_str(), &st))
+   if (-1 == ::stat64(path.c_str(), &st))
       return -1;
 #else
    struct _stat64 st;
-   if (-1 == _stat64(path.c_str(), &st))
+   if (-1 == ::_stat64(path.c_str(), &st))
       return -1;
 #endif
 
@@ -527,7 +527,7 @@ int LocalFS::get_dir_space(const string& path, int64_t& avail)
 
 int LocalFS::rename(const std::string& src, const std::string& dst)
 {
-   if (rename(src.c_str(), dst.c_str()) == 0)
+   if (::rename(src.c_str(), dst.c_str()) == 0)
       return 0;
 
    return -1;

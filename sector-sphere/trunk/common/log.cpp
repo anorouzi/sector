@@ -49,19 +49,11 @@ SectorLog::~SectorLog()
 int SectorLog::init(const char* path)
 {
    m_strLogPath = path;
-   time_t t = time(NULL);
-   tm date;
-#ifndef WIN32
-   gmtime_r(&t, &date);
-#else
-   gmtime_s(&date, &t);
-#endif
-   m_iDay = date.tm_mday;
 
-   stringstream fn;
-   fn << date.tm_year + 1900 << "." << date.tm_mon + 1 << "." << date.tm_mday << ".log";
+   string logfile;
+   getTodayLog(m_iDay, logfile);
 
-   m_LogFile.open((m_strLogPath + "/" + fn.str()).c_str(), ios::app);
+   m_LogFile.open((m_strLogPath + "/" + logfile).c_str(), ios::app);
 
    if (m_LogFile.bad() || m_LogFile.fail())
       return -1;
@@ -174,6 +166,21 @@ void SectorLog::insert(const char* text, const int level)
 
 void SectorLog::checkLogFile()
 {
+   int day;
+   string logfile;
+   getTodayLog(m_iDay, logfile);
+
+   if (day == m_iDay)
+      return;
+
+   m_iDay = day;
+
+   m_LogFile.close();
+   m_LogFile.open((m_strLogPath + "/" + logfile).c_str(), ios::app);
+}
+
+void SectorLog::getTodayLog(int& day, string& file)
+{
    time_t t = time(NULL);
    tm date;
 #ifndef WIN32
@@ -181,14 +188,19 @@ void SectorLog::checkLogFile()
 #else
    gmtime_s(&date, &t);
 #endif
-   if (date.tm_mday == m_iDay)
-      return;
 
-   m_iDay = date.tm_mday;
+   day = date.tm_mday;
 
    stringstream fn;
-   fn << date.tm_year + 1900 << "." << date.tm_mon + 1 << "." << date.tm_mday << ".log";
+   fn << date.tm_year + 1900 << ".";
+   if (date.tm_mon >= 9)
+      fn << date.tm_mon + 1 << ".";
+   else
+      fn << 0 << date.tm_mon + 1 << ".";
+   if (date.tm_mday >= 10)
+      fn << date.tm_mday << ".log";
+   else
+      fn << 0 << date.tm_mday << ".log";
 
-   m_LogFile.close();
-   m_LogFile.open((m_strLogPath + "/" + fn.str()).c_str(), ios::app);
+   file = fn.str();
 }

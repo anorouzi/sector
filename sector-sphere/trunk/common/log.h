@@ -96,6 +96,7 @@ public:
 private:
    void insert_(const char* text, const int level = 1);
    void checkLogFile();
+   void getTodayLog(int& day, std::string& file);
 
 private:
    int m_iLevel;
