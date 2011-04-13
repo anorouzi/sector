@@ -328,10 +328,10 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    if (!g_bConnected) return -1;
 
    pthread_mutex_lock(&m_OpenFileLock);
-   map<string, FileTracker*>::iterator i = m_mOpenFileList.find(path);
-   if (i != m_mOpenFileList.end())
+   map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
+   if (t != m_mOpenFileList.end())
    {
-      i->second->m_iCount ++;
+      t->second->m_iCount ++;
       pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
    }
@@ -359,13 +359,27 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       return translateErr(r);
    }
 
-   FileTracker* t = new FileTracker;
-   t->m_strName = path;
-   t->m_iCount = 1;
-   t->m_pHandle = f;
+   FileTracker* ft = new FileTracker;
+   ft->m_strName = path;
+   ft->m_iCount = 1;
+   ft->m_pHandle = f;
 
    pthread_mutex_lock(&m_OpenFileLock);
-   m_mOpenFileList[path] = t;
+   t = m_mOpenFileList.find(path);
+   if (t != m_mOpenFileList.end())
+   {
+      // another thread already opened the file 
+      // use the existing handle and release the current one
+      t->second->m_iCount ++;
+
+      ft->m_pHandle->close();
+      g_SectorClient.releaseSectorFile(ft->m_pHandle);
+      delete ft;
+   }
+   else
+   {
+      m_mOpenFileList[path] = ft;
+   }
    pthread_mutex_unlock(&m_OpenFileLock);
 
    return 0;
@@ -416,6 +430,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    if (!g_bConnected) return -1;
 
    pthread_mutex_lock(&m_OpenFileLock);
+
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
    {
@@ -423,26 +438,22 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
       return -EBADF;
    }
    t->second->m_iCount --;
-   int count = t->second->m_iCount;
-   SectorFile* h = t->second->m_pHandle;
-   pthread_mutex_unlock(&m_OpenFileLock);
 
-   if (count > 0)
+   if (t->second->m_iCount > 0)
+   {
+      pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
+   }
+
+   FileTracker* ft = t->second;
+   m_mOpenFileList.erase(t);
+
+   pthread_mutex_unlock(&m_OpenFileLock);
 
    // file close/release may take some time. so do it out of mutex protection
-   h->close();
-   g_SectorClient.releaseSectorFile(h);
-
-   // delete sector-fuse file handle
-   pthread_mutex_lock(&m_OpenFileLock);
-   t = m_mOpenFileList.find(path);
-   if (t != m_mOpenFileList.end())
-   {
-      delete t->second;
-      m_mOpenFileList.erase(t);
-   }
-   pthread_mutex_unlock(&m_OpenFileLock);
+   ft->m_pHandle->close();
+   g_SectorClient.releaseSectorFile(ft->m_pHandle);
+   delete ft;
 
    return 0;
 }
