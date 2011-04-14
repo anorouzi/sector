@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/08/2011
+   Yunhong Gu, last updated 04/14/2011
 *****************************************************************************/
 
 
@@ -65,7 +65,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    bool trunc = mode & 4;
    bool bSecure = mode & 16;
 
-   int orig_timestamp = -1;
+   bool m_bChange = false;
+
    int last_timestamp = 0;
 
    self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "connecting to " << client_ip << " " << client_port << " " << filename << LogEnd();
@@ -102,10 +103,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
-      }
-      else
-      {
-         orig_timestamp = s.m_llTimeStamp;
       }
    }
 
@@ -224,6 +221,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             // update write log
             writelog.insert(offset, size);
 
+            m_bChange = true;
+
             break;
          }
 
@@ -337,6 +336,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             // update write log
             writelog.insert(0, size);
+
+            m_bChange = true;
 
             break;
          }
@@ -469,14 +470,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    // report to master the task is completed
    // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
-   int change = FileChangeType::FILE_UPDATE_NO;
-   if (bWrite)
-   {
-      SNode s;
-      LocalFS::stat(filename, s);
-      if (s.m_llTimeStamp != orig_timestamp)
-         change = FileChangeType::FILE_UPDATE_WRITE;
-   }
+   int change = m_bChange ? FileChangeType::FILE_UPDATE_NO : FileChangeType::FILE_UPDATE_WRITE;
+
    self->report(master_ip, master_port, transid, sname, change);
 
    if (bSecure)

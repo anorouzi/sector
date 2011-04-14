@@ -1,5 +1,6 @@
 version 2.6
 
+add version check when slaves and clients login
 replication process improved, bug fixes
 improved Sector-FUSE locking, faster concurrent data access
 fix a bug in FSCache that uses wrong timestamps

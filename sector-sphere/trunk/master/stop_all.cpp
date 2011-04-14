@@ -30,7 +30,7 @@ using namespace std;
 
 void help()
 {
-   cout << "stop_all [-s slaves_list]" << endl;
+   cout << "stop_all [-s slaves_list] [--f(orce)]" << endl;
 }
 
 
@@ -44,6 +44,7 @@ int main(int argc, char** argv)
    }
 
    string slaves_list = sector_home + "/conf/slaves.list";
+   bool force = false;
 
    CmdLineParser clp;
    clp.parse(argc, argv);
@@ -57,15 +58,29 @@ int main(int argc, char** argv)
          return 0;
       }
    }
+   for (vector<string>::const_iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
+   {
+      if ((*i == "f") || (*i == "force"))
+         force = true;
+      else
+      {
+         help();
+         return 0;
+      }
+   }
 
    cout << "This will stop this master and all slave nodes by brutal forces. If you need a graceful shutdown, use ./tools/sector_shutdown.\n";
-   cout << "Do you want to continue? Y/N:";
-   char answer;
-   cin >> answer;
-   if ((answer != 'Y') && (answer != 'y'))
+
+   if (!force)
    {
-      cout << "aborted.\n";
-      return -1;
+      cout << "Do you want to continue? Y/N:";
+      char answer;
+      cin >> answer;
+      if ((answer != 'Y') && (answer != 'y'))
+      {
+         cout << "aborted.\n";
+         return -1;
+      }
    }
 
    system("killall -9 start_master");
