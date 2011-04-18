@@ -470,7 +470,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    // report to master the task is completed
    // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
-   int change = m_bChange ? +FileChangeType::FILE_UPDATE_NO : +FileChangeType::FILE_UPDATE_WRITE;
+   int change = m_bChange ? +FileChangeType::FILE_UPDATE_WRITE : +FileChangeType::FILE_UPDATE_NO;
 
    self->report(master_ip, master_port, transid, sname, change);
 
