@@ -83,7 +83,7 @@ public:
    ~CGMPMessage();
 
    int32_t& m_iType;		// 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
-   int32_t& m_iSession;
+   int32_t& m_iSession;		// GMP can support multiple channels/sessions
    int32_t& m_iID;		// message ID
    int32_t& m_iInfo;		//
 

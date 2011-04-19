@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
+Copyright (c) 2005 - 2011, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 07/05/2010
+   Yunhong Gu, last updated 04/19/2011
 *****************************************************************************/
 
 
@@ -169,34 +169,44 @@ int CGMP::init(const int& port)
    UDT::startup();
 
    if (port != 0)
-      m_iPort = port - 1;
+      m_iPort = port;
    else
       m_iPort = 0;
 
-   if ((m_UDTSocket.open(m_iPort, false, true) < 0) || (m_UDTSocket.listen() < 0))
+   addrinfo hints;
+   addrinfo* res;
+   memset(&hints, 0, sizeof(addrinfo));
+
+   hints.ai_flags = AI_PASSIVE;
+   hints.ai_family = AF_INET;
+   hints.ai_socktype = SOCK_DGRAM;
+
+   stringstream service;
+   service << port;
+
+   if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &res))
+      return -1;     
+
+   m_UDPSocket = ::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+   if (0 != ::bind(m_UDPSocket, res->ai_addr, res->ai_addrlen))
       return -1;
 
-   m_iUDTReusePort = m_iPort;
-
-   m_iPort ++;
-
-   sockaddr_in addr;
-   addr.sin_family = AF_INET;
-   addr.sin_port = htons(m_iPort);
-   addr.sin_addr.s_addr = INADDR_ANY;
-   memset(&(addr.sin_zero), '\0', 8);
-
-   m_UDPSocket = socket(AF_INET, SOCK_DGRAM, 0);
-   if (0 != ::bind(m_UDPSocket, (sockaddr *)&addr, sizeof(sockaddr_in)))
+   if (port == 0)
    {
-      perror("bind");
-      return -1;
+      // retrieve the UDP port if user doesn't specify one
+      ::getsockname(m_UDPSocket, res->ai_addr, res->ai_addrlen);
+      char portbuf[NI_MAXSERV];
+      ::getnameinfo(res->ai_addr, res->ai_addrlen, NULL, 0, portbuf, sizeof(portbuf), NI_NUMERICSERV);
+      m_iPort = atoi(portbuf);
    }
 
+   freeaddrinfo(res);
+
+   // recv() is timed, avoid infinite block
    timeval tv;
    tv.tv_sec = 0;
    tv.tv_usec = 10000;
-   setsockopt(m_UDPSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(timeval));
+   ::setsockopt(m_UDPSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(timeval));
 
    #ifndef WIN32
       pthread_create(&m_SndThread, NULL, sndHandler, this);
@@ -210,17 +220,15 @@ int CGMP::init(const int& port)
 
    m_bInit = true;
 
-   return 1;
+   return 0;
 }
 
 int CGMP::close()
 {
    if (!m_bInit)
-      return 1;
+      return 0;
 
    m_bClosed = true;
-
-   m_UDTSocket.close();
 
    #ifndef WIN32
       ::close(m_UDPSocket);
@@ -241,13 +249,9 @@ int CGMP::close()
       WaitForSingleObject(m_UDTRcvThread, INFINITE);
    #endif
 
-   #ifdef WIN32
-      WSACleanup();
-   #endif
-
    UDT::cleanup();
 
-   return 1;
+   return 0;
 }
 
 int CGMP::getPort()
@@ -259,8 +263,8 @@ int CGMP::sendto(const string& ip, const int& port, int32_t& id, const CUserMess
 {
    if (msg->m_iDataLength <= m_iMaxUDPMsgSize)
       return UDPsend(ip.c_str(), port, id, msg->m_pcBuffer, msg->m_iDataLength, true);
-   else
-      return UDTsend(ip.c_str(), port - 1, id, msg->m_pcBuffer, msg->m_iDataLength);
+
+   return UDTsend(ip.c_str(), port, id, msg->m_pcBuffer, msg->m_iDataLength);
 }
 
 int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable)
@@ -358,13 +362,11 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
    }
 
    // now UDT connection is ready, send data
-   CGMPMessage* msg = new CGMPMessage;
-   msg->pack(data, len, id);
-   id = msg->m_iID;
+   CGMPMessage msg;
+   msg.pack(data, len, id);
+   id = msg.m_iID;
+   int res = UDTsend(ip, port, &msg);
 
-   int res = UDTsend(ip, port, msg);
-
-   delete msg;
    return res;
 }
 
@@ -399,9 +401,9 @@ int CGMP::UDTCreate(UDTSOCKET& usock)
    hints.ai_socktype = SOCK_STREAM;
 
    // UDT uses GMP port - 1
-   char service[16];
-   sprintf(service, "%d", m_iPort - 1);
-   if (0 != getaddrinfo(NULL, service, &hints, &res))
+   stringstream service;
+   service << m_iUDTResusePort;
+   if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &res))
       return -1;
 
    usock = UDT::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
@@ -429,12 +431,13 @@ int CGMP::UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port)
    hints.ai_family = AF_INET;
    hints.ai_socktype = SOCK_STREAM;
 
-   char buffer[16];
-   sprintf(buffer, "%d", port);
-   if (0 != getaddrinfo(ip, buffer, &hints, &peer))
+   stringstream service;
+   service << port;
+   if (0 != getaddrinfo(ip, service.str().c_str(), &hints, &peer))
       return -1;
 
-   UDT::connect(usock, peer->ai_addr, peer->ai_addrlen);
+   if (UDT::ERROR == UDT::connect(usock, peer->ai_addr, peer->ai_addrlen))
+      return -1;
 
    freeaddrinfo(peer);
 
