@@ -1057,10 +1057,13 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    int n = dist_vec[dist][r];
 
    sn = m_mSlaveList[n];
+
+   /*
+   // choose node with least active transactions; disabled as this is dangerous to get certan nodes starved
    if (sn.m_iActiveTrans == 0)
       return 0;
 
-   // if the chose node already serves other transactions, choose the next one with minimum number of transactions
+   // if the chosen node already serves other transactions, choose the next one with minimum number of transactions
    for (int i = r + 1, max = r + dist_vec[dist].size(); i < max; ++ i)
    {
       int index = i % dist_vec[dist].size();
@@ -1072,6 +1075,7 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
             break;
       }
    }
+   */
 
    return 0;
 }

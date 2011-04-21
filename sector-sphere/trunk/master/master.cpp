@@ -365,9 +365,24 @@ int Master::run()
       m_UserManager.checkInactiveUsers(iu, m_SysConfig.m_iClientTimeOut);
       for (vector<User*>::iterator i = iu.begin(); i != iu.end(); ++ i)
       {
+         // release all transactions from this user
+         vector<int> trans;
+         m_TransManager.getUserTrans((*i)->m_iKey, trans);
+         for (vector<int>::iterator t = trans.begin(); t != trans.end(); ++ t)
+         {
+            Transaction x;
+            m_TransManager.retrieve(*t, x);
+            for (set<int>::iterator s = x.m_siSlaveID.begin(); s != x.m_siSlaveID.end(); ++ s)
+            {
+               m_SlaveManager.decActTrans(*s);
+               m_TransManager.updateSlave(*t, *s);
+            }
+         }
+
          m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << " timeout. Kicked out." << LogEnd();
          delete *i;
       }
+      iu.clear();
 
 
       if (m_Routing.getRouterID(m_iRouterKey) != 0)
@@ -2847,9 +2862,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       // start any replication jobs in queue
       while (true)
       {
-         // only create replica when the system is not busy
          // TODO: this should be further optimized
-         if (self->m_TransManager.getTotalTrans() + self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
+         if (self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
             break;
 
          ReplicaJob job;
