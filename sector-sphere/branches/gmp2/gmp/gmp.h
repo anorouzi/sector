@@ -36,6 +36,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*****************************************************************************
 written by
    Yunhong Gu, last updated 12/31/2010
+updated by
+   Brian Griffin, last updated 04/19/2011
 *****************************************************************************/
 
 
@@ -82,15 +84,15 @@ public:
    CGMPMessage(const CGMPMessage& msg);
    ~CGMPMessage();
 
+   int32_t m_piHeader[4];
    int32_t& m_iType;		// 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
-   int32_t& m_iSession;		// GMP can support multiple channels/sessions
+   int32_t& m_iSession;		// Used to differentiate GMP instances on the same address
+   //int32_t& m_iChannel;		// multiple channels for the same GMP instance
    int32_t& m_iID;		// message ID
    int32_t& m_iInfo;		//
 
    char* m_pcData;
    int m_iLength;
-
-   int32_t m_piHeader[4];
 
 public:
    void pack(const char* data, const int& len, const int32_t& info = 0);
@@ -156,6 +158,7 @@ private:
    int UDTCreate(UDTSOCKET& usock);
    int UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port);
    int UDTSend(const UDTSOCKET& usock, const char* buf, const int& size);
+   int UDTRecv(const UDTSOCKET& usock, const char* buf, const int& size);
 
 public:
    int sendto(const std::string& ip, const int& port, int32_t& id, const CUserMessage* msg);
