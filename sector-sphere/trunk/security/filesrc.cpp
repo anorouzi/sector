@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/16/2011
+   Yunhong Gu, last updated 04/24/2011
 *****************************************************************************/
 
 #ifndef WIN32
@@ -37,31 +37,40 @@ written by
 
 using namespace std;
 
+FileSrc::FileSrc():
+m_llLastUpdateTime(0)
+{
+}
+
 FileSrc::~FileSrc()
 {
 }
 
 int FileSrc::init(const void* param)
 {
-   string conf_location = string((char*)param) + "/conf/";
+   m_strConfLoc = string((char*)param) + "/conf/";
 
-   if (loadACL(m_vMasterACL, conf_location + "master_acl.conf") < 0)
+   if (loadACL(m_vMasterACL, m_strConfLoc + "master_acl.conf") < 0)
    {
       cerr << "WARNING: failed to read master ACL configuration file master_acl.conf. No masters would be able to join.\n";
       return -1;
    }
 
-   if (loadACL(m_vSlaveACL, conf_location + "slave_acl.conf") < 0)
+   if (loadACL(m_vSlaveACL, m_strConfLoc + "slave_acl.conf") < 0)
    {
       cerr << "WARNING: failed to read slave ACL configuration file slave_acl.conf. No slaves would be able to join.\n";
       return -1;
    }
 
-   if (loadUsers(m_mUsers, conf_location + "users") < 0)
+   if (loadUsers(m_mUsers, m_strConfLoc + "users") < 0)
    {
       cerr << "WARNING: no users account initialized.\n";
       return -1;
    }
+
+   SNode s;
+   LocalFS::stat(m_strConfLoc + "users", s);
+   m_llLastUpdateTime = s.m_llTimeStamp;
 
    return 0;
 }
@@ -294,6 +303,36 @@ int FileSrc::parseUser(User& user, const char* name, const char* ufile)
    }
 
    parser.close();
+
+   return 0;
+}
+
+bool FileSrc::isUpdated()
+{
+   // TODO: fix this, "users" timestamp won't change
+
+   SNode s;
+   LocalFS::stat(m_strConfLoc + "users", s);
+   if (m_llLastUpdateTime < s.m_llTimeStamp)
+      return true;
+
+   return false;
+}
+
+int FileSrc::refresh()
+{
+   if (loadACL(m_vMasterACL, m_strConfLoc + "master_acl.conf") < 0)
+      return -1;
+
+   if (loadACL(m_vSlaveACL, m_strConfLoc + "slave_acl.conf") < 0)
+      return -1;
+
+   if (loadUsers(m_mUsers, m_strConfLoc + "users") < 0)
+      return -1;
+
+   SNode s;
+   LocalFS::stat(m_strConfLoc + "users", s);
+   m_llLastUpdateTime = s.m_llTimeStamp;
 
    return 0;
 }

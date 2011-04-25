@@ -1,3 +1,7 @@
+version 2.7
+
+security server detect&deploy source update without restart
+
 version 2.6
 
 add version check when slaves and clients login

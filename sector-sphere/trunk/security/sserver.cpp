@@ -28,7 +28,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   cout << SectorVersion << endl;
+   cout << SectorVersionString << endl;
 
    SServer ss;
 
@@ -56,7 +56,7 @@ int main(int argc, char** argv)
 
    if (src->init(sector_home.c_str()) < 0)
    {
-      cerr << "Secuirty server failed to start. Please fix the problem.\n";
+      cerr << "Unable to locate any security source.\n";
       return -1;
    }
 

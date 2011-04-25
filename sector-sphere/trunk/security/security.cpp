@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 04/24/2011
 *****************************************************************************/
 
 #include "security.h"
@@ -162,6 +162,10 @@ int32_t SServer::generateKey()
       int32_t cmd;
       if (s->recv((char*)&cmd, 4) <= 0)
          goto EXIT;
+
+      // check if the security source has been updated (e.g., user account change)
+      if (self->m_pSecuritySource->isUpdated())
+         self->m_pSecuritySource->refresh();
 
       switch (cmd)
       {

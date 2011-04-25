@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 04/24/2011
 *****************************************************************************/
 
 
@@ -28,6 +28,7 @@ written by
 class FileSrc: public SSource
 {
 public:
+   FileSrc();
    virtual ~FileSrc();
 
    virtual int init(const void* param);
@@ -35,6 +36,9 @@ public:
    virtual bool matchMasterACL(const char* ip);
    virtual bool matchSlaveACL(const char* ip);
    virtual int retrieveUser(const char* name, const char* password, const char* ip, User& user);
+
+   virtual bool isUpdated();
+   virtual int refresh();
 
 private:
    bool match(const std::vector<IPRange>& acl, const char* ip);
@@ -49,6 +53,9 @@ private:
    std::vector<IPRange> m_vMasterACL;
    std::vector<IPRange> m_vSlaveACL;
    std::map<std::string, User> m_mUsers;
+
+   std::string m_strConfLoc;
+   int64_t m_llLastUpdateTime;
 };
 
 #endif

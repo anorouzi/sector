@@ -44,8 +44,10 @@ written by
 #endif
 
 
-const int32_t SectorVersion = 2006031; // FORMAT 3-digit Major 3-digit Minor 3-digit revision
-const std::string SectorVersionString = "Sector version 2.6 build 04/05/2011.";
+// Sector version. The digit version is for compatibility check, so it is the earliest compatible version number
+// FORMAT 3-digit Major 3-digit Minor 3-digit revision
+const int32_t SectorVersion = 2006031; 
+const std::string SectorVersionString = "Sector version 2.7 build 04/24/2011.";
 
 
 struct Address

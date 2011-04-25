@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/19/2010
+   Yunhong Gu, last updated 04/24/2011
 *****************************************************************************/
 
 #ifndef __SECURITY_H__
@@ -72,6 +72,9 @@ public:
    virtual bool matchMasterACL(const char* ip) = 0;
    virtual bool matchSlaveACL(const char* ip) = 0;
    virtual int retrieveUser(const char* name, const char* password, const char* ip, User& user) = 0;
+
+   virtual bool isUpdated() = 0;
+   virtual int refresh() = 0;
 };
 
 class SServer

@@ -405,7 +405,7 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    if (!m_bWrite)
       return SectorError::E_PERMISSION;
 
-   if (size > 0x7FFFFFF)
+   if (size > 0x7FFFFFFF)
       return SectorError::E_INVALID;
 
    CGuard fg(m_FileLock);
