@@ -65,7 +65,9 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    bool trunc = mode & 4;
    bool bSecure = mode & 16;
 
-   bool m_bChange = false;
+   int64_t orig_size = -1;
+   int64_t orig_ts = -1;
+   bool file_change = false;
 
    int last_timestamp = 0;
 
@@ -103,6 +105,11 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
+      }
+      else
+      {
+         orig_size = s.m_llSize;
+         orig_ts = s.m_llTimeStamp;
       }
    }
 
@@ -221,7 +228,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             // update write log
             writelog.insert(offset, size);
 
-            m_bChange = true;
+            file_change = true;
 
             break;
          }
@@ -337,7 +344,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             // update write log
             writelog.insert(0, size);
 
-            m_bChange = true;
+            file_change = true;
 
             break;
          }
@@ -470,7 +477,17 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    // report to master the task is completed
    // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
-   int change = m_bChange ? +FileChangeType::FILE_UPDATE_WRITE : +FileChangeType::FILE_UPDATE_NO;
+   if (bWrite)
+   {
+      // File update can be optimized outside Sector if the write is from local
+      // thus the slave will not be able to know if the file has been changed, unless it checks the content
+      // we check file size and timestamp here, but this is actually not enough, especially the time stamp granularity is too low
+      SNode s;
+      LocalFS::stat(filename, s);
+      if ((s.m_llSize != orig_size) && (s.m_llTimeStamp != orig_ts))
+         file_change = true;
+   }
+   int change = file_change ? +FileChangeType::FILE_UPDATE_WRITE : +FileChangeType::FILE_UPDATE_NO;
 
    self->report(master_ip, master_port, transid, sname, change);
 
