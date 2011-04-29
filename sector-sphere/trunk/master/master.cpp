@@ -415,6 +415,10 @@ int Master::run()
          addr.m_iPort = i->second.m_iPort;
          removeSlave(i->first, addr);
 
+         // if a slave is manually started, master may not know how to start it remotely
+         if (i->second.m_strAddr.empty())
+            continue;
+
          m_SectorLog.insert(("Restart slave " + i->second.m_strAddr + " " + i->second.m_strBase).c_str());
 
          SectorMsg newmsg;

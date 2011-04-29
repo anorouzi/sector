@@ -353,6 +353,7 @@ int SlaveStartInfo::parse(char* line, string& addr, string& base, string& param)
    if (*start == '\0')
       return 0;
 
+   // TODO: contionue to parse slave options
    param = start;
 
    return 0;
