@@ -202,7 +202,7 @@ int32_t SServer::generateKey()
          if (self->m_pSecuritySource->retrieveUser(user, password, ip, u) >= 0)
             key = self->generateKey();
          else
-            key = -1;
+            key = SectorError::E_SECURITY;
 
          if (s->send((char*)&key, 4) <= 0)
             goto EXIT;
