@@ -354,6 +354,31 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
       ctrl_msg.pack(3, m_iUDTReusePort);
       UDPsend(ip, port, &ctrl_msg);
 
+      CMsgRecord* rec = new CMsgRecord;
+      rec->m_strIP = ip;
+      rec->m_iPort = port;
+      rec->m_pMsg = &ctrl_msg;
+      rec->m_llTimeStamp = CTimer::getTime();
+
+      CGuard::enterCS(m_SndQueueLock);
+      m_lSndQueue.push_back(rec);
+      CGuard::leaveCS(m_SndQueueLock);
+
+      #ifndef WIN32
+         timeval now;
+         timespec timeout;
+         gettimeofday(&now, 0);
+         timeout.tv_sec = now.tv_sec + 1;
+         timeout.tv_nsec = now.tv_usec * 1000;
+         pthread_mutex_lock(&m_RTTLock);
+         pthread_cond_timedwait(&m_RTTCond, &m_RTTLock, &timeout);
+         pthread_mutex_unlock(&m_RTTLock);
+      #else
+         WaitForSingleObject(m_RTTCond, 1000);
+      #endif
+
+      // get UDT port
+
       if ((UDTCreate(usock) < 0) || (UDTConnect(usock, ip, port)) < 0)
          return -1;
 
@@ -620,7 +645,9 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
 
       for (vector<CMsgRecord*>::iterator i = udtsend.begin(); i != udtsend.end(); ++ i)
       {
-         self->UDTsend((*i)->m_strIP.c_str(), (*i)->m_iPort, (*i)->m_pMsg);
+         // use UDT for data only
+         if ((*i)->m_pMsg->m_piHeader[0] == 0)
+            self->UDTsend((*i)->m_strIP.c_str(), (*i)->m_iPort, (*i)->m_pMsg);
          delete (*i)->m_pMsg;
          delete (*i);
       }
@@ -736,9 +763,15 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             break;
 
          case 3: // rendezvous UDT connection request
+            // check existing UDT socket
+            // if not exist do asynchronous rendezvous connect
+            // insert to connection cache
+
             ack[2] = id;
             ack[3] = self->m_iUDTReusePort;
             ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
+
+            non-blocking connect, add to epoll
 
             break;
 
