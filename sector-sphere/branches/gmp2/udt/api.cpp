@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2010, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/28/2010
+   Yunhong Gu, last updated 03/07/2011
 *****************************************************************************/
 
 #ifdef WIN32
@@ -205,7 +205,7 @@ int CUDTUnited::startup()
       m_GCStopLock = CreateMutex(NULL, false, NULL);
       m_GCStopCond = CreateEvent(NULL, false, false, NULL);
       DWORD ThreadID;
-      m_GCThread = CreateThread(NULL, 0, garbageCollect, this, NULL, &ThreadID);
+      m_GCThread = CreateThread(NULL, 0, garbageCollect, this, 0, &ThreadID);
    #endif
 
    m_bGCStatus = true;
@@ -317,7 +317,7 @@ int CUDTUnited::newConnection(const UDTSOCKET listen, const sockaddr* peer, CHan
       return -1;
 
    // if this connection has already been processed
-   if (NULL != (ns = locate(listen, peer, hs->m_iID, hs->m_iISN)))
+   if (NULL != (ns = locate(peer, hs->m_iID, hs->m_iISN)))
    {
       if (ns->m_pUDT->m_bBroken)
       {
@@ -1073,10 +1073,10 @@ int CUDTUnited::epoll_remove_usock(const int eid, const UDTSOCKET u, const int* 
    {
       s->m_pUDT->removeEPoll(eid);
    }
-   else
-   {
-      throw CUDTException(5, 4);
-   }
+   //else
+   //{
+   //   throw CUDTException(5, 4);
+   //}
 
    return m_EPoll.remove_usock(eid, u, events);
 }
@@ -1108,7 +1108,7 @@ CUDTSocket* CUDTUnited::locate(const UDTSOCKET u)
    return i->second;
 }
 
-CUDTSocket* CUDTUnited::locate(const UDTSOCKET /*u*/, const sockaddr* peer, const UDTSOCKET& id, const int32_t& isn)
+CUDTSocket* CUDTUnited::locate(const sockaddr* peer, const UDTSOCKET& id, const int32_t& isn)
 {
    CGuard cg(m_ControlLock);
 
@@ -1179,10 +1179,19 @@ void CUDTUnited::checkBrokenSockets()
 
    for (map<UDTSOCKET, CUDTSocket*>::iterator j = m_ClosedSockets.begin(); j != m_ClosedSockets.end(); ++ j)
    {
-      // timeout 1 second to destroy a socket AND it has been removed from RcvUList AND no linger data to send
-      if ((CTimer::getTime() - j->second->m_TimeStamp > 1000000) && 
-          ((NULL == j->second->m_pUDT->m_pRNode) || !j->second->m_pUDT->m_pRNode->m_bOnList) &&
-          ((NULL == j->second->m_pUDT->m_pSndBuffer) || (0 == j->second->m_pUDT->m_pSndBuffer->getCurrBufSize()) || (j->second->m_pUDT->m_ullLingerExpiration <= CTimer::getTime())))
+      if (j->second->m_pUDT->m_ullLingerExpiration > 0)
+      {
+         // asynchronous close: 
+         if ((NULL == j->second->m_pUDT->m_pSndBuffer) || (0 == j->second->m_pUDT->m_pSndBuffer->getCurrBufSize()) || (j->second->m_pUDT->m_ullLingerExpiration <= CTimer::getTime()))
+         {
+            j->second->m_pUDT->m_ullLingerExpiration = 0;
+            j->second->m_pUDT->m_bClosing = true;
+            j->second->m_TimeStamp = CTimer::getTime();
+         }
+      }
+
+      // timeout 1 second to destroy a socket AND it has been removed from RcvUList
+      if ((CTimer::getTime() - j->second->m_TimeStamp > 1000000) && ((NULL == j->second->m_pUDT->m_pRNode) || !j->second->m_pUDT->m_pRNode->m_bOnList))
       {
          tbr.push_back(j->first);
       }

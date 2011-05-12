@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2010, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 08/06/2010
+   Yunhong Gu, last updated 01/12/2011
 *****************************************************************************/
 
 
@@ -344,14 +344,15 @@ public:
    ~CRendezvousQueue();
 
 public:
-   void insert(const UDTSOCKET& id, const int& ipv, const sockaddr* addr);
+   void insert(const UDTSOCKET& id, CUDT* u, const int& ipv, const sockaddr* addr);
    void remove(const UDTSOCKET& id);
-   bool retrieve(const sockaddr* addr, UDTSOCKET& id);
+   CUDT* retrieve(const sockaddr* addr, UDTSOCKET& id);
 
 private:
    struct CRL
    {
       UDTSOCKET m_iID;
+      CUDT* m_pUDT;
       int m_iIPversion;
       sockaddr* m_pPeerAddr;
    };
@@ -476,6 +477,9 @@ private:
 private:
    int setListener(const CUDT* u);
    void removeListener(const CUDT* u);
+
+   void registerConnector(const UDTSOCKET& id, CUDT* u, const int& ipv, const sockaddr* addr);
+   void removeConnector(const UDTSOCKET& id);
 
    void setNewEntry(CUDT* u);
    bool ifNewEntry();
