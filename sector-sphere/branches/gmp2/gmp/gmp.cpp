@@ -472,12 +472,12 @@ int CGMP::UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port)
 
 int CGMP::UDTSend(const UDTSOCKET& usock, const char* buf, const int& size)
 {
-
+   return 0;
 }
 
 int CGMP::UDTRecv(const UDTSOCKET& usock, const char* buf, const int& size)
 {
-
+   return 0;
 }
 
 int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const bool& block)
@@ -763,15 +763,29 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             break;
 
          case 3: // rendezvous UDT connection request
-            // check existing UDT socket
-            // if not exist do asynchronous rendezvous connect
-            // insert to connection cache
-
             ack[2] = id;
             ack[3] = self->m_iUDTReusePort;
             ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
 
-            non-blocking connect, add to epoll
+            // check if connection already exist
+            //if (self->m_PeerHistory.getUDTSocket())
+            //  break;
+
+            // check existing UDT socket
+            // if not exist do asynchronous rendezvous connect
+            // insert to connection cache
+            char ip[NI_MAXHOST];
+            char port[NI_MAXSERV];
+            getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), ip, sizeof(ip), port, sizeof(port), NI_NUMERICHOST|NI_NUMERICSERV);
+
+            // TODO: add IPv6 support
+
+            UDTSOCKET usock;
+            if ((self->UDTCreate(usock) >= 0) && (self->UDTConnect(usock, ip, atoi(port))) >= 0)
+            {
+               UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
+               self->m_PeerHistory.setUDTSocket(ip, atoi(port), usock);
+            }
 
             break;
 
@@ -878,9 +892,6 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 {
    CGMP* self = (CGMP*)s;
 
-   string peer_ip;
-   int peer_udt_port;
-
    int32_t header[4];
 
    while (!self->m_bClosed)
@@ -897,6 +908,10 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
          // recv "header" information
          if (self->UDTRecv(*i, (char*)header, 16) < 0)
             continue;
+
+         string peer_ip;
+         int peer_udt_port;
+         //UDT::getpeeraddr(*i)
 
          CMsgRecord* rec = new CMsgRecord;
 

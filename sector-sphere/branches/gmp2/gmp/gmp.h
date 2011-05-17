@@ -65,7 +65,6 @@ updated by
    #pragma warning( disable: 4251 )
 #endif
 
-#include <udttransport.h>
 #include <sector.h>
 #include <message.h>
 #include <prec.h>

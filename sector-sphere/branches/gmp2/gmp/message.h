@@ -36,6 +36,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*****************************************************************************
 written by
    Yunhong Gu, last updated 01/25/2007
+updated by
+   Brian Griffin, last updated 05/12/2011
 *****************************************************************************/
 
 
@@ -65,6 +67,7 @@ public:
    CUserMessage(const CUserMessage& msg);
    virtual ~CUserMessage();
 
+//TODO: change the following to protected, and upper level should not call these directly
 public:
    int resize(const int& len);
 
@@ -74,10 +77,16 @@ public:
    int m_iBufLength;
 };
 
+// All Sector transactions should inherit from this class
+// define its specific message structure, and implement
+// serialization. GMP will call serilazation methods when
+// transfering the message.
+
 class GMP_API SectorMsg: public CUserMessage
 {
 public:
    SectorMsg() {m_iDataLength = m_iHdrSize;}
+   virtual ~SectorMsg();
 
    int32_t getType() const;
    void setType(const int32_t& type);
@@ -88,6 +97,10 @@ public:
 
 public:
    static const int m_iHdrSize = 8;
+
+protected:
+   virtual int serialize() { return 0; }
+   virtual int deserialize() { return 0; }
 };
 
 #endif
