@@ -20,6 +20,7 @@ written by
 *****************************************************************************/
 
 #include <slave.h>
+#include <conf.h>
 #include <iostream>
 
 #ifdef WIN32

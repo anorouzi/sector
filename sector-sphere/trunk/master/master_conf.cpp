@@ -29,6 +29,7 @@ written by
    #define atoll _atoi64
 #endif
 #include <master.h>
+#include <conf.h>
 #include <sstream>
 #include <iostream>
 

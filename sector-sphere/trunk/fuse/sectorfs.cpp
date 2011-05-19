@@ -34,8 +34,18 @@ bool SectorFS::g_bConnected = false;
 
 void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 {
-   if (g_SectorClient.init(g_SectorConfig.m_ClientConf.m_strMasterIP, g_SectorConfig.m_ClientConf.m_iMasterPort) < 0)
+   bool master_conn = false;
+   for (set<Address, AddrComp>::const_iterator i = g_SectorConfig.m_ClientConf.m_sMasterAddr.begin(); i != g_SectorConfig.m_ClientConf.m_sMasterAddr.end(); ++ i)
+   {
+      if (g_SectorClient.init(i->m_strIP, i->m_iPort) >= 0)
+      {
+         master_conn = true;
+         break;
+      }
+   }
+   if (!master_conn)
       return NULL;
+
    if (g_SectorClient.login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
       return NULL;
 
@@ -499,8 +509,18 @@ int SectorFS::restart()
    g_SectorClient.logout();
    g_SectorClient.close();
 
-   if (g_SectorClient.init(g_SectorConfig.m_ClientConf.m_strMasterIP, g_SectorConfig.m_ClientConf.m_iMasterPort) < 0)
+   bool master_conn = false;
+   for (set<Address, AddrComp>::const_iterator i = g_SectorConfig.m_ClientConf.m_sMasterAddr.begin(); i != g_SectorConfig.m_ClientConf.m_sMasterAddr.end(); ++ i)
+   {
+      if (g_SectorClient.init(i->m_strIP, i->m_iPort) >= 0)
+      {
+         master_conn = true;
+         break;
+      }
+   }
+   if (!master_conn)
       return -1;
+
    if (g_SectorClient.login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
       return -1;
 

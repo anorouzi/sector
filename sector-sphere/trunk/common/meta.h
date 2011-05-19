@@ -32,6 +32,8 @@ written by
 #include <sector.h>
 #include <common.h>
 
+enum MetaForm {DEFAULT, MEMORY, DISK};
+
 class Metadata
 {
 public:

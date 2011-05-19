@@ -44,9 +44,24 @@ int main(int argc, char** argv)
    s.loadInfo("../conf/client.conf");
 
    int result = 0;
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   bool master_conn = false;
+   for (set<Address, AddrComp>::const_iterator i = s.m_ClientConf.m_sMasterAddr.begin(); i != s.m_ClientConf.m_sMasterAddr.end(); ++ i)
    {
-      Utility::print_error(result);
+      if ((result = client.init(i->m_strIP, i->m_iPort)) < 0)
+      {
+         cerr << "trying to connect " << i->m_strIP << " " << i->m_iPort << endl;
+         Utility::print_error(result);
+      }
+      else
+      {
+         master_conn = true;
+         break;
+      }
+   }
+
+   if (!master_conn)
+   {
+      cerr << "couldn't connect to any master. abort.\n";
       return -1;
    }
 

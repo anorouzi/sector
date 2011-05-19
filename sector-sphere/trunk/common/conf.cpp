@@ -31,8 +31,11 @@ written by
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sector.h>
+#include <conf.h>
 #include <iostream>
+
 using namespace std;
+
 
 int ConfLocation::locate(string& loc)
 {

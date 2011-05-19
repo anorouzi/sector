@@ -368,6 +368,7 @@ private: //slave status
    CMutex m_RunLock;
    CCond m_RunCond;
 
+   //TODO: use a single 64-bit flag to represent all states, 0 means OK
    bool m_bDiskHealth;                  // disk health
    bool m_bNetworkHealth;               // network health
 };

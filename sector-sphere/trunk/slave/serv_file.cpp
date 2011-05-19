@@ -62,7 +62,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    // IO permissions
    bool bRead = mode & 1;
    bool bWrite = mode & 2;
-   bool trunc = mode & 4;
+   bool bTrunc = mode & 4;
    bool bSecure = mode & 16;
 
    int64_t orig_size = -1;
@@ -121,7 +121,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    WriteLog writelog;
 
    fstream fhandle;
-   if (!trunc)
+   if (!bTrunc)
       fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary);
    else
       fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary | ios::trunc);

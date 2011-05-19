@@ -404,25 +404,6 @@ struct SECTOR_API Param
    std::vector<std::string> m_vstrValue;
 };
 
-class SECTOR_API ConfParser
-{
-public:
-   int init(const std::string& path);
-   void close();
-   int getNextParam(Param& param);
-
-private:
-   char* getToken(char* str, std::string& token);
-
-private:
-   std::ifstream m_ConfFile;
-   std::vector<std::string> m_vstrLines;
-   std::vector<std::string>::iterator m_ptrLine;
-   int m_iLineCount;
-};
-
-enum MetaForm {DEFAULT, MEMORY, DISK};
-
 class SECTOR_API ClientConf
 {
 public:
@@ -433,8 +414,7 @@ public:
 public:
    std::string m_strUserName;
    std::string m_strPassword;
-   std::string m_strMasterIP;
-   int m_iMasterPort;
+   std::set<Address, AddrComp> m_sMasterAddr;
    std::string m_strCertificate;
    int64_t m_llMaxCacheSize;
    int m_iFuseReadAheadBlock;

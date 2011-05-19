@@ -33,6 +33,7 @@ written by
 #include <fstream>
 #include <filesrc.h>
 #include <sector.h>
+#include <conf.h>
 #include <meta.h>
 
 using namespace std;

@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/05/2011
+   Yunhong Gu, last updated 05/18/2011
 *****************************************************************************/
 
 #include <sector.h>
@@ -25,6 +25,7 @@ written by
 #include <cstdlib>
 #include <sys/stat.h>
 #include <iostream>
+#include <conf.h>
 #include <osportable.h>
 #ifdef WIN32
    #define atoll _atoi64
@@ -35,8 +36,6 @@ using namespace std;
 ClientConf::ClientConf():
 m_strUserName(),
 m_strPassword(),
-m_strMasterIP(),
-m_iMasterPort(6000),
 m_strCertificate(),
 m_llMaxCacheSize(10000000),
 m_iFuseReadAheadBlock(1000000),
@@ -59,19 +58,24 @@ int ClientConf::init(const string& path)
 
       if ("MASTER_ADDRESS" == param.m_strName)
       {
-         char buf[128];
-         strncpy(buf, param.m_vstrValue[0].c_str(), 128);
-
-         unsigned int i = 0;
-         for (unsigned int n = strlen(buf); i < n; ++ i)
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
          {
-            if (buf[i] == ':')
-               break;
-         }
+            char buf[128];
+            strncpy(buf, i->c_str(), 128);
 
-         buf[i] = '\0';
-         m_strMasterIP = buf;
-         m_iMasterPort = atoi(buf + i + 1);
+            unsigned int p = 0;
+            for (unsigned int n = strlen(buf); p < n; ++ p)
+            {
+               if (buf[p] == ':')
+                  break;
+            }
+            buf[p] = '\0';
+
+            Address addr;
+            addr.m_strIP = buf;
+            addr.m_iPort = atoi(buf + p + 1);
+            m_sMasterAddr.insert(addr);
+         }
       }
       else if ("USERNAME" == param.m_strName)
       {
@@ -119,14 +123,14 @@ int Session::loadInfo(const char* conf)
 
    m_ClientConf.init(conf_file_path);
 
-   if (m_ClientConf.m_strMasterIP == "")
+   if (m_ClientConf.m_sMasterAddr.empty())
    {
       cout << "please input the master address (e.g., 123.123.123.123:1234): ";
-      string addr;
-      cin >> addr;
+      string addr_str;
+      cin >> addr_str;
 
       char buf[128];
-      strncpy(buf, addr.c_str(), 128);
+      strncpy(buf, addr_str.c_str(), 128);
 
       unsigned int i = 0;
       for (unsigned int n = strlen(buf); i < n; ++ i)
@@ -134,10 +138,12 @@ int Session::loadInfo(const char* conf)
          if (buf[i] == ':')
             break;
       }
-
       buf[i] = '\0';
-      m_ClientConf.m_strMasterIP = buf;
-      m_ClientConf.m_iMasterPort = atoi(buf + i + 1);
+
+      Address addr;
+      addr.m_strIP = buf;
+      addr.m_iPort = atoi(buf + i + 1);
+      m_ClientConf.m_sMasterAddr.insert(addr);
    }
 
    if (m_ClientConf.m_strUserName == "")
@@ -166,7 +172,7 @@ int Session::loadInfo(const char* conf)
       }
    }
 
-   return 1;
+   return 0;
 }
 
 void Utility::print_error(int code)
@@ -181,11 +187,27 @@ int Utility::login(Sector& client)
 
    int result = 0;
 
-   if ((result = client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort)) < 0)
+   bool master_conn = false;
+   for (set<Address, AddrComp>::const_iterator i = s.m_ClientConf.m_sMasterAddr.begin(); i != s.m_ClientConf.m_sMasterAddr.end(); ++ i)
    {
-      print_error(result);
+      if ((result = client.init(i->m_strIP, i->m_iPort)) < 0)
+      {
+         cerr << "trying to connect " << i->m_strIP << " " << i->m_iPort << endl;
+         print_error(result);
+      }
+      else
+      {
+         master_conn = true;
+         break;
+      }
+   }
+
+   if (!master_conn)
+   {
+      cerr << "couldn't connect to any master. abort.\n";
       return -1;
    }
+
    if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
    {
       print_error(result);
