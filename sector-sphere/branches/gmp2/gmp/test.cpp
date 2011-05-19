@@ -39,3 +39,109 @@ written by
 *****************************************************************************/
 
 #include "gmp.h"
+#include <iostream>
+
+using namespace std;
+
+#ifndef WIN32
+void* Test_1_Srv(void* param)
+#else
+DWORD WINAPI Test_1_Srv(LPVOID param)
+#endif
+{
+   CGMP gmp;
+   gmp.init(6000);
+
+   string ip;
+   int port;
+   CUserMessage msg;
+   int32_t id;
+   const char* res = "got it.";
+
+   strcpy(msg.m_pcBuffer, res);
+   msg.m_iDataLength = strlen(res) + 1;
+
+   for (int i = 0; i < 10; ++ i)
+   {
+      gmp.recvfrom(ip, port, id, &msg);
+
+      cout << "RECV " << ip << " " << port << " " << id << " " << msg.m_pcBuffer << " " << msg.m_iDataLength << endl;
+
+      strcpy(msg.m_pcBuffer, res);
+      msg.m_iDataLength = strlen(res) + 1;
+      gmp.sendto(ip, port, id, &msg);
+
+      cout << endl << endl;
+   }
+
+   return 0;
+}
+
+#ifndef WIN32
+void* Test_1_Cli(void* param)
+#else
+DWORD WINAPI Test_1_Cli(LPVOID param)
+#endif
+{
+   CGMP gmp;
+   gmp.init(7000);
+
+   cout << "TEST " << gmp.rtt("127.0.0.1", 6000) << endl;
+
+   CUserMessage req, res;
+   req.m_iDataLength = 2000;
+   int32_t id;
+
+   for (int i = 0; i < 10; ++ i)
+   {
+      id = 0;
+      gmp.sendto("127.0.0.1", 6000, id, &req);
+
+      gmp.recv(id, &res);
+
+      cout << "response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
+
+      //sleep(1);
+
+      cout << endl << endl;
+   }
+
+   return 0;
+}
+
+int main()
+{
+   const int test_case = 1;
+
+#ifndef WIN32
+   void* (*Test_Srv[test_case])(void*);
+   void* (*Test_Cli[test_case])(void*);
+#else
+   DWORD (WINAPI *Test_Srv[test_case])(LPVOID);
+   DWORD (WINAPI *Test_Cli[test_case])(LPVOID);
+#endif
+
+   Test_Srv[0] = Test_1_Srv;
+   Test_Cli[0] = Test_1_Cli;
+
+   for (int i = 0; i < test_case; ++ i)
+   {
+#ifndef WIN32
+      pthread_t srv, cli;
+      pthread_create(&srv, NULL, Test_Srv[i], NULL);
+      pthread_create(&cli, NULL, Test_Cli[i], NULL);
+
+      pthread_join(srv, NULL);
+      pthread_join(cli, NULL);
+#else
+      HANDLE srv, cli;
+      srv = CreateThread(NULL, 0, Test_Srv[i], NULL, 0, NULL);
+      cli = CreateThread(NULL, 0, Test_Cli[i], NULL, 0, NULL);
+
+      WaitForSingleObject(srv, INFINITE);
+      WaitForSingleObject(cli, INFINITE);
+#endif
+   }
+
+   return 0;
+}

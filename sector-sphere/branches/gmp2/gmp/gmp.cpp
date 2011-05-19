@@ -909,9 +909,12 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
          if (self->UDTRecv(*i, (char*)header, 16) < 0)
             continue;
 
-         string peer_ip;
-         int peer_udt_port;
-         //UDT::getpeeraddr(*i)
+         sockaddr_in addr;
+         int addrlen = sizeof(sockaddr_in);
+         UDT::getpeername(*i, (sockaddr*)&addr, &addrlen);
+         char peer_ip[NI_MAXHOST];
+         char peer_udt_port[NI_MAXSERV];
+         getnameinfo((sockaddr*)&addr, addrlen, peer_ip, sizeof(peer_ip), peer_udt_port, sizeof(peer_udt_port), NI_NUMERICHOST|NI_NUMERICSERV);
 
          CMsgRecord* rec = new CMsgRecord;
 
