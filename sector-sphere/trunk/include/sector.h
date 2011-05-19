@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/05/2011
+   Yunhong Gu, last updated 05/18/2011
 *****************************************************************************/
 
 
@@ -46,7 +46,7 @@ written by
 
 // Sector version. The digit version is for compatibility check, so it is the earliest compatible version number
 // FORMAT 3-digit Major 3-digit Minor 3-digit revision
-const int32_t SectorVersion = 2006031; 
+const int32_t SectorVersion = 2006031;
 const std::string SectorVersionString = "Sector version 2.7 build 04/24/2011.";
 
 
