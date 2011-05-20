@@ -166,6 +166,9 @@ string getDNSName(const string& ip)
    return clienthost;
 }
 
+// TODO: create a new util class that provides the format routines above
+// move the print function as a member function of sysstat
+
 void print(const SysStat& s, bool address = false)
 {
    cout << "Sector System Information:" << endl;

@@ -137,6 +137,9 @@ public:
       int64_t m_llTotalOutputData;
    };
    std::vector<ClusterStat> m_vCluster;
+
+public:
+   //void print(string&);
 };
 
 class SectorFile;
@@ -408,7 +411,6 @@ class SECTOR_API ClientConf
 {
 public:
    ClientConf();
-
    int init(const std::string& path);
 
 public:
@@ -419,6 +421,10 @@ public:
    int64_t m_llMaxCacheSize;
    int m_iFuseReadAheadBlock;
    int64_t m_llMaxWriteCacheSize;
+   std::string m_strLog;
+
+public:
+   //void print(string&);
 };
 
 class SECTOR_API WildCard

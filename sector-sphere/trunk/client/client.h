@@ -23,11 +23,13 @@ written by
 #ifndef __SECTOR_CLIENT_H__
 #define __SECTOR_CLIENT_H__
 
-#include <gmp.h>
 #include <datachn.h>
+#include <fscache.h>
+#include <gmp.h>
+#include <log.h>
 #include <routing.h>
 #include <sector.h>
-#include "fscache.h"
+
 #ifndef WIN32
    #include <pthread.h>
 #endif
@@ -127,6 +129,7 @@ protected:
    Cache m_Cache;			// file client cache
 
    bool m_bVerbose;			// verbose debug & other information print to screen
+   SectorLog m_Log;			// log file writer
 
 private:
    int m_iCount;			// number of concurrent logins
