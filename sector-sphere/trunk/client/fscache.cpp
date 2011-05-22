@@ -238,6 +238,8 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
 
 int Cache::shrink()
 {
+   //TODO: a better data structure should be used to optimize searching for the oldest block
+
    if ((m_llCacheSize < m_llMaxCacheSize) && (m_iBlockNum < m_iMaxCacheBlocks))
       return 0;
 
@@ -247,7 +249,9 @@ int Cache::shrink()
    // find the file with the earliest last access time
    for (map<string, InfoBlock>::iterator i = m_mOpenedFiles.begin(); i != m_mOpenedFiles.end(); ++ i)
    {
-      if (i->second.m_llLastAccessTime < latest_time)
+      // the earliest accessed file may have the same access time as the latest time
+      // e.g., there may be only one file openned
+      if (i->second.m_llLastAccessTime <= latest_time)
       {
          map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(i->first);
          if ((c != m_mCacheBlocks.end()) && !c->second.empty())

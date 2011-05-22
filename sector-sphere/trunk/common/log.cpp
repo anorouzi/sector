@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 04/04/2011
+   Yunhong Gu, last updated 05/19/2011
 *****************************************************************************/
 
 
@@ -146,6 +146,9 @@ void SectorLog::insert_(const char* text, const int level)
    #endif
 
    if (level > m_iLevel)
+      return;
+
+   if (m_LogFile.bad())
       return;
 
    checkLogFile();

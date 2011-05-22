@@ -422,6 +422,7 @@ public:
    int m_iFuseReadAheadBlock;
    int64_t m_llMaxWriteCacheSize;
    std::string m_strLog;
+   int m_iLogLevel;
 
 public:
    //void print(string&);

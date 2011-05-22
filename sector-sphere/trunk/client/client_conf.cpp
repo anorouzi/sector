@@ -40,7 +40,8 @@ m_strCertificate(),
 m_llMaxCacheSize(10000000),
 m_iFuseReadAheadBlock(1000000),
 m_llMaxWriteCacheSize(10000000),
-m_strLog()
+m_strLog(),
+m_iLogLevel(1)
 {
 }
 
@@ -126,7 +127,6 @@ int Session::loadInfo(const char* conf)
    else
       conf_file_path = sector_home + "/conf/client.conf";
 
-cout << "DEBUG " << "using conf file " << conf_file_path << endl;
    m_ClientConf.init(conf_file_path);
 
    if (m_ClientConf.m_sMasterAddr.empty())
@@ -213,8 +213,6 @@ int Utility::login(Sector& client)
       cerr << "couldn't connect to any master. abort.\n";
       return -1;
    }
-
-cout << "DEBUG login " << s.m_ClientConf.m_strUserName << " " << s.m_ClientConf.m_strPassword << " " <<  s.m_ClientConf.m_strCertificate << endl;
 
    if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
    {
