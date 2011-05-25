@@ -147,47 +147,6 @@ int getFileList(const string& path, vector<string>& fl)
    return fl.size();
 }
 
-int parsePath(const string& path, vector<string>& result)
-{
-   result.clear();
-
-   char* token = new char[path.length() + 1];
-   int tc = 0;
-   char* p = (char*)path.c_str();
-
-   for (int i = 0, n = path.length(); i <= n; ++ i, ++ p)
-   {
-      if ((*p == '/') || (*p == '\0'))
-      {
-         if (tc > 0)
-         {
-            token[tc] = '\0';
-            if (strcmp(token, ".") == 0)
-            {
-               // ignore current directory segment
-            }
-            else if ((strcmp(token, "..") == 0) && !result.empty())
-            {
-               // pop up one level
-               result.pop_back();
-            }
-            else
-            {
-               result.push_back(token);
-            }
-            tc = 0;
-         }
-      }
-      else
-      {
-         token[tc ++] = *p;
-      }
-   }
-
-   delete [] token;
-   return result.size();
-}
-
 int main(int argc, char** argv)
 {
    if (argc < 3)
