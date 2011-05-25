@@ -19,14 +19,16 @@ written by
    Yunhong Gu, last updated 03/15/2011
 *****************************************************************************/
 
+#include <errno.h>
 #include <fcntl.h>
+#include <iostream>
+#include <osportable.h>
+#include <sector.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 #include <string.h>
-#include <errno.h>
-#include <iostream>
-#include <sector.h>
-#include <osportable.h>
 #ifndef WIN32
    #include <sys/types.h>
    #include <sys/stat.h>
@@ -145,6 +147,47 @@ int getFileList(const string& path, vector<string>& fl)
    return fl.size();
 }
 
+int parsePath(const string& path, vector<string>& result)
+{
+   result.clear();
+
+   char* token = new char[path.length() + 1];
+   int tc = 0;
+   char* p = (char*)path.c_str();
+
+   for (int i = 0, n = path.length(); i <= n; ++ i, ++ p)
+   {
+      if ((*p == '/') || (*p == '\0'))
+      {
+         if (tc > 0)
+         {
+            token[tc] = '\0';
+            if (strcmp(token, ".") == 0)
+            {
+               // ignore current directory segment
+            }
+            else if ((strcmp(token, "..") == 0) && !result.empty())
+            {
+               // pop up one level
+               result.pop_back();
+            }
+            else
+            {
+               result.push_back(token);
+            }
+            tc = 0;
+         }
+      }
+      else
+      {
+         token[tc ++] = *p;
+      }
+   }
+
+   delete [] token;
+   return result.size();
+}
+
 int main(int argc, char** argv)
 {
    if (argc < 3)
@@ -205,9 +248,11 @@ int main(int argc, char** argv)
    if (Utility::login(client) < 0)
       return -1;
 
-   string newdir = *clp.m_vParams.rbegin();
+   string dstdir = *clp.m_vParams.rbegin();
+   clp.m_vParams.pop_back();
+   
    SNode attr;
-   int r = client.stat(newdir, attr);
+   int r = client.stat(dstdir, attr);
    if ((r < 0) || (!attr.m_bIsDir))
    {
       cerr << "destination directory on Sector does not exist.\n";
@@ -218,24 +263,39 @@ int main(int argc, char** argv)
    bool success = true;
 
    // upload multiple files/dirs
-   clp.m_vParams.erase(clp.m_vParams.begin() + clp.m_vParams.size() - 1);
-   for (vector<string>::iterator i = clp.m_vParams.begin(); i < clp.m_vParams.end(); ++ i)
+   for (vector<string>::const_iterator param = clp.m_vParams.begin(); param != clp.m_vParams.end(); ++ param)
    {
+      string prefix = "";
+
       vector<string> fl;
-      bool wc = WildCard::isWildCard(*i);
+      bool wc = WildCard::isWildCard(*param);
       if (!wc)
       {
          SNode s;
-         if (LocalFS::stat(*i, s) < 0)
+         if (LocalFS::stat(*param, s) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
             return -1;
          }
-         getFileList(*i, fl);
+
+         if (s.m_bIsDir)
+            prefix = *param;
+         else
+         {
+            size_t pos = param->rfind('/');
+            if (pos != string::npos)
+               prefix = param->substr(0, pos);
+         }
+
+         getFileList(*param, fl);
       }
       else
       {
-         string path = *i;
+         size_t pos = param->rfind('/');
+         if (pos != string::npos)
+            prefix = param->substr(0, pos);
+
+         string path = *param;
          string orig = path;
          size_t p = path.rfind('/');
          if (p == string::npos)
@@ -248,7 +308,7 @@ int main(int argc, char** argv)
             orig = orig.substr(p + 1, orig.length() - p);
          }
 
-         //if this is a wildcard, list all files in the current dir, choose those matched ones
+         // as this is a wildcard, list all files in the current dir, choose those matched ones
          vector<SNode> curr_fl;
          if (LocalFS::list_dir(path, curr_fl) < 0)
             return -1;
@@ -269,30 +329,15 @@ int main(int argc, char** argv)
          }
       }
 
-      string olddir;
-      for (int j = i->length() - 1; j >= 0; -- j)
-      {
-         if (i->c_str()[j] != '/')
-         {
-            olddir = i->substr(0, j);
-            break;
-         }
-      }
-      size_t p = olddir.rfind('/');
-      if (p == string::npos)
-         olddir = "";
-      else
-         olddir = olddir.substr(0, p);
-
       // upload all files in the file list
       for (vector<string>::const_iterator i = fl.begin(); i != fl.end(); ++ i)
       {
          // process directory name change: /src/mydata -> /dst/mydata
          string dst = *i;
-         if (olddir.length() > 0)
-            dst.replace(0, olddir.length(), newdir);
+         if (prefix.length() > 0)
+            dst.replace(0, prefix.length(), dstdir + "/");
          else
-            dst = newdir + "/" + dst;
+            dst = dstdir + "/" + dst;
 
          SNode s;
          if (LocalFS::stat(*i, s) < 0)

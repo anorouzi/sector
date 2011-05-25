@@ -660,7 +660,7 @@ int FSClient::close()
       }
    }
 
-   // TODO: close a file should remove the cache.
+   // TODO: close a file should not remove the cache.
    // Instead, the cache's reference count should be simply updated.
    //m_pClient->m_Cache.remove(m_strFileName);
 

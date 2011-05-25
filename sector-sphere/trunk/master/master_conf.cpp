@@ -175,7 +175,7 @@ bool ReplicaConf::refresh(const string& path)
             int num;
             if (parseItem(*i, path, num) >= 0)
             {
-               string rp = Metadata::revisePathNoLimit(path);
+               string rp = Metadata::revisePath(path);
                if (rp.length() > 0)
                   m_mReplicaNum[rp] = num;
             }
@@ -189,7 +189,7 @@ bool ReplicaConf::refresh(const string& path)
             int dist;
             if (parseItem(*i, path, dist) >= 0)
             {
-               string rp = Metadata::revisePathNoLimit(path);
+               string rp = Metadata::revisePath(path);
                if (rp.length() > 0)
                   m_mReplicaDist[rp] = dist;
             }
@@ -203,7 +203,7 @@ bool ReplicaConf::refresh(const string& path)
             string loc;
             if (parseItem(*i, path, loc) >= 0)
             {
-               string rp = Metadata::revisePathNoLimit(path);
+               string rp = Metadata::revisePath(path);
                vector<int> topo;
                Topology::parseTopo(loc.c_str(), topo);
                if ((rp.length() > 0) && !topo.empty())

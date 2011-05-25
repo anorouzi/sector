@@ -120,7 +120,6 @@ public:	// medadata and file system operations
 public:
    static int parsePath(const std::string& path, std::vector<std::string>& result);
    static std::string revisePath(const std::string& path);
-   static std::string revisePathNoLimit(const std::string& path);
 
 public:
       // Functionality:

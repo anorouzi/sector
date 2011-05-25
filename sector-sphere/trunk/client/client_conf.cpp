@@ -103,9 +103,13 @@ int ClientConf::init(const string& path)
       {
          m_llMaxWriteCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
       }
-      else if ("CLIENT_LOG_LOCATION" == param.m_strName)
+      else if ("LOG_LOCATION" == param.m_strName)
       {
          m_strLog = param.m_vstrValue[0];
+      }
+      else if ("LOG_LEVEL" == param.m_strName)
+      {
+         m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       }
       else
       {

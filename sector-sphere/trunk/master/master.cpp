@@ -3250,10 +3250,6 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
       string cmd = (string("ssh ") + addr + " \"" + "/bin/start_slave " + base + " " + option + " &> NULL &\"");
    #endif
    system(cmd.c_str());
-
-   #ifdef DEBUG
-      cout << cmd << endl;
-   #endif
 }
 
 void Master::logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level)

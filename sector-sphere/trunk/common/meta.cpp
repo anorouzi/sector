@@ -16,7 +16,7 @@ the License.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/04/2011
+   Yunhong Gu, last updated 05/23/2011
 *****************************************************************************/
 
 #include <common.h>
@@ -97,15 +97,34 @@ int Metadata::parsePath(const string& path, vector<string>& result)
 
    char* token = new char[path.length() + 1];
    int tc = 0;
+   char* p = (char*)path.c_str();
 
-   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
+   for (int i = 0, n = path.length(); i <= n; ++ i, ++ p)
    {
-      if (*p == '/')
+      if ((*p == '/') || (*p == '\0'))
       {
          if (tc > 0)
          {
             token[tc] = '\0';
-            result.insert(result.end(), token);
+            if (strcmp(token, ".") == 0)
+            {
+               // ignore current directory segment
+            }
+            else if (strcmp(token, "..") == 0)
+            {
+               if (result.empty())
+               {
+                  // upper level directory, must exist after some real directory name
+                  delete [] token;
+                  return -1;
+               }
+               // pop up one level
+               result.pop_back();
+            }
+            else
+            {
+               result.push_back(token);
+            }
             tc = 0;
          }
       }
@@ -122,84 +141,26 @@ int Metadata::parsePath(const string& path, vector<string>& result)
       }
    }
 
-   if (tc > 0)
-   {
-      token[tc] = '\0';
-      result.insert(result.end(), token);
-   }
-
    delete [] token;
-
    return result.size();
 }
 
 string Metadata::revisePath(const string& path)
 {
-   char* newpath = new char[path.length() + 2];
-   char* np = newpath;
-   *np++ = '/';
-   bool slash = true;
+   // empty path is regarded as "/"
+   //if (path.length() == 0)
+   //   return path;
 
-   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
+   vector<string> path_vec;
+   parsePath(path, path_vec);
+
+   string tmp = "/";
+   for (vector<string>::const_iterator i = path_vec.begin(); i != path_vec.end(); ++ i)
    {
-      if (*p == '/')
-      {
-         if (!slash)
-            *np++ = '/';
-         slash = true;
-      }
-      else
-      {
-         // check legal characters
-         if (!m_pbLegalChar[int(*p)])
-         {
-            delete [] newpath;
-            return "";
-         }
-
-         *np++ = *p;
-         slash = false;
-      }
+      if (tmp.size() > 1)
+         tmp.append(1, '/');
+      tmp.append(*i);
    }
-   *np = '\0';
-
-   if ((strlen(newpath) > 1) && slash)
-      newpath[strlen(newpath) - 1] = '\0';
-
-   string tmp = newpath;
-   delete [] newpath;
-
-   return tmp;
-}
-
-string Metadata::revisePathNoLimit(const string& path)
-{
-   char* newpath = new char[path.length() + 2];
-   char* np = newpath;
-   *np++ = '/';
-   bool slash = true;
-
-   for (char* p = (char*)path.c_str(); *p != '\0'; ++ p)
-   {
-      if (*p == '/')
-      {
-         if (!slash)
-            *np++ = '/';
-         slash = true;
-      }
-      else
-      {
-         *np++ = *p;
-         slash = false;
-      }
-   }
-   *np = '\0';
-
-   if ((strlen(newpath) > 1) && slash)
-      newpath[strlen(newpath) - 1] = '\0';
-
-   string tmp = newpath;
-   delete [] newpath;
 
    return tmp;
 }
