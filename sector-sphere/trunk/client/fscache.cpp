@@ -30,7 +30,7 @@ m_llCacheSize(0),
 m_iBlockNum(0),
 m_llMaxCacheSize(10000000),
 m_llMaxCacheTime(10000000),
-m_iMaxCacheBlocks(32)
+m_iMaxCacheBlocks(4096)
 {
    CGuard::createMutex(m_Lock);
 }
@@ -216,6 +216,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    if (c == m_mCacheBlocks.end())
       return 0;
 
+   // TODO: optimize cache search alg: e.g., search from last position visited, binary search, etc.
    for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
    {
       // this condition can be improved to provide finer granularity
