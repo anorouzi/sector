@@ -26,6 +26,24 @@ written by
 #include <queue>
 #include <osportable.h>
 
+// TODO: this may be changed to thread_util.h
+// add start/detach/join thread os-portable routine
+
+// add routine to assign meaningful names to threads, for easier debug
+
+// TODO: enable namespace
+//namespace sector
+//{
+
+struct Job
+{
+   Job(void* param = NULL);
+
+   void* m_pParam;	// job paramters, job specific
+   int64_t m_llTTL;	// each job may be assigned a TTL. Expired job will be discarded without further processing
+   int m_iPriority;	// the thread job queue is a priority queue, higher priority jobs will be scheduled first
+};
+
 class ThreadJobQueue
 {
 public:
@@ -39,10 +57,16 @@ public:
    int release(int num);
 
 private:
+   // TODO: use priority queue
    std::queue<void*> m_qJobs;
+
+   // TODO: set maximum queue length
+   // int getCurrQueueLen();
 
    CMutex m_QueueLock;
    CCond m_QueueCond;
 };
+
+//} // namespace sector
 
 #endif
