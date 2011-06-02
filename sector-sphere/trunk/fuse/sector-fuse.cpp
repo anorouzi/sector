@@ -94,5 +94,11 @@ int main(int argc, char *argv[])
 
    SectorFS::g_SectorConfig.loadInfo("../conf/client.conf");
 
+   // FUSE uses 131072 bytes IO block. We set the look ahead prefetch buffer to 
+   // be an integer time of this IO block size, for optimal performance.
+   // TODO: dynamically detect IO block size.
+   SectorFS::g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock /= 131072;
+   SectorFS::g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock *= 131072;
+
    return fuse_main(argc, argv, &sector_ops, NULL);
 }

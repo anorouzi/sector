@@ -235,6 +235,8 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
       }
 
       // search should not go further if an overlap block is found, due to possible write conflict (multiple writes on the same block)
+      // TODO: this should be optimized in order to avoid unnecessary repeated prefetch
+      // currently look ahead buffer should be an integer time of 131072 byte, optimized for FUSE block size
       if ((i->m_llOffset <= offset) && (i->m_llOffset + i->m_llSize > offset))
          break;
    }

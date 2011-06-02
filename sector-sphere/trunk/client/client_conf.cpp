@@ -94,14 +94,20 @@ int ClientConf::init(const string& path)
       else if ("MAX_CACHE_SIZE" == param.m_strName)
       {
          m_llMaxCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+         if (m_llMaxCacheSize < 0)
+            m_llMaxCacheSize = 0;
       }
       else if ("FUSE_READ_AHEAD_BLOCK" == param.m_strName)
       {
          m_iFuseReadAheadBlock = atoi(param.m_vstrValue[0].c_str()) * 1000000;
+         if (m_iFuseReadAheadBlock < 0)
+            m_iFuseReadAheadBlock = 0;
       }
       else if ("MAX_READ_CACHE_SIZE" == param.m_strName)
       {
          m_llMaxWriteCacheSize = atoll(param.m_vstrValue[0].c_str()) * 1000000;
+         if (m_llMaxWriteCacheSize < 0)
+            m_llMaxWriteCacheSize = 0;
       }
       else if ("LOG_LOCATION" == param.m_strName)
       {

@@ -365,6 +365,7 @@ public:
    static const int E_TIMEOUT = -3002;          // message recv timeout
    static const int E_RESOURCE = -4000;         // no available resources
    static const int E_NODISK = -4001;           // no enough disk
+   static const int E_SYSBUSY = -4002;          // server is too busy to respond in time
    static const int E_VERSION = -5000;          // incompatible version between client and servers
    static const int E_INVALID = -6000;          // invalid parameter
    static const int E_SUPPORT = -6001;          // operation not supported
