@@ -226,6 +226,11 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
          i->m_llLastAccessTime = CTimer::getTime() / 1000000;
          // update the file's last access time; it must equal to the block's last access time
          s->second.m_llLastAccessTime = i->m_llLastAccessTime;
+
+         // move the most recent accessed blockt to the head of the list, possible reduce search time
+         c->second.push_front(*i);
+         c->second.erase(i);
+
          return size;
       }
 
