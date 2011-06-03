@@ -81,7 +81,7 @@ int main(int argc, char** argv)
    {
       if (f->open(argv[2], SF_MODE::READ) < 0)
       {
-         cerr << "ERROR: unable to open destination file." << endl;
+         cerr << "ERROR: unable to open source file." << endl;
          return -1;
       }
 
