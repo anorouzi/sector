@@ -137,6 +137,9 @@ int Client::login(const string& username, const string& password, const char* ce
    if ((result = secconn.connect(m_strServerHost.c_str(), m_iServerPort)) < 0)
       return result;
 
+   // TODO: pack all these info into one message and send out, wait for a single response
+   // compete this after GMP message is done.
+
    // send in the client version first
    secconn.send((char*)&SectorVersion, 4);
 

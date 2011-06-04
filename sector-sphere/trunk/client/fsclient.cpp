@@ -566,7 +566,10 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
    ofs.close();
 
    if (torecv > 0)
+   {
+      // TODO: check other errors
       return SectorError::E_CONNECTION;
+   }
 
    return realsize;
 }

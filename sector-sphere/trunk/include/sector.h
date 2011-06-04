@@ -335,6 +335,7 @@ public:
 class SECTOR_API SectorError
 {
 public:
+   static const int E_OK = 0;                   // normal/correct/no error
    static const int E_UNKNOWN = -1;             // unknown error
    static const int E_PERMISSION = -1001;       // no permission for IO
    static const int E_EXIST = -1002;            // file/dir already exist
