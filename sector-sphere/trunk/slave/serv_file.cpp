@@ -28,7 +28,7 @@ written by
    #include <sys/types.h>
    #include <sys/utime.h>
 #endif
-#include <iostream>
+
 using namespace std;
 
 #ifndef WIN32
@@ -486,8 +486,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       LocalFS::stat(filename, s);
       if ((s.m_llSize != orig_size) || (s.m_llTimeStamp != orig_ts))
          file_change = true;
-cout << "hoho " << file_change << " " << s.m_llSize << " " << orig_size << endl;
-
    }
    int change = file_change ? +FileChangeType::FILE_UPDATE_WRITE : +FileChangeType::FILE_UPDATE_NO;
 
