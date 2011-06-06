@@ -19,11 +19,12 @@ written by
    Yunhong Gu, last updated 04/01/2011
 *****************************************************************************/
 
-#include <sys/time.h>
-#include <iostream>
+#include <climits>
 #include <cstdlib>
-#include <sector.h>
+#include <iostream>
 #include <list>
+#include <sector.h>
+#include <sys/time.h>
 
 using namespace std;
 
