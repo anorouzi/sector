@@ -94,7 +94,6 @@ void Cache::remove(const string& path)
    CGuard sg(m_Lock);
 
    map<string, InfoBlock>::iterator s = m_mOpenedFiles.find(path);
-
    if (s == m_mOpenedFiles.end())
       return;
 
@@ -173,7 +172,7 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
 
    if (write)
    {
-      //write invalidates all caches overlap with this block
+      // write invalidates all caches overlap with this block
       // TODO: optimize this
       c = m_mCacheBlocks.find(path);
       if (c != m_mCacheBlocks.end())
@@ -195,6 +194,7 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
                ++ i;
             }
          }
+         m_mCacheBlocks.erase(c);
       }
    }
 
@@ -261,7 +261,7 @@ int Cache::shrink()
       // e.g., there may be only one file openned
       if (i->second.m_llLastAccessTime <= latest_time)
       {
-         map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(i->first);
+         map<string, list<CacheBlock> >::const_iterator c = m_mCacheBlocks.find(i->first);
          if ((c != m_mCacheBlocks.end()) && !c->second.empty())
          {
             last_file = i->first;
@@ -270,14 +270,10 @@ int Cache::shrink()
       }
    }
 
-   // find the block with the earliest lass access time
+   // find the block with the earliest last access time
    map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
-
    if (c == m_mCacheBlocks.end())
-   {
-      // this should not happen
       return 0;
-   }
 
    latest_time = CTimer::getTime() / 1000000;
    list<CacheBlock>::iterator d = c->second.end();
@@ -299,6 +295,8 @@ int Cache::shrink()
    m_llCacheSize -= d->m_llSize;
    -- m_iBlockNum;
    c->second.erase(d);
+   if (c->second.empty())
+      m_mCacheBlocks.erase(c);
 
    return 0;
 }
@@ -344,6 +342,10 @@ int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& 
          return 0;
       }
    }
+
+   // Cache may not be reduced by other operations if app does write only, so we try to reduce cache block here.
+   while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
+      shrink();
 
    return 0;
 }
