@@ -74,7 +74,7 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
       return 1;
    }
 
-   long long int size = attr.m_llSize;
+   const long long int size = attr.m_llSize;
    cout << "downloading " << file << " of " << size << " bytes" << endl;
 
    SectorFile* f = client.createSectorFile();
@@ -106,7 +106,7 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
    f->close();
    client.releaseSectorFile(f);
 
-   if (result >= 0)
+   if (result == size)
    {
       #ifndef WIN32
          gettimeofday(&t2, 0);
@@ -294,10 +294,8 @@ int main(int argc, char** argv)
          if (download(i->c_str(), localdir.c_str(), client, encryption) < 0)
          {
             // calculate total available disk size
-            struct statvfs64 dstinfo;
-            statvfs64(newdir.c_str(), &dstinfo);
-            int64_t availdisk = dstinfo.f_bavail * dstinfo.f_bsize;
-
+            int64_t availdisk = 0;
+            LocalFS::get_dir_space(localdir, availdisk);
             if (availdisk <= 0)
             {
                // if no disk space svailable, no need to try any more
