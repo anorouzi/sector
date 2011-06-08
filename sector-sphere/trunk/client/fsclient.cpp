@@ -189,6 +189,7 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
 
    if (m_strSlaveIP == localip)
    {
+/*
       // the file is on the same node, check if the file can be read/written directly
       int32_t cmd = 6;
       m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
@@ -225,6 +226,7 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
          if (m_LocalFile.fail())
             m_bReadLocal = m_bWriteLocal = false;
       }
+*/
    }
 
    // check TRUNC

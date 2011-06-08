@@ -19,9 +19,9 @@ written by
    Yunhong Gu, last updated 03/17/2011
 *****************************************************************************/
 
-#include <string.h>
 #include <common.h>
 #include "fscache.h"
+#include <string.h>
 
 using namespace std;
 
@@ -199,7 +199,8 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
    }
 
    // remove old caches to limit memory usage
-   shrink();
+   while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
+      shrink();
 
    return 0;
 }
@@ -247,7 +248,6 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
 int Cache::shrink()
 {
    //TODO: a better data structure should be used to optimize searching for the oldest block
-
    if ((m_llCacheSize < m_llMaxCacheSize) && (m_iBlockNum < m_iMaxCacheBlocks))
       return 0;
 
