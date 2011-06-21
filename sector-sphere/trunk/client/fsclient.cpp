@@ -186,7 +186,7 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
    string localip;
    int localport;
    m_pClient->m_DataChn.getSelfAddr(m_strSlaveIP, m_iSlaveDataPort, localip, localport);
-/*
+
    if (m_strSlaveIP == localip)
    {
       // the file is on the same node, check if the file can be read/written directly
@@ -226,7 +226,7 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
             m_bReadLocal = m_bWriteLocal = false;
       }
    }
-*/
+
    // check TRUNC
    if ((mode & 4) && m_bWrite)
       m_llSize = 0;
