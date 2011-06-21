@@ -198,9 +198,8 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
       }
    }
 
-   // remove old caches to limit memory usage
-   while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
-      shrink();
+   // check and remove old caches to limit memory usage.
+   shrink();
 
    return 0;
 }
@@ -247,56 +246,55 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
 
 int Cache::shrink()
 {
-   //TODO: a better data structure should be used to optimize searching for the oldest block
-   if ((m_llCacheSize < m_llMaxCacheSize) && (m_iBlockNum < m_iMaxCacheBlocks))
-      return 0;
-
-   string last_file = "";
-   int64_t latest_time = CTimer::getTime() / 1000000;
-
-   // find the file with the earliest last access time
-   for (map<string, InfoBlock>::iterator i = m_mOpenedFiles.begin(); i != m_mOpenedFiles.end(); ++ i)
+   while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
    {
-      // the earliest accessed file may have the same access time as the latest time
-      // e.g., there may be only one file openned
-      if (i->second.m_llLastAccessTime <= latest_time)
+      string last_file = "";
+      int64_t latest_time = CTimer::getTime() / 1000000;
+
+      // find the file with the earliest last access time
+      for (map<string, InfoBlock>::iterator i = m_mOpenedFiles.begin(); i != m_mOpenedFiles.end(); ++ i)
       {
-         map<string, list<CacheBlock> >::const_iterator c = m_mCacheBlocks.find(i->first);
-         if ((c != m_mCacheBlocks.end()) && !c->second.empty())
+         // the earliest accessed file may have the same access time as the latest time
+         // e.g., there may be only one file openned
+         if (i->second.m_llLastAccessTime <= latest_time)
          {
-            last_file = i->first;
-            latest_time = i->second.m_llLastAccessTime;
+            map<string, list<CacheBlock> >::const_iterator c = m_mCacheBlocks.find(i->first);
+            if ((c != m_mCacheBlocks.end()) && !c->second.empty())
+            {
+               last_file = i->first;
+               latest_time = i->second.m_llLastAccessTime;
+            }
          }
       }
-   }
 
-   // find the block with the earliest last access time
-   map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
-   if (c == m_mCacheBlocks.end())
-      return 0;
+      // find the block with the earliest last access time
+      map<string, list<CacheBlock> >::iterator c = m_mCacheBlocks.find(last_file);
+      if (c == m_mCacheBlocks.end())
+         break;
 
-   latest_time = CTimer::getTime() / 1000000;
-   list<CacheBlock>::iterator d = c->second.end();
-   for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
-   {
-      // write cache MUST NOT be removed until the write is cleared
-      if ((i->m_llLastAccessTime < latest_time) && !i->m_bWrite)
+      latest_time = CTimer::getTime() / 1000000;
+      list<CacheBlock>::iterator d = c->second.end();
+      for (list<CacheBlock>::iterator i = c->second.begin(); i != c->second.end(); ++ i)
       {
-         latest_time = i->m_llLastAccessTime;
-         d = i;
+         // write cache MUST NOT be removed until the write is cleared
+         if ((i->m_llLastAccessTime < latest_time) && !i->m_bWrite)
+         {
+            latest_time = i->m_llLastAccessTime;
+            d = i;
+         }
       }
+
+      if (d == c->second.end())
+         break;
+
+      delete [] d->m_pcBlock;
+      d->m_pcBlock = NULL;
+      m_llCacheSize -= d->m_llSize;
+      -- m_iBlockNum;
+      c->second.erase(d);
+      if (c->second.empty())
+         m_mCacheBlocks.erase(c);
    }
-
-   if (d == c->second.end())
-      return 0;
-
-   delete [] d->m_pcBlock;
-   d->m_pcBlock = NULL;
-   m_llCacheSize -= d->m_llSize;
-   -- m_iBlockNum;
-   c->second.erase(d);
-   if (c->second.empty())
-      m_mCacheBlocks.erase(c);
 
    return 0;
 }
@@ -344,8 +342,7 @@ int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& 
    }
 
    // Cache may not be reduced by other operations if app does write only, so we try to reduce cache block here.
-   while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
-      shrink();
+   shrink();
 
    return 0;
 }
