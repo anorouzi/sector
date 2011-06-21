@@ -23,10 +23,12 @@ written by
 #ifndef __SECTOR_LOG_H__
 #define __SECTOR_LOG_H__
 
-#include <udt.h>
 #include <fstream>
 #include <map>
+#include <string>
+
 #include <osportable.h>
+#include <udt.h>
 
 struct LogLevel
 {
@@ -57,11 +59,14 @@ struct LogString
 
 struct LogStringTag
 {
-   LogStringTag() {}
-   LogStringTag(const int tag, const int level = LogLevel::SCREEN): m_iTag(tag), m_iLevel(level) {}
+   LogStringTag(const int tag = LogTag::START, const int level = LogLevel::SCREEN);
 
    int m_iTag;
    int m_iLevel;
+
+   std::string m_strSrcFile;
+   int m_iLine;
+   std::string m_strFunc;
 };
 
 struct LogStart: LogStringTag

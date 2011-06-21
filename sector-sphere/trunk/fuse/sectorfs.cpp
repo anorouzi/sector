@@ -309,11 +309,19 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    return open(path, info);
 }
 
-int SectorFS::truncate(const char* path, off_t)
+int SectorFS::truncate(const char* path, off_t size)
 {
+   // If the file is already openned, call the truncate() API of the SectorFiel handle.
+   SectorFile* h = lookup(path);
+   if (NULL != h)
+   {
+      //h->truncate(size);
+   }
+
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   // Otherwise open the file and perform trunc.
    SectorFile* f = g_SectorClient.createSectorFile();
    int r = f->open(path, SF_MODE::WRITE | SF_MODE::TRUNC);
    if (r < 0)
@@ -321,6 +329,7 @@ int SectorFS::truncate(const char* path, off_t)
       checkConnection(r);
       return translateErr(r);
    }
+   //f->truncate(size);
    f->close();
    g_SectorClient.releaseSectorFile(f);
 
@@ -496,6 +505,9 @@ int SectorFS::translateErr(int err)
 
    case SectorError::E_CONNECTION:
       return -EHOSTDOWN;
+
+   case SectorError::E_BUSY:
+      return -EBUSY;
    }
 
    return -1;

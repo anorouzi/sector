@@ -92,6 +92,7 @@ public:	// lock/unlock
    virtual int unlock(const std::string& path, int user, int mode);
 
 public:	// serialization
+   // TODO: use memory buffer to store the serialized metadata instead of a file
    virtual int serialize(const std::string& path, const std::string& dstfile) = 0;
    virtual int deserialize(const std::string& path, const std::string& srcfile, const Address* addr) = 0;
    virtual int scan(const std::string& data_dir, const std::string& meta_dir) = 0;

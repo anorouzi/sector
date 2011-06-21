@@ -1,4 +1,4 @@
-*****************************************************************************
+/*****************************************************************************
 Copyright 2011 VeryCloud LLC
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -19,5 +19,108 @@ written by
    bdl62, last updated 05/21/2011
 *****************************************************************************/
 
+#include <string>
+#include <cassert>
 
-// place holder for fscache unit testing, to be added
+#include "fscache.h"
+
+using namespace std;
+
+// Test file metadata cache
+int test1()
+{
+   Cache cache;
+
+   const string filename = "testfile";
+   const int64_t size = 100;
+   const int64_t timestamp = 101;
+
+   cache.update(filename, timestamp, size);
+   SNode s;
+   int result = cache.stat(filename, s);
+   assert(result == 0);
+
+   const int64_t update_size = 102;
+   const int64_t update_timestamp = 103;
+   cache.update(filename, update_timestamp, update_size);
+   result = cache.stat(filename, s);
+   assert(result == 1);
+   assert((s.m_llSize == update_size) && (s.m_llTimeStamp == update_timestamp));
+
+   cache.remove(filename);
+   result = cache.stat(filename, s);
+   assert(result < 0);
+
+   return 0;
+}
+
+// Test IO data cache
+int test2()
+{
+   Cache cache;
+
+   cache.setCacheBlockSize(200);
+
+   const string filename = "testfile";
+   const int64_t size = 100;
+   const int64_t timestamp = 101;
+   cache.update(filename, timestamp, size);
+
+   int64_t offset = 200;
+   int64_t block = 201;
+   char* buf = new char[block];
+   *buf = 'z';
+   cache.insert(buf, filename, offset, block);
+
+   char data[block];
+   int64_t result = cache.read(filename, data, offset, block);
+   assert((result == block) && (*data == 'z'));
+
+   // Current implementation read whole buffer only.
+   result = cache.read(filename, data, offset, block + 1);
+   assert(result == 0);
+
+   // Test large block that cover multiple cache units.
+   int64_t off2 = 900;
+   int64_t block2 = 901;
+   char* large_buf = new char[block2];
+   cache.insert(large_buf, filename, off2, block2);
+
+   char data2[block2];
+   result = cache.read(filename, data2, off2, block2);
+   assert(result == block2);
+
+   // Read partial data.
+   result = cache.read(filename, data2, off2 + 50, block2 - 100);
+   assert(result == block2 - 100);
+
+   // Test maximu cache size.
+   cache.setMaxCacheSize(1000);
+
+   // Insert overlapping buffer block.
+   large_buf = new char[block2];
+   cache.insert(large_buf, filename, off2, block2);
+   large_buf = new char[block2];
+   cache.insert(large_buf, filename, off2, block2);
+
+   // Cache should constain most recent block only,
+   assert(cache.getCacheSize() == 901);
+
+   return 0;
+}
+
+// performance and memory leak testing.
+int test3()
+{
+   // TODO.
+   return 0;
+}
+
+int main()
+{
+   test1();
+   test2();
+   test3();
+
+   return 0;
+}

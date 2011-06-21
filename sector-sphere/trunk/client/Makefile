@@ -6,6 +6,8 @@ OBJS = client_conf.o fscache.o client.o fsclient.o dcclient.o clientmgmt.o
 
 all: libclient.so libclient.a
 
+test: fscache_unittest
+
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
@@ -14,6 +16,9 @@ libclient.so: $(OBJS)
 
 libclient.a: $(OBJS)
 	ar -rcs $@ $^
+
+fscache_unittest: fscache_unittest.cpp fscache.h fscache.cpp all 
+	$(C++) $(CCFLAGS) fscache_unittest.cpp -o $@ $(LDFLAGS) -ludt -lrpc -lclient -lcommon
 
 clean:
 	rm -f *.o *.so *.a

@@ -4,7 +4,7 @@ DEBUG = 1
 STATIC = 0
 
 CCFLAGS = -I. -I../include -I../udt
-LDFLAGS = -lstdc++ -lpthread -lssl -lcrypto -L.
+LDFLAGS = -lstdc++ -lpthread -lssl -lcrypto -L. -L../lib
 
 WARNING = -Wall -Wextra
 # -Werror -pedantic -Woverloaded-virtual -Wnon-virtual-dtor -Wcomment -Wstrict-null-sentinel -Wconversion -Wcast-align -Wcast-qual -Winit-self -Weffc++

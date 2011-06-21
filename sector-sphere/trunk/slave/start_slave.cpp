@@ -44,6 +44,9 @@ int main(int argc, char** argv)
    else if (clp.m_vParams.size() > 1)
       cout << "warning: wrong parameters ignored.\n";
 
+   // TODO: move slave.conf parsing here, remove conf parsing from inside class Slave.
+
+
    Slave s;
 
    if (s.init(&base, &global_conf) < 0)

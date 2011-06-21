@@ -40,6 +40,9 @@ int main(int argc, char** argv)
          return -1;
    }
 
+   // TODO: move master.conf parsing here, and add set... API to class Master
+
+
    cout << "Sector master is successfully running now. check the master log at $DATA_DIRECTORY/.log for more details.\n";
    cout << "There is no further screen output from this program.\n";
 

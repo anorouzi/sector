@@ -35,6 +35,15 @@ written by
 
 using namespace std;
 
+LogStringTag::LogStringTag(const int tag, const int level):
+m_iTag(tag),
+m_iLevel(level),
+m_strSrcFile(__FILE__),
+m_iLine(__LINE__),
+m_strFunc(__func__)
+{
+}
+
 
 SectorLog::SectorLog():
 m_iLevel(1),
