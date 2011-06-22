@@ -229,12 +229,15 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    memcpy(buf, cb->m_pcBlock + offset - cb->m_llOffset, size);
 
    // Update the block by moving it to the tail of the cache list
-   m_lCacheBlocks.erase(block->second);
-   CacheBlockIter it = m_lCacheBlocks.insert(m_lCacheBlocks.end(), cb);
+   if (m_lCacheBlocks.size() > 1)
+   {
+      m_lCacheBlocks.erase(block->second);
+      CacheBlockIter it = m_lCacheBlocks.insert(m_lCacheBlocks.end(), cb);
 
-   // update per-file index
-   for (int i = first_block, n = first_block + block_num; i < n; ++ i)
-      c->second.insert(make_pair(i, it));
+      // update per-file index
+      for (int i = first_block, n = first_block + block_num; i < n; ++ i)
+         c->second[i] = it;
+   }
 
    return size;
 }

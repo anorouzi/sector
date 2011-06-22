@@ -106,14 +106,17 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
    f->close();
    client.releaseSectorFile(f);
 
-   if (result == size)
+   if (result >= 0)
    {
+      float throughput = 0.0;
       #ifndef WIN32
          gettimeofday(&t2, 0);
-         float throughput = size * 8.0 / 1000000.0 / ((t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0);
+         float span = (t2.tv_sec - t1.tv_sec) + (t2.tv_usec - t1.tv_usec) / 1000000.0;
       #else
-         float throughput = size * 8.0 / 1000000.0 / ((GetTickCount() - t1) / 1000.0);
+         float span = (GetTickCount() - t1) / 1000.0;
       #endif
+      if (span > 0.0)
+         throughput = result * 8.0 / 1000000.0 / span;
 
       cout << "Downloading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
 

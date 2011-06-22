@@ -19,8 +19,8 @@ written by
    bdl62, last updated 05/21/2011
 *****************************************************************************/
 
-#include <string>
 #include <cassert>
+#include <string>
 
 #include "fscache.h"
 
