@@ -27,6 +27,15 @@ written by
 
 using namespace std;
 
+int64_t CacheBlock::s_llBlockIDSeed = 0;
+
+CacheBlock::CacheBlock()
+{
+   m_llBlockID = s_llBlockIDSeed ++;
+   if (s_llBlockIDSeed < 0)
+      s_llBlockIDSeed = 0;
+}
+
 Cache::Cache():
 m_llCacheSize(0),
 m_iBlockNum(0),
@@ -149,25 +158,12 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
       return -1;
    s->second.m_llLastAccessTime = CTimer::getTime() / 1000000;
 
-   int first_block;
-   int block_num;
+   int64_t first_block;
+   int64_t block_num;
    parseIndexOffset(offset, size, first_block, block_num);
 
-   // check if the cache already exists or overlap with existing blocks
    FileCacheMap::iterator c = m_mFileCache.find(path);
-   if (c != m_mFileCache.end())
-   {
-      // If this block overlapps with existing blocks, delete existing blocks.
-      for (int i = first_block, n = first_block + block_num; i < n; ++ i)
-      {
-         BlockIndexMap::iterator it = c->second.find(i);
-         if (it != c->second.end())
-            releaseBlock(it->second);
-      }
-   }
-
-   // Check again as the blocks may be released just now.
-   if (m_mFileCache.find(path) == m_mFileCache.end())
+   if (c == m_mFileCache.end())
    {
       // This is the first cache block for this file.
       m_mFileCache[path].clear();
@@ -183,12 +179,14 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
    cb->m_pcBlock = block;
    cb->m_bWrite = write;
 
-   // insert at the end of the list, newest block
-   CacheBlockIter it = m_lCacheBlocks.insert(m_lCacheBlocks.end(), cb);
+   // insert at the head of the list, newest block
+   CacheBlockIter it = m_lCacheBlocks.insert(m_lCacheBlocks.begin(), cb);
 
-   // update per-file index
-   for (int i = first_block, n = first_block + block_num; i < n; ++ i)
-      c->second[i] = it;
+   // Update per-file index. Update each offset index slot, and insert
+   // the new block at the front. During read, the first block that covers
+   // the requested area will be served, since it contains more recent data.
+   for (int64_t i = first_block, n = first_block + block_num; i < n; ++ i)
+      c->second[i].push_front(it);
 
    m_llCacheSize += cb->m_llSize;
    ++ m_iBlockNum;
@@ -196,14 +194,14 @@ int Cache::insert(char* block, const string& path, const int64_t& offset, const 
    // check and remove old caches to limit memory usage
    shrink();
 
-   return 0;
+   return cb->m_llBlockID;;
 }
 
 int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const int64_t& size)
 {
    CGuard sg(m_Lock);
 
-   InfoBlockMap::const_iterator s = m_mOpenedFiles.find(path);
+   InfoBlockMap::iterator s = m_mOpenedFiles.find(path);
    if (s == m_mOpenedFiles.end())
       return -1;
 
@@ -211,38 +209,73 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    if (c == m_mFileCache.end())
       return 0;
 
-   int first_block;
-   int block_num;
+   int64_t first_block;
+   int64_t block_num;
    parseIndexOffset(offset, size, first_block, block_num);
 
-   BlockIndexMap::iterator block = c->second.find(first_block);
-   if (block == c->second.end())
+   BlockIndexMap::iterator slot = c->second.find(first_block);
+   if (slot == c->second.end())
       return 0;
 
-   CacheBlock* cb = *block->second;
-
-   // We only read full size block.
-   // TODO: allow partial read.
-   if (cb->m_llOffset + cb->m_llSize < offset + size)
-      return 0;
-
-   memcpy(buf, cb->m_pcBlock + offset - cb->m_llOffset, size);
-
-   // Update the block by moving it to the tail of the cache list
-   if (m_lCacheBlocks.size() > 1)
+   // Scan every cache entry in this block
+   CacheBlock* cb = NULL;
+   CacheBlockIter it;
+   for (BlockIndex::const_iterator block = slot->second.begin(); block != slot->second.end(); ++ block)
    {
-      m_lCacheBlocks.erase(block->second);
-      CacheBlockIter it = m_lCacheBlocks.insert(m_lCacheBlocks.end(), cb);
-
-      // update per-file index
-      for (int i = first_block, n = first_block + block_num; i < n; ++ i)
-         c->second[i] = it;
+      if (offset < (**block)->m_llOffset + (**block)->m_llSize)
+      {
+         // Once we find a block, the search is stopped. If the block does not have all the requested data,
+         // partial data may be returned. We let the app to handle this situation (e.g., issue another
+         // read with updated paramters).
+         cb = **block;
+         it = *block;
+         break;
+      }
    }
 
-   return size;
+   if (NULL == cb)
+      return 0;
+
+   // calculate read size.
+   int64_t readsize = size;
+   if (cb->m_llOffset + cb->m_llSize < offset + size)
+      readsize = cb->m_llOffset + cb->m_llSize - offset;
+
+   memcpy(buf, cb->m_pcBlock + offset - cb->m_llOffset, readsize);
+
+   // Update last access time.
+   s->second.m_llLastAccessTime = CTimer::getTime();
+   cb->m_llLastAccessTime = CTimer::getTime();
+
+   // Update the block by moving it to the head of the cache list
+   if (m_lCacheBlocks.size() > 1)
+   {
+      // Add the block to the head of list, since it is just accessed.
+      CacheBlockIter new_it = m_lCacheBlocks.insert(m_lCacheBlocks.begin(), cb);
+
+      // update per-file index first, otherwise the iterator will be changed.
+      parseIndexOffset(cb->m_llOffset, cb->m_llSize, first_block, block_num);
+      for (int i = first_block, n = first_block + block_num; i < n; ++ i)
+      {
+         for (BlockIndex::iterator block = c->second[i].begin(); block != c->second[i].end(); ++ block)
+         {
+            if (*block == it)
+            {
+               c->second[i].erase(block);
+               c->second[i].push_front(it);
+               break;
+            }
+         }
+      }
+
+      // Now remove the old position.
+      m_lCacheBlocks.erase(it);
+   }
+
+   return readsize;
 }
 
-char* Cache::retrieve(const std::string& path, const int64_t& offset, const int64_t& size)
+char* Cache::retrieve(const std::string& path, const int64_t& offset, const int64_t& size, const int64_t& id)
 {
    CGuard sg(m_Lock);
 
@@ -254,54 +287,44 @@ char* Cache::retrieve(const std::string& path, const int64_t& offset, const int6
    if (c == m_mFileCache.end())
       return NULL;
 
-   int first_block;
-   int block_num;
+   int64_t first_block;
+   int64_t block_num;
    parseIndexOffset(offset, size, first_block, block_num);
 
-   BlockIndexMap::iterator block = c->second.find(first_block);
-   if (block == c->second.end())
+   // Retrieve cache line index.
+   BlockIndexMap::iterator slot = c->second.find(first_block);
+   if (slot == c->second.end())
       return NULL;
 
-   CacheBlock* cb = *block->second;
-   if ((cb->m_llOffset != offset) || (cb->m_llSize != size))
-      return NULL;
+   for (BlockIndex::const_iterator block = slot->second.begin(); slot != c->second.end(); ++ block)
+   {
+      if ((**block)->m_llBlockID == id)
+         return (**block)->m_pcBlock;
+   }
 
-   return cb->m_pcBlock;
+   return NULL;
 }
 
 void Cache::shrink()
 {
-   // The head node on the cache list is the oldest block, remove it to reduce cache size.
-
    while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
    {
       if (m_lCacheBlocks.empty())
          return;
 
-      CacheBlock* cb = m_lCacheBlocks.front();
+      // choose the last/oldest block to delete.
+      CacheBlock* cb = m_lCacheBlocks.back();
+
+      // cannot release write cache before it is flushed.
       if (cb->m_bWrite)
          return;
 
-      int first_block;
-      int block_num;
-      parseIndexOffset(cb->m_llOffset, cb->m_llSize, first_block, block_num);
-
-      FileCacheMap::iterator c = m_mFileCache.find(cb->m_strFile);
-      assert(c != m_mFileCache.end());
-
-      for (int i = first_block, n = first_block + block_num; i < n; ++ i)
-         c->second.erase(i);
-
-      m_llCacheSize -= cb->m_llSize;
-      m_iBlockNum --;
-
-      m_lCacheBlocks.pop_front();
-      delete [] cb->m_pcBlock;
-      delete cb;
+      releaseBlock(cb);
+      m_lCacheBlocks.pop_back();
    }
 }
 
-int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& size)
+int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& size, const int64_t& id)
 {
    CGuard sg(m_Lock);
 
@@ -313,51 +336,90 @@ int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& 
    if (c == m_mFileCache.end())
       return 0;
 
-   int first_block;
-   int block_num;
+   int64_t first_block;
+   int64_t block_num;
    parseIndexOffset(offset, size, first_block, block_num);
 
-   BlockIndexMap::iterator block = c->second.find(first_block);
-   assert(block != c->second.end());
+   BlockIndexMap::iterator slot = c->second.find(first_block);
+   assert(slot != c->second.end());
 
-   (*block->second)->m_bWrite = false;
+   // Update the first entry is enough, since they all point to the same physical block.
+   for (BlockIndex::iterator block = slot->second.begin(); block != slot->second.end(); ++ block)
+   {
+      if ((*(*block))->m_llBlockID == id)
+      {
+         (*(*block))->m_bWrite = false;
+         break;
+      }
+   }
 
    // Cache may not be reduced by other operations if app does write only, so we try to reduce cache block here.
-   while ((m_llCacheSize > m_llMaxCacheSize) || (m_iBlockNum > m_iMaxCacheBlocks))
-      shrink();
+   shrink();
 
    return 0;
 }
 
-void Cache::parseIndexOffset(const int64_t& offset, const int64_t& size, int& index_off, int& block_num)
+void Cache::parseIndexOffset(const int64_t& offset, const int64_t& size, int64_t& index_off, int64_t& block_num)
 {
    index_off = offset / m_iBlockUnitSize;
-   if ((offset != 0) && ((offset % m_iBlockUnitSize) == 0))
-      index_off ++;
-
    block_num = (offset + size) / m_iBlockUnitSize - index_off + 1;
 }
 
-void Cache::releaseBlock(CacheBlockIter& it)
+void Cache::releaseBlock(CacheBlock* cb)
 {
-   CacheBlock* cb = *it;
-
-   int first_block;
-   int block_num;
+   int64_t first_block;
+   int64_t block_num;
    parseIndexOffset(cb->m_llOffset, cb->m_llSize, first_block, block_num);
 
    FileCacheMap::iterator c = m_mFileCache.find(cb->m_strFile);
    assert(c != m_mFileCache.end());
 
    for (int i = first_block, n = first_block + block_num; i < n; ++ i)
-      c->second.erase(i);
+   {
+      for (BlockIndex::iterator block = c->second[i].begin(); block != c->second[i].end(); ++ block)
+      {
+         if ((**block)->m_llBlockID == cb->m_llBlockID)
+         {
+            c->second[i].erase(block);
+            break;
+         }
+      }
+      if (c->second[i].empty())
+         c->second.erase(i);
+   }
    if (c->second.empty())
       m_mFileCache.erase(c);
 
    m_llCacheSize -= cb->m_llSize;
    m_iBlockNum --;
 
-   m_lCacheBlocks.erase(it);
    delete [] cb->m_pcBlock;
    delete cb;
+}
+
+bool Cache::overlap(const CacheBlock& cb1, const CacheBlock& cb2)
+{
+   if ((cb1.m_llOffset + cb1.m_llSize) < cb2.m_llOffset)
+      return false;
+
+   if ((cb2.m_llOffset + cb2.m_llSize) < cb1.m_llOffset)
+      return false;
+
+   return true;
+}
+
+bool Cache::overlap(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2)
+{
+   if ((off1 + size1) <= off2)
+      return false;
+
+   if ((off2 + size2) <= off1)
+      return false;
+
+   return true;
+}
+
+bool Cache::contain(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2)
+{
+   return (off1 <= off2) && (off1 + size1 >= off2 + size2);
 }

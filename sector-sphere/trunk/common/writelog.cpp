@@ -28,9 +28,10 @@ m_llTotalSize(0)
 {
 }
 
-int WriteLog::insert(const int64_t& offset, const int64_t& size)
+int WriteLog::insert(const int64_t& offset, const int64_t& size, const int64_t& id)
 {
     WriteEntry entry;
+    entry.m_llID = id;
     entry.m_llOffset = offset;
     entry.m_llSize = size;
     m_vListOfWrites.push_back(entry);

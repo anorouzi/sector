@@ -27,6 +27,7 @@ written by
 
 struct WriteEntry
 {
+    int64_t m_llID;		// A unique ID to identify each entry, as offset and size can be the same
     int64_t m_llOffset;
     int64_t m_llSize;
 };
@@ -37,7 +38,7 @@ public:
     WriteLog();
 
 public:
-    int insert(const int64_t& offset, const int64_t& size);
+    int insert(const int64_t& offset, const int64_t& size, const int64_t& id = 0);
     void clear();
 
     int serialize(char*& buf, int& size);

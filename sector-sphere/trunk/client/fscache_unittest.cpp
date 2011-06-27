@@ -76,9 +76,8 @@ int test2()
    int64_t result = cache.read(filename, data, offset, block);
    assert((result == block) && (*data == 'z'));
 
-   // Current implementation read whole buffer only.
    result = cache.read(filename, data, offset, block + 1);
-   assert(result == 0);
+   assert(result == block);
 
    // Test large block that cover multiple cache units.
    int64_t off2 = 900;
@@ -110,9 +109,32 @@ int test2()
 }
 
 // performance and memory leak testing.
-int test3()
+int test3(const int64_t& max, int unit, int block)
 {
-   // TODO.
+   Cache cache;
+
+   cache.setMaxCacheSize(max);
+   cache.setCacheBlockSize(unit);
+
+   const string filename = "testfile";
+   const int64_t size = unit * 100;
+   const int64_t timestamp = 101;
+   cache.update(filename, timestamp, size);
+
+   for (int i = 0; i < 100; ++ i)
+   {
+      char* buf = new char[block];
+      cache.insert(buf, filename, block * i, block);
+   }
+
+   assert(cache.getCacheSize() <= max);
+
+   char* buf = new char[unit];
+   for (int i = 0; i < 100; ++ i)
+   {
+      cache.read(filename, buf, block * i, block);
+   }
+
    return 0;
 }
 
@@ -120,7 +142,9 @@ int main()
 {
    test1();
    test2();
-   test3();
+   test3(100000, 100, 100);
+   test3(100000, 200, 100);
+   test3(100000, 100, 200);
 
    return 0;
 }

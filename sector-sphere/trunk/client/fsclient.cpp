@@ -70,6 +70,7 @@ m_llCurWritePos(0),
 m_bRead(false),
 m_bWrite(false),
 m_bSecure(false),
+m_bLocalOpt(true),
 m_bReadLocal(false),
 m_bWriteLocal(false),
 m_strLocalPath(),
@@ -186,8 +187,8 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
    string localip;
    int localport;
    m_pClient->m_DataChn.getSelfAddr(m_strSlaveIP, m_iSlaveDataPort, localip, localport);
-/*
-   if (m_strSlaveIP == localip)
+
+   if ((m_strSlaveIP == localip) && m_bLocalOpt)
    {
       // the file is on the same node, check if the file can be read/written directly
       int32_t cmd = 6;
@@ -226,7 +227,7 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
             m_bReadLocal = m_bWriteLocal = false;
       }
    }
-*/
+
    // check TRUNC
    if ((mode & 4) && m_bWrite)
       m_llSize = 0;
@@ -449,9 +450,9 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
       // keep the data in cache, in case write is not completed
       char* data = new char[sentsize];
       memcpy(data, buf, sentsize);
-      m_pClient->m_Cache.insert(data, m_strFileName, offset, sentsize, true);
+      int64_t id = m_pClient->m_Cache.insert(data, m_strFileName, offset, sentsize, true);
 
-      m_WriteLog.insert(offset, sentsize);
+      m_WriteLog.insert(offset, sentsize, id);
    }
    else
    {
@@ -921,7 +922,7 @@ int FSClient::flush_()
 
          for (vector<WriteEntry>::iterator w = m_WriteLog.m_vListOfWrites.begin(); w != m_WriteLog.m_vListOfWrites.end(); ++ w)
          {
-            char* buf = m_pClient->m_Cache.retrieve(m_strFileName, w->m_llOffset, w->m_llSize);
+            char* buf = m_pClient->m_Cache.retrieve(m_strFileName, w->m_llOffset, w->m_llSize, w->m_llID);
             if (NULL == buf)
             {
                // TODO: fatal error
@@ -967,7 +968,7 @@ int FSClient::flush_()
    // write has been synchronized
    for (vector<WriteEntry>::iterator w = m_WriteLog.m_vListOfWrites.begin(); w != m_WriteLog.m_vListOfWrites.end(); ++ w)
    {
-      m_pClient->m_Cache.clearWrite(m_strFileName, w->m_llOffset, w->m_llSize);
+      m_pClient->m_Cache.clearWrite(m_strFileName, w->m_llOffset, w->m_llSize, w->m_llID);
    }
    m_WriteLog.clear();
    m_llLastFlushTime = CTimer::getTime();

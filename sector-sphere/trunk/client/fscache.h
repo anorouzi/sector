@@ -43,6 +43,9 @@ struct InfoBlock
 
 struct CacheBlock
 {
+   CacheBlock();
+
+   int64_t m_llBlockID;			// unique block ID, as blocks may have same filename, offset, size, etc.
    std::string m_strFile;               // file name 
    int64_t m_llOffset;                  // cache block offset
    int64_t m_llSize;                    // cache size
@@ -51,16 +54,27 @@ struct CacheBlock
    int m_iAccessCount;                  // number of accesses
    char* m_pcBlock;                     // cache data
    bool m_bWrite;			// if this block is being written
+
+   static int64_t s_llBlockIDSeed;	// a seed number to generate unique block ID.
 };
 
 class Cache
 {
+// File metadata cache, for keep tracking file changes that have not been
+// updated to the master yet.
 typedef std::map<std::string, InfoBlock> InfoBlockMap;
-typedef std::list<CacheBlock*>::iterator CacheBlockIter;
-typedef std::map<int, CacheBlockIter> BlockIndexMap;
-typedef std::map<std::string, BlockIndexMap> FileCacheMap;
 
-// TODO: BlockIndexMap should have a set of CacheBlockIter.
+// Store the physical cache block. The physical blocks are on a single list, shared by all open files.
+typedef std::list<CacheBlock*> CacheBlockList;
+typedef CacheBlockList::iterator CacheBlockIter;
+
+// Each index tree is lined by fix-sized slots. Each slot may contain a list of blocks. 
+// Blocks may overlap or even cover the same file region. This is especially true to write cache.
+typedef std::list<CacheBlockIter> BlockIndex;
+typedef std::map<int64_t, BlockIndex> BlockIndexMap;
+
+// Each file has its own block tree.
+typedef std::map<std::string, BlockIndexMap> FileCacheMap;
 
 public:
    Cache();
@@ -81,13 +95,18 @@ public: // operations for file metadata cache
 public: // operations for file data cache
    int insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size, const bool& write = false);
    int64_t read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size);
-   char* retrieve(const std::string& path, const int64_t& offset, const int64_t& size);
-   int clearWrite(const std::string& path, const int64_t& offset, const int64_t& size);
+   char* retrieve(const std::string& path, const int64_t& offset, const int64_t& size, const int64_t& id);
+   int clearWrite(const std::string& path, const int64_t& offset, const int64_t& size, const int64_t& id);
 
 private:
    void shrink();
-   void parseIndexOffset(const int64_t& offset, const int64_t& size, int& index_off, int& block_num);
-   void releaseBlock(CacheBlockIter& it);
+   void parseIndexOffset(const int64_t& offset, const int64_t& size, int64_t& index_off, int64_t& block_num);
+   void releaseBlock(CacheBlock* cb);
+
+private:
+   bool overlap(const CacheBlock& cb1, const CacheBlock& cb2);
+   bool overlap(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2);
+   bool contain(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2);
 
 private:
    InfoBlockMap m_mOpenedFiles;

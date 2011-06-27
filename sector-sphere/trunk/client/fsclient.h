@@ -82,6 +82,7 @@ private:
    bool m_bWrite;		// write permission
    bool m_bSecure;		// if the data transfer should be secure
 
+   bool m_bLocalOpt;		// optimize local Sector IO with direct IO to native files
    bool m_bReadLocal;		// if this file exist on the same node and can be read directly
    bool m_bWriteLocal;		// if this file exist on the same node and can be written directly 
    std::string m_strLocalPath;	// path of the file if it is local
