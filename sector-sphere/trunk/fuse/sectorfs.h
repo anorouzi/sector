@@ -39,9 +39,11 @@ written by
 
 struct FileTracker
 {
+   enum State {NEXIST, OPEN, CLOSING};
+
    std::string m_strName;
    int m_iCount;
-
+   State m_State;
    SectorFile* m_pHandle;
 };
 

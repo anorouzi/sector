@@ -262,7 +262,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
             if (*block == it)
             {
                c->second[i].erase(block);
-               c->second[i].push_front(it);
+               c->second[i].push_front(new_it);
                break;
             }
          }
