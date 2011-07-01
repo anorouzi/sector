@@ -94,6 +94,17 @@ public: // operations for file metadata cache
 
 public: // operations for file data cache
    int insert(char* block, const std::string& path, const int64_t& offset, const int64_t& size, const bool& write = false);
+
+      // Functionality:
+      //    Read certain amount of data from cache.
+      // Parameters:
+      //    0) [in] path: file name.
+      //    1) [out] buf: buffer to receive data.
+      //    2) [in] offset: from where to read data.
+      //    3) [in] size: total data to read.
+      // Returned value:
+      //    Actual size of data read. This may return 0 but never return negative value.
+
    int64_t read(const std::string& path, char* buf, const int64_t& offset, const int64_t& size);
    char* retrieve(const std::string& path, const int64_t& offset, const int64_t& size, const int64_t& id);
    int clearWrite(const std::string& path, const int64_t& offset, const int64_t& size, const int64_t& id);

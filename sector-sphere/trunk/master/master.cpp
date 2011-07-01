@@ -1289,6 +1289,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             processWriteResults(t.m_strFile, t.m_mResults);
             m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
+            logUserActivity(user, "close", t.m_strFile.c_str(), 0, NULL, LogLevel::LEVEL_9);
          }
       }
 
@@ -1524,6 +1525,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
    case 10: // slave report status
    {
+      // TODO: this may be piggyback to other messages.
+
       Address addr;
       addr.m_strIP = ip;
       addr.m_iPort = port;

@@ -22,7 +22,7 @@ written by
 #include <assert.h>
 #include <string.h>
 
-#include <common.h>
+#include "common.h"
 #include "fscache.h"
 
 using namespace std;
@@ -202,8 +202,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    CGuard sg(m_Lock);
 
    InfoBlockMap::iterator s = m_mOpenedFiles.find(path);
-   if (s == m_mOpenedFiles.end())
-      return -1;
+   assert(s != m_mOpenedFiles.end());
 
    FileCacheMap::iterator c = m_mFileCache.find(path);
    if (c == m_mFileCache.end())
@@ -222,7 +221,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    CacheBlockIter it;
    for (BlockIndex::const_iterator block = slot->second.begin(); block != slot->second.end(); ++ block)
    {
-      if (offset < (**block)->m_llOffset + (**block)->m_llSize)
+      if (((**block)->m_llOffset <= offset) && (offset < (**block)->m_llOffset + (**block)->m_llSize))
       {
          // Once we find a block, the search is stopped. If the block does not have all the requested data,
          // partial data may be returned. We let the app to handle this situation (e.g., issue another

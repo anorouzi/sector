@@ -19,10 +19,10 @@ written by
    Yunhong Gu, last updated 03/21/2011
 *****************************************************************************/
 
-
-#include <sectorfs.h>
 #include <fstream>
-#include <iostream>
+
+#include "common.h"
+#include "sectorfs.h"
 
 using namespace std;
 
@@ -347,32 +347,65 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    if (!g_bConnected) return -1;
 
    // TODO: file option should be checked.
+   bool owner = false;
+   FileTracker* ft = NULL;
+
    FileTracker::State state = FileTracker::NEXIST;
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t != m_mOpenFileList.end())
    {
       state = t->second->m_State;
+      t->second->m_iCount ++;
+
       if (FileTracker::OPEN == state)
       {
-         t->second->m_iCount ++;
          pthread_mutex_unlock(&m_OpenFileLock);
          return 0;
       }
+      else
+      {
+         ft = t->second;
+      }
+   }
+   else
+   {
+      ft = new FileTracker;
+      ft->m_strName = path;
+      ft->m_iCount = 1;
+      ft->m_State = FileTracker::OPENING;
+      ft->m_pHandle = NULL;
+      m_mOpenFileList[path] = ft;
+      owner = true;
    }
    pthread_mutex_unlock(&m_OpenFileLock);
 
-   while (FileTracker::CLOSING == state)
+   if (!owner)
    {
-      pthread_mutex_lock(&m_OpenFileLock);
-      map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
-      if (t != m_mOpenFileList.end())
-         state = t->second->m_State;
-      else
-         state = FileTracker::NEXIST;
-      pthread_mutex_unlock(&m_OpenFileLock);
+      // A spin loop to wait for the file to be opened/closed by another thread.
+      // TODO: add signal support. This should happen rarely anyway.
+      while (true)
+      {
+         { // mutex proteced block.
+            CGuard fl(m_OpenFileLock);
+            if ((FileTracker::CLOSING != ft->m_State) && (FileTracker::OPENING != ft->m_State))
+            {
+               // Another thread has opened the file, no need to open again.
+               if (FileTracker::OPEN == ft->m_State)
+                  return 0;
+
+               if (FileTracker::CLOSED == ft->m_State)
+                  ft->m_State = FileTracker::OPENING;
+
+               break;
+            }
+         } // end of mutex protection.
+
+         usleep(1);
+      }
    }
 
+   // Others are waiting for this thread to open the file.
    SectorFile* f = g_SectorClient.createSectorFile();
 
    int permission = SF_MODE::READ;
@@ -390,35 +423,21 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    int r = f->open(path, permission);
    if (r < 0)
    {
-      checkConnection(r);
-      g_SectorClient.releaseSectorFile(f);
-      return translateErr(r);
+      pthread_mutex_lock(&m_OpenFileLock);
+      ft->m_State = FileTracker::CLOSED;
+      ft->m_iCount --;
+      if (0 == ft->m_iCount)
+      {
+         m_mOpenFileList.erase(path);
+         delete ft;
+      }
+      pthread_mutex_unlock(&m_OpenFileLock);
+
+      return -1;
    }
 
-   FileTracker* ft = new FileTracker;
-   ft->m_strName = path;
-   ft->m_iCount = 1;
-   ft->m_State =  FileTracker::OPEN;
    ft->m_pHandle = f;
-
-   pthread_mutex_lock(&m_OpenFileLock);
-   t = m_mOpenFileList.find(path);
-   if (t != m_mOpenFileList.end())
-   {
-      // another thread already opened the file 
-      // use the existing handle and release the current one
-      t->second->m_iCount ++;
-
-      ft->m_pHandle->close();
-      g_SectorClient.releaseSectorFile(ft->m_pHandle);
-      delete ft;
-   }
-   else
-   {
-      m_mOpenFileList[path] = ft;
-   }
-   pthread_mutex_unlock(&m_OpenFileLock);
-
+   ft->m_State = FileTracker::OPEN;
    return 0;
 }
 
@@ -468,14 +487,14 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
 
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
-   if (t == m_mOpenFileList.end())
+   if ((t == m_mOpenFileList.end()) || (FileTracker::OPEN != t->second->m_State))
    {
       pthread_mutex_unlock(&m_OpenFileLock);
       return -EBADF;
    }
-   t->second->m_iCount --;
-   if (t->second->m_iCount > 0)
+   if (t->second->m_iCount > 1)
    {
+      t->second->m_iCount --;
       pthread_mutex_unlock(&m_OpenFileLock);
       return 0;
    }
@@ -483,13 +502,19 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    ft->m_State = FileTracker::CLOSING;
    pthread_mutex_unlock(&m_OpenFileLock);
 
-   // file close/release may take some time. so do it out of mutex protection
+   // File close/release may take some time, so do it out of mutex protection.
    ft->m_pHandle->close();
    g_SectorClient.releaseSectorFile(ft->m_pHandle);
-   delete ft;
+   ft->m_pHandle = NULL;
+   ft->m_State = FileTracker::CLOSED;
 
    pthread_mutex_lock(&m_OpenFileLock);
-   m_mOpenFileList.erase(t);
+   t->second->m_iCount --;
+   if (t->second->m_iCount == 0)
+   {
+      m_mOpenFileList.erase(t);
+      delete ft;
+   }
    pthread_mutex_unlock(&m_OpenFileLock);
 
    return 0;

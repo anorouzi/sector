@@ -20,9 +20,9 @@ written by
 *****************************************************************************/
 
 
-#include <common.h>
-#include <fsclient.h>
-#include <iostream>
+#include "common.h"
+#include "fsclient.h"
+
 using namespace std;
 
 FSClient* Client::createFSClient()
@@ -70,7 +70,7 @@ m_llCurWritePos(0),
 m_bRead(false),
 m_bWrite(false),
 m_bSecure(false),
-m_bLocalOpt(true),
+m_bLocalOpt(false),
 m_bReadLocal(false),
 m_bWriteLocal(false),
 m_strLocalPath(),
@@ -343,21 +343,34 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
       return realsize;
    }
 
-   // check cache
+   // check cache.
    int64_t cr = m_pClient->m_Cache.read(m_strFileName, buf, m_llCurReadPos, realsize);
-   if (cr > 0)
+
+   // cache may return smaller size, so read repeatedly until all data has been retrieved,
+   // or no more data can be found in cache.
+   int64_t total = cr;
+   while ((total < realsize) && (cr > 0))
    {
-      m_llCurReadPos += cr;
-      return cr;
+      cr = m_pClient->m_Cache.read(m_strFileName, buf + total, m_llCurReadPos, realsize - total);
+      total += cr;
    }
-   if (prefetch >= size)
+
+   // return if we have read all data from cache.
+   if (total == realsize)
+   {
+      m_llCurReadPos += total;
+      return total;
+   }
+
+   // If not, do prefetch.
+   if (prefetch >= realsize - total)
    {
       this->prefetch(m_llCurReadPos, prefetch);
-      cr = m_pClient->m_Cache.read(m_strFileName, buf, m_llCurReadPos, realsize);
+      cr = m_pClient->m_Cache.read(m_strFileName, buf + total, m_llCurReadPos, realsize - total);
       if (cr > 0)
       {
          m_llCurReadPos += cr;
-         return cr;
+         return total + cr;
       }
    }
 
@@ -437,7 +450,6 @@ int64_t FSClient::write(const char* buf, const int64_t& offset, const int64_t& s
    m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
 
    int64_t sentsize = m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, buf, size, m_pEncoder);
-
    if (sentsize > 0)
    {
       m_llCurWritePos += sentsize;

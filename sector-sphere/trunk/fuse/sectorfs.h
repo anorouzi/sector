@@ -25,21 +25,22 @@ written by
 
 #define FUSE_USE_VERSION 26
 
-#include <sector.h>
-#include <fuse.h>
-#include <fuse/fuse_opt.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
-#include <string>
+#include <fcntl.h>
+#include <fuse.h>
+#include <fuse/fuse_opt.h>
 #include <map>
+#include <stdio.h>
+#include <string>
+#include <string.h>
+#include <unistd.h>
+
+#include "sector.h"
 
 struct FileTracker
 {
-   enum State {NEXIST, OPEN, CLOSING};
+   enum State {NEXIST, OPENING, OPEN, CLOSING, CLOSED};
 
    std::string m_strName;
    int m_iCount;
