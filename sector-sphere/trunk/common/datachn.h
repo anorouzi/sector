@@ -23,14 +23,20 @@ written by
 #ifndef __CB_DATACHN_H__
 #define __CB_DATACHN_H__
 
-#include <udttransport.h>
+#include <list>
 #include <map>
 #include <string>
-#include <crypto.h>
-#include <sector.h>
+
+#include "crypto.h"
+#include "sector.h"
+#include "udttransport.h"
+
 
 struct RcvData
 {
+   RcvData(): m_pcData(NULL) {}
+   ~RcvData() { delete [] m_pcData; }
+
    int m_iSession;
    int m_iSize;
    char* m_pcData;
@@ -44,7 +50,7 @@ public:
 
 public:
    UDTTransport* m_pTrans;
-   std::vector<RcvData> m_vDataQueue;
+   std::list<RcvData> m_lDataQueue;
    pthread_mutex_t m_SndLock;
    pthread_mutex_t m_RcvLock;
    pthread_mutex_t m_QueueLock;

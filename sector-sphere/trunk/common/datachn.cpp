@@ -53,9 +53,6 @@ ChnInfo::~ChnInfo()
    CGuard::releaseMutex(m_SndLock);
    CGuard::releaseMutex(m_RcvLock);
    CGuard::releaseMutex(m_QueueLock);
-
-   for (vector<RcvData>::iterator i = m_vDataQueue.begin(); i != m_vDataQueue.end(); ++ i)
-      delete [] i->m_pcData;
 }
 
 DataChn::DataChn()
@@ -274,7 +271,7 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
 
       CGuard::enterCS(c->m_QueueLock);
       c->m_llTotalQueueSize += q.m_iSize;
-      c->m_vDataQueue.push_back(q);
+      c->m_lDataQueue.push_back(q);
       CGuard::leaveCS(c->m_QueueLock);
 
       return size;
@@ -312,6 +309,7 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
    return size;
 }
 
+// TODO: cleanup recv() and recvfile()
 int DataChn::recv(const string& ip, int port, int session, char*& data, int& size, Crypto* decoder)
 {
    data = NULL;
@@ -327,7 +325,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
    while (true)
    {
       CGuard::enterCS(c->m_QueueLock);
-      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
+      for (list<RcvData>::iterator q = c->m_lDataQueue.begin(); q != c->m_lDataQueue.end(); ++ q)
       {
          if (session == q->m_iSession)
          {
@@ -342,10 +340,11 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
                size = q->m_iSize;
                decoder->decrypt((unsigned char*)q->m_pcData, q->m_iSize, (unsigned char*)data, size);
                delete [] q->m_pcData;
+               q->m_pcData = NULL;
             }
 
             c->m_llTotalQueueSize -= q->m_iSize;
-            c->m_vDataQueue.erase(q);
+            c->m_lDataQueue.erase(q);
 
             CGuard::leaveCS(c->m_QueueLock);
             return size;
@@ -366,7 +365,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
 
       bool found = false;
       CGuard::enterCS(c->m_QueueLock);
-      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
+      for (list<RcvData>::iterator q = c->m_lDataQueue.begin(); q != c->m_lDataQueue.end(); ++ q)
       {
          if (session == q->m_iSession)
          {
@@ -381,10 +380,11 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
                size = q->m_iSize;
                decoder->decrypt((unsigned char*)q->m_pcData, q->m_iSize, (unsigned char*)data, size);
                delete [] q->m_pcData;
+               q->m_pcData = NULL;
             }
 
             c->m_llTotalQueueSize -= q->m_iSize;
-            c->m_vDataQueue.erase(q);
+            c->m_lDataQueue.erase(q);
 
             found = true;
             break;
@@ -464,6 +464,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
             size = rd.m_iSize;
             decoder->decrypt((unsigned char*)rd.m_pcData, rd.m_iSize, (unsigned char*)data, size);
             delete [] rd.m_pcData;
+            rd.m_pcData = NULL;
          }
 
          CGuard::leaveCS(c->m_RcvLock);
@@ -473,7 +474,7 @@ int DataChn::recv(const string& ip, int port, int session, char*& data, int& siz
       CGuard::enterCS(c->m_QueueLock);
       if (rd.m_iSize > 0)
          c->m_llTotalQueueSize += rd.m_iSize;
-      c->m_vDataQueue.push_back(rd);
+      c->m_lDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
 
       CGuard::leaveCS(c->m_RcvLock);
@@ -506,7 +507,7 @@ int64_t DataChn::sendfile(const string& ip, int port, int session, fstream& ifs,
 
       CGuard::enterCS(c->m_QueueLock);
       c->m_llTotalQueueSize += q.m_iSize;
-      c->m_vDataQueue.push_back(q);
+      c->m_lDataQueue.push_back(q);
       CGuard::leaveCS(c->m_QueueLock);
 
       return size;
@@ -569,7 +570,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
    while (true)
    {
       CGuard::enterCS(c->m_QueueLock);
-      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
+      for (list<RcvData>::iterator q = c->m_lDataQueue.begin(); q != c->m_lDataQueue.end(); ++ q)
       {
          if (session == q->m_iSession)
          {
@@ -591,7 +592,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
             }
 
             delete [] q->m_pcData;
-            c->m_vDataQueue.erase(q);
+            c->m_lDataQueue.erase(q);
 
             CGuard::leaveCS(c->m_QueueLock);
             return size;
@@ -612,7 +613,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
 
       bool found = false;
       CGuard::enterCS(c->m_QueueLock);
-      for (vector<RcvData>::iterator q = c->m_vDataQueue.begin(); q != c->m_vDataQueue.end(); ++ q)
+      for (list<RcvData>::iterator q = c->m_lDataQueue.begin(); q != c->m_lDataQueue.end(); ++ q)
       {
          if (session == q->m_iSession)
          {
@@ -634,7 +635,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
             }
 
             delete [] q->m_pcData;
-            c->m_vDataQueue.erase(q);
+            c->m_lDataQueue.erase(q);
 
             found = true;
             break;
@@ -728,7 +729,7 @@ int64_t DataChn::recvfile(const string& ip, int port, int session, fstream& ofs,
       CGuard::enterCS(c->m_QueueLock);
       if (rd.m_iSize > 0)
          c->m_llTotalQueueSize += rd.m_iSize;
-      c->m_vDataQueue.push_back(rd);
+      c->m_lDataQueue.push_back(rd);
       CGuard::leaveCS(c->m_QueueLock);
 
       CGuard::leaveCS(c->m_RcvLock);
