@@ -53,6 +53,9 @@ ChnInfo::~ChnInfo()
    CGuard::releaseMutex(m_SndLock);
    CGuard::releaseMutex(m_RcvLock);
    CGuard::releaseMutex(m_QueueLock);
+
+   for (list<RcvData>::iterator i = m_lDataQueue.begin(); i != m_lDataQueue.end(); ++ i)
+      delete [] i->m_pcData;
 }
 
 DataChn::DataChn()
@@ -97,20 +100,17 @@ int DataChn::garbageCollect()
 {
    CGuard dg(m_ChnLock);
 
-   vector<Address> tbd;
-
    // remove broken connections, which mean the peers have already left
+   list<Address> tbd;
    for (map<Address, ChnInfo*, AddrComp>::iterator i = m_mChannel.begin(); i != m_mChannel.end(); ++ i)
    {
       if ((NULL == i->second->m_pTrans) || i->second->m_pTrans->isConnected())
          continue;
-
       delete i->second;
-
       tbd.push_back(i->first);
    }
 
-   for (vector<Address>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
+   for (list<Address>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
       m_mChannel.erase(*i);
 
    return 0;

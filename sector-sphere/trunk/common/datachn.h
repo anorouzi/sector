@@ -35,7 +35,6 @@ written by
 struct RcvData
 {
    RcvData(): m_pcData(NULL) {}
-   ~RcvData() { delete [] m_pcData; }
 
    int m_iSession;
    int m_iSize;
