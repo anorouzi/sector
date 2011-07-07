@@ -115,11 +115,6 @@ private:
    void releaseBlock(CacheBlock* cb);
 
 private:
-   bool overlap(const CacheBlock& cb1, const CacheBlock& cb2);
-   bool overlap(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2);
-   bool contain(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2);
-
-private:
    InfoBlockMap m_mOpenedFiles;
 
    // The cache blocks are stored in a double linked list with oldest block as the head node.

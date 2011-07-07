@@ -20,6 +20,7 @@ written by
 *****************************************************************************/
 
 #include <cassert>
+#include <iostream>
 #include <string>
 
 #include "fscache.h"
@@ -51,6 +52,7 @@ int test1()
    result = cache.stat(filename, s);
    assert(result < 0);
 
+   cout << "Metadata cache testing passed.\n";
    return 0;
 }
 
@@ -105,6 +107,7 @@ int test2()
    // Cache should constain most recent block only,
    assert(cache.getCacheSize() == 901);
 
+   cout << "IO cache check passed.\n";
    return 0;
 }
 
@@ -135,6 +138,36 @@ int test3(const int64_t& max, int unit, int block)
       cache.read(filename, buf, block * i, block);
    }
 
+   cout << "performance and memory leak testing passed.\n";
+   return 0;
+}
+
+
+// Consistency check.
+int test4()
+{
+   Cache cache;
+
+   const string filename = "testfile";
+   const int64_t size = 100;
+   const int64_t timestamp = 101;
+   cache.update(filename, timestamp, size);
+
+   int* val = new int(1);
+   cache.insert((char*)val, filename, 0, sizeof(int));
+   *val = 2;
+   cache.insert((char*)val, filename, 0, sizeof(int));
+
+   int readval = 0;
+   cache.read(filename, (char*)&readval, 0, sizeof(int));
+   assert(readval == *val);
+
+   *val = 3;
+   cache.insert((char*)val, filename, 0, sizeof(int));
+   cache.read(filename, (char*)&readval, 0, sizeof(int));
+   assert(readval == *val);
+
+   cout << "consistency testing passed.\n";
    return 0;
 }
 
@@ -145,6 +178,7 @@ int main()
    test3(100000, 100, 100);
    test3(100000, 200, 100);
    test3(100000, 100, 200);
+   test4();
 
    return 0;
 }

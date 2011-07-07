@@ -345,9 +345,9 @@ int Cache::clearWrite(const string& path, const int64_t& offset, const int64_t& 
    // Update the first entry is enough, since they all point to the same physical block.
    for (BlockIndex::iterator block = slot->second.begin(); block != slot->second.end(); ++ block)
    {
-      if ((*(*block))->m_llBlockID == id)
+      if ((**block)->m_llBlockID == id)
       {
-         (*(*block))->m_bWrite = false;
+         (**block)->m_bWrite = false;
          break;
       }
    }
@@ -394,31 +394,4 @@ void Cache::releaseBlock(CacheBlock* cb)
 
    delete [] cb->m_pcBlock;
    delete cb;
-}
-
-bool Cache::overlap(const CacheBlock& cb1, const CacheBlock& cb2)
-{
-   if ((cb1.m_llOffset + cb1.m_llSize) < cb2.m_llOffset)
-      return false;
-
-   if ((cb2.m_llOffset + cb2.m_llSize) < cb1.m_llOffset)
-      return false;
-
-   return true;
-}
-
-bool Cache::overlap(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2)
-{
-   if ((off1 + size1) <= off2)
-      return false;
-
-   if ((off2 + size2) <= off1)
-      return false;
-
-   return true;
-}
-
-bool Cache::contain(const int64_t& off1, const int64_t& size1, const int64_t& off2, const int64_t& size2)
-{
-   return (off1 <= off2) && (off1 + size1 >= off2 + size2);
 }

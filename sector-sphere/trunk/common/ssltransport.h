@@ -24,12 +24,14 @@ written by
 #define __SSL_TRANSPORT_H__
 
 #include <openssl/bio.h>
-#include <openssl/ssl.h>
 #include <openssl/err.h>
-#include <udt.h>
+#include <openssl/ssl.h>
 #include <string>
 
-class SSLTransport
+#include "transport.h"
+#include "udt.h"
+
+class SSLTransport //: public Transport
 {
 public:
    SSLTransport();
