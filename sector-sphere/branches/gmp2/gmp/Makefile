@@ -3,11 +3,11 @@ include ../Makefile.common
 CCFLAGS += -I../udt -I../common
 LDFLAGS += -L../lib -ludt -lcommon
 
-OBJS = gmp.o message.o prec.o
+OBJS = gmp.o message.o prec.o udt_helper.o
 
 all: librpc.so librpc.a test
 
-%.o: %.cpp %.h
+%.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 librpc.so: $(OBJS)

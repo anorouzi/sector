@@ -49,11 +49,13 @@ written by
    #include <common.h>
 #endif
 
-#include <set>
-#include <map>
 #include <list>
+#include <map>
+#include <set>
 #include <string>
-#include <udt.h>
+
+#include "cache.h"
+#include "udt.h"
 
 struct CPeerRecord
 {
@@ -82,14 +84,6 @@ struct CFPeerRec
          return (p1->m_iPort > p2->m_iPort);
       }
 
-      return (p1->m_strIP > p2->m_strIP);
-   }
-};
-
-struct CFPeerRecByIP
-{
-   bool operator()(const CPeerRecord* p1, const CPeerRecord* p2) const
-   {
       return (p1->m_strIP > p2->m_strIP);
    }
 };

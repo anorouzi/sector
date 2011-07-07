@@ -65,16 +65,16 @@ updated by
    #pragma warning( disable: 4251 )
 #endif
 
-#include <sector.h>
-#include <message.h>
-#include <prec.h>
-
-#include <string>
 #include <cstring>
-#include <map>
 #include <list>
+#include <map>
 #include <queue>
+#include <string>
 #include <vector>
+
+#include "message.h"
+#include "prec.h"
+#include "sector.h"
 
 class CGMPMessage
 {
@@ -86,7 +86,7 @@ public:
    int32_t m_piHeader[4];
    int32_t& m_iType;		// 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
    int32_t& m_iSession;		// Used to differentiate GMP instances on the same address
-   //int32_t& m_iChannel;		// multiple channels for the same GMP instance
+   //int32_t& m_iChannel;	// multiple channels for the same GMP instance
    int32_t& m_iID;		// message ID
    int32_t& m_iInfo;		//
 
@@ -147,13 +147,13 @@ public:
    int close();
    int getPort();
 
-private:
+private: // Send data using UDP or UDT.
    int UDPsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len, const bool& reliable = true);
    int UDPsend(const char* ip, const int& port, CGMPMessage* msg);
    int UDTsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len);
    int UDTsend(const char* ip, const int& port, CGMPMessage* msg);
 
-private:
+private: // UDT helper functions, see udt_helper.cpp.
    int UDTCreate(UDTSOCKET& usock);
    int UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port);
    int UDTSend(const UDTSOCKET& usock, const char* buf, const int& size);

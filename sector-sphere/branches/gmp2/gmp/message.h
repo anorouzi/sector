@@ -58,10 +58,8 @@ updated by
 #endif
 
 
-class GMP_API CUserMessage
+struct GMP_API CUserMessage
 {
-friend class CGMP;
-
 public:
    CUserMessage(const int len = 1500);
    CUserMessage(const CUserMessage& msg);
@@ -82,7 +80,11 @@ public:
 // serialization. GMP will call serilazation methods when
 // transfering the message.
 
-class GMP_API SectorMsg: public CUserMessage
+// TYPE: Type of control information carried by the message
+// KEY: A token to identify the message sender
+// SIGNATURE: A digest of the message using the sender's secret key
+
+struct GMP_API SectorMsg: public CUserMessage
 {
 public:
    SectorMsg() {m_iDataLength = m_iHdrSize;}
@@ -92,13 +94,16 @@ public:
    void setType(const int32_t& type);
    int32_t getKey() const;
    void setKey(const int32_t& key);
+   int32_t getSignature() const;
+   void setSignature(const int32_t& signature);
+
    char* getData() const;
    void setData(const int& offset, const char* data, const int& len);
 
 public:
-   static const int m_iHdrSize = 8;
+   static const int m_iHdrSize = 12;
 
-protected:
+public:
    virtual int serialize() { return 0; }
    virtual int deserialize() { return 0; }
 };
