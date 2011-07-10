@@ -157,7 +157,7 @@ private: // UDT helper functions, see udt_helper.cpp.
    int UDTCreate(UDTSOCKET& usock);
    int UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port);
    int UDTSend(const UDTSOCKET& usock, const char* buf, const int& size);
-   int UDTRecv(const UDTSOCKET& usock, const char* buf, const int& size);
+   int UDTRecv(const UDTSOCKET& usock, char* buf, const int& size);
 
 public:
    int sendto(const std::string& ip, const int& port, int32_t& id, const CUserMessage* msg);

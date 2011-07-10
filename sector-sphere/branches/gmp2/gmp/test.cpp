@@ -65,7 +65,6 @@ DWORD WINAPI Test_1_Srv(LPVOID param)
    for (int i = 0; i < 10; ++ i)
    {
       gmp.recvfrom(ip, port, id, &msg);
-      cout << "RECV " << ip << " " << port << " " << id << " " << msg.m_pcBuffer << " " << msg.m_iDataLength << endl;
 
       strcpy(msg.m_pcBuffer, res);
       msg.m_iDataLength = strlen(res) + 1;
@@ -76,12 +75,13 @@ DWORD WINAPI Test_1_Srv(LPVOID param)
    for (int i = 0; i < 10; ++ i)
    {
       gmp.recvfrom(ip, port, id, &msg);
-      cout << "RECV " << ip << " " << port << " " << id << " " << msg.m_pcBuffer << " " << msg.m_iDataLength << endl;
 
       strcpy(msg.m_pcBuffer, res);
       msg.m_iDataLength = strlen(res) + 1;
       gmp.sendto(ip, port, id, &msg);
    }
+
+   gmp.close();
 
    return 0;
 }
@@ -101,6 +101,7 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
    CUserMessage req, res;
    req.m_iDataLength = 1000;
    int32_t id;
+
    for (int i = 0; i < 10; ++ i)
    {
       id = 0;
@@ -116,8 +117,9 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
       id = 0;
       gmp.sendto("127.0.0.1", 2200, id, &req);
       gmp.recv(id, &res);
-      cout << "response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
    }
+
+   gmp.close();
 
    return 0;
 }

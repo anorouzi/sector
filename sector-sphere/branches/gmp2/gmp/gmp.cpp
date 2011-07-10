@@ -107,9 +107,9 @@ CGMPMessage::~CGMPMessage()
 }
 
 void CGMPMessage::pack(const char* data, const int& len, const int32_t& info)
-	{
+{
    m_iType = 0;
-cout << "shhhhhh " << m_iType << endl;
+
    if (len > 0)
    {
       delete [] m_pcData;
@@ -140,9 +140,9 @@ int32_t CGMPMessage::initSession()
 
 
 CGMP::CGMP():
+m_iUDTReusePort(0),
 m_bInit(false),
-m_bClosed(false),
-m_iUDTReusePort(0)
+m_bClosed(false)
 {
    CGuard::createMutex(m_SndQueueLock);
    CGuard::createCond(m_SndQueueCond);
@@ -199,6 +199,7 @@ int CGMP::init(const int& port)
    // This UDT socket is not used for data transfer. We need this to
    // keep a permanent UDP port sharing for all UDT sockets for large messages.
    UDTCreate(m_UDTSocket);
+   m_iUDTEPollID = UDT::epoll_create();
 
    // recv() is timed, avoid infinite block.
    timeval tv;
@@ -227,6 +228,7 @@ int CGMP::close()
       return 0;
 
    m_bClosed = true;
+   UDT::epoll_release(m_iUDTEPollID);
 
    #ifndef WIN32
       ::close(m_UDPSocket);
@@ -259,7 +261,6 @@ int CGMP::getPort()
 
 int CGMP::sendto(const string& ip, const int& port, int32_t& id, const CUserMessage* msg)
 {
-cout << "testets " << msg->m_iDataLength << " " <<  m_iMaxUDPMsgSize << endl;
    if (msg->m_iDataLength <= m_iMaxUDPMsgSize)
       return UDPsend(ip.c_str(), port, id, msg->m_pcBuffer, msg->m_iDataLength, true);
 
@@ -281,6 +282,7 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
 
    if (reliable)
    {
+      // TODO: use a message pool, rather then new each time.
       CMsgRecord* rec = new CMsgRecord;
       rec->m_strIP = ip;
       rec->m_iPort = port;
@@ -310,7 +312,7 @@ int CGMP::UDPsend(const char* ip, const int& port, CGMPMessage* msg)
    hints.ai_socktype = SOCK_DGRAM;
    stringstream service;
    service << port;
-   if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &res))
+   if (0 != getaddrinfo(ip, service.str().c_str(), &hints, &res))
       return -1;
 
    #ifndef WIN32
@@ -347,7 +349,6 @@ int CGMP::UDPsend(const char* ip, const int& port, CGMPMessage* msg)
 
 int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data, const int& len)
 {
-cout << "NOT TEEEEEE\n";
    UDTSOCKET usock;
    if (m_PeerHistory.getUDTSocket(ip, port, usock) < 0)
    {
@@ -356,16 +357,20 @@ cout << "NOT TEEEEEE\n";
 
       m_PeerHistory.setUDTSocket(ip, port, usock);
 
+      // Request the destination GMP to set up a UDT connection.
       CGMPMessage ctrl_msg;
       ctrl_msg.pack(3, m_iUDTReusePort);
       UDPsend(ip, port, &ctrl_msg);
 
+      // Store the message for sending when the UDT connection is set up.
+      CGMPMessage* msg = new CGMPMessage;
+      msg->pack(data, len, id);
+      id = msg->m_iID;
       CMsgRecord* rec = new CMsgRecord;
       rec->m_strIP = ip;
       rec->m_iPort = port;
-      rec->m_pMsg = &ctrl_msg;
+      rec->m_pMsg = msg;
       rec->m_llTimeStamp = CTimer::getTime();
-
       CGuard::enterCS(m_SndQueueLock);
       m_lSndQueue.push_back(rec);
       CGuard::leaveCS(m_SndQueueLock);
@@ -391,14 +396,10 @@ int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
       return -1;
 
    if ((UDTSend(usock, (char*)(&m_iPort), 4) < 0) || (UDTSend(usock, (char*)(msg->m_piHeader), 16) < 0) || (UDTSend(usock, (char*)&(msg->m_iLength), 4) < 0))
-   {
       return -1;
-   }
 
    if (UDTSend(usock, msg->m_pcData, msg->m_iLength) < 0)
-   {
       return -1;
-   }
 
    return 16 + msg->m_iLength;
 }
@@ -542,6 +543,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
 
       CGuard::enterCS(self->m_SndQueueLock);
       int64_t ts = CTimer::getTime();
+
       for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end(); ++i)
       {
          if ((*i)->m_pMsg->m_iLength > m_iMaxUDPMsgSize)
@@ -568,13 +570,17 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
 
       for (list<list<CMsgRecord*>::iterator>::iterator i = udtsend.begin(); i != udtsend.end(); ++ i)
       {
-         if (self->UDTsend((**i)->m_strIP.c_str(), (**i)->m_iPort, (**i)->m_pMsg))
+         // TODO: erase this msg if send failure caused by connection problem.
+
+         if (self->UDTsend((**i)->m_strIP.c_str(), (**i)->m_iPort, (**i)->m_pMsg) >= 0)
          {
+            CGuard::enterCS(self->m_SndQueueLock);
             delete (**i)->m_pMsg;
             delete (**i);
+            self->m_lSndQueue.erase(*i);
+            CGuard::leaveCS(self->m_SndQueueLock);
          }
       }
-      udtsend.clear();
    }
 
    return NULL;
@@ -638,42 +644,31 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          if (0 != WSARecvFrom(self->m_UDPSocket, vec, 2, &rsize, &flag, (sockaddr*)&addr, &asize, NULL, NULL))
             continue;
       #endif
-cout << "type =.. " << type << endl;
+
+      char ip[NI_MAXHOST];
+      char port_str[NI_MAXSERV];
+      getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), ip, sizeof(ip), port_str, sizeof(port_str), NI_NUMERICHOST|NI_NUMERICSERV);
+      const int port = atoi(port_str);
+
       if (type != 0)
       {
          switch (type)
          {
          case 1: // ACK
             CGuard::enterCS(self->m_SndQueueLock);
-
             // TODO: optimize this search.
             for (list<CMsgRecord*>::iterator i = self->m_lSndQueue.begin(); i != self->m_lSndQueue.end(); ++ i)
             {
                if (id == (*i)->m_pMsg->m_iID)
                {
                   int rtt = int(CTimer::getTime() - (*i)->m_llTimeStamp);
-
-                  char ip[NI_MAXHOST];
-                  char port[NI_MAXSERV];
-                  getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), ip, sizeof(ip), port, sizeof(port), NI_NUMERICHOST|NI_NUMERICSERV);
-
-                  self->m_PeerHistory.insert(ip, atoi(port), CGMPMessage::g_iSession, -1, rtt, info);
+                  self->m_PeerHistory.insert(ip, port, CGMPMessage::g_iSession, -1, rtt, info);
 
                   #ifndef WIN32
                      pthread_cond_signal(&self->m_RTTCond);
                   #else
                      SetEvent(self->m_RTTCond);
                   #endif
-
-                  if (info > 0)
-                  {
-                     UDTSOCKET usock;
-                     if (self->m_PeerHistory.getUDTSocket(ip, atoi(port), usock) > 0)
-                     {
-                        self->UDTConnect(usock, ip, info);
-                        UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
-                     }
-                  }
 
                   delete (*i)->m_pMsg;
                   delete (*i);
@@ -687,6 +682,7 @@ cout << "type =.. " << type << endl;
             break;
 
          case 2: // RTT probe
+            ack[0] = 1;
             ack[2] = id;
             ack[3] = 0;
             ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
@@ -695,30 +691,31 @@ cout << "type =.. " << type << endl;
 
          case 3: // rendezvous UDT connection request
          {
+            UDTSOCKET usock = 0;
+            if ((self->m_PeerHistory.getUDTSocket(ip, port, usock) >= 0) &&
+                ((UDT::getsockstate(usock) == CONNECTED) ||
+                 (UDT::getsockstate(usock) == CONNECTING)))
+            {
+               break;
+            }
+
+            if (usock <= 0)
+               self->UDTCreate(usock);
+
+           // TODO: no need to send this if the peer already know the port???
+
+            ack[0] = 3;
             ack[2] = id;
             ack[3] = self->m_iUDTReusePort;
             ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
 
-            // check if connection already exist
-            //if (self->m_PeerHistory.getUDTSocket())
-            //  break;
-
-            // check existing UDT socket
-            // if not exist do asynchronous rendezvous connect
-            // insert to connection cache
-            char ip[NI_MAXHOST];
-            char port[NI_MAXSERV];
-            getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), ip, sizeof(ip), port, sizeof(port), NI_NUMERICHOST|NI_NUMERICSERV);
-
             // TODO: add IPv6 support
 
             int udtport = info;
-cout << "GOT UDT PRT " << udtport << endl;
-            UDTSOCKET usock;
-            if ((self->UDTCreate(usock) >= 0) && (self->UDTConnect(usock, ip, udtport)) >= 0)
+            if (self->UDTConnect(usock, ip, udtport) >= 0)
             {
                UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
-               self->m_PeerHistory.setUDTSocket(ip, atoi(port), usock);
+               self->m_PeerHistory.setUDTSocket(ip, port, usock);
             }
 
             break;
@@ -731,19 +728,6 @@ cout << "GOT UDT PRT " << udtport << endl;
          continue;
       }
 
-      #ifndef WIN32
-         char ip[64];
-         if (NULL == inet_ntop(AF_INET, &(addr.sin_addr), ip, 64))
-         {
-            perror("inet_ntop");
-            continue;
-         }
-      #else
-         char* ip;
-         if (NULL == (ip = inet_ntoa(addr.sin_addr)))
-            continue;
-      #endif
-
       // repeated message, send ACK and disgard
       if (self->m_PeerHistory.hit(ip, ntohs(addr.sin_port), session, id))
       {
@@ -753,10 +737,10 @@ cout << "GOT UDT PRT " << udtport << endl;
 
          continue;
       }
-cout << "recbed data " << endl;
+
       CMsgRecord* rec = new CMsgRecord;
       rec->m_strIP = ip;
-      rec->m_iPort = ntohs(addr.sin_port);
+      rec->m_iPort = port;
       rec->m_pMsg = new CGMPMessage;
       //rec->m_pMsg->m_iType = type;
       rec->m_pMsg->m_iSession = session;

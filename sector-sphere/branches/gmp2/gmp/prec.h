@@ -114,6 +114,8 @@ public:
    int setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock);
    int getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock);
 
+   // TODO: remove lost and closed UDT connections.
+
 private:
    int addRecentPR(const CPeerRecord& pr);
 

@@ -110,16 +110,35 @@ int CGMP::UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port)
       return -1;
 
    freeaddrinfo(peer);
-
    return 0;
 }
 
 int CGMP::UDTSend(const UDTSOCKET& usock, const char* buf, const int& size)
 {
-   return 0;
+   int ssize = 0;
+   while (ssize < size)
+   {
+      int ss = UDT::send(usock, buf + ssize, size - ssize, 0);
+      if (UDT::ERROR == ss)
+         return -1;
+
+      ssize += ss;
+   }
+
+   return ssize;
 }
 
-int CGMP::UDTRecv(const UDTSOCKET& usock, const char* buf, const int& size)
+int CGMP::UDTRecv(const UDTSOCKET& usock, char* buf, const int& size)
 {
-   return 0;
+   int rsize = 0;
+   while (rsize < size)
+   {
+      int rs = UDT::recv(usock, buf + rsize, size - rsize, 0);
+      if (UDT::ERROR == rs)
+         return -1;
+
+      rsize += rs;
+   }
+
+   return rsize;
 }
