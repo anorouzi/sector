@@ -40,7 +40,7 @@ written by
 
 struct FileTracker
 {
-   enum State {NEXIST, OPENING, OPEN, CLOSING, CLOSED};
+   enum State {NEXIST = 1, OPENING, OPEN, CLOSING, CLOSED};
 
    std::string m_strName;
    int m_iCount;

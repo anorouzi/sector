@@ -52,14 +52,18 @@ int Metadata::lock(const string& path, int user, int mode)
 
    if (mode & SF_MODE::WRITE)
    {
-      if (!m_mLock[path].m_sWriteLock.empty())
+      // Write is exclusive
+      if (!m_mLock[path].m_sWriteLock.empty() || !m_mLock[path].m_sReadLock.empty())
          return -1;
 
       m_mLock[path].m_sWriteLock.insert(user);
+      if (mode & SF_MODE::READ)
+         m_mLock[path].m_sReadLock.insert(user);
    }
-
-   if (mode & SF_MODE::READ)
+   else if (mode & SF_MODE::READ)
    {
+      if (!m_mLock[path].m_sWriteLock.empty())
+         return -1;
       m_mLock[path].m_sReadLock.insert(user);
    }
 
@@ -76,14 +80,10 @@ int Metadata::unlock(const string& path, int user, int mode)
       return -1;
 
    if (mode & SF_MODE::WRITE)
-   {
       i->second.m_sWriteLock.erase(user);
-   }
 
    if (mode & SF_MODE::READ)
-   {
       i->second.m_sReadLock.erase(user);;
-   }
 
    if (i->second.m_sReadLock.empty() && i->second.m_sWriteLock.empty())
       m_mLock.erase(i);

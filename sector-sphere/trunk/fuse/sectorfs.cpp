@@ -23,7 +23,7 @@ written by
 
 #include "common.h"
 #include "sectorfs.h"
-
+#include <iostream>
 using namespace std;
 
 Sector SectorFS::g_SectorClient;
@@ -122,6 +122,10 @@ int SectorFS::unlink(const char* path)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   // If the file has been opened, close it first.
+   if (lookup(path) != NULL)
+      release(path, NULL);
+
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
@@ -151,6 +155,10 @@ int SectorFS::rename(const char* src, const char* dst)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   // If the file has been opened, close it first.
+   if (lookup(src) != NULL)
+      release(src, NULL);
 
    int r = g_SectorClient.move(src, dst);
    if (r < 0)
@@ -296,15 +304,14 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
-   SectorFile* f = g_SectorClient.createSectorFile();
-   int r = f->open(path, SF_MODE::WRITE);
-   if (r < 0)
+   SNode s;
+   if (g_SectorClient.stat(path, s) < 0)
    {
-      checkConnection(r);
-      return translateErr(r);
+      fuse_file_info option;
+      option.flags = O_WRONLY;
+      open(path, &option);
+      release(path, &option);
    }
-   f->close();
-   g_SectorClient.releaseSectorFile(f);
 
    return open(path, info);
 }
@@ -315,23 +322,17 @@ int SectorFS::truncate(const char* path, off_t size)
    SectorFile* h = lookup(path);
    if (NULL != h)
    {
-      //h->truncate(size);
+      //return h->truncate(size);
    }
 
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
    // Otherwise open the file and perform trunc.
-   SectorFile* f = g_SectorClient.createSectorFile();
-   int r = f->open(path, SF_MODE::WRITE | SF_MODE::TRUNC);
-   if (r < 0)
-   {
-      checkConnection(r);
-      return translateErr(r);
-   }
-   //f->truncate(size);
-   f->close();
-   g_SectorClient.releaseSectorFile(f);
+   fuse_file_info option;
+   option.flags = O_WRONLY | O_TRUNC;
+   open(path, &option);
+   release(path, &option);
 
    return 0;
 }
@@ -357,7 +358,6 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    {
       state = t->second->m_State;
       t->second->m_iCount ++;
-
       if (FileTracker::OPEN == state)
       {
          pthread_mutex_unlock(&m_OpenFileLock);
@@ -436,8 +436,10 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       return -1;
    }
 
+   pthread_mutex_lock(&m_OpenFileLock);
    ft->m_pHandle = f;
    ft->m_State = FileTracker::OPEN;
+   pthread_mutex_unlock(&m_OpenFileLock);
    return 0;
 }
 
@@ -501,19 +503,18 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    FileTracker* ft = t->second;
    ft->m_State = FileTracker::CLOSING;
    pthread_mutex_unlock(&m_OpenFileLock);
-
    // File close/release may take some time, so do it out of mutex protection.
    ft->m_pHandle->close();
    g_SectorClient.releaseSectorFile(ft->m_pHandle);
-   ft->m_pHandle = NULL;
-   ft->m_State = FileTracker::CLOSED;
 
    pthread_mutex_lock(&m_OpenFileLock);
+   ft->m_pHandle = NULL;
+   ft->m_State = FileTracker::CLOSED;
    t->second->m_iCount --;
    if (t->second->m_iCount == 0)
    {
-      m_mOpenFileList.erase(t);
       delete ft;
+      m_mOpenFileList.erase(t);
    }
    pthread_mutex_unlock(&m_OpenFileLock);
 

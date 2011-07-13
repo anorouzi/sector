@@ -1778,6 +1778,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          logUserActivity(user, "move", src.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
          break;
       }
+      m_pMetadata->unlock(src.c_str(), key, rwx);
 
       string newname = dst.substr(dst.rfind('/') + 1, dst.length());
 
