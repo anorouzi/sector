@@ -23,6 +23,7 @@ OBJS = osportable.o \
        writelog.o
 
 all: libcommon.so libcommon.a
+test: crypto_unittest
 
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -32,6 +33,9 @@ libcommon.so: $(OBJS)
 
 libcommon.a: $(OBJS)
 	ar -rcs $@ $^
+
+crypto_unittest: crypto.h crypto.cpp all
+	$(C++) $(CCFLAGS) crypto_unittest.cpp -lcommon -ludt -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o *.so *.a

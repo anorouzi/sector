@@ -26,6 +26,8 @@ written by
 
 class Crypto
 {
+enum Type {INIT, ENC, DEC};
+
 public:
    Crypto();
    ~Crypto();
@@ -44,7 +46,7 @@ private:
    unsigned char m_pcKey[16];
    unsigned char m_pcIV[8];
    EVP_CIPHER_CTX m_CTX;
-   int m_iCoderType;		// 1: encoder, -1:decoder
+   Type m_CoderType;
 
    static const int g_iEncBlockSize = 1024;
    static const int g_iDecBlockSize = 1024;

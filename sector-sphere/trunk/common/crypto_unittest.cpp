@@ -1,4 +1,4 @@
-*****************************************************************************
+/*****************************************************************************
 Copyright 2011 VeryCloud LLC
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -19,5 +19,51 @@ written by
    bdl62, last updated 05/21/2011
 *****************************************************************************/
 
+#include <assert.h>
+#include <cstring>
+#include <iostream>
 
-// place holder for fscache unit testing, to be added
+#include "crypto.h"
+
+using namespace std;
+
+int test1()
+{
+   unsigned char enc_key[16];
+   unsigned char enc_iv[8];
+   unsigned char dec_key[16];
+   unsigned char dec_iv[8];
+
+   Crypto::generateKey(enc_key, enc_iv);
+   memcpy(dec_key, enc_key, 16);
+   memcpy(dec_iv, enc_iv, 8);
+
+   Crypto enc, dec;
+   enc.initEnc(enc_key, enc_iv);
+   dec.initDec(dec_key, dec_iv);
+
+   int num = 12345;
+   unsigned char output[1024];
+   int transformed = 67890;
+
+   int size = 1024;
+   enc.encrypt((unsigned char*)&num, 4, output, size);
+   assert(size < 1024);
+   int size2 = 4;
+   dec.decrypt(output, size, (unsigned char*)&transformed, size2);
+cout << num << " " << transformed << endl;
+
+   assert(num == transformed);
+
+   enc.release();
+   dec.release();
+
+   return 0;
+}
+
+int main()
+{
+   test1();
+
+   return 0;
+}

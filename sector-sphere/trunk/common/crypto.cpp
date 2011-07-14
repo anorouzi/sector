@@ -34,7 +34,7 @@ written by
 #include "crypto.h"
 
 Crypto::Crypto():
-m_iCoderType(0)
+m_CoderType(INIT)
 {
    memset(m_pcKey, 0, 16);
    memset(m_pcIV, 0, 8);
@@ -70,7 +70,7 @@ int Crypto::initEnc(unsigned char key[16], unsigned char iv[8])
    EVP_CIPHER_CTX_init(&m_CTX);
    EVP_EncryptInit(&m_CTX, EVP_bf_cbc(), m_pcKey, m_pcIV);
 
-   m_iCoderType = 1;
+   m_CoderType = ENC;
 
    return 0;
 }
@@ -83,7 +83,7 @@ int Crypto::initDec(unsigned char key[16], unsigned char iv[8])
    EVP_CIPHER_CTX_init(&m_CTX);
    EVP_DecryptInit(&m_CTX, EVP_bf_cbc(), m_pcKey, m_pcIV);
 
-   m_iCoderType = -1;
+   m_CoderType = DEC;
 
    return 0;
 }
@@ -91,13 +91,13 @@ int Crypto::initDec(unsigned char key[16], unsigned char iv[8])
 int Crypto::release()
 {
    EVP_CIPHER_CTX_cleanup(&m_CTX);
-   m_iCoderType = 0;
+   m_CoderType = INIT;
    return 0;
 }
 
 int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int& outsize)
 {
-   if (1 != m_iCoderType)
+   if (ENC != m_CoderType)
       return -1;
 
    unsigned char* ip = input;
@@ -111,7 +111,7 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
       if (EVP_EncryptUpdate(&m_CTX, op, &len, ip, unitsize) != 1)
       {
          printf ("error in encrypt update\n");
-         return 0;
+         return -1;
       }
 
       ip += unitsize;
@@ -123,7 +123,7 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
    if (EVP_EncryptFinal(&m_CTX, op, &len) != 1)
    {
        printf ("error in encrypt final\n");
-       return 0;
+       return -1;
    }
    op += len;
 
@@ -133,7 +133,7 @@ int Crypto::encrypt(unsigned char* input, int insize, unsigned char* output, int
 
 int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int& outsize)
 {
-   if (-1 != m_iCoderType)
+   if (DEC != m_CoderType)
       return -1;
 
    unsigned char* ip = input;
@@ -148,7 +148,7 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
       if (EVP_DecryptUpdate(&m_CTX, op, &len, ip, unitsize) != 1)
       {
          printf("error in decrypt update\n");
-         return 0;
+         return -1;
       }
 
       ip += unitsize;
@@ -160,7 +160,7 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
    if (EVP_DecryptFinal(&m_CTX, op, &len) != 1)
    {
       printf("error in decrypt final\n");
-      return 0;
+      return -1;
    }
    op += len;
 
