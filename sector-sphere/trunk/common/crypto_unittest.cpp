@@ -44,16 +44,16 @@ int test1()
 
    int num = 12345;
    unsigned char output[1024];
-   int transformed = 67890;
 
    int size = 1024;
    enc.encrypt((unsigned char*)&num, 4, output, size);
    assert(size < 1024);
-   int size2 = 4;
-   dec.decrypt(output, size, (unsigned char*)&transformed, size2);
-cout << num << " " << transformed << endl;
 
-   assert(num == transformed);
+   int transformed[1024 / 4];   // The output buffer must be large enough to hold immediate result.
+   transformed[0] = 67890;      // Although the final result will be only an integer.
+   int size2 = 1024;
+   dec.decrypt(output, size, (unsigned char*)transformed, size2);
+   assert(num == transformed[0]);
 
    enc.release();
    dec.release();
