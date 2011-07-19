@@ -355,6 +355,7 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const char* data
       if (UDTCreate(usock) < 0)
          return -1;
 
+      UDT::epoll_add_usock(m_iUDTEPollID, usock);
       m_PeerHistory.setUDTSocket(ip, port, usock);
 
       // Request the destination GMP to set up a UDT connection.
@@ -700,7 +701,11 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             }
 
             if (usock <= 0)
+            {
                self->UDTCreate(usock);
+               UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
+               self->m_PeerHistory.setUDTSocket(ip, port, usock);
+            }
 
            // TODO: no need to send this if the peer already know the port???
 
@@ -712,11 +717,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             // TODO: add IPv6 support
 
             int udtport = info;
-            if (self->UDTConnect(usock, ip, udtport) >= 0)
-            {
-               UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
-               self->m_PeerHistory.setUDTSocket(ip, port, usock);
-            }
+            self->UDTConnect(usock, ip, udtport);
 
             break;
          }

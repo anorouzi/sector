@@ -1,24 +1,19 @@
 /*****************************************************************************
-Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
-All rights reserved.
+Copyright (c) 2011, VeryCloud LLC. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
 
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
+* Neither the name of the VeryCloud LLC nor the names of it scontributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
 IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
@@ -33,21 +28,8 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
-/*****************************************************************************
-written by
-   Yunhong Gu, last updated 12/14/2010
-*****************************************************************************/
-
-
 #ifndef __GMP_PREC_H__
 #define __GMP_PREC_H__
-
-#ifndef WIN32
-   #include <pthread.h>
-#else
-   #include <udt.h>
-   #include <common.h>
-#endif
 
 #include <list>
 #include <map>
@@ -55,45 +37,62 @@ written by
 #include <string>
 
 #include "cache.h"
+#include "common.h"
 #include "udt.h"
 
-struct CPeerRecord
+// Message record, to avoid repeated messages.
+class CPeerRecord
 {
+public:
    CPeerRecord();
 
+public:
    std::string m_strIP;
    int m_iPort;
    int m_iSession;
    int32_t m_iID;
    int64_t m_llTimeStamp;
-   int m_iRTT;
    int32_t m_iFlowWindow;
 
-   UDTSOCKET m_UDTSocket;
+public:
+   virtual CPeerRecord& operator=(CPeerRecord& obj);
+   virtual bool operator==(CPeerRecord& obj);
+   virtual CPeerRecord* clone();
+   virtual int getKey();
+   virtual void release() {}
 };
 
-struct CFPeerRec
+// RTT cache.
+class CPeerRTT
 {
-   bool operator()(const CPeerRecord* p1, const CPeerRecord* p2) const
-   {
-      if (p1->m_strIP == p2->m_strIP)
-      {
-         if (p1->m_iPort == p2->m_iPort)
-            return (p1->m_iSession > p2->m_iSession);
+public:
+   std::string m_strIP;
+   int m_iRTT;
+   int64_t m_llTimeStamp;
 
-         return (p1->m_iPort > p2->m_iPort);
-      }
-
-      return (p1->m_strIP > p2->m_strIP);
-   }
+public:
+   virtual CPeerRTT& operator=(CPeerRTT& obj);
+   virtual bool operator==(CPeerRTT& obj);
+   virtual CPeerRTT* clone();
+   virtual int getKey();
+   virtual void release() {}
 };
 
-struct CFPeerRecByTS
+// Persistent UDT connections.
+class CUDTConns
 {
-   bool operator()(const CPeerRecord* p1, const CPeerRecord* p2) const
-   {      
-      return (p1->m_llTimeStamp > p2->m_llTimeStamp);
-   }
+public:
+   std::string m_strIP;
+   int m_iPort;
+   UDTSOCKET m_UDT;
+   int64_t m_llTimeStamp;
+
+public:
+   virtual CUDTConns& operator=(CUDTConns& obj);
+   virtual bool operator==(CUDTConns& obj);
+   virtual CUDTConns* clone();
+   virtual int getKey();
+   virtual void release();
 };
 
 class CPeerManagement
@@ -104,35 +103,35 @@ public:
 
 public:
    void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1, const int& fw = 0);
-   int getRTT(const std::string& ip);
-   void clearRTT(const std::string& ip);
+
+   bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
+
    int flowControl(const std::string& ip, const int& port, const int& session);
 
-   int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
-   bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
+   int getRTT(const std::string& ip);
+   void clearRTT(const std::string& ip);
 
    int setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock);
    int getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock);
-
-   // TODO: remove lost and closed UDT connections.
 
 private:
    int addRecentPR(const CPeerRecord& pr);
 
 private:
-   //TODO: use hash table and linked list to implement the record cache
-
-   std::set<CPeerRecord*, CFPeerRec> m_sPeerRec;
-   std::set<CPeerRecord*, CFPeerRecByTS> m_sPeerRecByTS;
-   std::map<std::string, int> m_mRTT;
-
-   static const unsigned int m_uiHashSpace = 20;
-   std::map<int, std::list<CPeerRecord> > m_mRecentRec;
+   CCache<CPeerRecord> m_RecentRec;
+   CCache<CPeerRTT> m_PeerRTT;
+   CCache<CUDTConns> m_PersistentUDT;
 
    pthread_mutex_t m_PeerRecLock;
 
 private:
+   static const unsigned int m_uiHashSpace = 20;
    static const unsigned int m_uiRecLimit = 65536;
+
+public:
+   static int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
+   static int32_t hash(const std::string& ip, const int& port);
+   static int32_t hash(const std::string& ip);
 };
 
 #endif

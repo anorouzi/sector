@@ -1,24 +1,19 @@
 /*****************************************************************************
-Copyright (c) 2011, VeryCloud LLC.
-All rights reserved.
+Copyright (c) 2011, VeryCloud LLC. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
+modification, are permitted provided that the following conditions are met:
 
-* Redistributions of source code must retain the above
-  copyright notice, this list of conditions and the
-  following disclaimer.
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
 
-* Redistributions in binary form must reproduce the
-  above copyright notice, this list of conditions
-  and the following disclaimer in the documentation
-  and/or other materials provided with the distribution.
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
 
-* Neither the name of the University of Illinois
-  nor the names of its contributors may be used to
-  endorse or promote products derived from this
-  software without specific prior written permission.
+* Neither the name of the VeryCloud LLC nor the names of its
+  contributors may be used to endorse or promote products derived from
+  this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
 IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
@@ -33,20 +28,18 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
-/*****************************************************************************
-written by
-   Brian Griffin, last updated 05/11/2011
-*****************************************************************************/
+#include <iostream>
 
 #include "gmp.h"
-#include <iostream>
 
 using namespace std;
 
+const int max_size = 2000;
+
 #ifndef WIN32
-void* Test_1_Srv(void* param)
+void* Test_1_Srv(void*)
 #else
-DWORD WINAPI Test_1_Srv(LPVOID param)
+DWORD WINAPI Test_1_Srv(LPVOID)
 #endif
 {
    CGMP gmp;
@@ -55,6 +48,7 @@ DWORD WINAPI Test_1_Srv(LPVOID param)
    string ip;
    int port;
    CUserMessage msg;
+   msg.resize(max_size);
    int32_t id;
    const char* res = "got it.";
 
@@ -65,7 +59,7 @@ DWORD WINAPI Test_1_Srv(LPVOID param)
    for (int i = 0; i < 10; ++ i)
    {
       gmp.recvfrom(ip, port, id, &msg);
-
+      cout << "UDP RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
       strcpy(msg.m_pcBuffer, res);
       msg.m_iDataLength = strlen(res) + 1;
       gmp.sendto(ip, port, id, &msg);
@@ -75,12 +69,13 @@ DWORD WINAPI Test_1_Srv(LPVOID param)
    for (int i = 0; i < 10; ++ i)
    {
       gmp.recvfrom(ip, port, id, &msg);
-
+      cout << "UDT RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
       strcpy(msg.m_pcBuffer, res);
       msg.m_iDataLength = strlen(res) + 1;
       gmp.sendto(ip, port, id, &msg);
    }
 
+   cout << "server has received all messages.\n";
    gmp.close();
 
    return 0;
@@ -99,6 +94,8 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
 
    // Test small messages for UDP.
    CUserMessage req, res;
+   req.resize(max_size);
+   res.resize(max_size);
    req.m_iDataLength = 1000;
    int32_t id;
 
@@ -106,8 +103,9 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
    {
       id = 0;
       gmp.sendto("127.0.0.1", 2200, id, &req);
-      gmp.recv(id, &res);
-      cout << "response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
+      res.m_pcBuffer[0] = 0;
+      if (gmp.recv(id, &res) >= 0)
+         cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
    }
 
    // Test large messages for UDT.
@@ -116,9 +114,12 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
    {
       id = 0;
       gmp.sendto("127.0.0.1", 2200, id, &req);
-      gmp.recv(id, &res);
+      res.m_pcBuffer[0] = 0;
+      if (gmp.recv(id, &res) > 0)
+         cout << "UDT response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
    }
 
+   cout << "client has sent all messages and received responsed.\n";
    gmp.close();
 
    return 0;
