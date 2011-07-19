@@ -88,7 +88,7 @@ struct GMP_API SectorMsg: public CUserMessage
 {
 public:
    SectorMsg() {m_iDataLength = m_iHdrSize;}
-   virtual ~SectorMsg();
+   virtual ~SectorMsg() {}
 
    int32_t getType() const;
    void setType(const int32_t& type);

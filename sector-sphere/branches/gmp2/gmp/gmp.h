@@ -36,8 +36,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*****************************************************************************
 written by
    Yunhong Gu, last updated 12/31/2010
-updated by
-   Brian Griffin, last updated 04/19/2011
 *****************************************************************************/
 
 
@@ -88,7 +86,7 @@ public:
    int32_t& m_iSession;		// Used to differentiate GMP instances on the same address
    //int32_t& m_iChannel;	// multiple channels for the same GMP instance
    int32_t& m_iID;		// message ID
-   int32_t& m_iInfo;		//
+   int32_t& m_iInfo;		// additional information.
 
    char* m_pcData;
    int m_iLength;
