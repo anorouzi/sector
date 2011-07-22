@@ -52,4 +52,7 @@ public:
    void decode(const int32_t* id, int& size);
 };
 
+getTextAddr(ip, port);
+getNetworkAddr(sockaddr* addr, int& size)
+
 #endif

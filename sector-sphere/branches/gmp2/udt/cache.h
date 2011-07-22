@@ -96,7 +96,10 @@ public:
    ~CCache()
    {
       for (typename std::list<T*>::iterator i = m_StorageList.begin(); i != m_StorageList.end(); ++ i)
+      {
+         (*i)->release();
          delete *i;
+      }
       m_StorageList.clear();
       CGuard::releaseMutex(m_Lock);
    }

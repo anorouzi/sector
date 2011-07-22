@@ -55,11 +55,11 @@ public:
    int32_t m_iFlowWindow;
 
 public:
-   virtual CPeerRecord& operator=(CPeerRecord& obj);
-   virtual bool operator==(CPeerRecord& obj);
-   virtual CPeerRecord* clone();
-   virtual int getKey();
-   virtual void release() {}
+   CPeerRecord& operator=(CPeerRecord& obj);
+   bool operator==(CPeerRecord& obj);
+   CPeerRecord* clone();
+   int getKey();
+   void release() {}
 };
 
 // RTT cache.
@@ -71,11 +71,11 @@ public:
    int64_t m_llTimeStamp;
 
 public:
-   virtual CPeerRTT& operator=(CPeerRTT& obj);
-   virtual bool operator==(CPeerRTT& obj);
-   virtual CPeerRTT* clone();
-   virtual int getKey();
-   virtual void release() {}
+   CPeerRTT& operator=(CPeerRTT& obj);
+   bool operator==(CPeerRTT& obj);
+   CPeerRTT* clone();
+   int getKey();
+   void release() {}
 };
 
 // Persistent UDT connections.
@@ -84,15 +84,19 @@ class CUDTConns
 public:
    std::string m_strIP;
    int m_iPort;
+   // On the same IP:port address, a GMP may be stoped and started multiple times,
+   // we need a 3rd id to differentiate these connections.
+   // This usually happens when a client terminate itself and then restart immediately.
+   int m_iSession;
    UDTSOCKET m_UDT;
    int64_t m_llTimeStamp;
 
 public:
-   virtual CUDTConns& operator=(CUDTConns& obj);
-   virtual bool operator==(CUDTConns& obj);
-   virtual CUDTConns* clone();
-   virtual int getKey();
-   virtual void release();
+   CUDTConns& operator=(CUDTConns& obj);
+   bool operator==(CUDTConns& obj);
+   CUDTConns* clone();
+   int getKey();
+   void release();
 };
 
 class CPeerManagement
@@ -102,7 +106,8 @@ public:
    ~CPeerManagement();
 
 public:
-   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1, const int& fw = 0);
+   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1,
+               const int& rtt = -1, const int& fw = 0);
 
    bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
 
