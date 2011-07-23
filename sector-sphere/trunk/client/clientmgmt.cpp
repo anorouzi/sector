@@ -143,10 +143,10 @@ int ClientMgmt::removeDC(const int& id)
 }
 
 
-int Sector::init(const string& server, const int& port)
+int Sector::init()
 {
    Client* c = new Client;
-   int r = c->init(server, port);
+   int r = c->init();
 
    if (r >= 0)
    {
@@ -160,14 +160,15 @@ int Sector::init(const string& server, const int& port)
    return r;
 }
 
-int Sector::login(const string& username, const string& password, const char* cert)
+int Sector::login(const string& server, const int& port,
+                  const string& username, const string& password, const char* cert)
 {
    Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
 
    if (NULL == c)
       return SectorError::E_INVALID;
 
-   return c->login(username, password, cert);
+   return c->login(server, port, username, password, cert);
 }
 
 int Sector::logout()

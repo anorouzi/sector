@@ -24,17 +24,22 @@ written by
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
+#endif
+#include <iostream>
+
+#include "client.h"
+#include "clientmgmt.h"
+#include "common.h"
+#include "crypto.h"
+#include "dcclient.h"
+#include "fsclient.h"
+#include "ssltransport.h"
+#include "tcptransport.h"
+
+#ifdef WIN32
    #define pthread_self() GetCurrentThreadId()
 #endif
-#include <ssltransport.h>
-#include <tcptransport.h>
-#include <crypto.h>
-#include <common.h>
-#include "client.h"
-#include <fsclient.h>
-#include <dcclient.h>
-#include <clientmgmt.h>
-#include <iostream>
+
 using namespace std;
 
 ClientMgmt Client::g_ClientMgmt;
@@ -43,7 +48,6 @@ Client::Client():
 m_strUsername(""),
 m_strPassword(""),
 m_strCert(""),
-m_strServerHost(""),
 m_strServerIP(""),
 m_iKey(0),
 m_bVerbose(true),
@@ -61,41 +65,18 @@ Client::~Client()
    CGuard::releaseMutex(m_IDLock);
 }
 
-int Client::init(const string& server, const int& port)
+int Client::init()
 {
    if (m_iCount ++ > 0)
       return 0;
 
-#ifdef WIN32
-    WSADATA wsaData = {0};
-    int iResult = 0;
-    iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (iResult != 0) 
-    {
-        printf("WSAStartup failed: %d\n", iResult);
-        return -1;
-    }
-#endif
+   UDTTransport::initialize();
 
    m_ErrorInfo.init();
 
-   struct addrinfo* result;
-   if (getaddrinfo(server.c_str(), NULL, NULL, &result) != 0)
-      return SectorError::E_ADDR;
-
    m_sMasters.clear();
-   m_strServerHost = server;
-
-   char hostip[NI_MAXHOST];
-   getnameinfo((sockaddr *)result->ai_addr, result->ai_addrlen, hostip, sizeof(hostip), NULL, 0, NI_NUMERICHOST);
-   m_strServerIP = hostip;
-   freeaddrinfo(result);
-
-   m_iServerPort = port;
 
    Crypto::generateKey(m_pcCryptoKey, m_pcCryptoIV);
-
-   UDTTransport::initialize();
 
    if (m_GMP.init(0) < 0)
       return SectorError::E_GMP;
@@ -114,10 +95,20 @@ int Client::init(const string& server, const int& port)
    return 0;
 }
 
-int Client::login(const string& username, const string& password, const char* cert)
+int Client::login(const std::string& serv_ip, const int& serv_port,
+                  const string& username, const string& password, const char* cert)
 {
    if (m_iKey > 0)
       return m_iKey;
+
+   struct addrinfo* serv_addr;
+   if (getaddrinfo(serv_ip.c_str(), NULL, NULL, &serv_addr) != 0)
+      return SectorError::E_ADDR;
+   char hostip[NI_MAXHOST];
+   getnameinfo(serv_addr->ai_addr, serv_addr->ai_addrlen, hostip, sizeof(hostip), NULL, 0, NI_NUMERICHOST);
+   m_strServerIP = hostip;
+   freeaddrinfo(serv_addr);
+   m_iServerPort = serv_port;
 
    string master_cert;
    if ((cert != NULL) && (0 != strlen(cert)))
@@ -134,8 +125,12 @@ int Client::login(const string& username, const string& password, const char* ce
    if ((result = secconn.open(NULL, 0)) < 0)
       return result;
 
-   if ((result = secconn.connect(m_strServerHost.c_str(), m_iServerPort)) < 0)
+   if ((result = secconn.connect(m_strServerIP.c_str(), m_iServerPort)) < 0)
+   {
+      m_strServerIP = "";
+      m_iServerPort = 0;
       return result;
+   }
 
    // TODO: pack all these info into one message and send out, wait for a single response
    // compete this after GMP message is done.
@@ -323,7 +318,6 @@ int Client::close()
       WaitForSingleObject(m_KeepAlive, INFINITE);
 #endif
 
-      m_strServerHost = "";
       m_strServerIP = "";
       m_iServerPort = 0;
       m_sMasters.clear();

@@ -191,7 +191,6 @@ int SSLTransport::connect(const char* host, const int& port)
       return -1;
 
    addrinfo hints, *peer;
-
    memset(&hints, 0, sizeof(struct addrinfo));
    hints.ai_flags = AI_PASSIVE;
    hints.ai_family = AF_INET;
@@ -199,7 +198,6 @@ int SSLTransport::connect(const char* host, const int& port)
 
    stringstream portstr;
    portstr << port;
-
    if (0 != getaddrinfo(host, portstr.str().c_str(), &hints, &peer))
    {
       cerr << "SSL connect: invalid address " << host << " " << port << endl;

@@ -148,8 +148,9 @@ class SphereProcess;
 class SECTOR_API Sector
 {
 public:
-   int init(const std::string& server, const int& port);
-   int login(const std::string& username, const std::string& password, const char* cert = NULL);
+   int init();
+   int login(const std::string& server, const int& port,
+             const std::string& username, const std::string& password, const char* cert = NULL);
    int logout();
    int close();
 

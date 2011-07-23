@@ -1,5 +1,7 @@
 version 2.7
 
+new fs client cache
+multiple master address for client.conf
 security server detect&deploy source update without restart
 
 version 2.6

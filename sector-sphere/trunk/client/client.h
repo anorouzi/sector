@@ -23,16 +23,16 @@ written by
 #ifndef __SECTOR_CLIENT_H__
 #define __SECTOR_CLIENT_H__
 
+#ifndef WIN32
+   #include <pthread.h>
+#endif
+
 #include <datachn.h>
 #include <fscache.h>
 #include <gmp.h>
 #include <log.h>
 #include <routing.h>
 #include <sector.h>
-
-#ifndef WIN32
-   #include <pthread.h>
-#endif
 
 class ClientMgmt;
 class FSClient;
@@ -51,8 +51,8 @@ public:
    ~Client();
 
 public:
-   int init(const std::string& server, const int& port);
-   int login(const std::string& username, const std::string& password, const char* cert = NULL);
+   int init();
+   int login(const std::string& serv_ip, const int& serv_port, const std::string& username, const std::string& password, const char* cert = NULL);
    int login(const std::string& serv_ip, const int& serv_port);
    int logout();
    int close();
@@ -109,7 +109,6 @@ protected:
 
    Routing m_Routing;                  	 	// master routing module
 
-   std::string m_strServerHost;			// original master server domain name
    std::string m_strServerIP;			// original master server IP address
    int m_iServerPort;				// original master server port
 

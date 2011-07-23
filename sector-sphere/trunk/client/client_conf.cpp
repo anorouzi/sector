@@ -201,12 +201,21 @@ int Utility::login(Sector& client)
    Session s;
    s.loadInfo("../conf/client.conf");
 
-   int result = 0;
+   int result = client.init();
+   if (result < 0)
+   {
+      print_error(result);
+      return -1;
+   }
 
    bool master_conn = false;
    for (set<Address, AddrComp>::const_iterator i = s.m_ClientConf.m_sMasterAddr.begin(); i != s.m_ClientConf.m_sMasterAddr.end(); ++ i)
    {
-      if ((result = client.init(i->m_strIP, i->m_iPort)) < 0)
+cout << "haha " << i->m_strIP << " " << i->m_iPort << endl;
+      result = client.login(i->m_strIP, i->m_iPort,
+                            s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword,
+                            s.m_ClientConf.m_strCertificate.c_str());
+      if (result < 0)
       {
          cerr << "trying to connect " << i->m_strIP << " " << i->m_iPort << endl;
          print_error(result);
@@ -221,12 +230,6 @@ int Utility::login(Sector& client)
    if (!master_conn)
    {
       cerr << "couldn't connect to any master. abort.\n";
-      return -1;
-   }
-
-   if ((result = client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str())) < 0)
-   {
-      print_error(result);
       return -1;
    }
 

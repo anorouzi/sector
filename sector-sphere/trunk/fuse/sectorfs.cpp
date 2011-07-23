@@ -607,4 +607,3 @@ SectorFile* SectorFS::lookup(const string& path)
 
    return h;
 }
-
