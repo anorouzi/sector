@@ -27,8 +27,8 @@ written by
 #include <map>
 #include <string>
 
-#include <osportable.h>
-#include <udt.h>
+#include "osportable.h"
+#include "udt.h"
 
 struct LogLevel
 {
@@ -71,14 +71,16 @@ struct LogStringTag
 
 struct LogStart: LogStringTag
 {
-   LogStart(const int level = LogLevel::SCREEN) {m_iTag = LogTag::START; m_iLevel = level;}
+   LogStart(const int level = LogLevel::SCREEN) { m_iTag = LogTag::START; m_iLevel = level; }
 };
 
 struct LogEnd: LogStringTag
 {
-   LogEnd() {m_iTag = LogTag::END;};
+   LogEnd() { m_iTag = LogTag::END; };
 };
 
+
+//TODO: make LogStart and LogEnd optional. Support endl and setLevel inline.
 
 class SectorLog
 {
@@ -91,12 +93,14 @@ public:
    void close();
 
    void setLevel(const int level);
+   void copyScreen(bool screen);
 
    void insert(const char* text, const int level = 1);
 
    SectorLog& operator<<(const LogStringTag& tag);
    SectorLog& operator<<(const std::string& message);
    SectorLog& operator<<(const int64_t& val);
+   static SectorLog& endl(SectorLog& log);
 
 private:
    void insert_(const char* text, const int level = 1);
@@ -106,6 +110,7 @@ private:
 private:
    int m_iLevel;
    int m_iDay;
+   bool m_bCopyToScreen;
 
    std::string m_strLogPath;
    std::ofstream m_LogFile;

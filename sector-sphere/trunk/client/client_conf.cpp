@@ -19,14 +19,17 @@ written by
    Yunhong Gu, last updated 05/18/2011
 *****************************************************************************/
 
-#include <sector.h>
-#include <cstring>
-#include <cstdio>
+
 #include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include <sys/stat.h>
 #include <iostream>
-#include <conf.h>
-#include <osportable.h>
+
+#include "conf.h"
+#include "osportable.h"
+#include "sector.h"
+
 #ifdef WIN32
    #define atoll _atoi64
 #endif
@@ -211,7 +214,6 @@ int Utility::login(Sector& client)
    bool master_conn = false;
    for (set<Address, AddrComp>::const_iterator i = s.m_ClientConf.m_sMasterAddr.begin(); i != s.m_ClientConf.m_sMasterAddr.end(); ++ i)
    {
-cout << "haha " << i->m_strIP << " " << i->m_iPort << endl;
       result = client.login(i->m_strIP, i->m_iPort,
                             s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword,
                             s.m_ClientConf.m_strCertificate.c_str());

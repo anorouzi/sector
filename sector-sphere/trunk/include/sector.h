@@ -23,10 +23,11 @@ written by
 #ifndef __SECTOR_H__
 #define __SECTOR_H__
 
-#include <vector>
-#include <string>
 #include <map>
 #include <set>
+#include <string>
+#include <vector>
+
 #include <udt.h>
 
 
@@ -167,13 +168,14 @@ public:
    int shutdown(const int& type, const std::string& param = "");
    int fsck(const std::string& path);
 
-public:
+public: // file and data processing handlers
    SectorFile* createSectorFile();
    SphereProcess* createSphereProcess();
    int releaseSectorFile(SectorFile* sf);
    int releaseSphereProcess(SphereProcess* sp);
 
-public:
+public: //config
+   int configLog(const char* log_path, bool screen, int level);
    int setMaxCacheSize(const int64_t& ms);
 
 public:
@@ -288,7 +290,8 @@ public:
 public:
    int m_iResID;                // result ID
 
-   int m_iStatus;               // if this DS is processed successfully (> 0, number of rows). If not (<0), m_pcData may contain error msg
+   int m_iStatus;               // If this DS is processed successfully (> 0, number of rows).
+                                // If not (<0), m_pcData may contain error msg
 
    char* m_pcData;              // result data
    int m_iDataLen;              // result data length
@@ -314,8 +317,10 @@ public:
 
    int loadOperator(const char* library);
 
-   int run(const SphereStream& input, SphereStream& output, const std::string& op, const int& rows, const char* param = NULL, const int& size = 0, const int& type = 0);
-   int run_mr(const SphereStream& input, SphereStream& output, const std::string& mr, const int& rows, const char* param = NULL, const int& size = 0);
+   int run(const SphereStream& input, SphereStream& output, const std::string& op, const int& rows,
+           const char* param = NULL, const int& size = 0, const int& type = 0);
+   int run_mr(const SphereStream& input, SphereStream& output, const std::string& mr, const int& rows,
+              const char* param = NULL, const int& size = 0);
 
    int read(SphereResult*& res, const bool& inorder = false, const bool& wait = true);
    int checkProgress();

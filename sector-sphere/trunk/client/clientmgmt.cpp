@@ -160,159 +160,108 @@ int Sector::init()
    return r;
 }
 
+#define FIND_CLIENT_OR_ERROR(c) \
+   Client* c = Client::g_ClientMgmt.lookupClient(m_iID); \
+   if (NULL == c) \
+      return SectorError::E_INVALID;
+
 int Sector::login(const string& server, const int& port,
                   const string& username, const string& password, const char* cert)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->login(server, port, username, password, cert);
 }
 
 int Sector::logout()
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->logout();
 }
 
 int Sector::close()
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    Client::g_ClientMgmt.removeClient(m_iID);
-
    c->close();
    delete c;
-
    return 0;
 }
 
 int Sector::list(const string& path, vector<SNode>& attr)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->list(path, attr);
 }
 
 int Sector::stat(const string& path, SNode& attr)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->stat(path, attr);
 }
 
 int Sector::mkdir(const string& path)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->mkdir(path);
 }
 
 int Sector::move(const string& oldpath, const string& newpath)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->move(oldpath, newpath);
 }
 
 int Sector::remove(const string& path)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->remove(path);
 }
 
 int Sector::rmr(const string& path)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->rmr(path);
 }
 
 int Sector::copy(const string& src, const string& dst)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->copy(src, dst);
 }
 
 int Sector::utime(const string& path, const int64_t& ts)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->utime(path, ts);
 }
 
 int Sector::sysinfo(SysStat& sys)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->sysinfo(sys);
 }
 
 int Sector::shutdown(const int& type, const string& param)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->shutdown(type, param);
 }
 
 int Sector::fsck(const string& path)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->fsck(path);
+}
+
+int Sector::configLog(const char* log_path, bool screen, int level)
+{
+   FIND_CLIENT_OR_ERROR(c)
+   return c->configLog(log_path, screen, level);
 }
 
 int Sector::setMaxCacheSize(const int64_t& ms)
 {
-   Client* c = Client::g_ClientMgmt.lookupClient(m_iID);
-
-   if (NULL == c)
-      return SectorError::E_INVALID;
-
+   FIND_CLIENT_OR_ERROR(c)
    return c->setMaxCacheSize(ms);
 }
 

@@ -127,7 +127,8 @@ protected:
 
    Cache m_Cache;			// file client cache
 
-   bool m_bVerbose;			// verbose debug & other information print to screen
+protected: // Logging and debug output
+   int configLog(const char* log_path, bool screen, int level);
    SectorLog m_Log;			// log file writer
 
 private:

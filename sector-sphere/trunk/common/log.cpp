@@ -47,7 +47,8 @@ m_strFunc(__func__)
 
 SectorLog::SectorLog():
 m_iLevel(1),
-m_iDay(-1)
+m_iDay(-1),
+m_bCopyToScreen(false)
 {
 }
 
@@ -57,6 +58,10 @@ SectorLog::~SectorLog()
 
 int SectorLog::init(const char* path)
 {
+   // NULL path means users do not want to write to log file.
+   if (NULL == path)
+      return 0;
+
    m_strLogPath = path;
 
    string logfile;
@@ -79,6 +84,11 @@ void SectorLog::setLevel(const int level)
 {
    if (level >= 0)
       m_iLevel = level;
+}
+
+void SectorLog::copyScreen(const bool screen)
+{
+   m_bCopyToScreen = screen;
 }
 
 SectorLog& SectorLog::operator<<(const LogStringTag& tag)
@@ -144,18 +154,28 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
    return *this;
 }
 
+SectorLog& SectorLog::endl(SectorLog& log)
+{
+   CGuardEx lg(log.m_LogLock);
+   int key = pthread_self();
+   map<int, LogString>::iterator i = log.m_mStoredString.find(key);
+   if (i != log.m_mStoredString.end())
+   {
+      log.insert_(i->second.m_strLog.c_str(), i->second.m_iLevel);
+      log.m_mStoredString.erase(i);
+   }
+
+   return log;
+}
+
 void SectorLog::insert_(const char* text, const int level)
 {
-   #ifdef DEBUG
-   if (level == LogLevel::SCREEN)
-   {
-      cout << text << endl;
-      return;
-   }
-   #endif
-
    if (level > m_iLevel)
       return;
+
+   // Print this log to stdout.
+   if (m_bCopyToScreen)
+      cout << text << std::endl;
 
    if (m_LogFile.bad())
       return;
@@ -166,7 +186,7 @@ void SectorLog::insert_(const char* text, const int level)
    char ct[64];
    snprintf(ct, 64, "%s", ctime(&t));
    ct[strlen(ct) - 1] = '\0';
-   m_LogFile << ct << "\t" << "LEVEL: " << level << "\t" << text << endl;
+   m_LogFile << ct << "\t" << "LEVEL: " << level << "\t" << text << std::endl;
    m_LogFile.flush();
 }
 

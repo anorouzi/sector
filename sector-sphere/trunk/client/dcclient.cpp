@@ -303,8 +303,7 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    if (result < 0)
       return result;
 
-   if (m_pClient->m_bVerbose)
-      cout << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << endl;
+   m_pClient->m_Log << "JOB " << m_pInput->m_iFileNum << " " << m_pInput->m_llSize << " " << m_pInput->m_llRecNum << LogEnd();
 
    SectorMsg msg;
    msg.setType(202); // locate available SPE
@@ -349,8 +348,7 @@ int DCClient::run(const SphereStream& input, SphereStream& output, const string&
    m_iAvailRes = 0;
    m_bBucketHealth = true;
 
-   if (m_pClient->m_bVerbose)
-      cout << m_mSPE.size() << " spes found! " << m_mpDS.size() << " data seg total." << endl;
+   m_pClient->m_Log << m_mSPE.size() << " spes found! " << m_mpDS.size() << " data seg total." << LogEnd();
 
    // starting...
 #ifndef WIN32
@@ -811,8 +809,7 @@ int DCClient::waitForCompletion()
       t2 = CTimer::getTime();
       if (t2 - t1 > 60000000)
       {
-         if (m_pClient->m_bVerbose)
-             cout << "PROGRESS: " << progress << "%" << endl;
+          m_pClient->m_Log << "PROGRESS: " << progress << "%" << LogEnd();
          t1 = t2;
       }
    }
@@ -1094,8 +1091,7 @@ int DCClient::connectSPE(SPE& s)
 
    m_pClient->m_DataChn.connect(s.m_strIP, s.m_iDataPort);
 
-   if (m_pClient->m_bVerbose)
-      cout << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << endl;
+   m_pClient->m_Log << "connect SPE " << s.m_strIP.c_str() << " " << *(int*)(msg.getData()) << LogEnd();
 
    // send output information
    m_pClient->m_DataChn.send(s.m_strIP, s.m_iDataPort, s.m_iSession, (char*)&m_iOutputType, 4);
@@ -1250,8 +1246,7 @@ int DCClient::prepareOutput(const char* spenodes)
             msg.setData(offset + 4, m_strOperator.c_str(), m_strOperator.length() + 1);
          }
 
-         if (m_pClient->m_bVerbose)
-            cout << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << endl;
+         m_pClient->m_Log << "request shuffler " << spenodes + i * 72 << " " << *(int*)(spenodes + i * 72 + 64) << LogEnd();
 
          Address serv;
          m_pClient->m_Routing.getPrimaryMaster(serv);

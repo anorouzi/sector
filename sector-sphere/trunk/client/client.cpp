@@ -50,7 +50,6 @@ m_strPassword(""),
 m_strCert(""),
 m_strServerIP(""),
 m_iKey(0),
-m_bVerbose(true),
 m_iCount(0),
 m_bActive(false),
 m_iID(0)
@@ -891,6 +890,12 @@ int Client::retrieveMasterInfo(string& certfile)
    if (recvsize <= 0)
       return SectorError::E_BROKENPIPE;
 
+   return 0;
+}
+
+int Client::configLog(const char* log_path, bool screen, int level)
+{
+   m_Log.init(log_path);
    return 0;
 }
 

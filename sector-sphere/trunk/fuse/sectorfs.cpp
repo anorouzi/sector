@@ -34,10 +34,15 @@ bool SectorFS::g_bConnected = false;
 
 void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 {
+   g_SectorClient.init();
+
+   const ClientConf& conf = g_SectorConfig.m_ClientConf;
+
    bool master_conn = false;
-   for (set<Address, AddrComp>::const_iterator i = g_SectorConfig.m_ClientConf.m_sMasterAddr.begin(); i != g_SectorConfig.m_ClientConf.m_sMasterAddr.end(); ++ i)
+   for (set<Address, AddrComp>::const_iterator i = conf.m_sMasterAddr.begin(); i != conf.m_sMasterAddr.end(); ++ i)
    {
-      if (g_SectorClient.init(i->m_strIP, i->m_iPort) >= 0)
+      if (g_SectorClient.login(i->m_strIP, i->m_iPort, conf.m_strUserName,
+                               conf.m_strPassword, conf.m_strCertificate.c_str()) >= 0)
       {
          master_conn = true;
          break;
@@ -46,10 +51,8 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    if (!master_conn)
       return NULL;
 
-   if (g_SectorClient.login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
-      return NULL;
-
-   g_SectorClient.setMaxCacheSize(g_SectorConfig.m_ClientConf.m_llMaxCacheSize);
+   g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
+   g_SectorClient.setMaxCacheSize(conf.m_llMaxCacheSize);
 
    g_bConnected = true;
 
@@ -316,7 +319,7 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    return open(path, info);
 }
 
-int SectorFS::truncate(const char* path, off_t size)
+int SectorFS::truncate(const char* path, off_t /*size*/)
 {
    // If the file is already openned, call the truncate() API of the SectorFiel handle.
    SectorFile* h = lookup(path);
@@ -564,26 +567,7 @@ int SectorFS::restart()
 
    g_SectorClient.logout();
    g_SectorClient.close();
-
-   bool master_conn = false;
-   for (set<Address, AddrComp>::const_iterator i = g_SectorConfig.m_ClientConf.m_sMasterAddr.begin(); i != g_SectorConfig.m_ClientConf.m_sMasterAddr.end(); ++ i)
-   {
-      if (g_SectorClient.init(i->m_strIP, i->m_iPort) >= 0)
-      {
-         master_conn = true;
-         break;
-      }
-   }
-   if (!master_conn)
-      return -1;
-
-   if (g_SectorClient.login(g_SectorConfig.m_ClientConf.m_strUserName, g_SectorConfig.m_ClientConf.m_strPassword, g_SectorConfig.m_ClientConf.m_strCertificate.c_str()) < 0)
-      return -1;
-
-   g_SectorClient.setMaxCacheSize(g_SectorConfig.m_ClientConf.m_llMaxCacheSize);
-
-   g_bConnected = true;
-
+   init(NULL);
    return 0;
 }
 

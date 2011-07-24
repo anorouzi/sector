@@ -23,6 +23,12 @@ written by
 #ifndef __SECTOR_CONF_H__
 #define __SECTOR_CONF_H__
 
+#include <fstream>
+#include <string>
+#include <vector>
+
+class Param;
+
 class ConfParser
 {
 public:
