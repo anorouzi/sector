@@ -19,9 +19,10 @@ written by
    Yunhong Gu, last updated 03/16/2010
 *****************************************************************************/
 
-#include <sector.h>
-#include <common.h>
 #include "clientmgmt.h"
+#include "common.h"
+#include "sector.h"
+
 
 using namespace std;
 
@@ -329,248 +330,165 @@ int Sector::releaseSphereProcess(SphereProcess* sp)
    return 0;
 }
 
-int SectorFile::open(const string& filename, int mode, const SF_OPT* option)
-{
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
+#define FIND_FILE_OR_ERROR(f) \
+   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID); \
+   if (NULL == f) \
       return SectorError::E_INVALID;
 
+
+int SectorFile::open(const string& filename, int mode, const SF_OPT* option)
+{
+   FIND_FILE_OR_ERROR(f)
    return f->open(filename, mode, option);
 }
 
 int64_t SectorFile::read(char* buf, const int64_t& offset, const int64_t& size, const int64_t& prefetch)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->read(buf, offset, size, prefetch);
 }
 
 int64_t SectorFile::write(const char* buf, const int64_t& offset, const int64_t& size, const int64_t& buffer)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->write(buf, offset, size, buffer);
 }
 
 int64_t SectorFile::read(char* buf, const int64_t& size)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->read(buf, size);
 }
 
 int64_t SectorFile::write(const char* buf, const int64_t& size)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->write(buf, size);
 }
 
 int64_t SectorFile::download(const char* localpath, const bool& cont)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->download(localpath, cont);
 }
 
 int64_t SectorFile::upload(const char* localpath, const bool& cont)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->upload(localpath, cont);
 }
 
 int SectorFile::flush()
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->flush();
 }
 
 int SectorFile::close()
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->close();
 }
 
 int64_t SectorFile::seekp(int64_t off, int pos)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->seekp(off, pos);
 }
 
 int64_t SectorFile::seekg(int64_t off, int pos)
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->seekg(off, pos);
 }
 
 int64_t SectorFile::tellp()
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->tellp();
 }
 
 int64_t SectorFile::tellg()
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return SectorError::E_INVALID;
-
+   FIND_FILE_OR_ERROR(f)
    return f->tellg();
 }
 
 bool SectorFile::eof()
 {
-   FSClient* f = Client::g_ClientMgmt.lookupFS(m_iID);
-
-   if (NULL == f)
-      return true;
-
+   FIND_FILE_OR_ERROR(f)
    return f->eof();
 }
 
-int SphereProcess::close()
-{
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
+#define FIND_SPHERE_OR_ERROR(d) \
+   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID); \
+   if (NULL == d) \
       return SectorError::E_INVALID;
 
+int SphereProcess::close()
+{
+   FIND_SPHERE_OR_ERROR(d)
    return d->close();
 }
 
 int SphereProcess::loadOperator(const char* library)
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->loadOperator(library);
 }
 
 int SphereProcess::run(const SphereStream& input, SphereStream& output, const string& op, const int& rows, const char* param, const int& size, const int& type)
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->run(input, output, op, rows, param, size, type);
 }
 
 int SphereProcess::run_mr(const SphereStream& input, SphereStream& output, const string& mr, const int& rows, const char* param, const int& size)
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->run_mr(input, output, mr, rows, param, size);
 }
 
 int SphereProcess::read(SphereResult*& res, const bool& inorder, const bool& wait)
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->read(res, inorder, wait);
 }
 
 int SphereProcess::checkProgress()
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->checkProgress();
 }
 
 int SphereProcess::checkMapProgress()
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->checkMapProgress();
 }
 
 int SphereProcess::checkReduceProgress()
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->checkReduceProgress();
 }
 
 int SphereProcess::waitForCompletion()
 {
-   DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
-   if (NULL == d)
-      return SectorError::E_INVALID;
-
+   FIND_SPHERE_OR_ERROR(d)
    return d->waitForCompletion();
 }
 
 void SphereProcess::setMinUnitSize(int size)
 {
    DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
    if (NULL != d)
-      d->setMinUnitSize(size);
+     d->setMinUnitSize(size);
 }
 
 void SphereProcess::setMaxUnitSize(int size)
 {
    DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
    if (NULL != d)
       d->setMaxUnitSize(size);
 }
@@ -578,7 +496,6 @@ void SphereProcess::setMaxUnitSize(int size)
 void SphereProcess::setProcNumPerNode(int num)
 {
    DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
    if (NULL != d)
       d->setProcNumPerNode(num);
 }
@@ -586,7 +503,6 @@ void SphereProcess::setProcNumPerNode(int num)
 void SphereProcess::setDataMoveAttr(bool move)
 {
    DCClient* d = Client::g_ClientMgmt.lookupDC(m_iID);
-
    if (NULL != d)
       d->setDataMoveAttr(move);
 }

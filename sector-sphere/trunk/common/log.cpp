@@ -61,14 +61,12 @@ int SectorLog::init(const char* path)
    // NULL path means users do not want to write to log file.
    if (NULL == path)
       return 0;
-
    m_strLogPath = path;
 
    string logfile;
    getTodayLog(m_iDay, logfile);
 
    m_LogFile.open((m_strLogPath + "/" + logfile).c_str(), ios::app);
-
    if (m_LogFile.bad() || m_LogFile.fail())
       return -1;
 

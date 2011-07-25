@@ -91,6 +91,8 @@ int Client::init()
    m_KeepAlive = CreateThread(NULL, 0, keepAlive, this, 0, NULL);
 #endif
 
+   m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client initialized" << LogEnd();
+
    return 0;
 }
 
@@ -206,9 +208,15 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
    secconn.close();
    SSLTransport::destroy();
 
+   // Record these for future re-reconnect, if necessary
+   // TODO: do not record password in clear text, may cause security issue.
    m_strUsername = username;
    m_strPassword = password;
    m_strCert = master_cert;
+
+   m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client successfully login to "
+         << m_strServerIP << ":" << m_iServerPort
+         << LogEnd();
 
    return m_iKey;
 }
@@ -896,6 +904,8 @@ int Client::retrieveMasterInfo(string& certfile)
 int Client::configLog(const char* log_path, bool screen, int level)
 {
    m_Log.init(log_path);
+   m_Log.copyScreen(screen);
+   m_Log.setLevel(level);
    return 0;
 }
 
