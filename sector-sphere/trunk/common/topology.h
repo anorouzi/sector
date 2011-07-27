@@ -23,15 +23,15 @@ written by
 #ifndef __SECTOR_TOPOLOGY_H__
 #define __SECTOR_TOPOLOGY_H__
 
-#include <string>
-#include <set>
 #include <map>
+#include <set>
+#include <string>
 #include <vector>
-#include <sector.h>
-
 #ifndef WIN32
    #include <stdint.h>
 #endif
+
+#include "sector.h"
 
 struct SlaveStatus
 {
@@ -140,6 +140,7 @@ public:
 
    unsigned int distance(const char* ip1, const char* ip2);
    unsigned int min_distance(const Address& addr, const std::set<Address, AddrComp>& loclist);
+   unsigned int min_distance(const std::vector<int>& path, const std::vector< std::vector<int> >& path_list);
    unsigned int max_distance(const std::vector<int>& path, const std::vector< std::vector<int> >& path_list);
 
    int getTopoDataSize();

@@ -36,7 +36,9 @@ written by
 #include <threadpool.h>
 #include <osportable.h>
 #include <replica.h>
-	
+
+namespace sector
+{	
 
 class MasterConf
 {
@@ -261,5 +263,7 @@ private:
 public:
    static void startSlave(const std::string& addr, const std::string& base, const std::string& option, const std::string& log = "");
 };
+
+} // namespace sector
 
 #endif

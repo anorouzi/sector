@@ -19,14 +19,16 @@ written by
    Yunhong Gu, last updated 02/08/2011
 *****************************************************************************/
 
-#include <sector.h>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
-#include <master.h>
+
+#include "master.h"
+#include "sector.h"
 
 using namespace std;
+using namespace sector;
 
 void help()
 {

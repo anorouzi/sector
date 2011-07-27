@@ -28,12 +28,14 @@ written by
    #include <ws2tcpip.h>
    #define atoll _atoi64
 #endif
-#include <master.h>
-#include <conf.h>
-#include <sstream>
 #include <iostream>
+#include <sstream>
+
+#include "conf.h"
+#include "master.h"
 
 using namespace std;
+using namespace sector;
 
 MasterConf::MasterConf():
 m_iServerPort(0),

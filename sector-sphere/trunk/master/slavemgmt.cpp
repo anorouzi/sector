@@ -25,10 +25,12 @@ written by
    #include <sys/time.h>
    #include <sys/types.h>
 #endif
-#include <slavemgmt.h>
+
 #include <cstring>
-#include <common.h>
-#include <meta.h>
+
+#include "common.h"
+#include "meta.h"
+#include "slavemgmt.h"
 
 using namespace std;
 
@@ -292,6 +294,20 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
 
 int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
+   // If all source nodes are busy, we should proceed.
+   bool idle = false;
+   for (set<int>::const_iterator i = loclist.begin(); i != loclist.end(); ++ i)
+   {
+      // TODO: each slave may set a capacity limit, which could be more than 2 active trasactions.
+      if (m_mSlaveList[*i].m_iActiveTrans <= 1)
+      {
+         idle = true;
+         break;
+      }
+   }
+   if (!idle)
+      return -1;
+
    vector< set<int> > avail;
    avail.resize(m_Topology.m_uiLevel + 2);
 
@@ -304,6 +320,8 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          continue;
       locpath.push_back(p->second.m_viPath);
    }
+
+   // TODO: this should not be calcuated each time.
 
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
@@ -326,51 +344,60 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
             continue;
       }
 
-      // calculate the distance from this slave node to the current replicas
-      int level = m_Topology.max_distance(i->second.m_viPath, locpath);
+      // Calculate the distance from this slave node to the current replicas
+      // We want maximize the distance to closest node.
+      int level = m_Topology.min_distance(i->second.m_viPath, locpath);
 
       // if users define a replication distance, then only nodes within rep_dist can be chosen
       if ((rep_dist >= 0) && (level > rep_dist))
          continue;
 
-      // level <= m_Topology.m_uiLevel + 1
-      if (level >= 0)
+      // level <= m_Topology.m_uiLevel + 1.
+      // We do not want to replicate on the same node (level == 0), even if they are different slaves.
+      if (level > 0)
          avail[level].insert(i->first);
    }
 
-   set<int> candidate;
+   set<int>* candidate = NULL;
 
    // choose furthest node within replica distance
    for (int i = m_Topology.m_uiLevel + 1; i >= 0; -- i)
    {
       if (!avail[i].empty())
       {
-         candidate = avail[i];
+         candidate = &avail[i];
          break;
       }
    }
 
-   if (candidate.empty())
+   if (NULL == candidate)
       return SectorError::E_NODISK;
 
+   // Choose a random node.
    timeval t;
    gettimeofday(&t, 0);
    srand(t.tv_usec);
-
-   int r = int(candidate.size() * (double(rand()) / RAND_MAX));
-   set<int>::iterator n = candidate.begin();
+   int r = int(candidate->size() * (double(rand()) / RAND_MAX));
+   set<int>::iterator n = candidate->begin();
    for (int i = 0; i < r; ++ i)
       n ++;
 
+   // If there is no other active transactions on this node, return.
    sn = m_mSlaveList[*n];
    if (sn.m_iActiveTrans == 0)
       return 1;
 
-   for (set<int>::iterator i = candidate.begin(); i != candidate.end(); ++ i)
+   // Choose node with lowest number of active transactions.
+   set<int>::iterator s = n;
+   if (++s == candidate->end())
+      s = candidate->begin(); 
+   for (; s != n; ++ s)
    {
-      if (m_mSlaveList[*i].m_iActiveTrans < sn.m_iActiveTrans)
+      if (s == candidate->end())
+         s = candidate->begin();
+      if (m_mSlaveList[*s].m_iActiveTrans < sn.m_iActiveTrans)
       {
-         sn = m_mSlaveList[*i];
+         sn = m_mSlaveList[*s];
          if (sn.m_iActiveTrans == 0)
             break;
       }

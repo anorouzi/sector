@@ -19,11 +19,12 @@ written by
    Yunhong Gu, last updated 10/14/2010
 *****************************************************************************/
 
-
-#include <master.h>
 #include <iostream>
 
+#include "master.h"
+
 using namespace std;
+using namespace sector;
 
 int main(int argc, char** argv)
 {

@@ -20,13 +20,16 @@ written by
 *****************************************************************************/
 
 
-#include <replica.h>
-#include <common.h>
+#include <cassert>
+
+#include "common.h"
+#include "replica.h"
 
 using namespace std;
+using namespace sector;
 
 ReplicaJob::ReplicaJob():
-m_iPriority(0),
+m_iPriority(BACKGROUND),
 m_llTimeStamp(CTimer::getTime()),
 m_llSize(0),
 m_bForceReplicate(false)
@@ -36,35 +39,79 @@ m_bForceReplicate(false)
 Replication::Replication():
 m_llTotalFileSize(0)
 {
+   m_MultiJobList.resize(MAX_PRIORITY);
+   resetIter();
 }
 
 Replication::~Replication()
 {
 }
 
-int Replication::push(const ReplicaJob& rep)
+int Replication::insert(const ReplicaJob& rep)
 {
-   m_qReplicaJobs.push(rep);
+   assert(rep.m_iPriority < MAX_PRIORITY);
+
+   m_MultiJobList[rep.m_iPriority].push_back(rep);
    m_llTotalFileSize += rep.m_llSize;
+   m_iTotalJob ++;
    return 0;
 }
 
-int Replication::pop(ReplicaJob& rep)
+void Replication::resetIter()
 {
-   if (m_qReplicaJobs.empty())
+   m_CurrIter.m_iPriority = PRI[0];
+   m_CurrIter.m_ListIter = m_MultiJobList[PRI[0]].begin();
+}
+
+void Replication::deleteCurr()
+{
+   m_llTotalFileSize -= m_CurrIter.m_ListIter->m_llSize;
+   m_iTotalJob --;
+
+   JobList::iterator old = m_CurrIter.m_ListIter;
+   m_CurrIter.m_ListIter ++;
+   m_MultiJobList[m_CurrIter.m_iPriority].erase(old);
+   nextIter();
+}
+
+int Replication::next(ReplicaJob& job)
+{
+   if (m_MultiJobList[m_CurrIter.m_iPriority].empty())
       return -1;
 
-   rep = m_qReplicaJobs.top();
-   m_qReplicaJobs.pop();
+   job = *m_CurrIter.m_ListIter;
+   nextIter();
    return 0;
 }
 
-int Replication::getTotalNum()
+int Replication::getTotalNum() const
 {
-   return m_qReplicaJobs.size();
+   return m_iTotalJob;
 }
 
-int64_t Replication::getTotalSize()
+int64_t Replication::getTotalSize() const
 {
    return m_llTotalFileSize;
+}
+
+void Replication::nextIter()
+{
+   if (m_CurrIter.m_ListIter == m_MultiJobList[m_CurrIter.m_iPriority].end())
+   {
+      // find next non-empty job list.
+      bool found_next = false;
+      for (int i = m_CurrIter.m_iPriority + 1; i < MAX_PRIORITY; ++ i)
+      {
+         if (!m_MultiJobList[i].empty())
+         {
+            m_CurrIter.m_iPriority = i;
+            m_CurrIter.m_ListIter = m_MultiJobList[m_CurrIter.m_iPriority].begin();
+            found_next = false;
+         }
+      }
+      if (!found_next)
+      {
+         resetIter();
+      }
+   }
 }

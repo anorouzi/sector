@@ -29,7 +29,7 @@ written by
 #include <iostream>
 
 using namespace std;
-
+using namespace sector;
 
 Master::Master():
 m_pMetadata(NULL),
@@ -1945,7 +1945,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          ReplicaJob job;
          job.m_strSource = src;
          job.m_strDest = dst;
-         m_Replication.push(job);
+         job.m_iPriority = COPY;
+         m_Replication.insert(job);
          m_ReplicaCond.signal();
          m_ReplicaLock.release();
 
@@ -2010,8 +2011,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          ReplicaJob job;
          job.m_strSource = *i;
          job.m_strDest = target;
-         job.m_iPriority = 1; // cp has a higher priority than regular replication
-         m_Replication.push(job);
+         // cp has a higher priority than regular replication.
+         job.m_iPriority = COPY;
+         m_Replication.insert(job);
       }
       m_ReplicaCond.signal();
       m_ReplicaLock.release();
@@ -2797,9 +2799,12 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 {
    Master* self = (Master*)s;
 
-   int64_t last_replica_erase_time = CTimer::getTime();
-   //int64_t start_time = CTimer::getTime();
+   // initially the master should wait for a while, because before all slaves join,
+   // many files could be treated as undereplicated incorrectly.
+   // we will wait for 15 minutes before the first check.
+   sleep(15 * 60);
 
+   int64_t last_replica_erase_time = CTimer::getTime();
    vector<string> under_replicated;
    vector<string> over_replicated;
 
@@ -2816,11 +2821,6 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          // only the first master is responsible for replica checking
          if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
             continue;
-
-         // initially the master should wait longer because slave may join slower
-         // we will wait for 15 minutes before the first check
-         // if (CTimer::getTime() - start_time < 15 * 60 * 1000000LL)
-         //    continue;
 
          // refresh special replication settings
          if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
@@ -2840,7 +2840,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             {
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
-               self->m_Replication.push(job);
+               job.m_iPriority = BACKGROUND;
+               self->m_Replication.insert(job);
             }
             self->m_ReplicaLock.release();
          }
@@ -2861,29 +2862,37 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
                job.m_bForceReplicate = true;
-               self->m_Replication.push(job);
+               self->m_Replication.insert(job);
             }
             self->m_ReplicaLock.release();
          }
       }
 
       // start any replication jobs in queue
+      self->m_ReplicaLock.acquire();
+      self->m_Replication.resetIter();
+      self->m_ReplicaLock.release();
       while (true)
       {
-         // TODO: this should be further optimized
+         // The number of concurrent replication in the system must be limited.	
          if (self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
             break;
 
          ReplicaJob job;
          self->m_ReplicaLock.acquire();
-         int res = self->m_Replication.pop(job);
+         int res = self->m_Replication.next(job);
          self->m_ReplicaLock.release();
 
+         // Already scan to the end of to-replicate list.
          if (res < 0)
             break;
 
-         if (self->createReplica(job) < 0)
-            continue;
+         if (self->createReplica(job) >= 0)
+         {
+            self->m_ReplicaLock.acquire();
+            self->m_Replication.deleteCurr();
+            self->m_ReplicaLock.release();
+         }
       }
 
 
@@ -2923,72 +2932,52 @@ int Master::createReplica(const ReplicaJob& job)
    if (m_pMetadata->lookup(job.m_strSource.c_str(), attr) < 0)
       return -1;
 
-   int32_t dir = 0;
-
    SlaveNode sn;
-   if (attr.m_bIsDir)
+   SNode sub_attr;
+   if (attr.m_bIsDir && (job.m_strSource == job.m_strDest))
    {
-      if (job.m_strSource == job.m_strDest)
-      {
-         // only nosplit dir can be replicated as a whole
-         SNode sub_attr;
-         if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
-            return -1;
-
-         // do not create multiple replicas at the same time
-         if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
-            return -1;
-
-         // do not over replicate
-         if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
-            return -1;
-
-         if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
-            return -1;
-      }
-      else
-      {
-         //TODO: get total dir size
-
-         set<Address, AddrComp> empty;
-         int rd = m_ReplicaConf.getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
-         vector<int> rl;
-         m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
-         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
-            return -1;
-      }
-
-      dir = 1;
+      // Only nosplit dir can be replicated as a whole.
+      if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
+         return -1;
    }
-   else
+
+   if (job.m_strSource == job.m_strDest)
    {
-      if (job.m_strSource == job.m_strDest)
+      // do not create multiple replicas at the same time
+      if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
+         return -1;
+
+      if (!attr.m_bIsDir)
       {
-         // do not create multiple replicas at the same time
-         if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
-            return -1;
-
          // do not over replicate
-         if ((attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum) && !job.m_bForceReplicate)
+         if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
             return -1;
-
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
             return -1;
       }
       else
       {
-         set<Address, AddrComp> empty;
-         int rd = m_ReplicaConf.getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
-         vector<int> rl;
-         m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
-         if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
+         if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
+            return -1;
+         if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
             return -1;
       }
+   }
+   else
+   {
+      set<Address, AddrComp> empty;
+      int rd = m_ReplicaConf.getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
+      vector<int> rl;
+      m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
+      if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0)
+         return -1;
    }
 
    int transid = m_TransManager.create(TransType::REPLICA, 0, 111, job.m_strDest, 0);
    if (job.m_strSource == job.m_strDest)
       m_sstrOnReplicate.insert(job.m_strSource);
+
+   int32_t dir = (attr.m_bIsDir) ? 1 : 0;
 
    SectorMsg msg;
    msg.setType(111);

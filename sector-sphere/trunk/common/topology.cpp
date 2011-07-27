@@ -33,12 +33,12 @@ written by
    #include <windows.h>
 #endif
 
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <sys/types.h>
 
 #include <topology.h>
-#include <sys/types.h>
-#include <fstream>
-#include <cstring>
-#include <cstdlib>
 
 using namespace std;
 
@@ -250,6 +250,22 @@ unsigned int Topology::min_distance(const Address& addr, const set<Address, Addr
          dist = d;
    }
    return dist;
+}
+
+unsigned int Topology::min_distance(const std::vector<int>& path, const std::vector< std::vector<int> >& path_list)
+{
+   if (path_list.empty())
+      return m_uiLevel + 1;
+
+   unsigned int md = 0;
+   for (vector< vector<int> >::const_iterator p = path_list.begin(); p != path_list.end(); ++ p)
+   {
+      unsigned int dist = m_uiLevel - match(path, *p) + 1;
+      if (dist < md)
+         md = dist;
+   }
+
+   return md;
 }
 
 unsigned int Topology::max_distance(const vector<int>& path, const vector< vector<int> >& path_list)

@@ -23,8 +23,8 @@ written by
 #ifndef __SECTOR_SLAVEMGMT_H__
 #define __SECTOR_SLAVEMGMT_H__
 
-#include <topology.h>
-#include <osportable.h>
+#include "osportable.h"
+#include "topology.h"
 
 class SlaveManager
 {

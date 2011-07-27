@@ -23,35 +23,39 @@ written by
 #ifndef __SECTOR_REPLICA_H__
 #define __SECTOR_REPLICA_H__
 
+#include <list>
 #include <string>
 #include <vector>
-#include <queue>
-#include <common.h>
 
-class ReplicaJob
+#include "common.h"
+
+namespace sector
 {
-public:
+
+// Priority must increase by 1 and start from 0.
+const int MAX_PRIORITY = 16;
+const int PRI[] = {0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15};
+
+enum ReplicaPriority {COPY = 0, BACKGROUND = 1};
+
+struct ReplicaJob
+{
    ReplicaJob();
 
-public:
    std::string m_strSource;
    std::string m_strDest;
-   int m_iPriority;
+   ReplicaPriority m_iPriority;
    int64_t m_llTimeStamp;
    int64_t m_llSize;
    bool m_bForceReplicate;
 };
 
-struct RJComp
+typedef std::list<ReplicaJob> JobList;
+
+struct JobIterator
 {
-   bool operator()(const ReplicaJob& r1, const ReplicaJob& r2)
-   {
-      if (r1.m_iPriority < r2.m_iPriority)
-         return true;
-      if (r1.m_llTimeStamp > r2.m_llTimeStamp)
-         return true;
-      return false;
-   }
+   int m_iPriority;
+   JobList::iterator m_ListIter;
 };
 
 class Replication
@@ -60,15 +64,24 @@ public:
    Replication();
    ~Replication();
 
-   int push(const ReplicaJob& rep);
-   int pop(ReplicaJob& rep);
+   int insert(const ReplicaJob& rep);
+   void resetIter();
+   void deleteCurr();
+   int next(ReplicaJob& rep);
 
-   int getTotalNum();
-   int64_t getTotalSize();
+   int getTotalNum() const;
+   int64_t getTotalSize() const;
 
 private:
-   std::priority_queue<ReplicaJob, std::vector<ReplicaJob>, RJComp> m_qReplicaJobs;
+   std::vector<JobList> m_MultiJobList;
+   JobIterator m_CurrIter;
    int64_t m_llTotalFileSize;
+   int m_iTotalJob;
+
+private:
+   void nextIter();
 };
+
+} // namespace sector
 
 #endif
