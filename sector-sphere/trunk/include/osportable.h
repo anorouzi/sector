@@ -25,18 +25,18 @@ updated by
 #define __OS_PORTABLE_H__
 
 #ifndef WIN32
+   #include <errno.h>
+   #include <pthread.h>
    #include <sys/time.h>
    #include <sys/uio.h>
-   #include <pthread.h>
-   #include <errno.h>
 #else
    #include <windows.h>
 #endif
 #include <cstdlib>
-#include <sector.h>
 #include <string>
 #include <vector>
 
+#include "sector.h"
 
 #ifndef WIN32
    #include <stdint.h>
@@ -124,7 +124,7 @@ public:
 #endif
 
     bool wait(CMutex & mutex);
-    bool wait(CMutex & mutex, unsigned long msecs, bool * timedout = NULL);
+    bool wait(CMutex & mutex, int msecs, bool * timedout = NULL);
 
 private:
 #ifndef WIN32
@@ -183,5 +183,9 @@ public:
    static int get_dir_space(const std::string& path, int64_t& avail);
 };
 
+// TODO: wrap some common threading utility, create, join, etc.
+class Thread
+{
+};
 
 #endif

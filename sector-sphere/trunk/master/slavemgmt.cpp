@@ -294,7 +294,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
 
 int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
-   // If all source nodes are busy, we should proceed.
+   // If all source nodes are busy, we should skip the replica.
    bool idle = false;
    for (set<int>::const_iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
@@ -382,18 +382,16 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    for (int i = 0; i < r; ++ i)
       n ++;
 
-   // If there is no other active transactions on this node, return.
+   // If there is no other active transaction on this node, return.
    sn = m_mSlaveList[*n];
    if (sn.m_iActiveTrans == 0)
       return 1;
 
    // Choose node with lowest number of active transactions.
    set<int>::iterator s = n;
-   if (++s == candidate->end())
-      s = candidate->begin(); 
-   for (; s != n; ++ s)
+   do
    {
-      if (s == candidate->end())
+      if (++s == candidate->end())
          s = candidate->begin();
       if (m_mSlaveList[*s].m_iActiveTrans < sn.m_iActiveTrans)
       {
@@ -401,7 +399,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          if (sn.m_iActiveTrans == 0)
             break;
       }
-   }
+   } while (s != n);
 
    return 1;
 }
@@ -551,14 +549,32 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
    if (loclist.empty())
       return -1;
 
+   int min_dist = 1024;
    int64_t min_avail_space = -1;
 
+   // Remove a node such that the rest has the max-min distance;
+   // When the first rule ties, choose one with least available space.
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
-      int slave_id = m_mAddrList[*i];
-      SlaveNode sn = m_mSlaveList[slave_id];
-      if ((sn.m_llAvailDiskSpace < min_avail_space) || (min_avail_space < 0))
+      // TODO: optimize this by using ID instead of address.
+      set<Address, AddrComp> tmp = loclist;
+      tmp.erase(*i);
+      int dist = m_Topology.min_distance(*i, tmp);
+      if (dist < min_dist)
+      {
          addr = *i;
+         min_dist = dist;
+      }
+      else if (dist == min_dist)
+      {
+         int slave_id = m_mAddrList[*i];
+         SlaveNode sn = m_mSlaveList[slave_id];
+         if ((sn.m_llAvailDiskSpace < min_avail_space) || (min_avail_space < 0))
+         {
+            addr = *i;
+            min_avail_space = sn.m_llAvailDiskSpace;
+         }
+      }
    }
 
    return 0;
@@ -1066,9 +1082,7 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
       int d = m_Topology.distance(ip.c_str(), m_mSlaveList[*i].m_strIP.c_str());
-
       dist_vec[d].push_back(*i);
-
       if ((d < dist) || (dist < 0))
          dist = d;
    }
@@ -1080,7 +1094,7 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    // chose nearest node first then least busy node, a random one if the first two conditions equal
    // TODO: this code can be slightly optimized
 
-   int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX)) % dist_vec[dist].size();
+   int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX));
    int n = dist_vec[dist][r];
 
    sn = m_mSlaveList[n];

@@ -11,6 +11,7 @@ endif
 OBJS = master_conf.o slavemgmt.o user.o replica.o master.o
 
 all: libmaster.so libmaster.a start_master start_all stop_all
+test: config_unittest replica_unittest
 
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -29,6 +30,12 @@ start_all: start_all.cpp
 
 stop_all: stop_all.cpp
 	$(C++) stop_all.cpp -o stop_all $(CCFLAGS) $(LDFLAGS)
+
+config_unittest: config_unittest.cpp master_conf.cpp
+	$(C++) config_unittest.cpp -o $@ $(CCFLAGS) $(LDFLAGS)
+
+replica_unittest: replica_unittest.cpp replica.h replica.cpp
+	$(C++) replica_unittest.cpp -o $@ $(CCFLAGS) $(LDFLAGS)
 
 clean:
 	rm -f *.o *.so *.a start_master start_all stop_all

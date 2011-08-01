@@ -257,7 +257,7 @@ unsigned int Topology::min_distance(const std::vector<int>& path, const std::vec
    if (path_list.empty())
       return m_uiLevel + 1;
 
-   unsigned int md = 0;
+   unsigned int md = 1000000000;
    for (vector< vector<int> >::const_iterator p = path_list.begin(); p != path_list.end(); ++ p)
    {
       unsigned int dist = m_uiLevel - match(path, *p) + 1;

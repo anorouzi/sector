@@ -206,7 +206,7 @@ private: // replication
    CMutex m_ReplicaLock;
    CCond m_ReplicaCond;
 
-   Replication m_Replication;				// list of files to be replicated
+   ReplicaMgmt m_ReplicaMgmt;				// list of files to be replicated
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
 
    ReplicaConf m_ReplicaConf;				// special replications

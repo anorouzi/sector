@@ -1299,7 +1299,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       //   msg->setType(-msg->getType());
       m_GMP.sendto(ip, port, id, msg);
       m_ReplicaLock.acquire();
-      if (m_Replication.getTotalNum() > 0)
+      if (m_ReplicaMgmt.getTotalNum() > 0)
          m_ReplicaCond.signal();
       m_ReplicaLock.release();
 
@@ -1946,7 +1946,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          job.m_strSource = src;
          job.m_strDest = dst;
          job.m_iPriority = COPY;
-         m_Replication.insert(job);
+         m_ReplicaMgmt.insert(job);
          m_ReplicaCond.signal();
          m_ReplicaLock.release();
 
@@ -2013,7 +2013,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          job.m_strDest = target;
          // cp has a higher priority than regular replication.
          job.m_iPriority = COPY;
-         m_Replication.insert(job);
+         m_ReplicaMgmt.insert(job);
       }
       m_ReplicaCond.signal();
       m_ReplicaLock.release();
@@ -2801,8 +2801,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
    // initially the master should wait for a while, because before all slaves join,
    // many files could be treated as undereplicated incorrectly.
-   // we will wait for 15 minutes before the first check.
-   sleep(15 * 60);
+   // we will wait for 10 minutes before the first check.
+   sleep(10 * 60);
 
    int64_t last_replica_erase_time = CTimer::getTime();
    vector<string> under_replicated;
@@ -2816,7 +2816,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       self->m_ReplicaLock.release();
 
       // check replica, create or remove replicas if necessary
-      if (self->m_Replication.getTotalNum() == 0)
+      if (self->m_ReplicaMgmt.getTotalNum() == 0)
       {
          // only the first master is responsible for replica checking
          if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
@@ -2841,7 +2841,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
                job.m_iPriority = BACKGROUND;
-               self->m_Replication.insert(job);
+               self->m_ReplicaMgmt.insert(job);
             }
             self->m_ReplicaLock.release();
          }
@@ -2852,7 +2852,8 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          self->m_SlaveManager.checkStorageBalance(lowdisk);
          for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
          {
-            self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Warning: found slave " << i->second.m_strIP << " with insufficient storage space." << LogEnd();
+            self->m_SectorLog << LogStart(1) << "Warning: found slave " << i->second.m_strIP
+                              << " with insufficient storage space." << LogEnd();
 
             vector<string> path;
             self->chooseDataToMove(path, i->second, i->first);
@@ -2862,7 +2863,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
                job.m_bForceReplicate = true;
-               self->m_Replication.insert(job);
+               self->m_ReplicaMgmt.insert(job);
             }
             self->m_ReplicaLock.release();
          }
@@ -2870,31 +2871,24 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
       // start any replication jobs in queue
       self->m_ReplicaLock.acquire();
-      self->m_Replication.resetIter();
-      self->m_ReplicaLock.release();
-      while (true)
+      for (ReplicaMgmt::iterator i = self->m_ReplicaMgmt.begin(); i != self->m_ReplicaMgmt.end();)
       {
          // The number of concurrent replication in the system must be limited.	
          if (self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
             break;
 
-         ReplicaJob job;
-         self->m_ReplicaLock.acquire();
-         int res = self->m_Replication.next(job);
-         self->m_ReplicaLock.release();
-
-         // Already scan to the end of to-replicate list.
-         if (res < 0)
-            break;
-
-         if (self->createReplica(job) >= 0)
+         if (self->createReplica(*i) >= 0)
          {
-            self->m_ReplicaLock.acquire();
-            self->m_Replication.deleteCurr();
-            self->m_ReplicaLock.release();
+            ReplicaMgmt::iterator tmp = i;
+            ++ i;
+            self->m_ReplicaMgmt.erase(tmp);
+         }
+         else
+         {
+            ++ i;
          }
       }
-
+      self->m_ReplicaLock.release();
 
       // over replication should be erased at a longer period, we use 1 hour 
       if (CTimer::getTime() - last_replica_erase_time < 3600*1000000LL)
@@ -3060,7 +3054,7 @@ int Master::serializeSysStat(char*& buf, int& size)
    *(int64_t*)(buf + 8) = m_SlaveManager.getTotalDiskSpace();
    *(int64_t*)(buf + 16) = m_pMetadata->getTotalDataSize("/");
    *(int64_t*)(buf + 24) = m_pMetadata->getTotalFileNum("/");
-   *(int64_t*)(buf + 32) = m_Replication.getTotalNum();
+   *(int64_t*)(buf + 32) = m_ReplicaMgmt.getTotalNum();
 
    char* p = buf + 40;
    memcpy(p, cluster_info, cluster_size);

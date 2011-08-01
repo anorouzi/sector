@@ -19,20 +19,21 @@ written by
    Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
-
 #include <algorithm>
-#include <common.h>
-#include <index.h>
-#include <set>
-#include <stack>
-#include <queue>
-#include <sstream>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <cstring>
-#include <time.h>
-#include <sector.h>
 #include <iostream>
+#include <queue>
+#include <set>
+#include <sstream>
+#include <stack>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
+
+#include "common.h"
+#include "index.h"
+#include "sector.h"
+
 
 using namespace std;
 
@@ -873,12 +874,6 @@ int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const 
             for (set<Address, AddrComp>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
                s->second.m_sLocation.insert(*a);
             tbd.push_back(i->first);
-         }
-         else
-         {
-            #ifdef DEBUG
-            cerr << "conflict " << i->first << " size " << i->second.m_llSize << " " << s->second.m_llSize << " TS " << i->second.m_llTimeStamp << " " << s->second.m_llTimeStamp << endl; 
-            #endif
          }
       }
    }

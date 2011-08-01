@@ -19,26 +19,26 @@ written by
    Yunhong Gu, last updated 03/16/2011
 *****************************************************************************/
 
-#include <osportable.h>
-#include <string>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
+#include <string>
+#include <sys/stat.h>
+#include <sys/types.h>
 #ifndef WIN32
    #include <dirent.h>
-   #include <unistd.h>
-   #include <sys/vfs.h>
    #include <sys/statvfs.h>
+   #include <sys/vfs.h>
+   #include <unistd.h>
 #else
-   #include <windows.h>
-   #include <tchar.h>
-   #include <strsafe.h>
    #include <direct.h>
+   #include <strsafe.h>
+   #include <tchar.h>
+   #include <windows.h>
 #endif
+
+#include "osportable.h"
 
 using namespace std;
 
@@ -241,7 +241,7 @@ bool CCond::wait(CMutex & mutex)
 #endif
 }
 
-bool CCond::wait(CMutex & mutex, unsigned long msecs, bool * timedout)
+bool CCond::wait(CMutex & mutex, int msecs, bool * timedout)
 {
 #ifndef WIN32
    timeval t;

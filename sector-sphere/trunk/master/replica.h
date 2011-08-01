@@ -52,34 +52,53 @@ struct ReplicaJob
 
 typedef std::list<ReplicaJob> JobList;
 
-struct JobIterator
+class ReplicaMgmt;
+
+class ReplicaIterator
 {
+friend class ReplicaMgmt;
+
+public:
+   ReplicaIterator();
+
+   ReplicaIterator& operator=(const ReplicaIterator& iter);
+   bool operator!=(const ReplicaIterator& iter) const;
+   bool operator==(const ReplicaIterator& iter) const;
+   ReplicaIterator& operator++();
+   ReplicaJob& operator*();
+   ReplicaJob* operator->();
+
+private:
+   ReplicaMgmt* m_pMgmtInstance;
    int m_iPriority;
    JobList::iterator m_ListIter;
 };
 
-class Replication
+class ReplicaMgmt
 {
+friend class ReplicaIterator;
+
 public:
-   Replication();
-   ~Replication();
+typedef ReplicaIterator iterator;
+
+public:
+   ReplicaMgmt();
+   ~ReplicaMgmt();
 
    int insert(const ReplicaJob& rep);
-   void resetIter();
-   void deleteCurr();
-   int next(ReplicaJob& rep);
+   int erase(const iterator& iter);
 
    int getTotalNum() const;
    int64_t getTotalSize() const;
 
-private:
-   std::vector<JobList> m_MultiJobList;
-   JobIterator m_CurrIter;
-   int64_t m_llTotalFileSize;
-   int m_iTotalJob;
+public:
+   iterator begin();
+   iterator end();
 
 private:
-   void nextIter();
+   std::vector<JobList> m_MultiJobList;
+   int64_t m_llTotalFileSize;
+   int m_iTotalJob;
 };
 
 } // namespace sector

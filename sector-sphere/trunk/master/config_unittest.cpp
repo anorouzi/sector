@@ -23,7 +23,7 @@ written by
 #include <iostream>
 #include <string>
 
-#include "client.h"
+#include "sector.h"
 
 using namespace std;
 
