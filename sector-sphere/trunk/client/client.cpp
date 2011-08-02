@@ -903,7 +903,18 @@ int Client::retrieveMasterInfo(string& certfile)
 
 int Client::configLog(const char* log_path, bool screen, int level)
 {
-   m_Log.init(log_path);
+   if (log_path != NULL)
+   {
+      // Check if the dir exists and create it if necessary.
+      SNode s;
+      if ((LocalFS::stat(log_path, s) < 0) &&
+          (LocalFS::mkdir(log_path) < 0))
+      {
+         return -1;
+      }
+      m_Log.init(log_path);
+   }
+
    m_Log.copyScreen(screen);
    m_Log.setLevel(level);
    return 0;
