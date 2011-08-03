@@ -19,15 +19,15 @@ written by
    Yunhong Gu, last updated 04/14/2011
 *****************************************************************************/
 
-
-#include <writelog.h>
-#include <slave.h>
 #ifndef WIN32
    #include <utime.h>
 #else
    #include <sys/types.h>
    #include <sys/utime.h>
 #endif
+
+#include "slave.h"
+#include "writelog.h"
 
 using namespace std;
 

@@ -22,23 +22,25 @@ written by
 #ifndef __SECTOR_MASTER_H__
 #define __SECTOR_MASTER_H__
 
-#include <sector.h>
-#include <gmp.h>
-#include <log.h>
-#include <index.h>
 #include <vector>
-#include <ssltransport.h>
-#include <topology.h>
-#include <routing.h>
-#include <slavemgmt.h>
-#include <transaction.h>
-#include <user.h>
-#include <threadpool.h>
-#include <osportable.h>
-#include <replica.h>
+
+#include "gmp.h"
+#include "index.h"
+#include "log.h"
+#include "osportable.h"
+#include "replica.h"
+#include "routing.h"
+#include "sector.h"
+#include "slavemgmt.h"
+#include "threadpool.h"
+#include "topology.h"
+#include "transaction.h"
+#include "user.h"
+
+class SSLTransport;
 
 namespace sector
-{	
+{
 
 class MasterConf
 {

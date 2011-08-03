@@ -19,14 +19,15 @@ written by
    Yunhong Gu, last updated 03/30/2011
 *****************************************************************************/
 
-#include <common.h>
-#include <ssltransport.h>
-#include <tcptransport.h>
-#include <signal.h>
-#include <stack>
-#include <sstream>
-#include "master.h"
 #include <iostream>
+#include <signal.h>
+#include <sstream>
+#include <stack>
+
+#include "common.h"
+#include "master.h"
+#include "ssltransport.h"
+#include "tcptransport.h"
 
 using namespace std;
 using namespace sector;

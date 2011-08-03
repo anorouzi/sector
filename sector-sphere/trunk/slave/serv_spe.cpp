@@ -19,15 +19,17 @@ written by
    Yunhong Gu, last updated 01/16/2011
 *****************************************************************************/
 
-#include <slave.h>
-#include <sphere.h>
-#include <algorithm>
 #ifndef WIN32
    #include <dlfcn.h>
-#else
+#endif
+#include <algorithm>
+
+#include "slave.h"
+#include "sphere.h"
+
+#ifdef WIN32
    #define snprintf sprintf_s
 #endif
-
 
 using namespace std;
 

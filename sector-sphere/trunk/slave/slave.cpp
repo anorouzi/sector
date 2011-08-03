@@ -21,22 +21,24 @@ written by
 
 #ifndef WIN32
    #include <netdb.h>
-   #include <sys/vfs.h>
-   #include <sys/statvfs.h>
-   #include <unistd.h>
    #include <sys/times.h>
+   #include <sys/statvfs.h>
+   #include <sys/vfs.h>
+   #include <unistd.h>
    #include <utime.h>
 #else
+   #include <psapi.h>
+   #include <stdio.h>
    #include <sys/utime.h>
    #include <windows.h>
-   #include <stdio.h>
-   #include <psapi.h>
 #endif
-#include "slave.h"
-#include <ssltransport.h>
-#include <common.h>
 #include <iostream>
 #include <sstream>
+
+#include <common.h>
+#include "slave.h"
+#include "ssltransport.h"
+
 
 using namespace std;
 
