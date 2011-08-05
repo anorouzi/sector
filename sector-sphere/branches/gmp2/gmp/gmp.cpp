@@ -226,8 +226,16 @@ int CGMP::close()
    if (!m_bInit)
       return 0;
 
+   m_iUDTReusePort = 0;
+   m_bInit = false;
    m_bClosed = true;
    UDT::epoll_release(m_iUDTEPollID);
+
+   m_lSndQueue.clear();
+   while (!m_qRcvQueue.empty())
+      m_qRcvQueue.pop();
+   m_mResQueue.clear();
+   m_PeerHistory.clear();
 
    #ifndef WIN32
       ::close(m_UDPSocket);
@@ -250,6 +258,9 @@ int CGMP::close()
 
    UDT::cleanup();
 
+   // Reset this flag so that the GMP is completedly reset to initial state.
+   // It can be init() again.
+   m_bClosed = false;
    return 0;
 }
 
@@ -270,6 +281,9 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const char* data
 {
    // If the destination has too many messages in queue, block for a while.
    m_PeerHistory.flowControl(ip, port, CGMPMessage::g_iSession);
+
+   // TODO: add snd buffer control, block if there are too many messages in the snd queue.
+   // use cache structure for the snd queue.
 
    CGMPMessage* msg = new CGMPMessage;
    msg->pack(data, len, id);
@@ -736,12 +750,11 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
                break;
             }
 
-            if (usock <= 0)
-            {
-               self->UDTCreate(usock);
-               UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
-               self->m_PeerHistory.setUDTSocket(ip, port, usock);
-            }
+            // No existing connection, or connection has been broken.
+            // Create a new one.
+            self->UDTCreate(usock);
+            UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
+            self->m_PeerHistory.setUDTSocket(ip, port, usock);
 
             // TODO: add IPv6 support
 

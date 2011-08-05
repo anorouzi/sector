@@ -35,6 +35,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 using namespace std;
 
 const int max_size = 2000;
+const char server_ip[] = "127.0.0.1";
+const int server_port = 2200;
 
 #ifndef WIN32
 void* Test_1_Srv(void*)
@@ -43,7 +45,7 @@ DWORD WINAPI Test_1_Srv(LPVOID)
 #endif
 {
    CGMP gmp;
-   gmp.init(2200);
+   gmp.init(server_port);
 
    string ip;
    int port;
@@ -75,6 +77,26 @@ DWORD WINAPI Test_1_Srv(LPVOID)
       gmp.sendto(ip, port, id, &msg);
    }
 
+   // REPEAT: from a new gmp client.
+   for (int i = 0; i < 10; ++ i)
+   {
+      gmp.recvfrom(ip, port, id, &msg);
+      cout << "UDT RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
+      strcpy(msg.m_pcBuffer, res);
+      msg.m_iDataLength = strlen(res) + 1;
+      gmp.sendto(ip, port, id, &msg);
+   }
+
+   // REPEAT: from a new gmp client, on a new port.
+   for (int i = 0; i < 10; ++ i)
+   {
+      gmp.recvfrom(ip, port, id, &msg);
+      cout << "UDT RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
+      strcpy(msg.m_pcBuffer, res);
+      msg.m_iDataLength = strlen(res) + 1;
+      gmp.sendto(ip, port, id, &msg);
+   }
+
    cout << "server has received all messages.\n";
    gmp.close();
 
@@ -82,15 +104,15 @@ DWORD WINAPI Test_1_Srv(LPVOID)
 }
 
 #ifndef WIN32
-void* Test_1_Cli(void* param)
+void* Test_1_Cli(void*)
 #else
-DWORD WINAPI Test_1_Cli(LPVOID param)
+DWORD WINAPI Test_1_Cli(LPVOID)
 #endif
 {
    CGMP gmp;
    gmp.init(2210);
 
-   cout << "RTT= " << gmp.rtt("127.0.0.1", 2200) << endl;
+   cout << "RTT= " << gmp.rtt(server_ip, server_port) << endl;
 
    // Test small messages for UDP.
    CUserMessage req, res;
@@ -102,10 +124,10 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
    for (int i = 0; i < 10; ++ i)
    {
       id = 0;
-      gmp.sendto("127.0.0.1", 2200, id, &req);
+      gmp.sendto(server_ip, server_port, id, &req);
       res.m_pcBuffer[0] = 0;
       if (gmp.recv(id, &res) >= 0)
-         cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
+         cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
    }
 
    // Test large messages for UDT.
@@ -113,15 +135,62 @@ DWORD WINAPI Test_1_Cli(LPVOID param)
    for (int i = 0; i < 10; ++ i)
    {
       id = 0;
-      gmp.sendto("127.0.0.1", 2200, id, &req);
+      gmp.sendto(server_ip, server_port, id, &req);
       res.m_pcBuffer[0] = 0;
       if (gmp.recv(id, &res) > 0)
-         cout << "UDT response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt("127.0.0.1", 6000) << endl;
+         cout << "UDT response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
    }
 
    cout << "client has sent all messages and received responsed.\n";
    gmp.close();
 
+   // REPEAT: from a new gmp instance.
+   gmp.init(2210);
+   // Test large messages for UDT.
+   req.m_iDataLength = 2000;
+   for (int i = 0; i < 10; ++ i)
+   {
+      id = 0;
+      gmp.sendto(server_ip, server_port, id, &req);
+      res.m_pcBuffer[0] = 0;
+      if (gmp.recv(id, &res) > 0)
+         cout << "UDT response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
+   }
+   gmp.close();
+
+   // REPEAT: from a new gmp instance.
+   gmp.init(2230);
+   // Test large messages for UDT.
+   req.m_iDataLength = 2000;
+   for (int i = 0; i < 10; ++ i)
+   {
+      id = 0;
+      gmp.sendto(server_ip, server_port, id, &req);
+      res.m_pcBuffer[0] = 0;
+      if (gmp.recv(id, &res) > 0)
+         cout << "UDT response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
+   }
+   gmp.close();
+
+   return 0;
+}
+
+#ifndef WIN32
+void* Test_2_Srv(void*)
+#else
+DWORD WINAPI Test_2_Srv(LPVOID)
+#endif
+{
+   return 0;
+}
+
+#ifndef WIN32
+void* Test_2_Cli(void*)
+#else
+DWORD WINAPI Test_2_Cli(LPVOID)
+#endif
+{
+   // start client, close, restart, check server state.
    return 0;
 }
 

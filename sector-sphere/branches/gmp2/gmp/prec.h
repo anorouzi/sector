@@ -99,11 +99,11 @@ public:
    void release();
 };
 
-class CPeerManagement
+class CPeerMgmt
 {
 public:
-   CPeerManagement();
-   ~CPeerManagement();
+   CPeerMgmt();
+   ~CPeerMgmt();
 
 public:
    void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1,
@@ -118,6 +118,8 @@ public:
 
    int setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock);
    int getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock);
+
+   void clear();
 
 private:
    int addRecentPR(const CPeerRecord& pr);

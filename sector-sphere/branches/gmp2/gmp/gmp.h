@@ -199,7 +199,7 @@ private:
    std::list<CMsgRecord*> m_lSndQueue;
    std::queue<CMsgRecord*> m_qRcvQueue;
    std::map<int32_t, CMsgRecord*> m_mResQueue;
-   CPeerManagement m_PeerHistory;
+   CPeerMgmt m_PeerHistory;
 
    volatile bool m_bInit;
    volatile bool m_bClosed;

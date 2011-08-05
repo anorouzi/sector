@@ -95,12 +95,7 @@ public:
 
    ~CCache()
    {
-      for (typename std::list<T*>::iterator i = m_StorageList.begin(); i != m_StorageList.end(); ++ i)
-      {
-         (*i)->release();
-         delete *i;
-      }
-      m_StorageList.clear();
+      clear();
       CGuard::releaseMutex(m_Lock);
    }
 
@@ -219,6 +214,26 @@ public:
       m_iMaxSize = size;
       m_iHashSize = size * 3;
       m_vHashPtr.resize(m_iHashSize);
+   }
+
+      // Functionality:
+      //    Clear all entries in the cache, restore to initialization state.
+      // Parameters:
+      //    None.
+      // Returned value:
+      //    None.
+
+   void clear()
+   {
+      for (typename std::list<T*>::iterator i = m_StorageList.begin(); i != m_StorageList.end(); ++ i)
+      {
+         (*i)->release();
+         delete *i;
+      }
+      m_StorageList.clear();
+      for (typename std::vector<ItemPtrList>::iterator i = m_vHashPtr.begin(); i != m_vHashPtr.end(); ++ i)
+         i->clear();
+      m_iCurrSize = 0;
    }
 
 private:

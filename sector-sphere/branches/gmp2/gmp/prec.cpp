@@ -35,6 +35,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
    #include <windows.h>
 #endif
 
+#include <iostream>
+
 #include "common.h"
 #include "dhash.h"
 #include "prec.h"
@@ -86,7 +88,7 @@ CPeerRecord* CPeerRecord::clone()
 
 int CPeerRecord::getKey()
 {
-   return CPeerManagement::hash(m_strIP, m_iPort, m_iSession, m_iID);
+   return CPeerMgmt::hash(m_strIP, m_iPort, m_iSession, m_iID);
 };
 
 CPeerRTT& CPeerRTT::operator=(CPeerRTT& obj)
@@ -112,7 +114,7 @@ CPeerRTT* CPeerRTT::clone()
 
 int CPeerRTT::getKey()
 {
-   return CPeerManagement::hash(m_strIP);
+   return CPeerMgmt::hash(m_strIP);
 }
 
 void CUDTConns::release()
@@ -149,11 +151,11 @@ CUDTConns* CUDTConns::clone()
 
 int CUDTConns::getKey()
 {
-   return CPeerManagement::hash(m_strIP, m_iPort);
+   return CPeerMgmt::hash(m_strIP, m_iPort);
 }
 
 
-CPeerManagement::CPeerManagement()
+CPeerMgmt::CPeerMgmt()
 {
    m_RecentRec.setSizeLimit(m_uiRecLimit);
    m_PeerRTT.setSizeLimit(m_uiRecLimit);
@@ -162,12 +164,12 @@ CPeerManagement::CPeerManagement()
    CGuard::createMutex(m_PeerRecLock);
 }
 
-CPeerManagement::~CPeerManagement()
+CPeerMgmt::~CPeerMgmt()
 {
    CGuard::releaseMutex(m_PeerRecLock);
 }
 
-void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
+void CPeerMgmt::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
 {
    CGuard recguard(m_PeerRecLock);
 
@@ -189,19 +191,17 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
    m_RecentRec.update(&pr);
 }
 
-int CPeerManagement::getRTT(const string& ip)
+int CPeerMgmt::getRTT(const string& ip)
 {
    CGuard recguard(m_PeerRecLock);
-
    CPeerRTT rtt_info;
    rtt_info.m_strIP = ip;
    if (m_PeerRTT.lookup(&rtt_info) == 0)
       return rtt_info.m_iRTT;
-
    return -1;
 }
 
-void CPeerManagement::clearRTT(const string& ip)
+void CPeerMgmt::clearRTT(const string& ip)
 {
    CGuard recguard(m_PeerRecLock);
    CPeerRTT rtt_info;
@@ -210,7 +210,7 @@ void CPeerManagement::clearRTT(const string& ip)
    m_PeerRTT.update(&rtt_info);
 }
 
-int CPeerManagement::flowControl(const string& ip, const int& port, const int& session)
+int CPeerMgmt::flowControl(const string& ip, const int& port, const int& session)
 {
 /*
    int thresh = (*i)->m_iFlowWindow - int((CTimer::getTime() - (*i)->m_llTimeStamp) / 1000);
@@ -238,7 +238,7 @@ int CPeerManagement::flowControl(const string& ip, const int& port, const int& s
    return 0;
 }
 
-bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)
+bool CPeerMgmt::hit(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    CGuard recguard(m_PeerRecLock);
 
@@ -251,7 +251,7 @@ bool CPeerManagement::hit(const string& ip, const int& port, const int& session,
    return m_RecentRec.lookup(&pr) == 0;
 }
 
-int CPeerManagement::setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock)
+int CPeerMgmt::setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock)
 {
    CGuard recguard(m_PeerRecLock);
 
@@ -264,7 +264,7 @@ int CPeerManagement::setUDTSocket(const std::string& ip, const int& port, const 
    return 0;
 }
 
-int CPeerManagement::getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock)
+int CPeerMgmt::getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock)
 {
    CGuard recguard(m_PeerRecLock);
 
@@ -281,8 +281,14 @@ int CPeerManagement::getUDTSocket(const std::string& ip, const int& port, UDTSOC
    return -1;
 }
 
+void CPeerMgmt::clear()
+{
+   m_RecentRec.clear();
+   m_PeerRTT.clear();
+   m_PersistentUDT.clear();
+}
 
-int32_t CPeerManagement::hash(const string& ip, const int& port, const int& session, const int32_t& id)
+int32_t CPeerMgmt::hash(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    char tmp[1024];
    sprintf(tmp, "%s%d%d%d", ip.c_str(), port, session, id);
@@ -290,7 +296,7 @@ int32_t CPeerManagement::hash(const string& ip, const int& port, const int& sess
    return DHash::hash(tmp, m_uiHashSpace);
 }
 
-int32_t CPeerManagement::hash(const string& ip, const int& port)
+int32_t CPeerMgmt::hash(const string& ip, const int& port)
 {
    char tmp[1024];
    sprintf(tmp, "%s%d", ip.c_str(), port);
@@ -298,7 +304,7 @@ int32_t CPeerManagement::hash(const string& ip, const int& port)
    return DHash::hash(tmp, m_uiHashSpace);
 }
 
-int32_t CPeerManagement::hash(const string& ip)
+int32_t CPeerMgmt::hash(const string& ip)
 {
    return DHash::hash(ip.c_str(), m_uiHashSpace);
 }
