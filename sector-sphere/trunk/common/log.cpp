@@ -156,7 +156,7 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
 SectorLog& SectorLog::endl(SectorLog& log)
 {
    CGuardEx lg(log.m_LogLock);
-   int key = pthread_self();
+   pthread_t key = pthread_self();
    ThreadIdStringMap::iterator i = log.m_mStoredString.find(key);
    if (i != log.m_mStoredString.end())
    {

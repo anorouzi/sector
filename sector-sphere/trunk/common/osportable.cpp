@@ -29,7 +29,9 @@ written by
 #ifndef WIN32
    #include <dirent.h>
    #include <sys/statvfs.h>
+#ifndef __APPLE__
    #include <sys/vfs.h>
+#endif
    #include <unistd.h>
 #else
    #include <direct.h>

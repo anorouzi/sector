@@ -23,7 +23,9 @@ written by
    #include <netdb.h>
    #include <sys/times.h>
    #include <sys/statvfs.h>
+#ifndef __APPLE__
    #include <sys/vfs.h>
+#endif
    #include <unistd.h>
    #include <utime.h>
 #else
@@ -1176,7 +1178,7 @@ DWORD WINAPI Slave::worker(LPVOID param)
 
    int64_t last_report_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
-   srand(pthread_self());
+   srandomdev();
 
    while (self->m_bRunning)
    {
