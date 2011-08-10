@@ -30,6 +30,7 @@ written by
 
 #ifdef WIN32
    #define snprintf sprintf_s
+   #define pthread_t int
    #define pthread_self() GetCurrentThreadId()
 #endif
 
@@ -93,7 +94,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
 {
    CGuardEx lg(m_LogLock);
 
-   int key = pthread_self();
+   pthread_t key = pthread_self();
 
    if (tag.m_iTag == LogTag::START)
    {
@@ -103,7 +104,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
    }
    else if (tag.m_iTag == LogTag::END)
    {
-      map<int, LogString>::iterator i = m_mStoredString.find(key);
+      ThreadIdStringMap::iterator i = m_mStoredString.find(key);
       if (i != m_mStoredString.end())
       {
          insert_(i->second.m_strLog.c_str(), i->second.m_iLevel);
@@ -118,9 +119,9 @@ SectorLog& SectorLog::operator<<(const std::string& message)
 {
    CGuardEx lg(m_LogLock);
 
-   int key = pthread_self();
+   pthread_t key = pthread_self();
 
-   map<int, LogString>::iterator i = m_mStoredString.find(key);
+   ThreadIdStringMap::iterator i = m_mStoredString.find(key);
    if (i == m_mStoredString.end())
    {
       // no start tag, use default: level = SCREEN
@@ -139,9 +140,9 @@ SectorLog& SectorLog::operator<<(const int64_t& val)
 {
    CGuardEx lg(m_LogLock);
 
-   int key = pthread_self();
+   pthread_t key = pthread_self();
 
-   map<int, LogString>::iterator i = m_mStoredString.find(key);
+   ThreadIdStringMap::iterator i = m_mStoredString.find(key);
    if (i != m_mStoredString.end())
    {
       stringstream valstr;
@@ -156,7 +157,7 @@ SectorLog& SectorLog::endl(SectorLog& log)
 {
    CGuardEx lg(log.m_LogLock);
    int key = pthread_self();
-   map<int, LogString>::iterator i = log.m_mStoredString.find(key);
+   ThreadIdStringMap::iterator i = log.m_mStoredString.find(key);
    if (i != log.m_mStoredString.end())
    {
       log.insert_(i->second.m_strLog.c_str(), i->second.m_iLevel);

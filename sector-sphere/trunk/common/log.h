@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2005 - 2010 The Board of Trustees of the University of Illinois.
+Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -117,7 +117,8 @@ private:
 
    CMutex m_LogLock;
 
-   std::map<int, LogString> m_mStoredString;
+   typedef std::map<pthread_t, LogString> ThreadIdStringMap;
+   ThreadIdStringMap m_mStoredString;
 };
 
 #endif

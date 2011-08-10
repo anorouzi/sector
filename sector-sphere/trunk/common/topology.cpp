@@ -228,9 +228,11 @@ unsigned int Topology::match(const vector<int>& p1, const vector<int>& p2)
 
 unsigned int Topology::distance(const char* ip1, const char* ip2)
 {
+   // Same IP address, return 0.
    if (strcmp(ip1, ip2) == 0)
       return 0;
 
+   // Otherwise return the topology path difference, from 0 to level, plus 1.
    vector<int> p1, p2;
    lookup(ip1, p1);
    lookup(ip2, p2);

@@ -6,7 +6,12 @@ else
    CCFLAGS += -D IA32
 endif
 
-CCFLAGS += -D LINUX
+ifeq ($(OSX), 1)
+   CCFLAGS += -D OSX
+else
+   CCFLAGS += -D LINUX
+endif
+
 LDFLAGS += 
 
 OBJS = md5.o common.o window.o list.o buffer.o packet.o channel.o queue.o core.o cache.o epoll.o api.o ccc.o

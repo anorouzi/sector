@@ -31,10 +31,12 @@ written by
 #include "common.h"
 #include "meta.h"
 #include "slavemgmt.h"
+#include "topology.h"
 
 using namespace std;
 
 SlaveManager::SlaveManager():
+m_pTopology(NULL),
 m_llLastUpdateTime(-1),
 m_llSlaveMinDiskSpace(10000000000LL)
 {
@@ -44,7 +46,7 @@ SlaveManager::~SlaveManager()
 {
 }
 
-int SlaveManager::init(const char* topoconf)
+int SlaveManager::init(Topology* topo)
 {
    m_Cluster.m_iClusterID = 0;
    m_Cluster.m_iTotalNodes = 0;
@@ -54,13 +56,15 @@ int SlaveManager::init(const char* topoconf)
    m_Cluster.m_llTotalOutputData = 0;
    m_Cluster.m_viPath.clear();
 
-   if (m_Topology.init(topoconf) < 0)
+   if (NULL == topo)
       return -1;
+
+   m_pTopology = topo;
 
    Cluster* pc = &m_Cluster;
 
    // insert 0/0/0/....
-   for (unsigned int i = 0; i < m_Topology.m_uiLevel; ++ i)
+   for (unsigned int i = 0; i < m_pTopology->m_uiLevel; ++ i)
    {
       Cluster c;
       c.m_iClusterID = 0;
@@ -76,7 +80,7 @@ int SlaveManager::init(const char* topoconf)
       pc = &(pc->m_mSubCluster[0]);
    }
 
-   for (vector<Topology::TopoMap>::iterator i = m_Topology.m_vTopoMap.begin(); i != m_Topology.m_vTopoMap.end(); ++ i)
+   for (vector<Topology::TopoMap>::iterator i = m_pTopology->m_vTopoMap.begin(); i != m_pTopology->m_vTopoMap.end(); ++ i)
    {
       pc = &m_Cluster;
 
@@ -125,7 +129,7 @@ int SlaveManager::insert(SlaveNode& sn)
       sn.m_iStatus = SlaveStatus::NORMAL;
    else
       sn.m_iStatus = SlaveStatus::DISKFULL;
-   m_Topology.lookup(sn.m_strIP.c_str(), sn.m_viPath);
+   m_pTopology->lookup(sn.m_strIP.c_str(), sn.m_viPath);
    m_mSlaveList[sn.m_iNodeID] = sn;
 
    addr.m_strIP = sn.m_strIP;
@@ -189,7 +193,7 @@ int SlaveManager::remove(int nodeid)
    m_mAddrList.erase(addr);
 
    vector<int> path;
-   m_Topology.lookup(sn->second.m_strIP.c_str(), path);
+   m_pTopology->lookup(sn->second.m_strIP.c_str(), path);
    map<int, Cluster>* sc = &(m_Cluster.m_mSubCluster);
    map<int, Cluster>::iterator pc = sc->end();
    for (vector<int>::iterator i = path.begin(); i != path.end(); ++ i)
@@ -309,7 +313,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       return -1;
 
    vector< set<int> > avail;
-   avail.resize(m_Topology.m_uiLevel + 2);
+   avail.resize(m_pTopology->m_uiLevel + 2);
 
    // find the topology of current replicas
    vector< vector<int> > locpath;
@@ -346,22 +350,21 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
 
       // Calculate the distance from this slave node to the current replicas
       // We want maximize the distance to closest node.
-      int level = m_Topology.min_distance(i->second.m_viPath, locpath);
+      int level = m_pTopology->min_distance(i->second.m_viPath, locpath);
 
       // if users define a replication distance, then only nodes within rep_dist can be chosen
       if ((rep_dist >= 0) && (level > rep_dist))
          continue;
 
-      // level <= m_Topology.m_uiLevel + 1.
+      // level <= m_pTopology->m_uiLevel + 1.
       // We do not want to replicate on the same node (level == 0), even if they are different slaves.
       if (level > 0)
          avail[level].insert(i->first);
    }
 
    set<int>* candidate = NULL;
-
    // choose furthest node within replica distance
-   for (int i = m_Topology.m_uiLevel + 1; i >= 0; -- i)
+   for (int i = m_pTopology->m_uiLevel + 1; i > 0; -- i)
    {
       if (!avail[i].empty())
       {
@@ -369,7 +372,6 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          break;
       }
    }
-
    if (NULL == candidate)
       return SectorError::E_NODISK;
 
@@ -442,7 +444,6 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
       // no available nodes for READ_ONLY operation
       if ((mode & SF_MODE::WRITE) == 0)
          return 0;
-
 
       //TODO: optimize the node selection process; no need to scan all nodes
 
@@ -559,7 +560,7 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
       // TODO: optimize this by using ID instead of address.
       set<Address, AddrComp> tmp = loclist;
       tmp.erase(*i);
-      int dist = m_Topology.min_distance(*i, tmp);
+      int dist = m_pTopology->min_distance(*i, tmp);
       if (dist < min_dist)
       {
          addr = *i;
@@ -585,9 +586,9 @@ int SlaveManager::serializeTopo(char*& buf, int& size)
    CGuardEx sg(m_SlaveLock);
 
    buf = NULL;
-   size = m_Topology.getTopoDataSize();
+   size = m_pTopology->getTopoDataSize();
    buf = new char[size];
-   m_Topology.serialize(buf, size);
+   m_pTopology->serialize(buf, size);
 
    return size;
 }
@@ -672,7 +673,9 @@ int SlaveManager::updateSlaveTS(const Address& addr)
    return 0;
 }
 
-int SlaveManager::checkBadAndLost(map<int, SlaveNode>& bad, map<int, SlaveNode>& lost, map<int, SlaveNode>& retry, map<int, SlaveNode>& dead, const int64_t& timeout, const int64_t& retrytime)
+int SlaveManager::checkBadAndLost(map<int, SlaveNode>& bad, map<int, SlaveNode>& lost,
+                                  map<int, SlaveNode>& retry, map<int, SlaveNode>& dead,
+                                  const int64_t& timeout, const int64_t& retrytime)
 {
    CGuardEx sg(m_SlaveLock);
 
@@ -975,8 +978,8 @@ void SlaveManager::updateclusterio_(Cluster& c, map<string, int64_t>& data_in, m
    for (map<string, int64_t>::iterator p = data_in.begin(); p != data_in.end(); ++ p)
    {
       vector<int> path;
-      m_Topology.lookup(p->first.c_str(), path);
-      if (m_Topology.match(c.m_viPath, path) == c.m_viPath.size())
+      m_pTopology->lookup(p->first.c_str(), path);
+      if (m_pTopology->match(c.m_viPath, path) == c.m_viPath.size())
          continue;
 
       map<string, int64_t>::iterator n = data_out.find(p->first);
@@ -994,7 +997,7 @@ int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopa
    CGuardEx sg(m_SlaveLock);
 
    vector<int> path;
-   if (m_Topology.parseTopo(topopath.c_str(), path) < 0)
+   if (m_pTopology->parseTopo(topopath.c_str(), path) < 0)
       return -1;
 
    sl.clear();
@@ -1081,7 +1084,7 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    map<int, vector<int> > dist_vec;
    for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
-      int d = m_Topology.distance(ip.c_str(), m_mSlaveList[*i].m_strIP.c_str());
+      int d = m_pTopology->distance(ip.c_str(), m_mSlaveList[*i].m_strIP.c_str());
       dist_vec[d].push_back(*i);
       if ((d < dist) || (dist < 0))
          dist = d;

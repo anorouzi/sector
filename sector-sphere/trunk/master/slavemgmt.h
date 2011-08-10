@@ -24,7 +24,8 @@ written by
 #define __SECTOR_SLAVEMGMT_H__
 
 #include "osportable.h"
-#include "topology.h"
+
+class Topology;
 
 class SlaveManager
 {
@@ -33,7 +34,7 @@ public:
    ~SlaveManager();
 
 public:
-   int init(const char* topoconf);
+   int init(Topology* topo);
 
    int setSlaveMinDiskSpace(const int64_t& byteSize);
 
@@ -85,7 +86,7 @@ private:
    std::map<Address, int, AddrComp> m_mAddrList;		// list of slave addresses
    std::map<int, SlaveNode> m_mSlaveList;			// list of slaves
 
-   Topology m_Topology;						// slave system topology definition
+   Topology* m_pTopology;					// slave system topology definition
    Cluster m_Cluster;						// topology structure
 
    std::map<std::string, std::set<std::string> > m_mIPFSInfo;	// storage path on each slave node; used to avoid conflict

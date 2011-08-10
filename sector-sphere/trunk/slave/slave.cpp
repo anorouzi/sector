@@ -113,6 +113,7 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
    // initialize slave log
    m_SectorLog.init((m_strHomeDir + "/.log").c_str());
    m_SectorLog.setLevel(m_SysConfig.m_iLogLevel);
+   m_SectorLog.copyScreen(m_SysConfig.m_bVerbose);
 
    //copy permanent sphere libraries
    vector<SNode> filelist;

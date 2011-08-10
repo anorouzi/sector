@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright 2010 Sergio Ruiz.
+Copyright 2010, 2011 Sergio Ruiz.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of
@@ -72,8 +72,13 @@ updated by
     const char *inet_ntop(int af, const void *src, char *dst, int cnt);
     int inet_pton(int af, const char* s, void* d);
     #endif
+#else
+
+#ifndef __APPLE__
+extern "C" void srandomdev();
 #endif
 
+#endif
 
 class CMutex
 {

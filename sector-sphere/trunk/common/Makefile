@@ -29,7 +29,7 @@ test: crypto_unittest
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libcommon.so: $(OBJS)
-	$(C++) -shared -o $@ $^ $(LDFLAGS)
+	$(C++) -shared -o $@ $^ $(LDFLAGS) -ludt
 
 libcommon.a: $(OBJS)
 	ar -rcs $@ $^

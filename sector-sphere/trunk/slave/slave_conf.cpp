@@ -39,7 +39,8 @@ m_strLocalIP(),
 m_strPublicIP(),
 m_iClusterID(0),
 m_MetaType(DEFAULT),
-m_iLogLevel(0)
+m_iLogLevel(0),
+m_bVerbose(false)
 {
 }
 

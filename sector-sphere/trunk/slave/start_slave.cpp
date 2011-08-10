@@ -38,6 +38,17 @@ int main(int argc, char** argv)
       }
    }
 
+   for (vector<string>::const_iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
+   {
+      if (*i == "v")
+         global_conf.m_bVerbose = true;
+      else
+      {
+         cout << "warning: unrecognized flag " << *i << endl;
+         help();
+      }
+   }
+
    string base = "";
    if (clp.m_vParams.size() == 1)
       base = clp.m_vParams.front();

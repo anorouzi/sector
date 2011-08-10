@@ -52,7 +52,7 @@ TCPTransport::~TCPTransport()
 
 }
 
-int TCPTransport::open(int& port, bool rendezvous, bool reuseaddr)
+int TCPTransport::open(int& port, bool /*rendezvous*/, bool reuseaddr)
 {
    struct addrinfo hints, *local;
 

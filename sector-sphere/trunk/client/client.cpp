@@ -699,7 +699,7 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
    Client* self = (Client*)param;
    int64_t last_heart_beat_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
-   srand(pthread_self());
+   srandomdev();
 
    while (self->m_bActive)
    {
@@ -723,7 +723,7 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
 
 
       // send a heart beat to masters every 60 - 120 seconds
-      int offset = rand() % 60;
+      int offset = random() % 60;
       if (CTimer::getTime() - last_heart_beat_time < (60 + offset) * 1000000ULL)
          continue;
 

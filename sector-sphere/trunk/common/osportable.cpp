@@ -23,7 +23,7 @@ written by
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #ifndef WIN32
@@ -37,6 +37,7 @@ written by
    #include <tchar.h>
    #include <windows.h>
 #endif
+#include <string>
 
 #include "osportable.h"
 
@@ -479,9 +480,15 @@ int LocalFS::list_dir(const string& path, vector<SNode>& filelist)
 int LocalFS::stat(const string& path, SNode& sn)
 {
 #ifndef WIN32
+#ifdef __APPLE__
+   struct stat st;
+   if (-1 == ::stat(path.c_str(), &st))
+      return -1;
+#else
    struct stat64 st;
    if (-1 == ::stat64(path.c_str(), &st))
       return -1;
+#endif
 #else
    struct _stat64 st;
    if (-1 == ::_stat64(path.c_str(), &st))
@@ -513,16 +520,23 @@ int LocalFS::stat(const string& path, SNode& sn)
 int LocalFS::get_dir_space(const string& path, int64_t& avail)
 {
 #ifndef WIN32
+
+   int ret;
+#ifdef __APPLE__
+   struct statvfs slavefs;
+   ret = ::statvfs(path.c_str(), &slavefs);
+#else
    struct statfs64 slavefs;
-   statfs64(path.c_str(), &slavefs);
+   ret = ::statfs64(path.c_str(), &slavefs);
+#endif
    avail = slavefs.f_bavail * slavefs.f_bsize;
-   return 0;
 #else
    ULARGE_INTEGER val;
-   int ret = GetDiskFreeSpaceEx(path.c_str(), &val, NULL, NULL);
+   ret = GetDiskFreeSpaceEx(path.c_str(), &val, NULL, NULL);
    avail = val.QuadPart;
-   return 0;
 #endif
+   if (ret < 0) avail = 0;
+   return ret;
 }
 
 int LocalFS::rename(const std::string& src, const std::string& dst)
@@ -555,4 +569,21 @@ int LocalFS::copy(const std::string& src, const std::string& dst)
    ofs.close();
 
    return 0;
+}
+
+void srandomdev()
+{
+    unsigned int seed;
+    int fd = ::open("/dev/random", O_RDONLY);
+    if (fd != -1)
+    {
+	::read(fd, &seed, sizeof(seed));
+	::close(fd);
+    }
+    else
+    {
+	seed = ::time(0);
+    }
+
+    srandom(seed);
 }

@@ -12,7 +12,7 @@ test: fscache_unittest
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libclient.so: $(OBJS)
-	$(C++) -shared -o $@ $^ $(LDFLAGS)
+	$(C++) -shared -o $@ $^ $(LDFLAGS) -ludt -lrpc -lcommon
 
 libclient.a: $(OBJS)
 	ar -rcs $@ $^

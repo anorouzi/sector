@@ -156,6 +156,7 @@ public:
    int m_iClusterID;
    MetaForm m_MetaType;         // form of metadata
    int m_iLogLevel;		// level of log output
+   bool m_bVerbose;		// copy logs to screen output
 };
 
 class Slave

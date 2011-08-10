@@ -38,6 +38,7 @@ written by
 #include "user.h"
 
 class SSLTransport;
+class Topology;
 
 namespace sector
 {
@@ -244,6 +245,7 @@ private:
 
    char* m_pcTopoData;					// serialized topology data
    int m_iTopoDataSize;					// size of the topology data
+   Topology* m_pTopology;				// Slave topology.
 
    Routing m_Routing;					// master routing module
    uint32_t m_iRouterKey;				// identification for this master

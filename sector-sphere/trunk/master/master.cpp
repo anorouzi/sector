@@ -28,6 +28,7 @@ written by
 #include "master.h"
 #include "ssltransport.h"
 #include "tcptransport.h"
+#include "topology.h"
 
 using namespace std;
 using namespace sector;
@@ -36,7 +37,8 @@ Master::Master():
 m_pMetadata(NULL),
 m_llLastUpdateTime(0),
 m_pcTopoData(NULL),
-m_iTopoDataSize(0)
+m_iTopoDataSize(0),
+m_pTopology(NULL)
 {
    SSLTransport::init();
 }
@@ -46,6 +48,7 @@ Master::~Master()
    m_SectorLog.close();
    delete m_pMetadata;
    delete [] m_pcTopoData;
+   delete m_pTopology;
 
    SSLTransport::destroy();
 }
@@ -71,7 +74,9 @@ int Master::init()
       cerr << "Warning: no topology configuration found.\n";
    }
 
-   m_SlaveManager.init((m_strSectorHome + "/conf/topology.conf").c_str());
+   m_pTopology = new Topology;
+   m_pTopology->init((m_strSectorHome + "/conf/topology.conf").c_str());
+   m_SlaveManager.init(m_pTopology);
    m_SlaveManager.setSlaveMinDiskSpace(m_SysConfig.m_llSlaveMinDiskSpace);
    m_SlaveManager.serializeTopo(m_pcTopoData, m_iTopoDataSize);
 

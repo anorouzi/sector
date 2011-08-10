@@ -17,7 +17,7 @@ test: config_unittest replica_unittest
 	$(C++) -fPIC $(CCFLAGS) $< -c
 
 libmaster.so: $(OBJS)
-	$(C++) -shared -o $@ $^
+	$(C++) -shared -o $@ $^ -L../lib -lrpc -lsecurity -lcommon -ludt
 
 libmaster.a: $(OBJS)
 	ar -rcs $@ $^
@@ -42,4 +42,4 @@ clean:
 
 install:
 	mv libmaster.so libmaster.a ../lib
-	../security/ssl_cert_gen master
+	$(LIBPATH_NAME)="$(PWD)/lib" ../security/ssl_cert_gen master

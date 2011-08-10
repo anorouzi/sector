@@ -46,11 +46,13 @@ public:
    //	0: no rows, one file per time
    //	-1: all rows in each segment
 
-   int read(SphereResult*& res, const bool& inorder = false, const bool& wait = true);
+   int read(SphereResult*& res, const bool inorder = false, const bool wait = true);
    int checkProgress();
    int checkMapProgress();
    int checkReduceProgress();
    int waitForCompletion();
+
+   // TODO: support callback APIs for result handling.
 
    inline void setMinUnitSize(int size) {m_iMinUnitSize = size;}
    inline void setMaxUnitSize(int size) {m_iMaxUnitSize = size;}

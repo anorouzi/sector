@@ -746,6 +746,7 @@ int DCClient::checkProgress()
    else
       progress = int((m_iProgress + m_dRunningProgress) * 100 / m_iTotalDS);
 
+   // Processing is completed, waiting for the bucket file to close.
    if ((progress == 100) && (checkBucket() > 0))
       return 99;
 
@@ -788,20 +789,22 @@ int DCClient::waitForCompletion()
 
    while (true)
    {
-      int progress = checkProgress();
       SphereResult* res = NULL;
       int result = read(res);
 
-      if (result <= 0)
+      if (result < 0)
       {
-         if (progress < 0)
+         if (checkProgress() < 0)
             return result;
-         else if (progress == 100)
-            break;
+      }
+      else if (result == 0)
+      {
+         break;
       }
       else
       {
          // users not interested in the result content, delete it
+         // TODO: may apply user's callback function here.
          delete res;
          res = NULL;
       }
@@ -809,7 +812,7 @@ int DCClient::waitForCompletion()
       t2 = CTimer::getTime();
       if (t2 - t1 > 60000000)
       {
-          m_pClient->m_Log << "PROGRESS: " << progress << "%" << LogEnd();
+         m_pClient->m_Log << "PROGRESS: " << checkProgress() << "%" << LogEnd();
          t1 = t2;
       }
    }
@@ -821,7 +824,7 @@ int DCClient::waitForCompletion()
    return 0;
 }
 
-int DCClient::read(SphereResult*& res, const bool& /*inorder*/, const bool& wait)
+int DCClient::read(SphereResult*& res, const bool /*inorder*/, const bool wait)
 {
    if (!m_bOpened)
       return SectorError::E_NOPROCESS;
