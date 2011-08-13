@@ -664,7 +664,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             continue;
       #else
          int asize = sizeof(sockaddr_in);
-         DWORD rsize = 1472;
+         DWORD rsize = m_iMaxUDPMsgSize + CGMPMessage::m_iHdrSize;
          DWORD flag = 0;
 
          if (0 != WSARecvFrom(self->m_UDPSocket, vec, 2, &rsize, &flag, (sockaddr*)&addr, &asize, NULL, NULL))
@@ -743,23 +743,22 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
             }
 
             UDTSOCKET usock = 0;
-            if ((self->m_PeerHistory.getUDTSocket(ip, port, usock) >= 0) &&
-                ((UDT::getsockstate(usock) == CONNECTED) ||
-                 (UDT::getsockstate(usock) == CONNECTING)))
+            if (self->m_PeerHistory.getUDTSocket(ip, port, usock) < 0)
             {
-               break;
+               // No existing connection, or connection has been broken.
+               // Create a new one.
+               self->UDTCreate(usock);
+               UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
+               self->m_PeerHistory.setUDTSocket(ip, port, usock);
             }
-
-            // No existing connection, or connection has been broken.
-            // Create a new one.
-            self->UDTCreate(usock);
-            UDT::epoll_add_usock(self->m_iUDTEPollID, usock);
-            self->m_PeerHistory.setUDTSocket(ip, port, usock);
 
             // TODO: add IPv6 support
 
-            // info carries peer udt port.
-            self->UDTConnect(usock, ip, info);
+            if (UDT::getsockstate(usock) == OPENED)
+            {
+               // info carries peer udt port.
+               self->UDTConnect(usock, ip, info);
+            }
 
             break;
          }
@@ -774,6 +773,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
       // repeated message, send ACK and disgard
       if (self->m_PeerHistory.hit(ip, ntohs(addr.sin_port), session, id))
       {
+         ack[0] = 1;
          ack[2] = id;
          ack[3] = 0;
          ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
@@ -828,6 +828,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          #endif
       }
 
+      ack[0] = 1;
       ack[2] = id;
       ack[3] = qsize; // flow control
       ::sendto(self->m_UDPSocket, (char*)ack, 16, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
