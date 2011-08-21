@@ -54,7 +54,7 @@ written by
 #include <gmp.h>
 
 using namespace std;
-
+using namespace sector;
 
 int32_t CGMPMessage::g_iSession = CGMPMessage::initSession();
 int32_t CGMPMessage::g_iID = 1;

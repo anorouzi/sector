@@ -27,12 +27,15 @@ written by
    #include <pthread.h>
 #endif
 
-#include <datachn.h>
-#include <fscache.h>
-#include <gmp.h>
-#include <log.h>
-#include <routing.h>
-#include <sector.h>
+#include "datachn.h"
+#include "fscache.h"
+#include "gmp.h"
+#include "log.h"
+#include "routing.h"
+#include "sector.h"
+
+namespace sector
+{
 
 class ClientMgmt;
 class FSClient;
@@ -40,9 +43,9 @@ class DCClient;
 
 class Client
 {
-friend class Sector;
-friend class SectorFile;
-friend class SphereProcess;
+friend class ::Sector;
+friend class ::SectorFile;
+friend class ::SphereProcess;
 friend class FSClient;
 friend class DCClient;
 
@@ -154,5 +157,7 @@ protected:
 protected:
    static ClientMgmt g_ClientMgmt;
 };
+
+}  // namespace sector
 
 #endif

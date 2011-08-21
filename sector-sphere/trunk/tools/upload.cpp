@@ -306,8 +306,21 @@ int main(int argc, char** argv)
             client.mkdir(dst);
          else
          {
-            if (upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption) < 0)
+            int result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption);
+            if ((result == SectorError::E_CONNECTION) ||
+                (result == SectorError::E_BROKENPIPE))
+            {
+               // connection fail, retry once.
+               result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption);
+            }
+ 
+            if (result < 0)
+            {
+               // failed, remove the file in Sector.
+               client.remove(dst);
                success = false;
+               break;
+            }
          }
       }
    }

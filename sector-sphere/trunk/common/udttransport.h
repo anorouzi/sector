@@ -30,6 +30,9 @@ written by
 //In a production system, the UDT performance can be further tuned for better performance
 //E.g., MTU can be set to 9000 is jumbo frame is enabled; fixed rate can be used in a bottleneck free data center
 
+namespace sector
+{
+
 class UDTTransport: public Transport
 {
 public:
@@ -56,8 +59,15 @@ public:
    virtual int64_t getRealSndSpeed();
    virtual int getLocalAddr(std::string& ip, int& port);
 
+   int setTimeout(int sndtimeo, int rcvtimeo);
+
 private:
    UDTSOCKET m_Socket;
+
+   int m_iSndTimeO;
+   int m_iRcvTimeO;
 };
+
+}  // namespace sector
 
 #endif

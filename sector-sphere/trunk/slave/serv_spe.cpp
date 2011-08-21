@@ -32,6 +32,7 @@ written by
 #endif
 
 using namespace std;
+using namespace sector;
 
 SPEResult::~SPEResult()
 {

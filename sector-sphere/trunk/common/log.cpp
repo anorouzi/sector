@@ -19,14 +19,15 @@ written by
    Yunhong Gu, last updated 05/19/2011
 *****************************************************************************/
 
-
-#include "log.h"
-#include <common.h>
-#include <time.h>
-#include <string>
 #include <cstring>
-#include <sstream>
+#include <time.h>
+
 #include <iostream>
+#include <sstream>
+#include <string>
+
+#include "common.h"
+#include "log.h"
 
 #ifdef WIN32
    #define snprintf sprintf_s
@@ -197,15 +198,15 @@ void SectorLog::insert(const char* text, const int level)
 
 void SectorLog::checkLogFile()
 {
-   int day;
+   int day = 0;
    string logfile;
-   getTodayLog(m_iDay, logfile);
+   getTodayLog(day, logfile);
 
    if (day == m_iDay)
       return;
 
+   // A new day starts.
    m_iDay = day;
-
    m_LogFile.close();
    m_LogFile.open((m_strLogPath + "/" + logfile).c_str(), ios::app);
 }

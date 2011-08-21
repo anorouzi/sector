@@ -41,6 +41,7 @@ written by
 #endif
 
 using namespace std;
+using namespace sector;
 
 ClientMgmt Client::g_ClientMgmt;
 

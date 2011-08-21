@@ -34,6 +34,9 @@ written by
 #include <osportable.h>
 
 
+namespace sector
+{
+
 typedef int (*SPHERE_PROCESS)(const SInput*, SOutput*, SFile*);
 typedef int (*MR_MAP)(const SInput*, SOutput*, SFile*);
 typedef int (*MR_PARTITION)(const char*, int, void*, int);
@@ -373,5 +376,7 @@ private: //slave status
    bool m_bDiskHealth;                  // disk health
    bool m_bNetworkHealth;               // network health
 };
+
+}  // namespace sector
 
 #endif

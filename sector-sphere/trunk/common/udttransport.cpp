@@ -38,8 +38,11 @@ written by
 #include "udttransport.h"
 
 using namespace std;
+using namespace sector;
 
-UDTTransport::UDTTransport()
+UDTTransport::UDTTransport():
+m_iSndTimeO(-1),
+m_iRcvTimeO(-1)
 {
 }
 
@@ -101,6 +104,11 @@ int UDTTransport::open(int& port, bool rendezvous, bool reuseaddr)
    #endif
 
    UDT::setsockopt(m_Socket, 0, UDT_RENDEZVOUS, &rendezvous, sizeof(bool));
+
+   if (m_iSndTimeO >= 0)
+      UDT::setsockopt(m_Socket, 0, UDT_SNDTIMEO, &m_iSndTimeO, sizeof(int));
+   if (m_iRcvTimeO >= 0)
+      UDT::setsockopt(m_Socket, 0, UDT_RCVTIMEO, &m_iRcvTimeO, sizeof(int));
 
    return 1;
 }
@@ -253,5 +261,12 @@ int UDTTransport::getLocalAddr(std::string& ip, int& port)
    ip = clienthost;
    port = atoi(clientport);
 
+   return 0;
+}
+
+int UDTTransport::setTimeout(int sndtimeo, int rcvtimeo)
+{
+   m_iSndTimeO = sndtimeo;
+   m_iRcvTimeO = rcvtimeo;
    return 0;
 }

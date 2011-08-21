@@ -26,6 +26,9 @@ written by
 #include <transport.h>
 #include <string>
 
+namespace sector
+{
+
 class TCPTransport: public Transport
 {
 public:
@@ -57,5 +60,7 @@ private:
 #endif
    bool m_bConnected;
 };
+
+}
 
 #endif

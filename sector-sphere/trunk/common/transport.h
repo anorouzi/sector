@@ -26,6 +26,14 @@ written by
 #include <string>
 #include <udt.h>
 
+namespace sector
+{
+
+struct TransOption
+{
+   // TODO: put rendzevous, reuseaddr, timeout, etc in this structure.
+};
+
 class Transport
 {
 public:
@@ -47,6 +55,10 @@ public:
    virtual bool isConnected() = 0;
    virtual int64_t getRealSndSpeed() = 0;
    virtual int getLocalAddr(std::string& ip, int& port) = 0;
+
+   //virtual int setOption(const TransOption& opt) { return 0; }
 };
+
+}  // namespace sector
 
 #endif

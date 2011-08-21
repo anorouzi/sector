@@ -31,6 +31,8 @@ written by
 #include "sector.h"
 #include "udttransport.h"
 
+namespace sector
+{
 
 struct RcvData
 {
@@ -102,5 +104,6 @@ private:
    ChnInfo* locate(const std::string& ip, int port);
 };
 
+}  // namespace sector
 
 #endif

@@ -39,6 +39,7 @@ written by
 #include <fstream>
 
 using namespace std;
+using namespace sector;
 
 TCPTransport::TCPTransport():
 m_iSocket(0),

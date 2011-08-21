@@ -1883,6 +1883,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       else
       {
+         // For directories, the metadata doesn't record all of its locations.
+         // So we send the cmd to all slaves.
+         // TODO: this may cause problem when the number of slaves is big.
          m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
          for (vector<Address>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
          {

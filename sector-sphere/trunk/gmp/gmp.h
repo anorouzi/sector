@@ -196,7 +196,7 @@ private:
       SOCKET m_UDPSocket;
    #endif
 
-   UDTTransport m_UDTSocket;
+   sector::UDTTransport m_UDTSocket;
    int m_iUDTReusePort;
    int m_iUDTEPollID;
 

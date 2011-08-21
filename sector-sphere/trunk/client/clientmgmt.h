@@ -31,6 +31,9 @@ written by
    #include <pthread.h>
 #endif
 
+namespace sector
+{
+
 class ClientMgmt
 {
 public:
@@ -60,5 +63,7 @@ private:
    pthread_mutex_t m_FSLock;
    pthread_mutex_t m_DCLock;
 };
+
+}  // namespace sector
 
 #endif

@@ -27,6 +27,9 @@ written by
 #include <vector>
 #include <fstream>
 
+namespace sector
+{
+
 class FSClient
 {
 friend class Client;
@@ -100,5 +103,7 @@ private:
    Client* m_pClient;		// client instance
    int m_iID;			// sector file id, for client internal use
 };
+
+}  // namespace sector
 
 #endif

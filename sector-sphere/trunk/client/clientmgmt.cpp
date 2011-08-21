@@ -23,8 +23,8 @@ written by
 #include "common.h"
 #include "sector.h"
 
-
 using namespace std;
+using namespace sector;
 
 ClientMgmt::ClientMgmt():
 m_iID(0)

@@ -30,6 +30,7 @@ written by
 #include "writelog.h"
 
 using namespace std;
+using namespace sector;
 
 #ifndef WIN32
 void* Slave::fileHandler(void* p)
@@ -227,7 +228,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             // update write log
             writelog.insert(offset, size);
-
             file_change = true;
 
             break;
@@ -271,7 +271,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                sent += block;
                tosend -= block;
             }
-
             rb += sent;
 
             // update total sent data size
@@ -335,7 +334,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                recd += block;
                torecv -= block;
             }
-
             wb += recd;
 
             // update total received data size
@@ -343,7 +341,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             // update write log
             writelog.insert(0, size);
-
             file_change = true;
 
             break;
@@ -466,22 +463,26 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " " << (long long)avgWS << " " << (long long)avgRS << LogEnd();
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " "
+                     << (long long)avgWS << " " << (long long)avgRS << LogEnd();
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
 
    // unlock the file
-   // this must be done before the client is disconnected, otherwise if the client immediately re-open the file, the lock may not be released yet
+   // this must be done before the client is disconnected, otherwise if the client immediately re-open the file,
+   // the lock may not be released yet
    self->m_pLocalFile->unlock(sname, key, mode);
 
    // report to master the task is completed
-   // this also must be done before the client is disconnected, otherwise client may not be able to immediately re-open the file as the master is not updated
+   // this also must be done before the client is disconnected, otherwise client may not be able to
+   // immediately re-open the file as the master is not updated
    if (bWrite)
    {
       // File update can be optimized outside Sector if the write is from local
       // thus the slave will not be able to know if the file has been changed, unless it checks the content
-      // we check file size and timestamp here, but this is actually not enough, especially the time stamp granularity is too low
+      // we check file size and timestamp here, but this is actually not enough,
+      // especially when the time stamp granularity is too low
       SNode s;
       LocalFS::stat(filename, s);
       if ((s.m_llSize != orig_size) || (s.m_llTimeStamp != orig_ts))

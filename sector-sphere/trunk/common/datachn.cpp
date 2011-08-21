@@ -30,6 +30,7 @@ written by
 #include <datachn.h>
 
 using namespace std;
+using namespace sector;
 
 ChnInfo::ChnInfo():
 m_pTrans(NULL),
@@ -180,6 +181,9 @@ int DataChn::connect(const string& ip, int port)
    }
 
    UDTTransport* t = new UDTTransport;
+   // Set UDT channel to unblock if no data comes within 60 seconds.
+   // TODO: this is a hack method to fix deadlock when an instance is waiting for data.
+   t->setTimeout(-1, 60000);
    t->open(m_iPort, true, true);
    int r = t->connect(ip.c_str(), port);
 
@@ -310,6 +314,7 @@ int DataChn::send(const string& ip, int port, int session, const char* data, int
 }
 
 // TODO: cleanup recv() and recvfile()
+// TODO: add timeout so that it will block forever.
 int DataChn::recv(const string& ip, int port, int session, char*& data, int& size, Crypto* decoder)
 {
    data = NULL;

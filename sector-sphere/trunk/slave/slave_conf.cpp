@@ -28,6 +28,7 @@ written by
 #endif
 
 using namespace std;
+using namespace sector;
 
 SlaveConf::SlaveConf():
 m_strMasterHost(),

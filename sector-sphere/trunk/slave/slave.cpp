@@ -43,6 +43,7 @@ written by
 
 
 using namespace std;
+using namespace sector;
 
 Slave::Slave():
 m_iSlaveID(-1),
@@ -1192,8 +1193,14 @@ DWORD WINAPI Slave::worker(LPVOID param)
 
       // get total available disk size and file size
       LocalFS::get_dir_space(self->m_strHomeDir.c_str(), self->m_SlaveStat.m_llAvailSize);
+      // Check local disk health.
+      fstream test;
+      test.open((self->m_strHomeDir + "/.test").c_str(), ios::in | ios::out);
+      if (test.fail())
+         self->m_SlaveStat.m_llAvailSize = 0;
+      test.close();
+      LocalFS::erase(self->m_strHomeDir + "/.test");
       self->m_SlaveStat.m_llDataSize = self->m_pLocalFile->getTotalDataSize("/");
-
       // users may limit the maximum disk size used by Sector
       if (self->m_SysConfig.m_llMaxDataSize >= 0)
       {

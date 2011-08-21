@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 {
    cout << SectorVersionString << endl;
 
-   SlaveConf global_conf;
+   sector::SlaveConf global_conf;
 
    CmdLineParser clp;
    clp.parse(argc, argv);
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
    // TODO: move slave.conf parsing here, remove conf parsing from inside class Slave.
 
 
-   Slave s;
+   sector::Slave s;
 
    if (s.init(&base, &global_conf) < 0)
    {

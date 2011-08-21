@@ -24,6 +24,9 @@ written by
 
 #include "client.h"
 
+namespace sector
+{
+
 class DCClient
 {
 friend class Client;
@@ -174,5 +177,7 @@ private:
    Client* m_pClient;				// pointer to the sector client
    int m_iID;					// unique instance id
 };
+
+}  // namespace sector
 
 #endif

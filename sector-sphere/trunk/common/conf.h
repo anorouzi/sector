@@ -26,7 +26,7 @@ written by
 #include <string>
 #include <vector>
 
-class Param;
+struct Param;
 
 class ConfParser
 {

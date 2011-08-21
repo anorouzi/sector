@@ -30,6 +30,7 @@ written by
 #endif
 
 using namespace std;
+using namespace sector;
 
 DCClient* Client::createDCClient()
 {

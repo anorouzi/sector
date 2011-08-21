@@ -24,6 +24,7 @@ written by
 #include "fsclient.h"
 
 using namespace std;
+using namespace sector;
 
 FSClient* Client::createFSClient()
 {
@@ -680,7 +681,7 @@ int FSClient::close()
    // Instead, the cache's reference count should be simply updated.
    //m_pClient->m_Cache.remove(m_strFileName);
 
-   // reset all flags so that another file can be opened
+   // Reset all flags so that another file can be opened using the same handle.
    m_strSlaveIP = "";
    delete m_pEncoder;
    m_pEncoder = NULL;
