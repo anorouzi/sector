@@ -1195,7 +1195,7 @@ DWORD WINAPI Slave::worker(LPVOID param)
       LocalFS::get_dir_space(self->m_strHomeDir.c_str(), self->m_SlaveStat.m_llAvailSize);
       // Check local disk health.
       fstream test;
-      test.open((self->m_strHomeDir + "/.test").c_str(), ios::in | ios::out);
+      test.open((self->m_strHomeDir + "/.test").c_str(), ios::in | ios::out | ios::binary | ios::trunc);
       if (test.fail())
          self->m_SlaveStat.m_llAvailSize = 0;
       test.close();
