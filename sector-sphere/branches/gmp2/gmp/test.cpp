@@ -7,25 +7,24 @@ modification, are permitted provided that the following conditions are met:
 * Redistributions of source code must retain the above copyright notice, this
   list of conditions and the following disclaimer.
 
-* Redistributions in binary form must reproduce the above copyright
-  notice, this list of conditions and the following disclaimer in the
-  documentation and/or other materials provided with the distribution.
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
 
-* Neither the name of the VeryCloud LLC nor the names of its
-  contributors may be used to endorse or promote products derived from
-  this software without specific prior written permission.
+* Neither the name of the VeryCloud LLC nor the names of its contributors may
+  be used to endorse or promote products derived from this software without
+  specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
-IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
-THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
-CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
-EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
-PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
-LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *****************************************************************************/
 
 #include <iostream>
@@ -57,41 +56,11 @@ DWORD WINAPI Test_1_Srv(LPVOID)
    strcpy(msg.m_pcBuffer, res);
    msg.m_iDataLength = strlen(res) + 1;
 
-   // Receive UDP messages.
-   for (int i = 0; i < 10; ++ i)
+   // Receive all messages.
+   for (int i = 0; i < 40; ++ i)
    {
       gmp.recvfrom(ip, port, id, &msg);
       cout << "UDP RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
-      strcpy(msg.m_pcBuffer, res);
-      msg.m_iDataLength = strlen(res) + 1;
-      gmp.sendto(ip, port, id, &msg);
-   }
-
-   // Receive UDT messages.
-   for (int i = 0; i < 10; ++ i)
-   {
-      gmp.recvfrom(ip, port, id, &msg);
-      cout << "UDT RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
-      strcpy(msg.m_pcBuffer, res);
-      msg.m_iDataLength = strlen(res) + 1;
-      gmp.sendto(ip, port, id, &msg);
-   }
-
-   // REPEAT: from a new gmp client.
-   for (int i = 0; i < 10; ++ i)
-   {
-      gmp.recvfrom(ip, port, id, &msg);
-      cout << "UDT RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
-      strcpy(msg.m_pcBuffer, res);
-      msg.m_iDataLength = strlen(res) + 1;
-      gmp.sendto(ip, port, id, &msg);
-   }
-
-   // REPEAT: from a new gmp client, on a new port.
-   for (int i = 0; i < 10; ++ i)
-   {
-      gmp.recvfrom(ip, port, id, &msg);
-      cout << "UDT RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << endl;
       strcpy(msg.m_pcBuffer, res);
       msg.m_iDataLength = strlen(res) + 1;
       gmp.sendto(ip, port, id, &msg);
@@ -130,6 +99,8 @@ DWORD WINAPI Test_1_Cli(LPVOID)
          cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
    }
 
+   cout << "==========================================================\n";
+
    // Test large messages for UDT.
    req.m_iDataLength = 2000;
    for (int i = 0; i < 10; ++ i)
@@ -144,7 +115,9 @@ DWORD WINAPI Test_1_Cli(LPVOID)
    cout << "client has sent all messages and received responsed.\n";
    gmp.close();
 
-   // REPEAT: from a new gmp instance.
+   cout << "==========================================================\n";
+
+   // REPEAT: from a new gmp instance on the same port.
    gmp.init(2210);
    // Test large messages for UDT.
    req.m_iDataLength = 2000;
@@ -158,7 +131,9 @@ DWORD WINAPI Test_1_Cli(LPVOID)
    }
    gmp.close();
 
-   // REPEAT: from a new gmp instance.
+   cout << "==========================================================\n";
+
+   // REPEAT: from a new gmp instance on a different port.
    gmp.init(2230);
    // Test large messages for UDT.
    req.m_iDataLength = 2000;
@@ -171,6 +146,8 @@ DWORD WINAPI Test_1_Cli(LPVOID)
          cout << "UDT response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
    }
    gmp.close();
+
+   cout << "==========================================================\n";
 
    return 0;
 }
