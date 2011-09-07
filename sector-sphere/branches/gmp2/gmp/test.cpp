@@ -158,6 +158,43 @@ void* Test_2_Srv(void*)
 DWORD WINAPI Test_2_Srv(LPVOID)
 #endif
 {
+   CGMP gmp;
+   gmp.init(server_port);
+
+   string ip;
+   int port;
+   CUserMessage msg;
+   msg.resize(max_size);
+   int32_t id;
+   const char* res = "got it.";
+
+   strcpy(msg.m_pcBuffer, res);
+   msg.m_iDataLength = strlen(res) + 1;
+
+   int local_chn = gmp.createChn();
+   int remote_chn = 0;
+   cout << "new channel: " << local_chn << endl;
+
+   // read request on channel 0.
+   gmp.recvfrom(ip, port, id, &msg, true);
+   cout << "received request" << ip << " " << port << endl;
+   *(int32_t*)msg.m_pcBuffer = local_chn;
+   msg.m_iDataLength = 4;
+   gmp.sendto(ip, port, id, &msg);
+
+   // Receive all messages.
+   for (int i = 0; i < 10; ++ i)
+   {
+      gmp.recvfrom(ip, port, id, &msg, true, &remote_chn, local_chn);
+      cout << "SERV RECV " << ip << " " << port << " " << id << " " << msg.m_iDataLength << " " << remote_chn << endl;
+      strcpy(msg.m_pcBuffer, res);
+      msg.m_iDataLength = strlen(res) + 1;
+      gmp.sendto(ip, port, id, &msg, local_chn, remote_chn);
+   }
+
+   cout << "server has received all messages.\n";
+   gmp.close();
+
    return 0;
 }
 
@@ -167,13 +204,54 @@ void* Test_2_Cli(void*)
 DWORD WINAPI Test_2_Cli(LPVOID)
 #endif
 {
+   CGMP gmp;
+   gmp.init(2210);
+
+   cout << "RTT= " << gmp.rtt(server_ip, server_port) << endl;
+
+   // Test small messages for UDP.
+   CUserMessage req, res;
+   req.resize(max_size);
+   res.resize(max_size);
+   req.m_iDataLength = 1000;
+   int32_t id;
+   int32_t remote_chn = 0;
+
+   int local_chn = gmp.createChn();
+   cout << "new channel: " << local_chn << endl;
+
+   // request for new channel.
+   id = 0;
+   gmp.sendto(server_ip, server_port, id, &req);
+   res.m_pcBuffer[0] = 0;
+   if (gmp.recv(id, &res) >= 0)
+   {
+      remote_chn = *(int32_t*)res.m_pcBuffer;
+      cout << "received channel = " << remote_chn << endl;
+   }
+   else
+   {
+      return 0;
+   }
+
+   for (int i = 0; i < 10; ++ i)
+   {
+      id = 0;
+      gmp.sendto(server_ip, server_port, id, &req, local_chn, remote_chn);
+      res.m_pcBuffer[0] = 0;
+      if (gmp.recv(id, &res, &remote_chn, local_chn) >= 0)
+         cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
+      else
+         cout << "recv error\n";
+   }
+
    // start client, close, restart, check server state.
    return 0;
 }
 
 int main()
 {
-   const int test_case = 1;
+   const int test_case = 2;
 
 #ifndef WIN32
    void* (*Test_Srv[test_case])(void*);
@@ -185,6 +263,8 @@ int main()
 
    Test_Srv[0] = Test_1_Srv;
    Test_Cli[0] = Test_1_Cli;
+   Test_Srv[1] = Test_2_Srv;
+   Test_Cli[1] = Test_2_Cli;
 
    for (int i = 0; i < test_case; ++ i)
    {

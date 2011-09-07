@@ -87,10 +87,11 @@ public:
    CGMPMessage(const CGMPMessage& msg);
    ~CGMPMessage();
 
-   int32_t m_piHeader[5];
+   int32_t m_piHeader[6];
    int32_t& m_iType;            // 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
    int32_t& m_iSession;         // Used to differentiate GMP instances on the same address
-   int32_t& m_iChannel;         // multiple channels for the same GMP instance
+   int32_t& m_iSrcChn;          // source channel, multiple channels for the same GMP instance
+   int32_t& m_iDstChn;          // destination channel
    int32_t& m_iID;              // message ID
    int32_t& m_iInfo;            // additional information, depending on type
 
@@ -98,8 +99,10 @@ public:
    int m_iLength;
 
 public:
-   void pack(const char* data, const int& len, const int32_t& info = 0, const int& channel = 0);
-   void pack(const int32_t& type, const int32_t& info = 0, const int& channel = 0);
+   void pack(const char* data, const int& len, const int32_t& info = 0,
+             const int& src_chn = 0, const int& dst_chn = 0);
+   void pack(const int32_t& type, const int32_t& info = 0,
+             const int& src_chn = 0, const int& dst_chn = 0);
 
 public:
    static int32_t g_iSession;
@@ -110,6 +113,7 @@ private:
    static int32_t g_iID;
    static pthread_mutex_t g_IDLock;
    static const int32_t g_iMaxID = 0xFFFFFFF;
+   static const int g_iHdrField;
    static const int g_iHdrSize;
 };
 
@@ -136,6 +140,22 @@ struct CFMsgRec
    }
 };
 
+struct CChannelRec
+{
+   CChannelRec();
+   ~CChannelRec();
+
+   int m_iID;
+   std::queue<CMsgRecord*> m_qRcvQueue;
+   std::map<int32_t, CMsgRecord*> m_mResQueue;
+
+   pthread_mutex_t m_RcvQueueLock;
+   pthread_cond_t m_RcvQueueCond;
+   pthread_mutex_t m_ResQueueLock;
+   pthread_cond_t m_ResQueueCond;
+
+   int m_iRefCount;
+};
 
 class GMP_API CGMP
 {
@@ -159,23 +179,22 @@ public:
    int releaseChn(int chn);
 
 public:
-   int sendto(const std::string& ip, const int& port, int32_t& id,
-              const CUserMessage* msg, const int& channel = 0);
-   int recvfrom(std::string& ip, int& port, int32_t& id, CUserMessage* msg,
-                const bool& block = true, const int& channel = 0);
-   int recv(const int32_t& id, CUserMessage* msg, const int& channel = 0);
-   int rpc(const std::string& ip, const int& port, CUserMessage* req,
-           CUserMessage* res, const int& channel = 0);
-   int multi_rpc(const std::vector<Address>& dest, CUserMessage* req,
-                 std::vector<CUserMessage*>* res = NULL, const int& channel = 0);
-
+   int sendto(const std::string& ip, const int& port, int32_t& id, const CUserMessage* msg,
+              const int& src_chn = 0, const int& dst_chn = 0);
+   int recvfrom(std::string& ip, int& port, int32_t& id, CUserMessage* msg, const bool& block = true,
+                int* src_chn = NULL, const int& dst_chn = 0);
+   int recv(const int32_t& id, CUserMessage* msg, int* src_chn = NULL, const int& dst_chn = 0);
+   int rpc(const std::string& ip, const int& port, CUserMessage* req, CUserMessage* res,
+           const int& src_chn = 0, const int& dst_chn = 0);
+   int multi_rpc(const std::vector<Address>& dest, CUserMessage* req, std::vector<CUserMessage*>* res = NULL,
+                 const int& src_chn = 0, const int& dst_chn = 0);
    int rtt(const std::string& ip, const int& port, const bool& clear = false);
 
 private: // Send data using UDP or UDT.
-   int UDPsend(const char* ip, const int& port, int32_t& id, const int& channel, 
+   int UDPsend(const char* ip, const int& port, int32_t& id, const int& src_chn, const int& dst_chn, 
                const char* data, const int& len, const bool& reliable = true);
    int UDPsend(const char* ip, const int& port, CGMPMessage* msg);
-   int UDTsend(const char* ip, const int& port, int32_t& id, const int& channel,
+   int UDTsend(const char* ip, const int& port, int32_t& id, const int& src_chn, const int& dst_chn,
                const char* data, const int& len);
    int UDTsend(const char* ip, const int& port, CGMPMessage* msg);
 
@@ -184,6 +203,11 @@ private: // UDT helper functions, see udt_helper.cpp.
    int UDTConnect(const UDTSOCKET& usock, const char* ip, const int& port);
    int UDTSend(const UDTSOCKET& usock, const char* buf, const int& size);
    int UDTRecv(const UDTSOCKET& usock, char* buf, const int& size);
+
+private: // channel operations
+   CChannelRec* getChnHandle(int id);
+   int releaseChnHandle(CChannelRec* chn);
+   void storeMsg(int info, CChannelRec* chn, CMsgRecord* rec, int& qsize);
 
 private:
    pthread_t m_SndThread;
@@ -201,10 +225,6 @@ private:
 
    pthread_mutex_t m_SndQueueLock;
    pthread_cond_t m_SndQueueCond;
-   pthread_mutex_t m_RcvQueueLock;
-   pthread_cond_t m_RcvQueueCond;
-   pthread_mutex_t m_ResQueueLock;
-   pthread_cond_t m_ResQueueCond;
    pthread_mutex_t m_RTTLock;
    pthread_cond_t m_RTTCond;
 
@@ -216,16 +236,14 @@ private:
    int m_iUDTEPollID;				// UDT EPoll ID
 
    std::list<CMsgRecord*> m_lSndQueue;
-   std::queue<CMsgRecord*> m_qRcvQueue;
-   std::map<int32_t, CMsgRecord*> m_mResQueue;
+   std::map<int, CChannelRec*> m_mCurrentChn;   // Current channel list, including (always) default channel 0.
+   pthread_mutex_t m_ChnLock;
    CPeerMgmt m_PeerHistory;
 
    volatile bool m_bInit;
    volatile bool m_bClosed;
 
    int m_iChnIDSeed;                            // A seed value to generate next channel ID (local unique).
-   std::set<int> m_sCurrentChn;                 // Current channel list, including (always) default channel 0.
-   pthread_mutex_t m_ChnLock;
 
 private:
    static const int m_iMaxUDPMsgSize = 1456;

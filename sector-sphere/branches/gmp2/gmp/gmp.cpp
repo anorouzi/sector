@@ -59,7 +59,8 @@ using namespace std;
 
 int32_t CGMPMessage::g_iSession = CGMPMessage::initSession();
 int32_t CGMPMessage::g_iID = 1;
-const int CGMPMessage::g_iHdrSize = 20;
+const int CGMPMessage::g_iHdrField = 6;
+const int CGMPMessage::g_iHdrSize = 24;
 #ifndef WIN32
    pthread_mutex_t CGMPMessage::g_IDLock = PTHREAD_MUTEX_INITIALIZER;
 #else
@@ -69,29 +70,31 @@ const int CGMPMessage::g_iHdrSize = 20;
 CGMPMessage::CGMPMessage():
 m_iType(m_piHeader[0]),
 m_iSession(m_piHeader[1]),
-m_iChannel(m_piHeader[2]),
-m_iID(m_piHeader[3]),
-m_iInfo(m_piHeader[4]),
+m_iSrcChn(m_piHeader[2]),
+m_iDstChn(m_piHeader[3]),
+m_iID(m_piHeader[4]),
+m_iInfo(m_piHeader[5]),
 m_pcData(NULL),
 m_iLength(0)
 {
+   memset(m_piHeader, g_iHdrSize * sizeof(int32_t), 0);
+
    m_iSession = g_iSession;
 
    CGuard::enterCS(g_IDLock);
-
    m_iID = g_iID ++;
    if (g_iID == g_iMaxID)
       g_iID = 1;
-
    CGuard::leaveCS(g_IDLock);
 }
 
 CGMPMessage::CGMPMessage(const CGMPMessage& msg):
 m_iType(m_piHeader[0]),
 m_iSession(m_piHeader[1]),
-m_iChannel(m_piHeader[2]),
-m_iID(m_piHeader[3]),
-m_iInfo(m_piHeader[4]),
+m_iSrcChn(m_piHeader[2]),
+m_iDstChn(m_piHeader[3]),
+m_iID(m_piHeader[4]),
+m_iInfo(m_piHeader[5]),
 m_pcData(NULL),
 m_iLength(0)
 {
@@ -108,10 +111,11 @@ CGMPMessage::~CGMPMessage()
    delete [] m_pcData;
 }
 
-void CGMPMessage::pack(const char* data, const int& len, const int32_t& info, const int& channel)
+void CGMPMessage::pack(const char* data, const int& len, const int32_t& info, const int& src_chn, const int& dst_chn)
 {
    m_iType = 0;
-   m_iChannel = channel;
+   m_iSrcChn = src_chn;
+   m_iDstChn = dst_chn;
 
    delete [] m_pcData;
    if (len > 0)
@@ -126,13 +130,14 @@ void CGMPMessage::pack(const char* data, const int& len, const int32_t& info, co
    m_iInfo = info;
 }
 
-void CGMPMessage::pack(const int32_t& type, const int32_t& info, const int& channel)
+void CGMPMessage::pack(const int32_t& type, const int32_t& info, const int& src_chn, const int& dst_chn)
 {
    delete [] m_pcData;
    m_iLength = 0;
 
    m_iType = type;
-   m_iChannel = channel;
+   m_iSrcChn = src_chn;
+   m_iDstChn = dst_chn;
    m_iInfo = info;
 }
 
@@ -145,6 +150,21 @@ int32_t CGMPMessage::initSession()
    return r;
 }
 
+CChannelRec::CChannelRec()
+{
+   CGuard::createMutex(m_RcvQueueLock);
+   CGuard::createCond(m_RcvQueueCond);
+   CGuard::createMutex(m_ResQueueLock);
+   CGuard::createCond(m_ResQueueCond);
+}
+
+CChannelRec::~CChannelRec()
+{
+   CGuard::releaseMutex(m_RcvQueueLock);
+   CGuard::releaseCond(m_RcvQueueCond);
+   CGuard::releaseMutex(m_ResQueueLock);
+   CGuard::releaseCond(m_ResQueueCond);
+}
 
 CGMP::CGMP():
 m_iUDTReusePort(0),
@@ -154,10 +174,6 @@ m_iChnIDSeed(0)
 {
    CGuard::createMutex(m_SndQueueLock);
    CGuard::createCond(m_SndQueueCond);
-   CGuard::createMutex(m_RcvQueueLock);
-   CGuard::createCond(m_RcvQueueCond);
-   CGuard::createMutex(m_ResQueueLock);
-   CGuard::createCond(m_ResQueueCond);
    CGuard::createMutex(m_RTTLock);
    CGuard::createCond(m_RTTCond);
    CGuard::createMutex(m_ChnLock);
@@ -165,12 +181,10 @@ m_iChnIDSeed(0)
 
 CGMP::~CGMP()
 {
+   //TODO: clear all un-received messages.
+
    CGuard::releaseMutex(m_SndQueueLock);
    CGuard::releaseCond(m_SndQueueCond);
-   CGuard::releaseMutex(m_RcvQueueLock);
-   CGuard::releaseCond(m_RcvQueueCond);
-   CGuard::releaseMutex(m_ResQueueLock);
-   CGuard::releaseCond(m_ResQueueCond);
    CGuard::releaseMutex(m_RTTLock);
    CGuard::releaseCond(m_RTTCond);
    CGuard::releaseMutex(m_ChnLock);
@@ -192,7 +206,7 @@ int CGMP::init(const int& port)
    stringstream service;
    service << port;
    if (0 != getaddrinfo(NULL, service.str().c_str(), &hints, &res))
-      return -1;     
+      return -1;
    m_UDPSocket = ::socket(res->ai_family, res->ai_socktype, res->ai_protocol);
    if (0 != ::bind(m_UDPSocket, res->ai_addr, res->ai_addrlen))
       return -1;
@@ -217,7 +231,8 @@ int CGMP::init(const int& port)
    tv.tv_usec = 10000;
    ::setsockopt(m_UDPSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(timeval));
 
-   m_sCurrentChn.insert(0);
+   // Channel 0 always exists.
+   m_mCurrentChn[0] = new CChannelRec;
 
    #ifndef WIN32
       pthread_create(&m_SndThread, NULL, sndHandler, this);
@@ -245,14 +260,17 @@ int CGMP::close()
    UDT::epoll_release(m_iUDTEPollID);
 
    m_lSndQueue.clear();
-   while (!m_qRcvQueue.empty())
-      m_qRcvQueue.pop();
-   m_mResQueue.clear();
+   //
+   //while (!m_qRcvQueue.empty())
+   //   m_qRcvQueue.pop();
+   //m_mResQueue.clear();
    m_PeerHistory.clear();
 
    // Release all channels.
    CGuard::enterCS(m_ChnLock);
-   m_sCurrentChn.clear();
+   for (map<int, CChannelRec*>::iterator i = m_mCurrentChn.begin(); i != m_mCurrentChn.end(); ++ i)
+      delete i->second;
+   m_mCurrentChn.clear();
    CGuard::leaveCS(m_ChnLock);
 
    #ifndef WIN32
@@ -287,15 +305,15 @@ int CGMP::getPort()
    return m_iPort;
 }
 
-int CGMP::sendto(const string& ip, const int& port, int32_t& id, const CUserMessage* msg, const int& channel)
+int CGMP::sendto(const string& ip, const int& port, int32_t& id, const CUserMessage* msg, const int& src_chn, const int& dst_chn)
 {
    if (msg->m_iDataLength <= m_iMaxUDPMsgSize)
-      return UDPsend(ip.c_str(), port, id, channel, msg->m_pcBuffer, msg->m_iDataLength, true);
+      return UDPsend(ip.c_str(), port, id, src_chn, dst_chn, msg->m_pcBuffer, msg->m_iDataLength, true);
 
-   return UDTsend(ip.c_str(), port, id, channel, msg->m_pcBuffer, msg->m_iDataLength);
+   return UDTsend(ip.c_str(), port, id, src_chn, dst_chn, msg->m_pcBuffer, msg->m_iDataLength);
 }
 
-int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const int& channel,
+int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const int& src_chn, const int& dst_chn,
                   const char* data, const int& len, const bool& reliable)
 {
    // If the destination has too many messages in queue, block for a while.
@@ -305,7 +323,7 @@ int CGMP::UDPsend(const char* ip, const int& port, int32_t& id, const int& chann
    // use cache structure for the snd queue.
 
    CGMPMessage* msg = new CGMPMessage;
-   msg->pack(data, len, id, channel);
+   msg->pack(data, len, id, src_chn, dst_chn);
    id = msg->m_iID;
 
    int res = 0;
@@ -382,7 +400,7 @@ int CGMP::UDPsend(const char* ip, const int& port, CGMPMessage* msg)
    return msg->m_iLength + CGMPMessage::g_iHdrSize;
 }
 
-int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const int& channel,
+int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const int& src_chn, const int& dst_chn,
                   const char* data, const int& len)
 {
    UDTSOCKET usock;
@@ -391,13 +409,13 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const int& chann
    {
       if (UDTCreate(usock) < 0)
          return -1;
-cout << "active udt connect " << ip << " " << port << " self: " << m_iUDTReusePort << endl;
+
       UDT::epoll_add_usock(m_iUDTEPollID, usock);
       m_PeerHistory.setUDTSocket(ip, port, usock);
 
       // Store the message for sending when the UDT connection is set up.
       CGMPMessage* msg = new CGMPMessage;
-      msg->pack(data, len, id, channel);
+      msg->pack(data, len, id, src_chn, dst_chn);
       CMsgRecord* rec = new CMsgRecord;
       rec->m_strIP = ip;
       rec->m_iPort = port;
@@ -426,7 +444,7 @@ cout << "active udt connect " << ip << " " << port << " self: " << m_iUDTReusePo
 
    // UDT connection is ready, send data immediately
    CGMPMessage msg;
-   msg.pack(data, len, id, channel);
+   msg.pack(data, len, id, src_chn, dst_chn);
    id = msg.m_iID;
    return UDTsend(ip, port, &msg);
 }
@@ -452,17 +470,23 @@ int CGMP::UDTsend(const char* ip, const int& port, CGMPMessage* msg)
    return msg->m_iLength + CGMPMessage::g_iHdrSize;
 }
 
-int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const bool& block, const int& channel)
+int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const bool& block,
+                   int* src_chn, const int& dst_chn)
 {
+   CChannelRec* chn = getChnHandle(dst_chn);
+   // Channel does not exist, return error.
+   if (NULL == chn)
+      return -1;
+
    bool timeout = false;
 
-   CGuard::enterCS(m_RcvQueueLock);
+   CGuard::enterCS(chn->m_RcvQueueLock);
 
-   while (!m_bClosed && m_qRcvQueue.empty() && !timeout)
+   while (!m_bClosed && chn->m_qRcvQueue.empty() && !timeout)
    {
       #ifndef WIN32
          if (block)
-            pthread_cond_wait(&m_RcvQueueCond, &m_RcvQueueLock);
+            pthread_cond_wait(&chn->m_RcvQueueCond, &chn->m_RcvQueueLock);
          else
          {
             timeval now;
@@ -470,36 +494,38 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
             gettimeofday(&now, 0);
             expiretime.tv_sec = now.tv_sec + 1;
             expiretime.tv_nsec = now.tv_usec * 1000;
-            if (pthread_cond_timedwait(&m_RcvQueueCond, &m_RcvQueueLock, &expiretime) != 0)
+            if (pthread_cond_timedwait(&chn->m_RcvQueueCond, &chn->m_RcvQueueLock, &expiretime) != 0)
                timeout = true;
          }
       #else
          ReleaseMutex(m_RcvQueueLock);
          if (block)
-            WaitForSingleObject(m_RcvQueueCond, INFINITE);
+            WaitForSingleObject(chn->m_RcvQueueCond, INFINITE);
          else
          {
-            if (WaitForSingleObject(m_RcvQueueCond, 1000) == WAIT_TIMEOUT)
+            if (WaitForSingleObject(chn->m_RcvQueueCond, 1000) == WAIT_TIMEOUT)
                timeout = true;
          }
-         WaitForSingleObject(m_RcvQueueLock, INFINITE);
+         WaitForSingleObject(chn->m_RcvQueueLock, INFINITE);
       #endif
    }
 
    if (m_bClosed || timeout)
    {
-      CGuard::leaveCS(m_RcvQueueLock);
+      CGuard::leaveCS(chn->m_RcvQueueLock);
       return -1;
    }
 
-   CMsgRecord* rec = m_qRcvQueue.front();
-   m_qRcvQueue.pop();
+   CMsgRecord* rec = chn->m_qRcvQueue.front();
+   chn->m_qRcvQueue.pop();
 
-   CGuard::leaveCS(m_RcvQueueLock);
+   CGuard::leaveCS(chn->m_RcvQueueLock);
 
    ip = rec->m_strIP;
    port = rec->m_iPort;
    id = rec->m_pMsg->m_iID;
+   if (src_chn)
+      *src_chn = rec->m_pMsg->m_iSrcChn;
 
    if (msg->m_iBufLength < rec->m_pMsg->m_iLength)
       msg->resize(rec->m_pMsg->m_iLength);
@@ -513,13 +539,18 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
    return msg->m_iDataLength;
 }
 
-int CGMP::recv(const int32_t& id, CUserMessage* msg, const int& channel)
+int CGMP::recv(const int32_t& id, CUserMessage* msg, int* src_chn, const int& dst_chn)
 {
-   CGuard::enterCS(m_ResQueueLock);
+   CChannelRec* chn = getChnHandle(dst_chn);
+   // Channel does not exist, return error.
+   if (NULL == chn)
+      return -1;
 
-   map<int32_t, CMsgRecord*>::iterator m = m_mResQueue.find(id);
+   CGuard::enterCS(chn->m_ResQueueLock);
 
-   if (m == m_mResQueue.end())
+   map<int32_t, CMsgRecord*>::iterator m = chn->m_mResQueue.find(id);
+
+   if (m == chn->m_mResQueue.end())
    {
       #ifndef WIN32
          timeval now;
@@ -527,19 +558,19 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg, const int& channel)
          gettimeofday(&now, 0);
          timeout.tv_sec = now.tv_sec + 1;
          timeout.tv_nsec = now.tv_usec * 1000;
-         pthread_cond_timedwait(&m_ResQueueCond, &m_ResQueueLock, &timeout);
+         pthread_cond_timedwait(&chn->m_ResQueueCond, &chn->m_ResQueueLock, &timeout);
       #else
-         ReleaseMutex(m_ResQueueLock);
-         WaitForSingleObject(m_ResQueueCond, 1000);
-         WaitForSingleObject(m_ResQueueLock, INFINITE);
+         ReleaseMutex(chn->m_ResQueueLock);
+         WaitForSingleObject(chn->m_ResQueueCond, 1000);
+         WaitForSingleObject(chn->m_ResQueueLock, INFINITE);
       #endif
 
-      m = m_mResQueue.find(id);
+      m = chn->m_mResQueue.find(id);
    }
 
    bool found = false;
 
-   if (m != m_mResQueue.end())
+   if (m != chn->m_mResQueue.end())
    {
       if (msg->m_iBufLength < m->second->m_pMsg->m_iLength)
          msg->resize(m->second->m_pMsg->m_iLength);
@@ -548,14 +579,17 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg, const int& channel)
       if (msg->m_iDataLength > 0)
          memcpy(msg->m_pcBuffer, m->second->m_pMsg->m_pcData, msg->m_iDataLength);
 
+      if (src_chn)
+         *src_chn = m->second->m_pMsg->m_iSrcChn;
+
       delete m->second->m_pMsg;
       delete m->second;
-      m_mResQueue.erase(m);
+      chn->m_mResQueue.erase(m);
 
       found = true;
    }
 
-   CGuard::leaveCS(m_ResQueueLock);
+   CGuard::leaveCS(chn->m_ResQueueLock);
 
    if (!found)
       return -1;
@@ -595,7 +629,6 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
       {
          if ((*i)->m_pMsg->m_iLength > m_iMaxUDPMsgSize)
          {
-cout << "send ydr " << (*i)->m_strIP << " " << (*i)->m_iPort << endl;
             // Send large message using UDT.
             udtsend.push_back(i);
             continue;
@@ -644,12 +677,13 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
    CGMP* const self = (CGMP*)s;
 
    sockaddr_in addr;
-   int32_t header[5];
+   int32_t header[CGMPMessage::g_iHdrField];
    const int32_t& type = header[0];
    const int32_t& session = header[1];
-   const int32_t& channel = header[2];
-   const int32_t& id = header[3];
-   const int32_t& info = header[4];
+   const int32_t& src_chn = header[2];
+   const int32_t& dst_chn = header[3];
+   const int32_t& id = header[4];
+   const int32_t& info = header[5];
    char* const buf = new char [m_iMaxUDPMsgSize];
 
 #ifndef WIN32
@@ -676,12 +710,13 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
 #endif
 
    // acknowledgment to a data or control packet.
-   int32_t ack[5];
+   int32_t ack[CGMPMessage::g_iHdrField];
    ack[0] = 1;
    ack[1] = CGMPMessage::g_iSession;
-   ack[2] = 0; // channel ID
-   ack[3] = 0;
+   ack[2] = 0; // src channel ID
+   ack[3] = 0; // dst channel ID
    ack[4] = 0;
+   ack[5] = 0;
 
    while (!self->m_bClosed)
    {
@@ -704,7 +739,9 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
                   port_str, sizeof(port_str), NI_NUMERICHOST|NI_NUMERICSERV);
       const int port = atoi(port_str);
 
-cout << "recv sth " << ip << " " << port << " " << type << endl;
+      CChannelRec* chn = self->getChnHandle(dst_chn);
+      if (NULL == chn)
+         continue;
 
       if (type != 0)
       {
@@ -738,8 +775,8 @@ cout << "recv sth " << ip << " " << port << " " << type << endl;
 
          case 2: // RTT probe
             ack[0] = 1;
-            ack[3] = id;
-            ack[4] = 0;
+            ack[4] = id;
+            ack[5] = 0;
             ::sendto(self->m_UDPSocket, (char*)ack, CGMPMessage::g_iHdrSize, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
 
             break;
@@ -767,8 +804,8 @@ cout << "recv sth " << ip << " " << port << " " << type << endl;
                // Return this message with the UDT port on this side
                // iff the other side does not have the information yet.
                ack[0] = 3;
-               ack[3] = id;
-               ack[4] = self->m_iUDTReusePort;
+               ack[4] = id;
+               ack[5] = self->m_iUDTReusePort;
                ::sendto(self->m_UDPSocket, (char*)ack, CGMPMessage::g_iHdrSize, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
             }
 
@@ -777,7 +814,6 @@ cout << "recv sth " << ip << " " << port << " " << type << endl;
             if ((self->m_PeerHistory.getUDTSocket(ip, port, usock) < 0) ||
                 (UDT::getsockstate(usock) != CONNECTED))               
             {
-cout << "passive create UDT " << ip << " " << port << " self " << self->m_iUDTReusePort << endl;
                // No existing connection, or connection has been broken.
                // Create a new one.
                self->UDTCreate(usock);
@@ -789,7 +825,6 @@ cout << "passive create UDT " << ip << " " << port << " self " << self->m_iUDTRe
 
             if (UDT::getsockstate(usock) == OPENED)
             {
-cout << "++++++++++connect to " << ip << " " << port << " " << info << endl;
                // info carries peer udt port.
                self->UDTConnect(usock, ip, info);
             }
@@ -808,8 +843,8 @@ cout << "++++++++++connect to " << ip << " " << port << " " << info << endl;
       if (self->m_PeerHistory.hit(ip, ntohs(addr.sin_port), session, id))
       {
          ack[0] = 1;
-         ack[3] = id;
-         ack[4] = 0;
+         ack[4] = id;
+         ack[5] = 0;
          ::sendto(self->m_UDPSocket, (char*)ack, CGMPMessage::g_iHdrSize, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
 
          continue;
@@ -821,6 +856,8 @@ cout << "++++++++++connect to " << ip << " " << port << " " << info << endl;
       rec->m_pMsg = new CGMPMessage;
       //rec->m_pMsg->m_iType = type;
       rec->m_pMsg->m_iSession = session;
+      rec->m_pMsg->m_iSrcChn = src_chn;
+      rec->m_pMsg->m_iDstChn = dst_chn;
       rec->m_pMsg->m_iID = id;
       rec->m_pMsg->m_iInfo = info;
       rec->m_pMsg->m_iLength = rsize - CGMPMessage::g_iHdrSize;
@@ -830,53 +867,27 @@ cout << "++++++++++connect to " << ip << " " << port << " " << info << endl;
       self->m_PeerHistory.insert(rec->m_strIP, rec->m_iPort, session, id);
 
       int qsize = 0;
-
-      if (0 == info)
-      {
-         #ifndef WIN32
-            pthread_mutex_lock(&self->m_RcvQueueLock);
-            self->m_qRcvQueue.push(rec);
-            qsize += self->m_qRcvQueue.size();
-            pthread_mutex_unlock(&self->m_RcvQueueLock);
-            pthread_cond_signal(&self->m_RcvQueueCond);
-         #else
-            WaitForSingleObject(self->m_RcvQueueLock, INFINITE);
-            self->m_qRcvQueue.push(rec);
-            qsize += self->m_qRcvQueue.size();
-            ReleaseMutex(self->m_RcvQueueLock);
-            SetEvent(self->m_RcvQueueCond);
-         #endif
-      }
-      else
-      {
-         #ifndef WIN32
-            pthread_mutex_lock(&self->m_ResQueueLock);
-            self->m_mResQueue[info] = rec;
-            pthread_mutex_unlock(&self->m_ResQueueLock);
-            pthread_cond_signal(&self->m_ResQueueCond);
-         #else
-            WaitForSingleObject(self->m_ResQueueLock, INFINITE);
-            self->m_mResQueue[info] = rec;
-            ReleaseMutex(self->m_ResQueueLock);
-            SetEvent(self->m_ResQueueCond);
-         #endif
-      }
+      self->storeMsg(info, chn, rec, qsize);
 
       ack[0] = 1;
-      ack[3] = id;
-      ack[4] = qsize; // flow control
+      ack[4] = id;
+      ack[5] = qsize; // flow control
       ::sendto(self->m_UDPSocket, (char*)ack, CGMPMessage::g_iHdrSize, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
    }
 
    delete [] buf;
 
-   #ifndef WIN32
-      pthread_cond_signal(&self->m_RcvQueueCond);
-      pthread_cond_signal(&self->m_ResQueueCond);
-   #else
-      SetEvent(self->m_RcvQueueCond);
-      SetEvent(self->m_ResQueueCond);
-   #endif
+   // Wake up all blocking recvs.
+   for (map<int, CChannelRec*>::iterator i = self->m_mCurrentChn.begin(); i != self->m_mCurrentChn.end(); ++ i)
+   {
+      #ifndef WIN32
+         pthread_cond_signal(&i->second->m_RcvQueueCond);
+         pthread_cond_signal(&i->second->m_ResQueueCond);
+      #else
+         SetEvent(i->second->m_RcvQueueCond);
+         SetEvent(i->second->m_ResQueueCond);
+      #endif
+   }
 
    return NULL;
 }
@@ -889,14 +900,14 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 {
    CGMP* self = (CGMP*)s;
 
-   int32_t header[5];
+   int32_t header[CGMPMessage::g_iHdrField];
 
    while (!self->m_bClosed)
    {
-//TODO: use timeout.
+      //TODO: use timeout.
       set<UDTSOCKET> readfds;
       UDT::epoll_wait(self->m_iUDTEPollID, &readfds, NULL, -1);
-cout << " haha!!! " << readfds.size() << endl;
+
       for (set<UDTSOCKET>::iterator i = readfds.begin(); i != readfds.end(); ++ i)
       {
          int port;
@@ -923,9 +934,10 @@ cout << " haha!!! " << readfds.size() << endl;
          rec->m_pMsg = new CGMPMessage;
          //rec->m_pMsg->m_iType = type;
          rec->m_pMsg->m_iSession = header[1];
-         rec->m_pMsg->m_iChannel = header[2];
-         rec->m_pMsg->m_iID = header[3];
-         rec->m_pMsg->m_iInfo = header[4];
+         rec->m_pMsg->m_iSrcChn = header[2];
+         rec->m_pMsg->m_iDstChn = header[3];
+         rec->m_pMsg->m_iID = header[4];
+         rec->m_pMsg->m_iInfo = header[5];
 
          // recv parameter size
          if (self->UDTRecv(*i, (char*)&(rec->m_pMsg->m_iLength), 4) < 0)
@@ -944,64 +956,38 @@ cout << " haha!!! " << readfds.size() << endl;
             continue;
          }
 
+         CChannelRec* chn = self->getChnHandle(rec->m_pMsg->m_iDstChn);
+         if (chn == NULL)
+         {
+            delete rec->m_pMsg;
+            delete rec;
+            continue;
+         }
+
          if (self->m_PeerHistory.hit(rec->m_strIP, rec->m_iPort, rec->m_pMsg->m_iSession, rec->m_pMsg->m_iID))
             continue;
 
          self->m_PeerHistory.insert(rec->m_strIP, rec->m_iPort, rec->m_pMsg->m_iSession, rec->m_pMsg->m_iID);
 
-         const int32_t info = header[4]; // "Info" field, carries 0 for new message, non-zero for a response.
-         if (0 == info)
-         {
-            #ifndef WIN32
-               pthread_mutex_lock(&self->m_RcvQueueLock);
-               self->m_qRcvQueue.push(rec);
-               pthread_mutex_unlock(&self->m_RcvQueueLock);
-               pthread_cond_signal(&self->m_RcvQueueCond);
-            #else
-               WaitForSingleObject(self->m_RcvQueueLock, INFINITE);
-               self->m_qRcvQueue.push(rec);
-               ReleaseMutex(self->m_RcvQueueLock);
-               SetEvent(self->m_RcvQueueCond);
-            #endif
-         }
-         else
-         {
-            #ifndef WIN32
-               pthread_mutex_lock(&self->m_ResQueueLock);
-               self->m_mResQueue[info] = rec;
-               pthread_mutex_unlock(&self->m_ResQueueLock);
-               pthread_cond_signal(&self->m_ResQueueCond);
-            #else
-               WaitForSingleObject(self->m_ResQueueLock, INFINITE);
-               self->m_mResQueue[info] = rec;
-               ReleaseMutex(self->m_ResQueueLock);
-               SetEvent(self->m_ResQueueCond);
-            #endif
-         }
+         int tmp;
+         self->storeMsg(rec->m_pMsg->m_iInfo, chn, rec, tmp);
       }
    }
-
-   #ifndef WIN32
-      pthread_cond_signal(&self->m_RcvQueueCond);
-      pthread_cond_signal(&self->m_ResQueueCond);
-   #else
-      SetEvent(self->m_RcvQueueCond);
-      SetEvent(self->m_ResQueueCond);
-   #endif
 
    return NULL;
 }
 
-int CGMP::rpc(const string& ip, const int& port, CUserMessage* req, CUserMessage* res, const int& channel)
+int CGMP::rpc(const string& ip, const int& port, CUserMessage* req, CUserMessage* res, const int& src_chn, const int& dst_chn)
 {
    int32_t id = 0;
-   if (sendto(ip, port, id, req) < 0)
+   if (sendto(ip, port, id, req, src_chn, dst_chn) < 0)
       return -1;
 
    uint64_t t = CTimer::getTime();
    int errcount = 0;
 
-   while (recv(id, res) < 0)
+   int tmp;
+   while (recv(id, res, &tmp, dst_chn) < 0)
    {
       if (rtt(ip, port, true) < 0)
          errcount ++;
@@ -1017,7 +1003,7 @@ int CGMP::rpc(const string& ip, const int& port, CUserMessage* req, CUserMessage
    return 0;
 }
 
-int CGMP::multi_rpc(const vector<Address>& dest, CUserMessage* req, vector<CUserMessage*>* res, const int& channel)
+int CGMP::multi_rpc(const vector<Address>& dest, CUserMessage* req, vector<CUserMessage*>* res, const int& src_chn, const int& dst_chn)
 {
    unsigned int tn = dest.size();
 
@@ -1032,8 +1018,8 @@ int CGMP::multi_rpc(const vector<Address>& dest, CUserMessage* req, vector<CUser
    vector<int>::iterator n = ids.begin();
    for (vector<Address>::const_iterator i = dest.begin(); i != dest.end(); ++ i)
    {
-      int id = 0;       
-      if (sendto(i->m_strIP, i->m_iPort, id, req) < 0)
+      int id = 0;
+      if (sendto(i->m_strIP, i->m_iPort, id, req, src_chn, dst_chn) < 0)
          id = 0;
 
       *n = id;
@@ -1061,7 +1047,8 @@ int CGMP::multi_rpc(const vector<Address>& dest, CUserMessage* req, vector<CUser
          else
             msg = &tmp;
 
-         while (recv(*n, msg) < 0)
+         int tmp_src;
+         while (recv(*n, msg, &tmp_src, dst_chn) < 0)
          {
             if (rtt(a->m_strIP, a->m_iPort, true) < 0)
                errcount ++;
@@ -1139,15 +1126,15 @@ int CGMP::createChn()
 {
    CGuard cg(m_ChnLock);
 
-   do
-   {
+   do {
       m_iChnIDSeed ++;
       if (m_iChnIDSeed < 0)
          m_iChnIDSeed = 1;
-      if (m_sCurrentChn.insert(m_iChnIDSeed).second)
-         break;
-   }
-   while (true);
+      if (m_mCurrentChn.find(m_iChnIDSeed) != m_mCurrentChn.end())
+         continue;
+      m_mCurrentChn[m_iChnIDSeed] = new CChannelRec;
+      break;
+   } while (true);
 
    return m_iChnIDSeed;
 }
@@ -1155,7 +1142,53 @@ int CGMP::createChn()
 int CGMP::releaseChn(int chn)
 {
    CGuard cg(m_ChnLock);
-   if (m_sCurrentChn.erase(chn))
+   if (m_mCurrentChn.erase(chn))
       return 0;
    return -1;
+}
+
+CChannelRec* CGMP::getChnHandle(int id)
+{
+   CChannelRec* chn = NULL;
+   CGuard::enterCS(m_ChnLock);
+   map<int, CChannelRec*>::iterator i = m_mCurrentChn.find(id);
+   if (i != m_mCurrentChn.end())
+      chn = i->second;
+   // TODO: increase reference count.
+   CGuard::leaveCS(m_ChnLock);
+   return chn;
+}
+
+void CGMP::storeMsg(int info, CChannelRec* chn, CMsgRecord* rec, int& qsize)
+{
+   if (0 == info)
+   {
+      #ifndef WIN32
+         pthread_mutex_lock(&chn->m_RcvQueueLock);
+         chn->m_qRcvQueue.push(rec);
+         qsize += chn->m_qRcvQueue.size();
+         pthread_mutex_unlock(&chn->m_RcvQueueLock);
+         pthread_cond_signal(&chn->m_RcvQueueCond);
+      #else
+         WaitForSingleObject(chn->m_RcvQueueLock, INFINITE);
+         chn->m_qRcvQueue.push(rec);
+         qsize += chn->m_qRcvQueue.size();
+         ReleaseMutex(chn->m_RcvQueueLock);
+         SetEvent(chn->m_RcvQueueCond);
+      #endif
+   }
+   else
+   {
+      #ifndef WIN32
+         pthread_mutex_lock(&chn->m_ResQueueLock);
+         chn->m_mResQueue[info] = rec;
+         pthread_mutex_unlock(&chn->m_ResQueueLock);
+         pthread_cond_signal(&chn->m_ResQueueCond);
+      #else
+         WaitForSingleObject(chn->m_ResQueueLock, INFINITE);
+         chn->m_mResQueue[info] = rec;
+         ReleaseMutex(chn->m_ResQueueLock);
+         SetEvent(chn->m_ResQueueCond);
+      #endif
+   }
 }
