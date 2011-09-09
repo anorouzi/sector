@@ -234,10 +234,25 @@ DWORD WINAPI Test_2_Cli(LPVOID)
       return 0;
    }
 
+   // Test small messages.
+   for (int i = 0; i < 0; ++ i)
+   {
+      id = 0;
+      gmp.sendto(server_ip, server_port, id, &req, local_chn, remote_chn);
+      res.m_pcBuffer[0] = 0;
+      if (gmp.recv(id, &res, &remote_chn, local_chn) >= 0)
+         cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
+      else
+         cout << "recv error\n";
+   }
+
+   // Test large messages.
+   req.m_iDataLength = 2000;
    for (int i = 0; i < 10; ++ i)
    {
       id = 0;
       gmp.sendto(server_ip, server_port, id, &req, local_chn, remote_chn);
+cout << "waiting for ID ============ " << id << endl;
       res.m_pcBuffer[0] = 0;
       if (gmp.recv(id, &res, &remote_chn, local_chn) >= 0)
          cout << "UDP response: " << id << " " << res.m_pcBuffer << " " << res.m_iDataLength << " " << gmp.rtt(server_ip, server_port) << endl;
@@ -266,7 +281,7 @@ int main()
    Test_Srv[1] = Test_2_Srv;
    Test_Cli[1] = Test_2_Cli;
 
-   for (int i = 0; i < test_case; ++ i)
+   for (int i = 1; i < test_case; ++ i)
    {
 #ifndef WIN32
       pthread_t srv, cli;

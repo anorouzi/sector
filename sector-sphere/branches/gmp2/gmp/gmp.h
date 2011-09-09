@@ -191,6 +191,7 @@ public:
    int rtt(const std::string& ip, const int& port, const bool& clear = false);
 
 private: // Send data using UDP or UDT.
+   // "id" carries response ID initially (0 if not a response), and will return current message ID.
    int UDPsend(const char* ip, const int& port, int32_t& id, const int& src_chn, const int& dst_chn, 
                const char* data, const int& len, const bool& reliable = true);
    int UDPsend(const char* ip, const int& port, CGMPMessage* msg);

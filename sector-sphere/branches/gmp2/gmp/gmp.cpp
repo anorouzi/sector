@@ -416,6 +416,8 @@ int CGMP::UDTsend(const char* ip, const int& port, int32_t& id, const int& src_c
       // Store the message for sending when the UDT connection is set up.
       CGMPMessage* msg = new CGMPMessage;
       msg->pack(data, len, id, src_chn, dst_chn);
+      id = msg->m_iID;
+
       CMsgRecord* rec = new CMsgRecord;
       rec->m_strIP = ip;
       rec->m_iPort = port;
@@ -846,7 +848,6 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
          ack[4] = id;
          ack[5] = 0;
          ::sendto(self->m_UDPSocket, (char*)ack, CGMPMessage::g_iHdrSize, 0, (sockaddr*)&addr, sizeof(sockaddr_in));
-
          continue;
       }
 
