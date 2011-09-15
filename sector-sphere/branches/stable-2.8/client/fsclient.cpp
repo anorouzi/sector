@@ -647,7 +647,9 @@ int FSClient::flush()
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   CGuard fg(m_FileLock);
+   //CGuard fg(m_FileLock);
+   if (pthread_mutex_trylock(&m_FileLock) != 0)
+      return -1;
 
    return flush_();
 }
