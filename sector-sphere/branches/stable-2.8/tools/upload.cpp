@@ -77,7 +77,7 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
    option.m_strHintIP = ip;
    option.m_strCluster = cid;
 
-   int mode = SF_MODE::WRITE;
+   int mode = SF_MODE::WRITE | SF_MODE::TRUNC;
    if (secure)
       mode |= SF_MODE::SECURE;
 
@@ -319,13 +319,13 @@ int main(int argc, char** argv)
                // failed, remove the file in Sector.
                client.remove(dst);
                success = false;
-               break;
+               Utility::logout(client);
+               return -1;
             }
          }
       }
    }
 
    Utility::logout(client);
-
    return success ? 0 : -1;
 }
