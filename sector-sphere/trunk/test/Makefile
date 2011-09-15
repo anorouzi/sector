@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-EXE = iotest send_dbg_cmd
+EXE = iotest send_dbg_cmd testfile
 
 all: $(EXE)
 
@@ -19,6 +19,9 @@ iotest: iotest.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 send_dbg_cmd: send_dbg_cmd.cpp
+	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
+
+testfile: testfile.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 clean:
