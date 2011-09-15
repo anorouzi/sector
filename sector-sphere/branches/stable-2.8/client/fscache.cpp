@@ -240,6 +240,10 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    if (cb->m_llOffset + cb->m_llSize < offset + size)
       readsize = cb->m_llOffset + cb->m_llSize - offset;
 
+   // cache miss if cache content is smaller than read size
+   if (readsize < size)
+      return 0;
+
    memcpy(buf, cb->m_pcBlock + offset - cb->m_llOffset, readsize);
 
    // Update last access time.
