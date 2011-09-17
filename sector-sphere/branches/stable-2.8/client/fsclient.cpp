@@ -650,8 +650,10 @@ int FSClient::flush()
    //CGuard fg(m_FileLock);
    if (pthread_mutex_trylock(&m_FileLock) != 0)
       return -1;
+   int ret =  flush_();
+   pthread_mutex_unlock(&m_FileLock);
 
-   return flush_();
+   return ret;
 }
 
 int FSClient::close()
