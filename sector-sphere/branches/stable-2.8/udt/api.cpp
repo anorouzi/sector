@@ -95,7 +95,6 @@ CUDTSocket::~CUDTSocket()
 
    delete m_pUDT;
    m_pUDT = NULL;
-
    delete m_pQueuedSockets;
    delete m_pAcceptSockets;
 
@@ -640,11 +639,11 @@ UDTSOCKET CUDTUnited::accept(const UDTSOCKET listen, sockaddr* addr, int* addrle
          }
          else if (!ls->m_pUDT->m_bSynRecving)
             accepted = true;
-         else if (LISTENING == ls->m_Status)
-            pthread_cond_wait(&(ls->m_AcceptCond), &(ls->m_AcceptLock));
-
-         if ((LISTENING != ls->m_Status) || ls->m_pUDT->m_bBroken)
+         else if ((LISTENING != ls->m_Status) || ls->m_pUDT->m_bBroken)
             accepted = true;
+
+         if (!accepted && (LISTENING == ls->m_Status))
+            pthread_cond_wait(&(ls->m_AcceptCond), &(ls->m_AcceptLock));
 
          if (ls->m_pQueuedSockets->empty())
             m_EPoll.disable_read(listen, ls->m_pUDT->m_sPollID);
@@ -768,7 +767,6 @@ int CUDTUnited::connect(const UDTSOCKET u, const sockaddr* name, const int& name
 int CUDTUnited::close(const UDTSOCKET u)
 {
    CUDTSocket* s = locate(u);
-
    if (NULL == s)
       throw CUDTException(5, 4, 0);
 
