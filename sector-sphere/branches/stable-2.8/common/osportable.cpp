@@ -378,7 +378,7 @@ int LocalFS::mkdir(const string& path)
 int LocalFS::rmdir(const string& path)
 {
    clean_dir(path);
-   erase(path);
+   ::rmdir(path.c_str());
 
    return 0;
 }
