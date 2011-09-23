@@ -20,10 +20,11 @@ written by
 *****************************************************************************/
 
 #include <fstream>
+#include <iostream>
 
 #include "common.h"
 #include "sectorfs.h"
-#include <iostream>
+#include "fusedircache.h"
 using namespace std;
 
 Sector SectorFS::g_SectorClient;
@@ -39,6 +40,7 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    g_SectorClient.init();
    g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
    g_SectorClient.setMaxCacheSize(conf.m_llMaxCacheSize);
+   DirCache::instance();
 
    bool master_conn = false;
    for (set<Address, AddrComp>::const_iterator i = conf.m_sMasterAddr.begin(); i != conf.m_sMasterAddr.end(); ++ i)
@@ -61,6 +63,7 @@ void SectorFS::destroy(void *)
 {
    g_SectorClient.logout();
    g_SectorClient.close();
+   DirCache::destroy();
 }
 
 int SectorFS::getattr(const char* path, struct stat* st)
@@ -69,11 +72,22 @@ int SectorFS::getattr(const char* path, struct stat* st)
    if (!g_bConnected) return -1;
 
    SNode s;
-   int r = g_SectorClient.stat(path, s);
-   if (r < 0)
+
+   int rv = DirCache::instance().get(path, g_SectorClient, s);
+   if( rv < 0 )
    {
-      checkConnection(r);
-      return translateErr(r);
+      checkConnection(rv);
+      return translateErr(rv);
+   }
+
+   if( rv == 1 )
+   {
+      int r = g_SectorClient.stat(path, s);
+      if (r < 0)
+      {
+         checkConnection(r);
+         return translateErr(r);
+      }
    }
 
    if (s.m_bIsDir)
@@ -242,6 +256,8 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
       checkConnection(r);
       return translateErr(r);
    }
+
+   DirCache::instance().add(path, filelist);
 
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
