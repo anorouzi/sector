@@ -700,7 +700,11 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
    Client* self = (Client*)param;
    int64_t last_heart_beat_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
-   srandomdev();
+   #ifdef APPLE
+      srandomdev();
+   #else
+      srand(static_cast<int>(last_heart_beat_time));
+   #endif
 
    while (self->m_bActive)
    {

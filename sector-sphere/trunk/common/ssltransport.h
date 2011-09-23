@@ -31,6 +31,9 @@ written by
 #include "transport.h"
 #include "udt.h"
 
+namespace sector
+{
+
 class SSLTransport //: public Transport
 {
 public:
@@ -74,5 +77,7 @@ private:
 private:
    static int g_iInstance;
 };
+
+}  // namespace sector
 
 #endif

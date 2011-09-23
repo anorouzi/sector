@@ -25,6 +25,9 @@ written by
 
 #include "osportable.h"
 
+namespace sector
+{
+
 class Topology;
 
 class SlaveManager
@@ -98,5 +101,7 @@ private:
 private:
    CMutex m_SlaveLock;
 };
+
+}  // namespace sector
 
 #endif

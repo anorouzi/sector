@@ -506,7 +506,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
          break;
       }
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogEnd();
+      m_SectorLog << LogStart(1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogEnd();
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -834,12 +834,18 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
 
    //TODO: if the current master is down, try a different master
    if (m_GMP.rpc(master_ip.c_str(), master_port, &msg, &msg) < 0)
+   {
+      m_SectorLog << LogStart(1) << "failed to report a file transaction " << change << LogEnd();
       return -1;
+   }
 
    if (msg.getType() < 0)
+   {
+      m_SectorLog << LogStart(1) << "Master rejected file transaction report " << change << LogEnd();
       return *(int32_t*)msg.getData();
+   }
 
-   return 1;
+   return 0;
 }
 
 int Slave::reportMO(const string& master_ip, const int& master_port, const int32_t& transid)
@@ -933,7 +939,7 @@ int Slave::reportSphere(const string& master_ip, const int& master_port, const i
    if (msg.getType() < 0)
       return *(int32_t*)msg.getData();
 
-   return 1;
+   return 0;
 }
 
 int Slave::createDir(const string& path)
@@ -950,7 +956,7 @@ int Slave::createDir(const string& path)
       currpath += "/";
    }
 
-   return 1;
+   return 0;
 }
 
 int Slave::createSysDir()
@@ -1179,7 +1185,11 @@ DWORD WINAPI Slave::worker(LPVOID param)
 
    int64_t last_report_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
-   srandomdev();
+   #ifdef APPLE
+      srandomdev();
+   #else
+      srand(static_cast<int>(last_report_time));
+   #endif
 
    while (self->m_bRunning)
    {

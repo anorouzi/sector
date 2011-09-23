@@ -137,6 +137,8 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          m_sPeerRec.erase(t);
          m_sPeerRecByTS.erase(j);
 
+         // BUG: when set reaches limit, this cause busy CPU loop
+         /*
          bool delip = true;
          for (set<CPeerRecord*, CFPeerRec>::iterator k = m_sPeerRec.begin(); k != m_sPeerRec.end(); ++ k)
          {
@@ -148,7 +150,9 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          }
 
          if (delip)
-            m_mRTT.erase(t->m_strIP);
+         */
+
+         m_mRTT.erase(t->m_strIP);
 
          delete t;
       }

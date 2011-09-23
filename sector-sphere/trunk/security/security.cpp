@@ -19,20 +19,21 @@ written by
    Yunhong Gu, last updated 04/24/2011
 *****************************************************************************/
 
-#include "security.h"
-#include <sector.h>
+#ifndef WIN32
+   #include <arpa/inet.h>
+   #include <pthread.h>
+   #include <sys/socket.h>
+#endif
 #include <fstream>
 #include <iostream>
 #include <signal.h>
 #include <sys/types.h>
-#ifndef WIN32
-   #include <pthread.h>
-   #include <sys/socket.h>
-   #include <arpa/inet.h>
-#endif
+
+#include "sector.h"
+#include "security.h"
 
 using namespace std;
-
+using namespace sector;
 
 int User::serialize(const vector<string>& input, string& buf) const
 {

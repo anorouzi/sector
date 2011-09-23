@@ -77,7 +77,7 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
    option.m_strHintIP = ip;
    option.m_strCluster = cid;
 
-   int mode = SF_MODE::WRITE;
+   int mode = SF_MODE::WRITE | SF_MODE::TRUNC;
    if (secure)
       mode |= SF_MODE::SECURE;
 

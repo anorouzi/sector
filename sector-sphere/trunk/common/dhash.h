@@ -22,9 +22,12 @@ written by
 #ifndef __DHASH_H__
 #define __DHASH_H__
 
-#include <openssl/sha.h>
 #include <math.h>
+#include <openssl/sha.h>
 #include <string>
+
+namespace sector
+{
 
 class DHash
 {
@@ -39,5 +42,7 @@ public:
 private:
    unsigned int m_im;
 };
+
+}  // namespace sector
 
 #endif

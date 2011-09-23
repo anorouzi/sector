@@ -26,6 +26,7 @@ written by
 #include "fscache.h"
 
 using namespace std;
+using namespace sector;
 
 int64_t CacheBlock::s_llBlockIDSeed = 0;
 
@@ -225,7 +226,7 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
       {
          // Once we find a block, the search is stopped. If the block does not have all the requested data,
          // partial data may be returned. We let the app to handle this situation (e.g., issue another
-         // read with updated paramters).
+         // read with updated parameters).
          cb = **block;
          it = *block;
          break;
@@ -239,6 +240,10 @@ int64_t Cache::read(const string& path, char* buf, const int64_t& offset, const 
    int64_t readsize = size;
    if (cb->m_llOffset + cb->m_llSize < offset + size)
       readsize = cb->m_llOffset + cb->m_llSize - offset;
+
+   // Cache miss if cache content is smaller than read size.
+   if (readsize < size)
+      return 0;
 
    memcpy(buf, cb->m_pcBlock + offset - cb->m_llOffset, readsize);
 

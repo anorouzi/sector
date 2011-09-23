@@ -21,24 +21,26 @@ written by
 
 
 #ifndef WIN32
-   #include <netinet/in.h>
-   #include <sys/types.h>
-   #include <sys/socket.h>
    #include <arpa/inet.h>
    #include <netdb.h>
+   #include <netinet/in.h>
+   #include <sys/socket.h>
+   #include <sys/types.h>
    #include <unistd.h>
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
 #endif
-#include <string.h>
 #include <fstream>
+#include <iostream>
 #include <sstream>
-#include <sector.h>
+#include <string.h>
+
+#include "sector.h"
 #include "ssltransport.h"
 
-#include <iostream>
 using namespace std;
+using namespace sector;
 
 int SSLTransport::g_iInstance = 0;
 
@@ -54,6 +56,8 @@ SSLTransport::~SSLTransport()
 {
    if (NULL != m_pSSL)
       SSL_free(m_pSSL);
+
+   //m_pCTX is shared for all server sockets (same as listening socket), so cannot be freed.
    //if (NULL != m_pCTX)
    //   SSL_CTX_free(m_pCTX);
 }
@@ -168,6 +172,7 @@ SSLTransport* SSLTransport::accept(char* ip, int& port)
    inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
    port = addr.sin_port;
 
+   // CTX is shared for all accepted SSL connections.
    t->m_pSSL = SSL_new(m_pCTX);
    SSL_set_fd(t->m_pSSL, t->m_iSocket);
 

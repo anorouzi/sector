@@ -19,12 +19,13 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-#include "user.h"
 #include <common.h>
 #include <string.h>
 
-using namespace std;
+#include "user.h"
 
+using namespace std;
+using namespace sector;
 
 int User::deserialize(vector<string>& dirs, const string& buf)
 {
