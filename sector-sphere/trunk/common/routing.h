@@ -26,7 +26,6 @@ written by
 #include <vector>
 #include <map>
 #include <string>
-#include "dhash.h"
 #include <udt.h>
 #include <sector.h>
 #ifndef WIN32

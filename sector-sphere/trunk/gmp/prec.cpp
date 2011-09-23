@@ -219,7 +219,7 @@ int32_t CPeerManagement::hash(const string& ip, const int& port, const int& sess
    char tmp[1024];
    sprintf(tmp, "%s%d%d%d", ip.c_str(), port, session, id);
 
-   return DHash::hash(tmp, m_uiHashSpace);
+   return sector::DHash::hash(tmp, m_uiHashSpace);
 }
 
 int CPeerManagement::addRecentPR(const CPeerRecord& pr)
