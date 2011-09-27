@@ -122,6 +122,8 @@ int SectorFS::mkdir(const char* path, mode_t /*mode*/)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
    {
@@ -136,6 +138,8 @@ int SectorFS::unlink(const char* path)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   DirCache::clear();
 
    // If the file has been opened, close it first.
    if (lookup(path) != NULL)
@@ -156,6 +160,8 @@ int SectorFS::rmdir(const char* path)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
@@ -170,6 +176,8 @@ int SectorFS::rename(const char* src, const char* dst)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   DirCache::clear();
 
    // If the file has been opened, close it first.
    if (lookup(src) != NULL)
@@ -321,6 +329,8 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    SNode s;
    if (g_SectorClient.stat(path, s) < 0)
    {
@@ -345,6 +355,8 @@ int SectorFS::truncate(const char* path, off_t /*size*/)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    // Otherwise open the file and perform trunc.
    fuse_file_info option;
    option.flags = O_WRONLY | O_TRUNC;
@@ -363,6 +375,8 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   DirCache::clear();
 
    // TODO: file option should be checked.
    bool owner = false;
@@ -578,6 +592,8 @@ int SectorFS::restart()
 {
    if (g_bConnected)
       return 0;
+
+   DirCache::clear();
 
    g_SectorClient.logout();
    g_SectorClient.close();

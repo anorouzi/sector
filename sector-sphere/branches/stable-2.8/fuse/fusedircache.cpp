@@ -19,21 +19,7 @@ DirCache::~DirCache()
     pthread_mutex_destroy(&mutex);
 }
 
-void DirCache::clear_old() {
-    
-    Lock l(mutex);
-    time_t tsNow = time(NULL);
-
-    CacheList::iterator it = cache.begin(), end = cache.end();
-    for (; it != end; ++it) {
-        if (it->ts + TIME_OUT < tsNow) {
-            cache.erase(it, end);
-            return;
-        }
-    }
-}
-
-void DirCache::clear() {
+void DirCache::clear_cache() {
 
     Lock l(mutex);
     cache.clear();

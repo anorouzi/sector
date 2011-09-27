@@ -36,13 +36,11 @@ public:
     DirCache();
     ~DirCache();
 
-    void clear_old();
-
     void add(const std::string& path, const std::vector<SNode>& filelist);
 
     int get(const std::string& path, Sector& sectorClient, SNode& node);
 
-    void clear();
+    void clear_cache();
 
     static DirCache& instance()
     {
@@ -50,6 +48,10 @@ public:
             inst = new DirCache();
 
         return *inst;
+    }
+
+    static void clear() {
+        instance().clear();
     }
 
     static void destroy()
