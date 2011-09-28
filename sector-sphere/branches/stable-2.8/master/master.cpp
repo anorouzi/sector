@@ -1059,7 +1059,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 {
    Master* self = (Master*)s;
 
-   const int ProcessWorker = 4;
+   const int ProcessWorker = 1;
    for (int i = 0; i < ProcessWorker; ++ i)
    {
 #ifndef WIN32
