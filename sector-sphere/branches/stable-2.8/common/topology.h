@@ -33,9 +33,6 @@ written by
 
 #include "sector.h"
 
-namespace sector
-{
-
 struct SlaveStatus
 {
    static const int DOWN = 0;
@@ -166,7 +163,5 @@ private:
 
    std::vector<TopoMap> m_vTopoMap;
 };
-
-}  // namespace sector
 
 #endif

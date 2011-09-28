@@ -20,10 +20,11 @@ written by
 *****************************************************************************/
 
 #include <fstream>
+#include <iostream>
 
 #include "common.h"
 #include "sectorfs.h"
-#include <iostream>
+#include "fusedircache.h"
 using namespace std;
 
 Sector SectorFS::g_SectorClient;
@@ -39,6 +40,7 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    g_SectorClient.init();
    g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
    g_SectorClient.setMaxCacheSize(conf.m_llMaxCacheSize);
+   DirCache::instance();
 
    bool master_conn = false;
    for (set<Address, AddrComp>::const_iterator i = conf.m_sMasterAddr.begin(); i != conf.m_sMasterAddr.end(); ++ i)
@@ -61,6 +63,7 @@ void SectorFS::destroy(void *)
 {
    g_SectorClient.logout();
    g_SectorClient.close();
+   DirCache::destroy();
 }
 
 int SectorFS::getattr(const char* path, struct stat* st)
@@ -69,11 +72,22 @@ int SectorFS::getattr(const char* path, struct stat* st)
    if (!g_bConnected) return -1;
 
    SNode s;
-   int r = g_SectorClient.stat(path, s);
-   if (r < 0)
+
+   int rv = DirCache::instance().get(path, g_SectorClient, s);
+   if( rv < 0 )
    {
-      checkConnection(r);
-      return translateErr(r);
+      checkConnection(rv);
+      return translateErr(rv);
+   }
+
+   if( rv == 1 )
+   {
+      int r = g_SectorClient.stat(path, s);
+      if (r < 0)
+      {
+         checkConnection(r);
+         return translateErr(r);
+      }
    }
 
    if (s.m_bIsDir)
@@ -108,6 +122,8 @@ int SectorFS::mkdir(const char* path, mode_t /*mode*/)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
    {
@@ -122,6 +138,8 @@ int SectorFS::unlink(const char* path)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   DirCache::clear();
 
    // If the file has been opened, close it first.
    if (lookup(path) != NULL)
@@ -142,6 +160,8 @@ int SectorFS::rmdir(const char* path)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
@@ -156,6 +176,8 @@ int SectorFS::rename(const char* src, const char* dst)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   DirCache::clear();
 
    // If the file has been opened, close it first.
    if (lookup(src) != NULL)
@@ -243,6 +265,8 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
       return translateErr(r);
    }
 
+   DirCache::instance().add(path, filelist);
+
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       struct stat st;
@@ -305,6 +329,8 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    SNode s;
    if (g_SectorClient.stat(path, s) < 0)
    {
@@ -329,6 +355,8 @@ int SectorFS::truncate(const char* path, off_t /*size*/)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    // Otherwise open the file and perform trunc.
    fuse_file_info option;
    option.flags = O_WRONLY | O_TRUNC;
@@ -347,6 +375,8 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
 {
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
+
+   DirCache::clear();
 
    // TODO: file option should be checked.
    bool owner = false;
@@ -562,6 +592,8 @@ int SectorFS::restart()
 {
    if (g_bConnected)
       return 0;
+
+   DirCache::clear();
 
    g_SectorClient.logout();
    g_SectorClient.close();

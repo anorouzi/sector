@@ -21,12 +21,9 @@ written by
 
 #include <common.h>
 #include <cstring>
-
-#include "dhash.h"
 #include "routing.h"
 
 using namespace std;
-using namespace sector;
 
 Routing::Routing():
 m_iKeySpace(32)

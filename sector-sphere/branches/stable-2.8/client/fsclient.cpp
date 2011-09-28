@@ -647,10 +647,10 @@ int FSClient::flush()
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
-   // Do NOT flush in the middle of an IO.
+   //CGuard fg(m_FileLock);
    if (pthread_mutex_trylock(&m_FileLock) != 0)
       return -1;
-   int ret = flush_();
+   int ret =  flush_();
    pthread_mutex_unlock(&m_FileLock);
 
    return ret;

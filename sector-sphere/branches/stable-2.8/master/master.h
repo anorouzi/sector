@@ -37,11 +37,11 @@ written by
 #include "transaction.h"
 #include "user.h"
 
-namespace sector
-{
-
 class SSLTransport;
 class Topology;
+
+namespace sector
+{
 
 class MasterConf
 {
@@ -266,11 +266,6 @@ private:
 
 public:
    static void startSlave(const std::string& addr, const std::string& base, const std::string& option, const std::string& log = "");
-
-private:
-   // TODO: catch SEG_FAULT/SEG_ABORT and save current command and state.
-   // DO SO to slave and client as well.
-   void deathTrap() {}
 };
 
 } // namespace sector

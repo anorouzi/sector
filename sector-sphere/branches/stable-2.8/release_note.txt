@@ -1,7 +1,5 @@
 version 2.7
 
-various bug fixes and code improvement
-sync with UDT 4.9
 include module unittest into the source distribution
 new fs client cache
 multiple master address for client.conf

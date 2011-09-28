@@ -93,6 +93,7 @@ int Client::init()
 #endif
 
    m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client initialized" << LogEnd();
+
    return 0;
 }
 
@@ -175,7 +176,6 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
       char* tmp = new char[size];
       secconn.recv(tmp, size);
       m_Topology.deserialize(tmp, size);
-      delete [] tmp;
    }
 
    Address addr;
@@ -332,6 +332,10 @@ int Client::close()
       m_iKey = 0;
       m_GMP.close();
       UDTTransport::release();
+
+#ifdef WIN32
+      WSACleanup();
+#endif
    }
 
    return 0;
@@ -696,11 +700,7 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
    Client* self = (Client*)param;
    int64_t last_heart_beat_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
-   #ifdef APPLE
-      srandomdev();
-   #else
-      srand(static_cast<int>(last_heart_beat_time));
-   #endif
+   srand(pthread_self());
 
    while (self->m_bActive)
    {

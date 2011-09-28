@@ -106,7 +106,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
          newfile.close();
-         file_change = true;
       }
       else
       {

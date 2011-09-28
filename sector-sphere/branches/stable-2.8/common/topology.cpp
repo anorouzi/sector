@@ -41,7 +41,6 @@ written by
 #include <topology.h>
 
 using namespace std;
-using namespace sector;
 
 SlaveNode::SlaveNode():
 m_iNodeID(-1),

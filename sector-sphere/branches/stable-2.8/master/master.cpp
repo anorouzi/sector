@@ -129,11 +129,7 @@ int Master::init()
    // set and configure replication strategies
    m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist);
    if (m_ReplicaConf.refresh(m_strSectorHome + "/conf/replica.conf"))
-   {
-      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
-                                     m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist,
-                                     m_ReplicaConf.m_mRestrictedLoc);
-   }
+      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
 
    // load slave list and addresses
    loadSlaveStartInfo(m_strSectorHome + "/conf/slaves.list", m_sSlaveStartInfo);
@@ -760,9 +756,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       branch = new Index;
       branch->init(tmp_meta_file.str());
       branch->deserialize("/", tmp_meta_file.str(), &addr);
-      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
-                                m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist,
-                                m_ReplicaConf.m_mRestrictedLoc);
+      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
       LocalFS::erase(tmp_meta_file.str());
 
       sn.m_llTotalFileSize = branch->getTotalDataSize("/");
@@ -816,8 +810,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
                slvconn.sendfile(left_file.c_str(), 0, size);
             LocalFS::erase(left_file);
 
-            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip
-                        << " contains some files that are conflict with existing files." << LogEnd();
+            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogEnd();
          }
 
          // send the list of masters to the new slave
@@ -897,18 +890,21 @@ int Master::processUserJoin(SSLTransport& cliconn,
          cliconn.send(m_pcTopoData, m_iTopoDataSize);
 
       int32_t size = 0;
+      char* buf = NULL;
+
       secconn.recv((char*)&size, 4);
       if (size > 0)
       {
-         char* buf = new char[size];
+         buf = new char[size];
          secconn.recv(buf, size);
          au->deserialize(au->m_vstrReadList, buf);
          delete [] buf;
       }
+
       secconn.recv((char*)&size, 4);
       if (size > 0)
       {
-         char* buf = new char[size];
+         buf = new char[size];
          secconn.recv(buf, size);
          au->deserialize(au->m_vstrWriteList, buf);
          delete [] buf;
@@ -1063,9 +1059,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 {
    Master* self = (Master*)s;
 
-   //TODO: A given user must always be sent to the same thread.
-   //Implement multi-queue for this.
-   const int ProcessWorker = 1;
+   const int ProcessWorker = 4;
    for (int i = 0; i < ProcessWorker; ++ i)
    {
 #ifndef WIN32
@@ -1096,8 +1090,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       if (NULL == user)
       {
          self->reject(ip, port, id, SectorError::E_EXPIRED);
-         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Rejected Req from "
-                           << ip << " " << port << " " << id << " " << SectorError::E_EXPIRED << LogEnd();
+         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Rejected Req from " << ip << " " << port << " " << id << " " << SectorError::E_EXPIRED << LogEnd();
          continue;
       }
 
@@ -1133,8 +1126,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       if (!secure)
       {
          self->reject(ip, port, id, SectorError::E_SECURITY);
-         self->m_SectorLog << LogStart(3) << "Rejected Req from " << user->m_strName << " " << user->m_iKey << " "
-                           << ip << " " << port << " " << id << " " << SectorError::E_SECURITY << LogEnd();
+         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Rejected Req from " << user->m_strName << " " << user->m_iKey << " " << ip << " " << port << " " << id << " " << SectorError::E_SECURITY << LogEnd();
          continue;
       }
 
@@ -1202,7 +1194,6 @@ int Master::processMasterJoin(SSLTransport& mstconn,
          self->reject(p->ip, p->port, p->id, SectorError::E_UNKNOWN);
       }
 
-      // Release acclocated SectorMsg and the job descriptor.
       delete p->msg;
       delete p;
    }
@@ -1241,7 +1232,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          string fileinfo = msg->getData() + pos + 4;
          pos += size + 4;
 
-         m_SectorLog << LogStart(9) << "File update " << change << " " << fileinfo << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File update " << change << " " << fileinfo << LogEnd();
 
          // restore file information
          SNode sn;
@@ -1801,14 +1792,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (rt < 0)
       {
          m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
-         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
-                                        m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
       }
       else
       {
          m_pMetadata->move(src.c_str(), dst.c_str());
-         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
-                                        m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
       }
 
       msg->setData(0, src.c_str(), src.length() + 1);
@@ -2844,11 +2833,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
          // refresh special replication settings
          if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
-         {
-            self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist,
-                                                 self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist,
-                                                 self->m_ReplicaConf.m_mRestrictedLoc);
-         }
+            self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
 
          // TODO:: optimize this process: if there are too many files, this scan may kill the master
          under_replicated.clear();
@@ -2857,7 +2842,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
          if (!under_replicated.empty())
          {
-            self->m_SectorLog << LogStart(1) << "Warning: found " << under_replicated.size() << " files that are under replicated." << LogEnd();
+            self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Warning: found " << under_replicated.size() << " files that are under replicated." << LogEnd();
 
             self->m_ReplicaLock.acquire();
             for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)

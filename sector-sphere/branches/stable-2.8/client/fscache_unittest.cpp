@@ -104,7 +104,7 @@ int test2()
    large_buf = new char[block2];
    cache.insert(large_buf, filename, off2, block2);
 
-   // Cache should contain most recent block only,
+   // Cache should constain most recent block only,
    assert(cache.getCacheSize() == 901);
 
    cout << "IO cache check passed.\n";
@@ -141,6 +141,7 @@ int test3(const int64_t& max, int unit, int block)
    cout << "performance and memory leak testing passed.\n";
    return 0;
 }
+
 
 // Consistency check.
 int test4()

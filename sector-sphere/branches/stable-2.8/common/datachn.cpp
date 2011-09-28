@@ -71,8 +71,8 @@ DataChn::~DataChn()
    {
       delete i->second;
    }
+
    m_mChannel.clear();
-   m_Base.close();
 
    CGuard::releaseMutex(m_ChnLock);
 }

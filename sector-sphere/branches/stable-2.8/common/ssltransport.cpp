@@ -21,31 +21,28 @@ written by
 
 
 #ifndef WIN32
+   #include <netinet/in.h>
+   #include <sys/types.h>
+   #include <sys/socket.h>
    #include <arpa/inet.h>
    #include <netdb.h>
-   #include <netinet/in.h>
-   #include <sys/socket.h>
-   #include <sys/types.h>
    #include <unistd.h>
 #else
    #include <winsock2.h>
    #include <ws2tcpip.h>
 #endif
-#include <fstream>
-#include <iostream>
-#include <sstream>
 #include <string.h>
-
-#include "sector.h"
+#include <fstream>
+#include <sstream>
+#include <sector.h>
 #include "ssltransport.h"
 
+#include <iostream>
 using namespace std;
-using namespace sector;
 
 int SSLTransport::g_iInstance = 0;
 
 SSLTransport::SSLTransport():
-m_bClientCTX(false),
 m_pCTX(NULL),
 m_pSSL(NULL),
 m_iSocket(0),
@@ -55,15 +52,10 @@ m_bConnected(false)
 
 SSLTransport::~SSLTransport()
 {
-   close();
-
-   // Server m_pCTX is shared for all server sockets (same as listening socket), so cannot be freed.
-   if ((NULL != m_pCTX) && m_bClientCTX)
-      SSL_CTX_free(m_pCTX);
-   //TODO: there is memory leak for the server CTX.
-
    if (NULL != m_pSSL)
       SSL_free(m_pSSL);
+   //if (NULL != m_pCTX)
+   //   SSL_CTX_free(m_pCTX);
 }
 
 void SSLTransport::init()
@@ -81,11 +73,6 @@ void SSLTransport::init()
 void SSLTransport::destroy()
 {
    g_iInstance --;
-
-   if (0 == g_iInstance)
-   {
-      CRYPTO_cleanup_all_ex_data();
-   }
 }
 
 int SSLTransport::initServerCTX(const char* cert, const char* key)
@@ -105,7 +92,7 @@ int SSLTransport::initServerCTX(const char* cert, const char* key)
       return SectorError::E_INITCTX;
    }
 
-   return 0;
+   return 1;
 }
 
 int SSLTransport::initClientCTX(const char* cert)
@@ -119,8 +106,8 @@ int SSLTransport::initClientCTX(const char* cert)
       m_pCTX = NULL;
       return SectorError::E_INITCTX;
    }
-   m_bClientCTX = true;
-   return 0;
+
+   return 1;
 }
 
 int SSLTransport::open(const char* ip, const int& port)
@@ -181,7 +168,6 @@ SSLTransport* SSLTransport::accept(char* ip, int& port)
    inet_ntop(AF_INET, &(addr.sin_addr), ip, 64);
    port = addr.sin_port;
 
-   // CTX is shared for all accepted SSL connections.
    t->m_pSSL = SSL_new(m_pCTX);
    SSL_set_fd(t->m_pSSL, t->m_iSocket);
 
@@ -242,29 +228,29 @@ int SSLTransport::connect(const char* host, const int& port)
       return SectorError::E_SECURITY;
    }
 
-   // NOTE: When this is enabled, please check memory leak.
-   //X509* peer_cert = SSL_get_peer_certificate(m_pSSL);
-   //char peer_CN[256];
-   //X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert), NID_commonName, peer_CN, 256);
+   X509* peer_cert = SSL_get_peer_certificate(m_pSSL);
+   char peer_CN[256];
+   X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert), NID_commonName, peer_CN, 256);
    //if (strcasecmp(peer_CN, host))
    //{
    //   cerr << "server name does not match.\n";
    //   return -1;
    //}
-   //X509_OBJECT_free_contents(peer_cert);
 
    m_bConnected = true;
 
-   return 0;
+   return 1;
 }
 
 int SSLTransport::close()
 {
    if (!m_bConnected)
       return 0;
+
+   SSL_shutdown(m_pSSL);
+
    m_bConnected = false;
-   // SSL shutdown requires up to 4 rounds of attempts.
-   for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
+
 #ifndef WIN32
    return ::close(m_iSocket);
 #else
@@ -369,5 +355,5 @@ int SSLTransport::getLocalIP(string& ip)
 
    ip = inet_ntop(AF_INET, &(addr.sin_addr), tmp, 64);
 
-   return 0;
+   return 1;
 }

@@ -23,10 +23,7 @@ written by
 #ifndef __SECURITY_SOURCE_FILE_H__
 #define __SECURITY_SOURCE_FILE_H__
 
-#include "security.h"
-
-namespace sector
-{
+#include <security.h>
 
 class FileSrc: public SSource
 {
@@ -60,7 +57,5 @@ private:
    std::string m_strConfLoc;
    int64_t m_llLastUpdateTime;
 };
-
-}  // namespace sector
 
 #endif

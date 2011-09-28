@@ -19,14 +19,12 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
+#include <sector.h>
+#include <security.h>
+#include <filesrc.h>
 #include <iostream>
 
-#include "filesrc.h"
-#include "sector.h"
-#include "security.h"
-
 using namespace std;
-using namespace sector;
 
 int main(int argc, char** argv)
 {

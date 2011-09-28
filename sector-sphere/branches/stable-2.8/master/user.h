@@ -23,15 +23,11 @@ written by
 #ifndef __SECTOR_USER_H__
 #define __SECTOR_USER_H__
 
-#include <map>
-#include <stdint.h>
 #include <string>
 #include <vector>
-
-#include "osportable.h"
-
-namespace sector
-{
+#include <map>
+#include <stdint.h>
+#include <osportable.h>
 
 class User
 {
@@ -74,14 +70,9 @@ public:
    User* lookup(int key);
    int remove(int key);
 
-   // TODO: A reference count should be used for the User structure,
-   // so that it will not be deleted when its pointer is used.
-
 private:
    std::map<int, User*> m_mActiveUsers;
    CMutex m_Lock;
 };
-
-}  // namespace sector
 
 #endif

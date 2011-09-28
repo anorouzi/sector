@@ -29,10 +29,8 @@ written by
 #endif
 #include <string>
 
-#include "index.h"
+#include <index.h>
 
-namespace sector
-{
 
 struct InfoBlock
 {
@@ -135,6 +133,5 @@ private:
    pthread_mutex_t m_Lock;
 };
 
-}  // namespace sector
 
 #endif

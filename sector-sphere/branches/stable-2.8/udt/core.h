@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2009, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 05/07/2011
+   Yunhong Gu, last updated 06/10/2009
 *****************************************************************************/
 
 #ifndef __UDT_CORE_H__
@@ -62,8 +62,7 @@ friend class CUDTSocket;
 friend class CUDTUnited;
 friend class CCC;
 friend struct CUDTComp;
-friend class CCache<CInfoBlock>;
-friend class CRendezvousQueue;
+friend class CCache;
 friend class CSndQueue;
 friend class CRcvQueue;
 friend class CSndUList;
@@ -140,15 +139,6 @@ private:
    void connect(const sockaddr* peer);
 
       // Functionality:
-      //    Process the response handshake packet.
-      // Parameters:
-      //    0) [in] pkt: handshake packet.
-      // Returned value:
-      //    Return 0 if connected, positive value if connection is in progress, otherwise error code.
-
-   int connect(const CPacket& pkt) throw ();
-
-      // Functionality:
       //    Connect to a UDT entity listening at address "peer", which has sent "hs" request.
       // Parameters:
       //    0) [in] peer: The address of the listening UDT entity.
@@ -166,7 +156,6 @@ private:
       //    None.
 
    void close();
-
       // Functionality:
       //    Request UDT to send out a data block "data" with size of "len".
       // Parameters:
@@ -278,12 +267,12 @@ private: // Identification
    UDTSOCKET m_PeerID;				// peer id, for multiplexer
    static const int m_iVersion;                 // UDT version, for compatibility use
 
-private: // Packet sizes
+private: // Packet size and sequence number attributes
    int m_iPktSize;                              // Maximum/regular packet size, in bytes
    int m_iPayloadSize;                          // Maximum/regular payload size, in bytes
 
 private: // Options
-   int m_iMSS;                                  // Maximum Segment Size, in bytes
+   int m_iMSS;                                  // Maximum Segment Size
    bool m_bSynSending;                          // Sending syncronization mode
    bool m_bSynRecving;                          // Receiving syncronization mode
    int m_iFlightFlagSize;                       // Maximum number of packets in flight from the peer side
@@ -302,11 +291,10 @@ private: // Options
 private: // congestion control
    CCCVirtualFactory* m_pCCFactory;             // Factory class to create a specific CC instance
    CCC* m_pCC;                                  // congestion control class
-   CCache<CInfoBlock>* m_pCache;		// network information cache
+   CCache* m_pCache;				// network information cache
 
 private: // Status
    volatile bool m_bListening;                  // If the UDT entit is listening to connection
-   volatile bool m_bConnecting;			// The short phase when connect() is called but not yet completed
    volatile bool m_bConnected;                  // Whether the connection is on or off
    volatile bool m_bClosing;                    // If the UDT entity is closing
    volatile bool m_bShutdown;                   // If the peer side has shutdown the connection
@@ -316,16 +304,12 @@ private: // Status
    int m_iBrokenCounter;			// a counter (number of GC checks) to let the GC tag this socket as disconnected
 
    int m_iEXPCount;                             // Expiration counter
-   int m_iBandwidth;                            // Estimated bandwidth, number of packets per second
-   int m_iRTT;                                  // RTT, in microseconds
+   int m_iBandwidth;                            // Estimated bandwidth
+   int m_iRTT;                                  // RTT
    int m_iRTTVar;                               // RTT variance
    int m_iDeliveryRate;				// Packet arrival rate at the receiver side
 
-   uint64_t m_ullLingerExpiration;		// Linger expiration time (for GC to close a socket with data in sending buffer)
-
-   CHandShake m_ConnReq;			// connection request
-   CHandShake m_ConnRes;			// connection response
-   int64_t m_llLastReqTime;			// last time when a connection request is sent
+   uint64_t m_ullLingerExpiration;		// Linger expiration time (for GC to close a socket with data in sending buffer) 
 
 private: // Sending related data
    CSndBuffer* m_pSndBuffer;                    // Sender buffer
@@ -415,12 +399,12 @@ private: // Trace
    int64_t m_llSndDurationCounter;		// timers to record the sending duration
 
 private: // Timers
-   uint64_t m_ullCPUFrequency;                  // CPU clock frequency, used for Timer, ticks per microsecond
+   uint64_t m_ullCPUFrequency;                  // CPU clock frequency, used for Timer
 
-   static const int m_iSYNInterval;             // Periodical Rate Control Interval, 10000 microsecond
+   static const int m_iSYNInterval;             // Periodical Rate Control Interval, 10 ms
    static const int m_iSelfClockInterval;       // ACK interval for self-clocking
 
-   uint64_t m_ullNextACKTime;			// Next ACK time, in CPU clock cycles, same below
+   uint64_t m_ullNextACKTime;			// Next ACK time, in CPU clock cycles
    uint64_t m_ullNextNAKTime;			// Next NAK time
    uint64_t m_ullNextEXPTime;			// Next timeout
 
@@ -430,13 +414,12 @@ private: // Timers
    volatile uint64_t m_ullEXPInt;		// EXP interval
    volatile int64_t m_llLastRspTime;		// time stamp of last response from the peer
 
-   uint64_t m_ullMinNakInt;			// NAK timeout lower bound; too small value can cause unnecessary retransmission
    uint64_t m_ullMinExpInt;			// timeout lower bound threshold: too small timeout can cause problem
 
    int m_iPktCount;				// packet counter for ACK
    int m_iLightACKCount;			// light ACK counter
 
-   uint64_t m_ullTargetTime;			// scheduled time of next packet sending
+   uint64_t m_ullTargetTime;			// target time of next packet sending
 
    void checkTimers();
 

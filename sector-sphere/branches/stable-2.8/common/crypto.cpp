@@ -21,20 +21,17 @@ written by
 
 
 #ifndef WIN32
-   #include <sys/time.h>
    #include <unistd.h>
+   #include <sys/time.h>
 #endif
-#include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
-#include <string.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-
-#include "common.h"
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <string.h>
+#include <common.h>
 #include "crypto.h"
-
-using namespace sector;
 
 Crypto::Crypto():
 m_CoderType(INIT)
@@ -170,3 +167,4 @@ int Crypto::decrypt(unsigned char* input, int insize, unsigned char* output, int
    outsize = op - output;
    return 0;
 }
+

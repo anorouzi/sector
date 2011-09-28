@@ -28,17 +28,15 @@ written by
    #include <ws2tcpip.h>
    #define atoll _atoi64
 #endif
+#include <osportable.h>
 #include <iostream>
 #include <fstream>
-
-#include "conf.h"
-#include "filesrc.h"
-#include "meta.h"
-#include "osportable.h"
-#include "sector.h"
+#include <filesrc.h>
+#include <sector.h>
+#include <conf.h>
+#include <meta.h>
 
 using namespace std;
-using namespace sector;
 
 FileSrc::FileSrc():
 m_llLastUpdateTime(0)

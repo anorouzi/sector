@@ -24,9 +24,6 @@ written by
 
 #include <openssl/evp.h>
 
-namespace sector
-{
-
 class Crypto
 {
 enum Type {INIT, ENC, DEC};
@@ -54,7 +51,5 @@ private:
    static const int g_iEncBlockSize = 1024;
    static const int g_iDecBlockSize = 1024;
 };
-
-}  // namespace sector
 
 #endif
