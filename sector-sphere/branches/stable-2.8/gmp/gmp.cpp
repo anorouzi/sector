@@ -154,6 +154,12 @@ CGMP::CGMP()
 
 CGMP::~CGMP()
 {
+   for (list<CMsgRecord*>::iterator i = m_lSndQueue.begin(); i != m_lSndQueue.end(); ++ i)
+   {
+      delete (*i)->m_pMsg;
+      delete *i;
+   }
+
    CGuard::releaseMutex(m_SndQueueLock);
    CGuard::releaseCond(m_SndQueueCond);
    CGuard::releaseMutex(m_RcvQueueLock);
@@ -217,6 +223,8 @@ int CGMP::close()
 {
    if (!m_bInit)
       return 1;
+
+   // TODO: release resources.
 
    m_bClosed = true;
 
@@ -706,7 +714,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
                      char* ip;
                      if (NULL != (ip = inet_ntoa(addr.sin_addr)))
                   #endif
-                     self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), CGMPMessage::g_iSession, -1, rtt, info);
+                  self->m_PeerHistory.insert(ip, ntohs(addr.sin_port), CGMPMessage::g_iSession, -1, rtt, info);
 
                   #ifndef WIN32
                      pthread_cond_signal(&self->m_RTTCond);

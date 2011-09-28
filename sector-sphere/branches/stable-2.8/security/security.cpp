@@ -19,20 +19,21 @@ written by
    Yunhong Gu, last updated 04/24/2011
 *****************************************************************************/
 
-#include "security.h"
-#include <sector.h>
+#ifndef WIN32
+   #include <arpa/inet.h>
+   #include <pthread.h>
+   #include <sys/socket.h>
+#endif
 #include <fstream>
 #include <iostream>
 #include <signal.h>
 #include <sys/types.h>
-#ifndef WIN32
-   #include <pthread.h>
-   #include <sys/socket.h>
-   #include <arpa/inet.h>
-#endif
+
+#include "sector.h"
+#include "security.h"
 
 using namespace std;
-
+using namespace sector;
 
 int User::serialize(const vector<string>& input, string& buf) const
 {
@@ -77,7 +78,7 @@ int SServer::init(const int& port, const char* cert, const char* key)
 
    m_SSL.listen();
 
-   return 1;
+   return 0;
 }
 
 void SServer::close()
@@ -156,13 +157,13 @@ int32_t SServer::generateKey()
    SServer* self = ((Param*)p)->sserver;
    SSLTransport* s = ((Param*)p)->ssl;
    delete (Param*)p;
-
+cout << "thread 11\n";
    while (true)
    {
       int32_t cmd;
       if (s->recv((char*)&cmd, 4) <= 0)
          goto EXIT;
-
+cout << "cmd = " << cmd << endl;
       // check if the security source has been updated (e.g., user account change)
       if (self->m_pSecuritySource->isUpdated())
          self->m_pSecuritySource->refresh();

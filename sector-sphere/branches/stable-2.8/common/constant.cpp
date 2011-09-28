@@ -19,7 +19,7 @@ written by
    Yunhong Gu, last updated 08/16/2010
 *****************************************************************************/
 
-#include <sector.h>
+#include "sector.h"
 
 using namespace std;
 

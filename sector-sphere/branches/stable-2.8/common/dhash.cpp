@@ -19,9 +19,11 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-
 #include <string.h>
+
 #include "dhash.h"
+
+using namespace sector;
 
 DHash::DHash():
 m_im(32)

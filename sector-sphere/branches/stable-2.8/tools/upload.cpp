@@ -319,13 +319,13 @@ int main(int argc, char** argv)
                // failed, remove the file in Sector.
                client.remove(dst);
                success = false;
-               Utility::logout(client);
-               return -1;
+               break;
             }
          }
       }
    }
 
    Utility::logout(client);
+
    return success ? 0 : -1;
 }

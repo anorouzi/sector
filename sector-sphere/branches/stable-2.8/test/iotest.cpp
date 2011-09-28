@@ -17,14 +17,7 @@ using namespace std;
 int main()
 {
    Sector client;
-
-   Session s;
-   s.loadInfo("../conf/client.conf");
-
-   if (client.init(s.m_ClientConf.m_strMasterIP, s.m_ClientConf.m_iMasterPort) < 0)
-      return -1;
-   if (client.login(s.m_ClientConf.m_strUserName, s.m_ClientConf.m_strPassword, s.m_ClientConf.m_strCertificate.c_str()) < 0)
-      return -1;
+   Utility::login(client);
 
    SectorFile* f = client.createSectorFile();
 
@@ -56,9 +49,7 @@ sleep(30);
    f->close();
    client.releaseSectorFile(f);
 
-
-   client.logout();
-   client.close();
+   Utility::logout(client);
 
    return 0;
 }

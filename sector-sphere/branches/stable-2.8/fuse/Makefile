@@ -12,7 +12,7 @@ LDFLAGS += -lfuse
 
 all: sector-fuse
 
-OBJS = sectorfs.o fusedircache.o
+OBJS = sectorfs.o
 
 %.o: %.cpp %.h
 	$(C++) -fPIC $(CCFLAGS) $< -c

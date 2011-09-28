@@ -48,6 +48,7 @@ m_iRcvTimeO(-1)
 
 UDTTransport::~UDTTransport()
 {
+   close();
 }
 
 void UDTTransport::initialize()

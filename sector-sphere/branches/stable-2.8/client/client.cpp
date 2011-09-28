@@ -80,7 +80,7 @@ int Client::init()
 
    if (m_GMP.init(0) < 0)
       return SectorError::E_GMP;
-
+cout << "gmp up\n";
    int dataport = 0;
    if (m_DataChn.init("", dataport) < 0)
       return SectorError::E_DATACHN;
@@ -93,7 +93,7 @@ int Client::init()
 #endif
 
    m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client initialized" << LogEnd();
-
+cout << "init down\n";
    return 0;
 }
 
@@ -176,6 +176,7 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
       char* tmp = new char[size];
       secconn.recv(tmp, size);
       m_Topology.deserialize(tmp, size);
+      delete [] tmp;
    }
 
    Address addr;
@@ -218,7 +219,7 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
    m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client successfully login to "
          << m_strServerIP << ":" << m_iServerPort
          << LogEnd();
-
+cout << "login done\n";
    return m_iKey;
 }
 
@@ -332,10 +333,6 @@ int Client::close()
       m_iKey = 0;
       m_GMP.close();
       UDTTransport::release();
-
-#ifdef WIN32
-      WSACleanup();
-#endif
    }
 
    return 0;
@@ -700,7 +697,11 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
    Client* self = (Client*)param;
    int64_t last_heart_beat_time = CTimer::getTime();
    int64_t last_gc_time = CTimer::getTime();
-   srand(pthread_self());
+   #ifdef APPLE
+      srandomdev();
+   #else
+      srand(static_cast<int>(last_heart_beat_time));
+   #endif
 
    while (self->m_bActive)
    {

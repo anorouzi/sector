@@ -22,11 +22,15 @@ written by
 #ifndef __SECURITY_H__
 #define __SECURITY_H__
 
-#include <ssltransport.h>
 #include <map>
-#include <vector>
-#include <string>
 #include <stdint.h>
+#include <string>
+#include <vector>
+
+#include "ssltransport.h"
+
+namespace sector
+{
 
 struct Key
 {
@@ -114,5 +118,7 @@ private:
 private:
    SSource* m_pSecuritySource;
 };
+
+}  // namespace sector
 
 #endif

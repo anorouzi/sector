@@ -34,6 +34,7 @@ written by
 #include "topology.h"
 
 using namespace std;
+using namespace sector;
 
 SlaveManager::SlaveManager():
 m_pTopology(NULL),
@@ -557,6 +558,14 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
    // When the first rule ties, choose one with least available space.
    for (set<Address, AddrComp>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
+      int id = m_mAddrList[*i];
+      if (m_mSlaveList[id].m_iStatus == SlaveStatus::DISKFULL)
+      {
+         // If node is full, we should remove files from this node.
+         addr = *i;
+         return 0;
+      }
+
       // TODO: optimize this by using ID instead of address.
       set<Address, AddrComp> tmp = loclist;
       tmp.erase(*i);

@@ -31,6 +31,9 @@ written by
 #include "transport.h"
 #include "udt.h"
 
+namespace sector
+{
+
 class SSLTransport //: public Transport
 {
 public:
@@ -44,10 +47,13 @@ public:
 public:
    int initServerCTX(const char* cert, const char* key);
    int initClientCTX(const char* cert);
+   int releaseCTX() {} // TODO: release CTX manually by Sector, not destructor.
 
    int open(const char* ip, const int& port);
 
+   // DO NOT close the listening SSL transport until all accepted transports are closed.
    int listen();
+
    SSLTransport* accept(char* ip, int& port);
    int connect(const char* ip, const int& port);
    int close();
@@ -61,6 +67,7 @@ public:
    int getLocalIP(std::string& ip);
 
 private:
+   bool m_bClientCTX;
    SSL_CTX* m_pCTX;
    SSL* m_pSSL;
 #ifndef WIN32
@@ -74,5 +81,7 @@ private:
 private:
    static int g_iInstance;
 };
+
+}  // namespace sector
 
 #endif

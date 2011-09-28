@@ -19,12 +19,13 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-#include "user.h"
 #include <common.h>
 #include <string.h>
 
-using namespace std;
+#include "user.h"
 
+using namespace std;
+using namespace sector;
 
 int User::deserialize(vector<string>& dirs, const string& buf)
 {
@@ -243,6 +244,7 @@ int UserManager::remove(int key)
    if (i == m_mActiveUsers.end())
       return -1;
 
+   delete i->second;
    m_mActiveUsers.erase(i);
    return 0;
 } 
