@@ -80,7 +80,7 @@ int Client::init()
 
    if (m_GMP.init(0) < 0)
       return SectorError::E_GMP;
-cout << "gmp up\n";
+
    int dataport = 0;
    if (m_DataChn.init("", dataport) < 0)
       return SectorError::E_DATACHN;
@@ -93,7 +93,6 @@ cout << "gmp up\n";
 #endif
 
    m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client initialized" << LogEnd();
-cout << "init down\n";
    return 0;
 }
 
@@ -219,7 +218,7 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
    m_Log << LogStart(LogLevel::LEVEL_1) << "Sector client successfully login to "
          << m_strServerIP << ":" << m_iServerPort
          << LogEnd();
-cout << "login done\n";
+
    return m_iKey;
 }
 
