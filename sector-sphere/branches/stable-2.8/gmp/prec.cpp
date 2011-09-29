@@ -70,6 +70,7 @@ CPeerManagement::CPeerManagement()
 
 CPeerManagement::~CPeerManagement()
 {
+   clearPR();
    CGuard::releaseMutex(m_PeerRecLock);
 }
 
@@ -137,7 +138,8 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          m_sPeerRec.erase(t);
          m_sPeerRecByTS.erase(j);
 
-/*
+         // BUG: when set reaches limit, this cause busy CPU loop
+         /*
          bool delip = true;
          for (set<CPeerRecord*, CFPeerRec>::iterator k = m_sPeerRec.begin(); k != m_sPeerRec.end(); ++ k)
          {
@@ -149,8 +151,9 @@ void CPeerManagement::insert(const string& ip, const int& port, const int& sessi
          }
 
          if (delip)
-*/
-            m_mRTT.erase(t->m_strIP);
+         */
+
+         m_mRTT.erase(t->m_strIP);
 
          delete t;
       }
@@ -243,6 +246,25 @@ int CPeerManagement::addRecentPR(const CPeerRecord& pr)
    }
 
    return 0;
+}
+
+void CPeerManagement::clearPR()
+{
+   CGuard recguard(m_PeerRecLock);
+
+   for (map<int, list<CPeerRecord> >::iterator i = m_mRecentRec.begin(); i != m_mRecentRec.end(); ++ i)
+   {
+      i->second.clear();
+   }
+   m_mRecentRec.clear();
+
+   for (set<CPeerRecord*, CFPeerRecByTS>::iterator i = m_sPeerRecByTS.begin(); i !=  m_sPeerRecByTS.end(); ++ i)
+   {
+      delete *i;
+   }
+   m_sPeerRecByTS.clear();
+
+   m_sPeerRec.clear();
 }
 
 bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)

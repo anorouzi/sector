@@ -122,6 +122,7 @@ public:
 
 private:
    int addRecentPR(const CPeerRecord& pr);
+   void clearPR();
 
 private:
    //TODO: use hash table and linked list to implement the record cache
