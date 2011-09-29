@@ -25,6 +25,7 @@ written by
 #include <iostream>
 
 using namespace std;
+using namespace sector;
 
 int main(int argc, char** argv)
 {

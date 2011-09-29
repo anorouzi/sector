@@ -37,11 +37,12 @@ written by
 #include "transaction.h"
 #include "user.h"
 
-class SSLTransport;
 class Topology;
 
 namespace sector
 {
+
+class SSLTransport;
 
 class MasterConf
 {

@@ -25,6 +25,9 @@ written by
 
 #include <security.h>
 
+namespace sector
+{
+
 class FileSrc: public SSource
 {
 public:
@@ -57,5 +60,7 @@ private:
    std::string m_strConfLoc;
    int64_t m_llLastUpdateTime;
 };
+
+}  // namespace sector
 
 #endif

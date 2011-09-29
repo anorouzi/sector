@@ -37,6 +37,7 @@ written by
 #include <meta.h>
 
 using namespace std;
+using namespace sector;
 
 FileSrc::FileSrc():
 m_llLastUpdateTime(0)

@@ -32,7 +32,7 @@ written by
 #endif
 
 using namespace std;
-
+using namespace sector;
 
 int User::serialize(const vector<string>& input, string& buf) const
 {

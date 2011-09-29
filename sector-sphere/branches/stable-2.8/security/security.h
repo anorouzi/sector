@@ -28,6 +28,9 @@ written by
 #include <string>
 #include <stdint.h>
 
+namespace sector
+{
+
 struct Key
 {
    char m_pcIP[64];
@@ -114,5 +117,7 @@ private:
 private:
    SSource* m_pSecuritySource;
 };
+
+}  // namespace sector
 
 #endif
