@@ -50,7 +50,7 @@ m_bConnected(false)
 
 TCPTransport::~TCPTransport()
 {
-
+   close();
 }
 
 int TCPTransport::open(int& port, bool /*rendezvous*/, bool reuseaddr)
