@@ -176,6 +176,7 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
       char* tmp = new char[size];
       secconn.recv(tmp, size);
       m_Topology.deserialize(tmp, size);
+      delete [] tmp;
    }
 
    Address addr;
