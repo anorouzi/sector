@@ -47,7 +47,7 @@ public:
 public:
    int initServerCTX(const char* cert, const char* key);
    int initClientCTX(const char* cert);
-   int releaseCTX() {} // TODO: release CTX manually by Sector, not destructor.
+   int releaseCTX() { return 0; } // TODO: release CTX manually by Sector, not destructor.
 
    int open(const char* ip, const int& port);
 
