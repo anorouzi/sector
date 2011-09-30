@@ -38,7 +38,7 @@ written by
 
 #include "sector.h"
 #include "ssltransport.h"
-
+#include <iostream>
 using namespace std;
 using namespace sector;
 
@@ -84,7 +84,7 @@ void SSLTransport::destroy()
 
    if (0 == g_iInstance)
    {
-      CRYPTO_cleanup_all_ex_data();
+      //CRYPTO_cleanup_all_ex_data();
    }
 }
 
