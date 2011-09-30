@@ -23,6 +23,7 @@ void DirCache::clear_cache() {
 
     Lock l(mutex);
     cache.clear();
+    lastUnresolvedStatPathTs = 0;
 }
 
 void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) {
@@ -112,7 +113,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 //          << lastUnresolvedStatPathTs << " tsNow " << tsNow << std::endl;
 // No need to have lock around timeout comparison, as worse that can happen - 
 // we will do extra ls instead of stat
-      if (lastUnresolvedStatPath == dirpath && lastUnresolvedStatPathTs + TIME_OUT >= tsNow) {
+      if (lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath) {
 //        log << "get " << path << " repeated miss - get dir" << std::endl;
         int r = sectorClient.list(dirpath, filelist);
         if (r < 0) return r;
