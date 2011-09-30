@@ -51,7 +51,7 @@ public:
     }
 
     static void clear() {
-        instance().clear();
+        instance().clear_cache();
     }
 
     static void destroy()
