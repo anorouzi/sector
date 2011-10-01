@@ -897,21 +897,18 @@ int Master::processUserJoin(SSLTransport& cliconn,
          cliconn.send(m_pcTopoData, m_iTopoDataSize);
 
       int32_t size = 0;
-      char* buf = NULL;
-
       secconn.recv((char*)&size, 4);
       if (size > 0)
       {
-         buf = new char[size];
+         char* buf = new char[size];
          secconn.recv(buf, size);
          au->deserialize(au->m_vstrReadList, buf);
          delete [] buf;
       }
-
       secconn.recv((char*)&size, 4);
       if (size > 0)
       {
-         buf = new char[size];
+         char* buf = new char[size];
          secconn.recv(buf, size);
          au->deserialize(au->m_vstrWriteList, buf);
          delete [] buf;
@@ -1066,7 +1063,9 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 {
    Master* self = (Master*)s;
 
-   const int ProcessWorker = 4;
+   //TODO: A given user must always be sent to the same thread.
+   //Implement multi-queue for this.
+   const int ProcessWorker = 1;
    for (int i = 0; i < ProcessWorker; ++ i)
    {
 #ifndef WIN32

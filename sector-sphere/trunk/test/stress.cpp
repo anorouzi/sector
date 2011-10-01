@@ -7,11 +7,17 @@ using namespace std;
 
 int main()
 {
-   while (true)
+   for (int i = 0; i < 1000000; ++ i)
    {
-      Sector client;
-      Utility::login(client);
-      Utility::logout(client);
+      Sector* client = new Sector;;
+      Utility::login(*client);
+
+      SNode s;
+      client->stat("/dst", s);
+
+      Utility::logout(*client);
+      delete client;
+      cout << "test " << i << endl;
    }
 
    return 0;

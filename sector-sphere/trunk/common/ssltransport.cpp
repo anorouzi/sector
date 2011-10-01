@@ -45,6 +45,7 @@ using namespace sector;
 int SSLTransport::g_iInstance = 0;
 
 SSLTransport::SSLTransport():
+m_bClientCTX(false),
 m_pCTX(NULL),
 m_pSSL(NULL),
 m_iSocket(0),
@@ -54,12 +55,15 @@ m_bConnected(false)
 
 SSLTransport::~SSLTransport()
 {
+   close();
+
+   // Server m_pCTX is shared for all server sockets (same as listening socket), so cannot be freed.
+   if ((NULL != m_pCTX) && m_bClientCTX)
+      SSL_CTX_free(m_pCTX);
+   //TODO: there is memory leak for the server CTX.
+
    if (NULL != m_pSSL)
       SSL_free(m_pSSL);
-
-   //m_pCTX is shared for all server sockets (same as listening socket), so cannot be freed.
-   //if (NULL != m_pCTX)
-   //   SSL_CTX_free(m_pCTX);
 }
 
 void SSLTransport::init()
@@ -77,6 +81,12 @@ void SSLTransport::init()
 void SSLTransport::destroy()
 {
    g_iInstance --;
+
+   if (0 == g_iInstance)
+   {
+      // DO NOT call CRYPTO_cleanup_all_ex_data() here.
+      // It will cause memory leak.
+   }
 }
 
 int SSLTransport::initServerCTX(const char* cert, const char* key)
@@ -96,7 +106,7 @@ int SSLTransport::initServerCTX(const char* cert, const char* key)
       return SectorError::E_INITCTX;
    }
 
-   return 1;
+   return 0;
 }
 
 int SSLTransport::initClientCTX(const char* cert)
@@ -110,8 +120,8 @@ int SSLTransport::initClientCTX(const char* cert)
       m_pCTX = NULL;
       return SectorError::E_INITCTX;
    }
-
-   return 1;
+   m_bClientCTX = true;
+   return 0;
 }
 
 int SSLTransport::open(const char* ip, const int& port)
@@ -233,29 +243,29 @@ int SSLTransport::connect(const char* host, const int& port)
       return SectorError::E_SECURITY;
    }
 
-   X509* peer_cert = SSL_get_peer_certificate(m_pSSL);
-   char peer_CN[256];
-   X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert), NID_commonName, peer_CN, 256);
+   // NOTE: When this is enabled, please check memory leak.
+   //X509* peer_cert = SSL_get_peer_certificate(m_pSSL);
+   //char peer_CN[256];
+   //X509_NAME_get_text_by_NID(X509_get_subject_name(peer_cert), NID_commonName, peer_CN, 256);
    //if (strcasecmp(peer_CN, host))
    //{
    //   cerr << "server name does not match.\n";
    //   return -1;
    //}
+   //X509_OBJECT_free_contents(peer_cert);
 
    m_bConnected = true;
 
-   return 1;
+   return 0;
 }
 
 int SSLTransport::close()
 {
    if (!m_bConnected)
       return 0;
-
-   SSL_shutdown(m_pSSL);
-
    m_bConnected = false;
-
+   // SSL shutdown requires up to 4 rounds of attempts.
+   for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
 #ifndef WIN32
    return ::close(m_iSocket);
 #else
@@ -360,5 +370,5 @@ int SSLTransport::getLocalIP(string& ip)
 
    ip = inet_ntop(AF_INET, &(addr.sin_addr), tmp, 64);
 
-   return 1;
+   return 0;
 }

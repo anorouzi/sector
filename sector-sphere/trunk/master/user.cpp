@@ -244,6 +244,7 @@ int UserManager::remove(int key)
    if (i == m_mActiveUsers.end())
       return -1;
 
+   delete i->second;
    m_mActiveUsers.erase(i);
    return 0;
 } 

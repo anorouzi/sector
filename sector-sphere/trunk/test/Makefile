@@ -8,7 +8,7 @@ else
    LDFLAGS += -L../lib -lsecurity -lrpc -ludt -lcommon -lclient
 endif
 
-EXE = stress testfile stress_stat
+EXE = iotest stress testfile
 
 all: $(EXE)
 

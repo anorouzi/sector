@@ -70,6 +70,7 @@ CPeerManagement::CPeerManagement()
 
 CPeerManagement::~CPeerManagement()
 {
+   clearPR();
    CGuard::releaseMutex(m_PeerRecLock);
 }
 
@@ -245,6 +246,25 @@ int CPeerManagement::addRecentPR(const CPeerRecord& pr)
    }
 
    return 0;
+}
+
+void CPeerManagement::clearPR()
+{
+   CGuard recguard(m_PeerRecLock);
+
+   for (map<int, list<CPeerRecord> >::iterator i = m_mRecentRec.begin(); i != m_mRecentRec.end(); ++ i)
+   {
+      i->second.clear();
+   }
+   m_mRecentRec.clear();
+
+   for (set<CPeerRecord*, CFPeerRecByTS>::iterator i = m_sPeerRecByTS.begin(); i !=  m_sPeerRecByTS.end(); ++ i)
+   {
+      delete *i;
+   }
+   m_sPeerRecByTS.clear();
+
+   m_sPeerRec.clear();
 }
 
 bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)

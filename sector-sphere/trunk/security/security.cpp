@@ -78,7 +78,7 @@ int SServer::init(const int& port, const char* cert, const char* key)
 
    m_SSL.listen();
 
-   return 1;
+   return 0;
 }
 
 void SServer::close()
