@@ -46,8 +46,6 @@ written by
 
 #include "common.h"
 #include "udt.h"
-#include <iostream>
-using namespace std;
 
 class CCacheItem
 {
@@ -78,7 +76,7 @@ public:
 
    virtual int getKey() = 0;
 
-   // If there is any shared resources between the cache item and it clone,
+   // If there is any shared resources between the cache item and its clone,
    // the shared resource should be released by this function.
    virtual void release() {}
 };
@@ -174,7 +172,6 @@ public:
       }
 
       // create new entry and insert to front
-      cout << "cache CREATE!!! once\n";
       curr = data->clone();
       m_StorageList.push_front(curr);
       item_list.push_front(m_StorageList.begin());
@@ -196,7 +193,6 @@ public:
             }
          }
 
-         cout << "cahe delete\n";
          last_data->release();
          delete last_data;
          m_StorageList.pop_back();
@@ -231,7 +227,6 @@ public:
    {
       for (typename std::list<T*>::iterator i = m_StorageList.begin(); i != m_StorageList.end(); ++ i)
       {
-         cout << "cache delete\n";
          (*i)->release();
          delete *i;
       }
