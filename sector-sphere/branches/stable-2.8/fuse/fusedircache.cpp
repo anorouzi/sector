@@ -20,9 +20,14 @@ DirCache::~DirCache()
 }
 
 void DirCache::clear_cache() {
-
+//    log << "cache clear" << std::endl;
     Lock l(mutex);
     cache.clear();
+    lastUnresolvedStatPathTs = 0;
+}
+
+void DirCache::clearLastUnresolvedStatLocal(){
+//    log << "Cache clear last unresoved stat" << std::endl;
     lastUnresolvedStatPathTs = 0;
 }
 
@@ -57,7 +62,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 // return codes : 1 - cache miss, 0 - cache hit, <0 - sector error
 //    assert(!path.empty());
 //    log << "get " << path << " start ======================= " << std::endl;
-
+//return 1;
     if (path == "/") {
 //      log << "get root" << std::endl;
       if (rootNode.m_strName.empty() ) {
@@ -136,7 +141,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 //      log << "checking cache entry " << i->m_strName << std::endl;
       if (i->m_strName == filename)
       {
-//       log << "get " << path << " return hit" << std::endl;
+//       log << "get " << path << " return hit, file size " << i->m_llSize << std::endl;
        node = *i;
        return 0;
       }

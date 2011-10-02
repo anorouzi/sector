@@ -42,6 +42,8 @@ public:
 
     void clear_cache();
 
+    void clearLastUnresolvedStatLocal();
+
     static DirCache& instance()
     {
         if( !inst )
@@ -52,6 +54,10 @@ public:
 
     static void clear() {
         instance().clear_cache();
+    }
+
+    static void clearLastUnresolvedStat() {
+	instance().clearLastUnresolvedStatLocal();
     }
 
     static void destroy()

@@ -84,7 +84,8 @@ int SectorFS::getattr(const char* path, struct stat* st)
    {
       int r = g_SectorClient.stat(path, s);
       if (r < 0)
-      {
+      {        
+         DirCache::clearLastUnresolvedStat();
          checkConnection(r);
          return translateErr(r);
       }
@@ -103,6 +104,8 @@ int SectorFS::getattr(const char* path, struct stat* st)
    if ((st->st_size % st->st_blksize) != 0)
       ++ st->st_blocks;
    st->st_atime = st->st_mtime = st->st_ctime = s.m_llTimeStamp;
+
+   if (st->st_size == 0) DirCache::clearLastUnresolvedStat();
 
    return 0;
 }
