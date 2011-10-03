@@ -521,6 +521,8 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    if (!g_bConnected) restart();
    if (!g_bConnected) return -1;
 
+   DirCache::clear();
+
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if ((t == m_mOpenFileList.end()) || (FileTracker::OPEN != t->second->m_State))
@@ -532,6 +534,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    {
       t->second->m_iCount --;
       pthread_mutex_unlock(&m_OpenFileLock);
+      DirCache::clear();
       return 0;
    }
    FileTracker* ft = t->second;
@@ -551,6 +554,8 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
       m_mOpenFileList.erase(t);
    }
    pthread_mutex_unlock(&m_OpenFileLock);
+
+   DirCache::clear();
 
    return 0;
 }
