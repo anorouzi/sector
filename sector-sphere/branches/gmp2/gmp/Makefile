@@ -1,9 +1,9 @@
 include ../Makefile.common
 
-CCFLAGS += -I../udt -I../common
-LDFLAGS += -L../lib -ludt -lcommon
+CCFLAGS += -I../udt
+LDFLAGS += -L../lib -ludt
 
-OBJS = gmp.o message.o prec.o udt_helper.o
+OBJS = gmp.o dhash.o message.o prec.o udt_helper.o
 
 all: librpc.so librpc.a test
 

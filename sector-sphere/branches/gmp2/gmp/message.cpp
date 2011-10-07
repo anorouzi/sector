@@ -40,7 +40,7 @@ written by
 
 #include <string>
 #include <cstring>
-#include <message.h>
+#include <gmp.h>
 #include <udt.h>
 
 using namespace std;
@@ -81,41 +81,4 @@ int CUserMessage::resize(const int& len)
    m_pcBuffer = temp;
 
    return m_iBufLength;
-}
-
-
-int32_t SectorMsg::getType() const
-{
-   return *(int32_t*)m_pcBuffer;
-}
-
-void SectorMsg::setType(const int32_t& type)
-{
-   *(int32_t*)m_pcBuffer = type;
-}
-
-int32_t SectorMsg::getKey() const
-{
-   return *(int32_t*)(m_pcBuffer + 4);
-}
-
-void SectorMsg::setKey(const int32_t& key)
-{
-   *(int32_t*)(m_pcBuffer + 4) = key;
-}
-
-char* SectorMsg::getData() const
-{
-   return m_pcBuffer + m_iHdrSize;
-}
-
-void SectorMsg::setData(const int& offset, const char* data, const int& len)
-{
-   while (m_iHdrSize + offset + len > m_iBufLength)
-      resize(m_iBufLength << 1);
-
-   memcpy(m_pcBuffer + m_iHdrSize + offset, data, len);
-
-   if (m_iDataLength < m_iHdrSize + offset + len)
-      m_iDataLength = m_iHdrSize + offset + len;
 }

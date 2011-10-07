@@ -38,7 +38,6 @@ written by
    Yunhong Gu, last updated 12/31/2010
 *****************************************************************************/
 
-
 #ifndef __GMP_H__
 #define __GMP_H__
 
@@ -66,96 +65,47 @@ written by
 #include <cstring>
 #include <list>
 #include <map>
-#include <queue>
 #include <string>
-#include <vector>
 
-#include "message.h"
-#include "prec.h"
-//TODO: remove dependency on sector.h
-#include "sector.h"
+#include "udt.h"
 
-
-class CGMP;
-
-class CGMPMessage
-{
-friend class CGMP;
-
-public:
-   CGMPMessage();
-   CGMPMessage(const CGMPMessage& msg);
-   ~CGMPMessage();
-
-   int32_t m_piHeader[6];
-   int32_t& m_iType;            // 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
-   int32_t& m_iSession;         // Used to differentiate GMP instances on the same address
-   int32_t& m_iSrcChn;          // source channel, multiple channels for the same GMP instance
-   int32_t& m_iDstChn;          // destination channel
-   int32_t& m_iID;              // message ID
-   int32_t& m_iInfo;            // additional information, depending on type
-
-   char* m_pcData;
-   int m_iLength;
-
-public:
-   void pack(const char* data, const int& len, const int32_t& info = 0,
-             const int& src_chn = 0, const int& dst_chn = 0);
-   void pack(const int32_t& type, const int32_t& info = 0,
-             const int& src_chn = 0, const int& dst_chn = 0);
-
-public:
-   static int32_t g_iSession;
-
-private:
-   static int32_t initSession();
-
-   static int32_t g_iID;
-   static pthread_mutex_t g_IDLock;
-   static const int32_t g_iMaxID = 0xFFFFFFF;
-   static const int g_iHdrField;
-   static const int g_iHdrSize;
-};
-
-struct CMsgRecord
+struct Address
 {
    std::string m_strIP;
-   int m_iPort;
-   CGMPMessage* m_pMsg;
-   int64_t m_llTimeStamp;
+   unsigned short int m_iPort;
 };
 
-struct CFMsgRec
+struct AddrComp
 {
-   bool operator()(const CMsgRecord* m1, const CMsgRecord* m2) const
+   bool operator()(const Address& a1, const Address& a2) const
    {
-      int res = strcmp(m1->m_strIP.c_str(), m2->m_strIP.c_str());
-      if (0 == res)
-      {
-         if (m1->m_iPort == m2->m_iPort)
-            return m1->m_pMsg->m_iID > m2->m_pMsg->m_iID;
-         return (m1->m_iPort > m2->m_iPort);
-      }
-      return (res > 0);
+      if (a1.m_strIP == a2.m_strIP)
+         return a1.m_iPort < a2.m_iPort;
+      return a1.m_strIP < a2.m_strIP;
    }
 };
 
-struct CChannelRec
+struct GMP_API CUserMessage
 {
-   CChannelRec();
-   ~CChannelRec();
+public:
+   CUserMessage(const int len = 1500);
+   CUserMessage(const CUserMessage& msg);
+   virtual ~CUserMessage();
 
-   int m_iID;
-   std::queue<CMsgRecord*> m_qRcvQueue;
-   std::map<int32_t, CMsgRecord*> m_mResQueue;
+//TODO: change the following to protected, and upper level should not call these directly
+public:
+   int resize(const int& len);
 
-   pthread_mutex_t m_RcvQueueLock;
-   pthread_cond_t m_RcvQueueCond;
-   pthread_mutex_t m_ResQueueLock;
-   pthread_cond_t m_ResQueueCond;
-
-   int m_iRefCount;
+public:
+   char* m_pcBuffer;
+   int m_iDataLength;
+   int m_iBufLength;
 };
+
+class CPeerMgmt;
+class CGMPMessage;
+struct CMsgRecord;
+struct CChannelRec;
 
 class GMP_API CGMP
 {
@@ -236,13 +186,13 @@ private:
    int m_iUDTReusePort;				// UDT port number
    int m_iUDTEPollID;				// UDT EPoll ID
 
-   std::list<CMsgRecord*> m_lSndQueue;
+   std::list<CMsgRecord*> m_lSndQueue;		// List of in-flight messages
    std::map<int, CChannelRec*> m_mCurrentChn;   // Current channel list, including (always) default channel 0.
    pthread_mutex_t m_ChnLock;
-   CPeerMgmt m_PeerHistory;
+   CPeerMgmt* m_pPeerMgmt;			// Record about all peers that communicate with this GMP.
 
-   volatile bool m_bInit;
-   volatile bool m_bClosed;
+   volatile bool m_bInit;			// If initialized.
+   volatile bool m_bClosed;			// If closed.
 
    int m_iChnIDSeed;                            // A seed value to generate next channel ID (local unique).
 

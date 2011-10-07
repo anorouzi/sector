@@ -1,30 +1,41 @@
 /*****************************************************************************
-Copyright (c) 2011, VeryCloud LLC. All rights reserved.
+Copyright (c) 2005 - 2010, The Board of Trustees of the University of Illinois.
+All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+modification, are permitted provided that the following conditions are
+met:
 
-* Redistributions of source code must retain the above copyright notice, this
-  list of conditions and the following disclaimer.
+* Redistributions of source code must retain the above
+  copyright notice, this list of conditions and the
+  following disclaimer.
 
-* Redistributions in binary form must reproduce the above copyright notice,
-  this list of conditions and the following disclaimer in the documentation
+* Redistributions in binary form must reproduce the
+  above copyright notice, this list of conditions
+  and the following disclaimer in the documentation
   and/or other materials provided with the distribution.
 
-* Neither the name of the VeryCloud LLC nor the names of its contributors may
-  be used to endorse or promote products derived from this software without
-  specific prior written permission.
+* Neither the name of the University of Illinois
+  nor the names of its contributors may be used to
+  endorse or promote products derived from this
+  software without specific prior written permission.
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY DIRECT,
-INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
-OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
-NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
-EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*****************************************************************************/
+
+/*****************************************************************************
+written by
+   Yunhong Gu, last updated 12/31/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -47,8 +58,7 @@ m_strIP(),
 m_iPort(0),
 m_iSession(0),
 m_iID(0),
-m_llTimeStamp(0),
-m_iFlowWindow(0)
+m_llTimeStamp(0)
 {
 }
 
@@ -59,7 +69,6 @@ CPeerRecord& CPeerRecord::operator=(CPeerRecord& obj)
    m_iSession = obj.m_iSession;
    m_iID = obj.m_iID;
    m_llTimeStamp = obj.m_llTimeStamp;
-   m_iFlowWindow = obj.m_iFlowWindow;
 
    return *this;
 }
@@ -118,8 +127,8 @@ int CPeerRTT::getKey()
 
 void CUDTConns::release()
 {
-   // When this is removed from the cache, close this UDT socket so that the peer side
-   // will be removed as well.
+   // Release openned socket, and acknowledge the peer side to
+   // close its corresponding socket as well.
    UDT::close(m_UDT);
 }
 
@@ -153,32 +162,56 @@ int CUDTConns::getKey()
    return CPeerMgmt::hash(m_strIP, m_iPort);
 }
 
+CFlowWindow& CFlowWindow::operator=(CFlowWindow& obj)
+{
+   m_strIP = obj.m_strIP;
+   m_iPort = obj.m_iPort;
+   m_iSession = obj.m_iSession;
+   m_iWindowSize = obj.m_iWindowSize;
+   m_llTimeStamp = obj.m_llTimeStamp;
+   return *this;
+}
+
+bool CFlowWindow::operator==(CFlowWindow& obj)
+{
+  return ((m_strIP == obj.m_strIP) &&
+          (m_iPort == obj.m_iPort) &&
+          (m_iSession = obj.m_iSession));
+}
+
+CFlowWindow* CFlowWindow::clone()
+{
+   CFlowWindow* win = new CFlowWindow;
+   *win = *this;
+   return win;
+}
+
+int CFlowWindow::getKey()
+{
+   return CPeerMgmt::hash(m_strIP, m_iPort, m_iSession);
+}
 
 CPeerMgmt::CPeerMgmt()
 {
+   //TODO: this should be larger.
    m_RecentRec.setSizeLimit(m_uiRecLimit);
    m_PeerRTT.setSizeLimit(m_uiRecLimit);
    m_PersistentUDT.setSizeLimit(m_uiRecLimit);
+   m_FlowWindow.setSizeLimit(m_uiRecLimit);
 
    CGuard::createMutex(m_PeerRecLock);
 }
 
 CPeerMgmt::~CPeerMgmt()
 {
+   // Release all cached items.
+   clear();
    CGuard::releaseMutex(m_PeerRecLock);
 }
 
-void CPeerMgmt::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
+void CPeerMgmt::insert(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    CGuard recguard(m_PeerRecLock);
-
-   if (rtt > 0)
-   {
-      CPeerRTT rtt_info;
-      rtt_info.m_strIP = ip;
-      rtt_info.m_iRTT = rtt;
-      m_PeerRTT.update(&rtt_info);
-   }
 
    CPeerRecord pr;
    pr.m_strIP = ip;
@@ -186,8 +219,20 @@ void CPeerMgmt::insert(const string& ip, const int& port, const int& session, co
    pr.m_iSession = session;
    pr.m_iID = id;
    pr.m_llTimeStamp = CTimer::getTime();
-   pr.m_iFlowWindow = fw;
    m_RecentRec.update(&pr);
+}
+
+int CPeerMgmt::setRTT(const string& ip, const int& rtt)
+{
+   CGuard recguard(m_PeerRecLock);
+
+   if (rtt <= 0)
+      return -1;
+
+   CPeerRTT rtt_info;
+   rtt_info.m_strIP = ip;
+   rtt_info.m_iRTT = rtt;
+   return m_PeerRTT.update(&rtt_info);
 }
 
 int CPeerMgmt::getRTT(const string& ip)
@@ -209,10 +254,33 @@ void CPeerMgmt::clearRTT(const string& ip)
    m_PeerRTT.update(&rtt_info);
 }
 
+int CPeerMgmt::setFlowWindow(const string& ip, const int& port, const int& session, const int& size)
+{
+   CGuard recguard(m_PeerRecLock);
+   CFlowWindow window;
+   window.m_strIP = ip;
+   window.m_iPort = port;
+   window.m_iSession = session;
+   window.m_iWindowSize = size;
+   return m_FlowWindow.update(&window);
+}
+
 int CPeerMgmt::flowControl(const string& ip, const int& port, const int& session)
 {
-/*
-   int thresh = (*i)->m_iFlowWindow - int((CTimer::getTime() - (*i)->m_llTimeStamp) / 1000);
+   CGuard::enterCS(m_PeerRecLock);
+   CFlowWindow window;
+   window.m_strIP = ip;
+   window.m_iPort = port;
+   window.m_iSession = session;
+   int ret = m_FlowWindow.lookup(&window);
+   CGuard::leaveCS(m_PeerRecLock);
+
+   if (ret != 0)
+      return -1;
+
+   // TODO: this flow control scheme is very naive. Need better solution.
+
+   int thresh = window.m_iWindowSize - int((CTimer::getTime() - window.m_llTimeStamp) / 1000);
 
    if (thresh > 100)
    {
@@ -233,7 +301,7 @@ int CPeerMgmt::flowControl(const string& ip, const int& port, const int& session
       #endif
       return 10000;
    }
-*/
+
    return 0;
 }
 
@@ -285,12 +353,21 @@ void CPeerMgmt::clear()
    m_RecentRec.clear();
    m_PeerRTT.clear();
    m_PersistentUDT.clear();
+   m_FlowWindow.clear();
 }
 
 int32_t CPeerMgmt::hash(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    char tmp[1024];
    sprintf(tmp, "%s%d%d%d", ip.c_str(), port, session, id);
+
+   return DHash::hash(tmp, m_uiHashSpace);
+}
+
+int32_t CPeerMgmt::hash(const string& ip, const int& port, const int& session)
+{
+   char tmp[1024];
+   sprintf(tmp, "%s%d%d", ip.c_str(), port, session);
 
    return DHash::hash(tmp, m_uiHashSpace);
 }
