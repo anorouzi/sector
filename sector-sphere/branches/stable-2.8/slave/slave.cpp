@@ -252,15 +252,23 @@ int Slave::connect()
 
          vector<string> fl;
          attic->list_r("/", fl);
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "CONFLICT no of files: " << fl.size() << LogEnd();
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
          {
             // move it from local file system
-            LocalFS::rename(m_strHomeDir + *i, m_strHomeDir + ".attic/" + *i);
+            string dst_file = ".attic/" + *i;
+            string dst_dir = dst_file.substr(0, dst_file.rfind('/'));
+            createDir(dst_dir);
+            if (LocalFS::rename(m_strHomeDir + *i, m_strHomeDir + dst_file)< 0)
+            {
+               m_SectorLog << LogStart(1) << "Error: failed to rename file " << m_strHomeDir + *i << " to " <<  m_strHomeDir + dst_file << LogEnd();
+               perror("move file");
+            }
 
             // remove it from the local metadata
             m_pLocalFile->remove(*i);
 
-            m_SectorLog << LogStart(LogLevel::LEVEL_2) << "CONFLICT -> ATTIC: " << *i << LogEnd();
+            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "CONFLICT -> ATTIC: " << m_strHomeDir + *i << " " << m_strHomeDir + dst_file << LogEnd();
          }
 
          attic->clear();
@@ -445,7 +453,9 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       newname = Metadata::revisePath(newname);
 
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
+      createDir(dst);
       LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname);
+      // TODO: check return value and acknowledge error to master.
 
       m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogEnd();
 
