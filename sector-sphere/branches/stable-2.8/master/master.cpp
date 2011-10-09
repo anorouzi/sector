@@ -808,9 +808,9 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
             slvconn.send((char*)&size, 4);
             if (size > 0)
                slvconn.sendfile(left_file.c_str(), 0, size);
-            LocalFS::erase(left_file);
+            //LocalFS::erase(left_file);
 
-            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << LogEnd();
+            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip << " contains some files that are conflict with existing files." << " " << left_file << LogEnd();
          }
 
          // send the list of masters to the new slave
@@ -1259,6 +1259,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
+            m_SectorLog << LogStart(9) << " new replica is created " << sn.m_strName << " " << addr.m_strIP << LogEnd();
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
             m_ReplicaLock.acquire();
             m_sstrOnReplicate.erase(Metadata::revisePath(sn.m_strName));
@@ -1305,8 +1306,11 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       //   msg->setType(-msg->getType());
       m_GMP.sendto(ip, port, id, msg);
       m_ReplicaLock.acquire();
-      if (m_ReplicaMgmt.getTotalNum() > 0)
+      if (m_ReplicaMgmt.getTotalNum() > 0) 
+      {
+         
          m_ReplicaCond.signal();
+      }
       m_ReplicaLock.release();
 
       break;
@@ -1343,7 +1347,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          //TODO: send current users, current transactions
       }
 
-      logUserActivity(user, "sysinfo", NULL, 0, NULL, LogLevel::LEVEL_9);
+      //logUserActivity(user, "sysinfo", NULL, 0, NULL, LogLevel::LEVEL_9);
+      m_SectorLog << LogStart(9) << "sysinfo " << user->m_strName << " " << ip << " current total number of active transcations " << m_TransManager.getTotalTrans() << LogEnd();
 
       break;
    }
@@ -2823,6 +2828,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       self->m_ReplicaLock.acquire();
       self->m_ReplicaCond.wait(self->m_ReplicaLock, 600*1000);
       self->m_ReplicaLock.release();
+      self->m_SectorLog << LogStart(5) << "replica process awaken" << LogEnd();
 
       // check replica, create or remove replicas if necessary
       if (self->m_ReplicaMgmt.getTotalNum() == 0)
@@ -2847,6 +2853,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             self->m_ReplicaLock.acquire();
             for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)
             {
+               self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File " << *i << " underreplicated" << LogEnd();
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
                job.m_iPriority = BACKGROUND;
@@ -2869,6 +2876,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             self->m_ReplicaLock.acquire();
             for (vector<string>::iterator i = path.begin(); i != path.end(); ++ i)
             {
+               self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File " << *i << " will be replicated to move out of full slave" << LogEnd();
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
                job.m_bForceReplicate = true;
@@ -2884,7 +2892,10 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       {
          // The number of concurrent replication in the system must be limited.	
          if (self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
+         {
+            self->m_SectorLog << LogStart(9) << " num of in-flight replica = " << self->m_sstrOnReplicate.size() << " vs. num of slaves " << self->m_SlaveManager.getNumberOfSlaves() << LogEnd();
             break;
+         }
 
          if (self->createReplica(*i) >= 0)
          {
@@ -2922,6 +2933,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
             continue;
 
+         self->m_SectorLog << LogStart(9) << "replica " << *i << " will be removed from " << addr.m_strIP << LogEnd();
          self->removeReplica(*i, addr);
       }
    }
@@ -2933,7 +2945,9 @@ int Master::createReplica(const ReplicaJob& job)
 {
    SNode attr;
    if (m_pMetadata->lookup(job.m_strSource.c_str(), attr) < 0)
-      return -1;
+   {
+      return 0;
+   }
 
    SlaveNode sn;
    SNode sub_attr;
@@ -2941,27 +2955,33 @@ int Master::createReplica(const ReplicaJob& job)
    {
       // Only nosplit dir can be replicated as a whole.
       if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
-         return -1;
+         return 0;
    }
 
    if (job.m_strSource == job.m_strDest)
    {
       // do not create multiple replicas at the same time
       if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
+      {
          return -1;
+      }
 
       if (!attr.m_bIsDir)
       {
          // do not over replicate
          if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
-            return -1;
+         {
+            return 0;
+         }
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
+         {
             return -1;
+         }
       }
       else
       {
          if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
-            return -1;
+            return 0;
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
             return -1;
       }
@@ -2989,6 +3009,7 @@ int Master::createReplica(const ReplicaJob& job)
    msg.setData(8, job.m_strSource.c_str(), job.m_strSource.length() + 1);
    msg.setData(8 + job.m_strSource.length() + 1, job.m_strDest.c_str(), job.m_strDest.length() + 1);
 
+   m_SectorLog << LogStart(9) << "create replica for file " << job.m_strSource << " on node " << sn.m_strIP << LogEnd();
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
       m_sstrOnReplicate.erase(job.m_strSource);

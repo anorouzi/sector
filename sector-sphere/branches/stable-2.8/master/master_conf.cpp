@@ -50,7 +50,8 @@ m_iSlaveTimeOut(300),
 m_iSlaveRetryTime(600),
 m_llSlaveMinDiskSpace(10000000000LL),
 m_iClientTimeOut(600),
-m_iLogLevel(1)
+m_iLogLevel(1),
+m_iRepTransThresh(4)
 {
 }
 
@@ -133,6 +134,10 @@ int MasterConf::init(const string& path)
       else if ("LOG_LEVEL" == param.m_strName)
       {
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
+      }
+      else if ("SLAVE_TRANS_REPLICA_THRESH" == param.m_strName)
+      {
+         m_iRepTransThresh = atoi(param.m_vstrValue[0].c_str());
       }
       else
       {
