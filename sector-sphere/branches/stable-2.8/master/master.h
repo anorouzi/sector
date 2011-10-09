@@ -64,6 +64,7 @@ public:
    int64_t m_llSlaveMinDiskSpace;       // minimum available disk space allowed on each slave
    int m_iClientTimeOut;                // client timeout threshold
    int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log
+   int m_iRepTransThresh;               // numver of transactions on a slave to cut off replication.
 };
 
 class ReplicaConf
