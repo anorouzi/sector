@@ -21,6 +21,7 @@ written by
 
 #include <fstream>
 #include <iostream>
+#include <ctime>
 
 #include "common.h"
 #include "sectorfs.h"
@@ -33,9 +34,36 @@ map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
 
+#define CONN_CHECK( fn ) \
+{\
+   if (!g_bConnected) {\
+      time_t t = time(0); \
+      std::string asStr = ctime(&t);\
+      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << " Not connected - restarting " << fn << std::endl; \
+      restart();\
+   }\
+   if (!g_bConnected) \
+   {\
+      time_t t = time(0); \
+      std::string asStr = ctime(&t);\
+      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << " connection restart failed " << fn << std::endl; \
+      return -1;\
+   } \
+}
+
+#define ERR_MSG( msg ) \
+{\
+      time_t t = time(0); \
+      std::string asStr = ctime(&t);\
+      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << ' ' << msg << std::endl; \
+}
+
+
 void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 {
    const ClientConf& conf = g_SectorConfig.m_ClientConf;
+
+   ERR_MSG("Starting sector-fuse");
 
    g_SectorClient.init();
    g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
@@ -64,18 +92,19 @@ void SectorFS::destroy(void *)
    g_SectorClient.logout();
    g_SectorClient.close();
    DirCache::destroy();
+   ERR_MSG("End sector-fuse");
 }
 
 int SectorFS::getattr(const char* path, struct stat* st)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    SNode s;
 
    int rv = DirCache::instance().get(path, g_SectorClient, s);
    if( rv < 0 )
    {
+      ERR_MSG( path << ' ' << rv );
       checkConnection(rv);
       return translateErr(rv);
    }
@@ -85,6 +114,7 @@ int SectorFS::getattr(const char* path, struct stat* st)
       int r = g_SectorClient.stat(path, s);
       if (r < 0)
       {        
+         ERR_MSG( path << ' ' << r );
          DirCache::clearLastUnresolvedStat();
          checkConnection(r);
          return translateErr(r);
@@ -122,14 +152,14 @@ int SectorFS::mknod(const char *, mode_t, dev_t)
 
 int SectorFS::mkdir(const char* path, mode_t /*mode*/)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    DirCache::clear();
 
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
    {
+      ERR_MSG(path << ' ' << r );
       checkConnection(r);
       return translateErr(r);
    }
@@ -139,8 +169,7 @@ int SectorFS::mkdir(const char* path, mode_t /*mode*/)
 
 int SectorFS::unlink(const char* path)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    DirCache::clear();
 
@@ -151,6 +180,7 @@ int SectorFS::unlink(const char* path)
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
+      ERR_MSG( path << ' ' << r );
       checkConnection(r);
       return -1;
    }
@@ -160,14 +190,14 @@ int SectorFS::unlink(const char* path)
 
 int SectorFS::rmdir(const char* path)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    DirCache::clear();
 
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
+      ERR_MSG( path << ' ' << r );
       checkConnection(r);
       return -1;
    }
@@ -177,8 +207,7 @@ int SectorFS::rmdir(const char* path)
 
 int SectorFS::rename(const char* src, const char* dst)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( src << ' ' << dst );
 
    DirCache::clear();
 
@@ -189,6 +218,7 @@ int SectorFS::rename(const char* src, const char* dst)
    int r = g_SectorClient.move(src, dst);
    if (r < 0)
    {
+      ERR_MSG( "source " << src << " dest " << dst << " error code " << r );
       checkConnection(r);
       return translateErr(r);
    }
@@ -198,13 +228,13 @@ int SectorFS::rename(const char* src, const char* dst)
 
 int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( "sysinfo" );
 
    SysStat s;
    int r = g_SectorClient.sysinfo(s);
    if (r < 0)
    {
+      ERR_MSG( "sysinfo" );
       checkConnection(r);
       return translateErr(r);
    }
@@ -222,12 +252,12 @@ int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
 
 int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    int r = g_SectorClient.utime(path, ubuf->modtime);
    if (r < 0)
    {
+      ERR_MSG( path << ' ' << r );
       checkConnection(r);
       return translateErr(r);
    }
@@ -237,12 +267,12 @@ int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 
 int SectorFS::utimens(const char* path, const struct timespec tv[2])
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    int r = g_SectorClient.utime(path, tv[1].tv_sec);
    if (r < 0)
    {
+      ERR_MSG( path << ' ' << r );
       checkConnection(r);
       return translateErr(r);
    }
@@ -257,13 +287,13 @@ int SectorFS::opendir(const char *, struct fuse_file_info *)
 
 int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t /*offset*/, struct fuse_file_info* /*info*/)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    vector<SNode> filelist;
    int r = g_SectorClient.list(path, filelist);
    if (r < 0)
    {
+      ERR_MSG( path << ' ' << r );
       checkConnection(r);
       return translateErr(r);
    }
@@ -329,8 +359,7 @@ int SectorFS::chown(const char *, uid_t, gid_t)
 
 int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    DirCache::clear();
 
@@ -343,7 +372,12 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
       release(path, &option);
    }
 
-   return open(path, info);
+   int r = open(path, info);
+   if (r < 0) {
+      ERR_MSG( path );
+      return -1;
+   }
+   return r;
 }
 
 int SectorFS::truncate(const char* path, off_t /*size*/)
@@ -355,8 +389,7 @@ int SectorFS::truncate(const char* path, off_t /*size*/)
       //return h->truncate(size);
    }
 
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    DirCache::clear();
 
@@ -376,8 +409,7 @@ int SectorFS::ftruncate(const char* path, off_t offset, struct fuse_file_info *)
 
 int SectorFS::open(const char* path, struct fuse_file_info* fi)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    DirCache::clear();
 
@@ -467,6 +499,7 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       }
       pthread_mutex_unlock(&m_OpenFileLock);
 
+      ERR_MSG( path << ' ' << r );
       return -1;
    }
 
@@ -479,31 +512,49 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
 
 int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    SectorFile* h = lookup(path);
-   if (NULL == h)
+   if (NULL == h) {
+      ERR_MSG( "Attempt to read unopened file " << path );
       return -EBADF;
+   }
 
    // FUSE read buffer is too small; we use prefetch buffer to improve read performance
    int r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
-   if (r == 0)
+   if (r == 0) {
       r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
-
+      if (r < 0) {
+          ERR_MSG( " Reread fail with error code " << r << " file " << path <<
+           " size " << size << " offset " << offset );
+          return -1;
+      } else {
+          ERR_MSG( "Reread successful, read bytes  " << r << " file " << path <<
+           " size " << size << " offset " << offset);
+      }
+   }
    return r;
 }
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( path );
 
    SectorFile* h = lookup(path);
-   if (NULL == h)
-      return -EBADF;
+   if (NULL == h) {
+      ERR_MSG("Attempt to write to not opened file " << path <<
+        " size " << size << " offset " << offset);
+      return -EBADF;     
+   }
 
-   return h->write(buf, offset, size);
+   int r = h->write(buf, offset, size);
+   if (r < 0) {
+      ERR_MSG("Write give an error " << r << " file " << path <<
+        " size " << size << " offset " << offset);
+      return -1;
+   }
+
+   return r;
 }
 
 int SectorFS::flush (const char *, struct fuse_file_info *)
@@ -518,8 +569,7 @@ int SectorFS::fsync(const char *, int, struct fuse_file_info *)
 
 int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
 {
-   if (!g_bConnected) restart();
-   if (!g_bConnected) return -1;
+   CONN_CHECK( __PRETTY_FUNCTION__ << " " <<  path   );
 
    DirCache::clear();
 
@@ -528,6 +578,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    if ((t == m_mOpenFileList.end()) || (FileTracker::OPEN != t->second->m_State))
    {
       pthread_mutex_unlock(&m_OpenFileLock);
+      ERR_MSG("Error in release " << path );
       return -EBADF;
    }
    if (t->second->m_iCount > 1)
@@ -572,6 +623,7 @@ int SectorFS::lock(const char *, struct fuse_file_info *, int, struct flock *)
 
 int SectorFS::translateErr(int err)
 {
+//   ERR_MSG("Error in SectorFS " << err);
    switch (err)
    {
    case SectorError::E_PERMISSION:
@@ -598,8 +650,11 @@ int SectorFS::translateErr(int err)
 
 int SectorFS::restart()
 {
-   if (g_bConnected)
+   ERR_MSG( "Restart" );
+   if (g_bConnected) {
+      ERR_MSG("Not restarted as connection is OK")
       return 0;
+   }
 
    DirCache::clear();
 
