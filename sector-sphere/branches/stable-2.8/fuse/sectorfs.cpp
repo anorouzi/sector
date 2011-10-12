@@ -114,7 +114,9 @@ int SectorFS::getattr(const char* path, struct stat* st)
       int r = g_SectorClient.stat(path, s);
       if (r < 0)
       {        
-         ERR_MSG( path << ' ' << r );
+         if ( r!= -1003 )  { // file/dir not found - skipping
+            ERR_MSG( path << ' ' << r );
+         }
          DirCache::clearLastUnresolvedStat();
          checkConnection(r);
          return translateErr(r);
