@@ -255,7 +255,14 @@ int Slave::connect()
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
          {
             // move it from local file system
-            LocalFS::rename(m_strHomeDir + *i, m_strHomeDir + ".attic/" + *i);
+            string dst_file = ".attic/" + *i;
+            string dst_dir = dst_file.substr(0, dst_file.rfind('/'));
+            createDir(dst_dir);
+            if (LocalFS::rename(m_strHomeDir + *i, m_strHomeDir + dst_file) < 0)
+            {
+               m_SectorLog << LogStart(LogLevel::LEVEL_2) << "move file failed " << m_strHomeDir + *i
+                           << m_strHomeDir + dst_file << LogEnd();
+            }
 
             // remove it from the local metadata
             m_pLocalFile->remove(*i);
@@ -444,8 +451,13 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       dst = Metadata::revisePath(dst);
       newname = Metadata::revisePath(newname);
 
-      m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
-      LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname);
+      // rename() does not create new dir, so we must call createDir first.
+      createDir(dst);
+      if (LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname) >= 0)
+      {
+         // update metadata only if the actual move succeeded.
+         m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
+      }
 
       m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogEnd();
 

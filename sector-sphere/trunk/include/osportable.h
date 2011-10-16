@@ -39,8 +39,6 @@ updated by
 #include "sector.h"
 
 #ifndef WIN32
-   #include <stdint.h>
-
    #define SECTOR_API
 #else
    #ifdef SECTOR_EXPORTS

@@ -23,17 +23,13 @@ written by
 #ifndef __SECTOR_H__
 #define __SECTOR_H__
 
+#include <stdint.h>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 
-#include <udt.h>
-
-
 #ifndef WIN32
-   #include <stdint.h>
-
    #define SECTOR_API
 #else
    #ifdef SECTOR_EXPORTS

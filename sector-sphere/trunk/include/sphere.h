@@ -22,14 +22,11 @@ written by
 #ifndef __SPHERE_H__
 #define __SPHERE_H__
 
-#ifndef WIN32
-   #include <stdint.h>
-#endif
-#include <set>
-#include <vector>
+#include <stdint.h>
 #include <map>
+#include <set>
 #include <string>
-#include <udt.h>
+#include <vector>
 
 #ifndef WIN32
    #define SECTOR_API

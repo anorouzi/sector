@@ -2944,11 +2944,17 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    return NULL;
 }
 
+// This should be only called within the replica() thread.
+// If this returns >= 0, the job will be removed from m_ReplicaMgmt.
+// Return <0 only if the replica should be tried again.
 int Master::createReplica(const ReplicaJob& job)
 {
    SNode attr;
    if (m_pMetadata->lookup(job.m_strSource.c_str(), attr) < 0)
-      return -1;
+   {
+      // This file may be deleted already.
+      return 0;
+   }
 
    SlaveNode sn;
    SNode sub_attr;
@@ -2956,7 +2962,9 @@ int Master::createReplica(const ReplicaJob& job)
    {
       // Only nosplit dir can be replicated as a whole.
       if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
-         return -1;
+      {
+         return 0;
+      }
    }
 
    if (job.m_strSource == job.m_strDest)
@@ -2969,14 +2977,19 @@ int Master::createReplica(const ReplicaJob& job)
       {
          // do not over replicate
          if (attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum)
-            return -1;
+         {
+            // This may happen if a slave joins with the same file, before this replica is created.
+            return 0;
+         }
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
             return -1;
       }
       else
       {
          if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
-            return -1;
+         {
+            return 0;
+         }
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
             return -1;
       }

@@ -39,6 +39,7 @@ written by
    #include <tchar.h>
    #include <windows.h>
 #endif
+#include <fstream>
 #include <string>
 
 #include "osportable.h"
@@ -541,6 +542,7 @@ int LocalFS::get_dir_space(const string& path, int64_t& avail)
    return ret;
 }
 
+// NOTE: rename does not create dst dir, the caller must do this before calling rename.
 int LocalFS::rename(const std::string& src, const std::string& dst)
 {
    if (::rename(src.c_str(), dst.c_str()) == 0)

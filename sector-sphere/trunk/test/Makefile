@@ -1,6 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS += -I../client -I../gmp -I../udt -I../common -I../include
+CCFLAGS += -I../client -I../gmp -I../udt -I../common
 
 ifeq ($(STATIC), 1)
    LDFLAGS += ../lib/libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libcommon.a ../lib/libudt.a
@@ -22,9 +22,6 @@ send_dbg_cmd: send_dbg_cmd.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 stress: stress.cpp
-	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
-
-stress_stat: stress_stat.cpp
 	$(C++) $^ -o $@ $(CCFLAGS) $(LDFLAGS)
 
 testfile: testfile.cpp
