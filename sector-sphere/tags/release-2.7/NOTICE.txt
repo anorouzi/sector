@@ -1,0 +1,19 @@
+Copyright (c) 2005 - 2011, The Board of Trustees of the University of Illinois.
+All Rights Reserved.
+Copyright (c) 2010 - 2011, VeryCloud LLC.
+All Rights Reserved.
+
+Sector Distributed File System & Sphere Parallel Data Processing Framework
+
+Original Author: Yunhong Gu [yunhong.gu @ gmail.com]
+Contributing Authors: The Sector Alliance
+
+=============================================================================
+
+Sector uses the following open source software:
+
+UDT: UDP-based Data Transfer Protocol, under the BSD License.
+Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
+
+GMP: Group Messaging Protocol, under the BSD License.
+Copyright (c) 2005 - 2011, The Board of Trustees of the University of Illinois.
