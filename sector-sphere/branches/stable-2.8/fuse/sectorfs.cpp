@@ -524,10 +524,15 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
 
    // FUSE read buffer is too small; we use prefetch buffer to improve read performance
    int r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
+   if (r < 0) {
+     ERR_MSG("Read fail with code " << r << " file " << path <<
+           " size " << size << " offset " << offset );
+     return -1;
+   }
    if (r == 0) {
       r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
       if (r < 0) {
-          ERR_MSG( " Reread fail with error code " << r << " file " << path <<
+          ERR_MSG( "Reread fail with error code " << r << " file " << path <<
            " size " << size << " offset " << offset );
           return -1;
       } else {
