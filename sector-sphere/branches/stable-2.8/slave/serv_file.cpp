@@ -26,6 +26,12 @@ written by
    #include <sys/utime.h>
 #endif
 
+#define ERR_MSG( msg ) \
+{\
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << " cmd " << cmd << " " << \
+      filename << " " << client_ip << " " << client_port << " " << msg << LogEnd(); \
+}
+
 #include "slave.h"
 #include "writelog.h"
 
@@ -72,11 +78,13 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    int last_timestamp = 0;
 
-   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "connecting to " << client_ip << " " << client_port << " " << filename << LogEnd();
+   int32_t cmd = 0;
+
+   ERR_MSG ("Connecting");
 
    if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
    {
-      self->m_SectorLog << LogStart(LogLevel::LEVEL_2) << "failed to connect to file client " << client_ip << " " << client_port << " " << filename << LogEnd();
+      ERR_MSG("Failed to connect to client");
 
       // release transactions and file locks
       self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
@@ -105,6 +113,10 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       if (LocalFS::stat(filename, s) < 0)
       {
          ofstream newfile(filename.c_str(), ios::out | ios::binary | ios::trunc);
+         if (!newfile) 
+         {
+            ERR_MSG("Cannot create new file");
+         }
          newfile.close();
       }
       else
@@ -127,15 +139,20 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    else
       fhandle.open(filename.c_str(), ios::in | ios::out | ios::binary | ios::trunc);
 
+   if (!fhandle) 
+      ERR_MSG("Error opening file");
+
    // a file session is successful only if the client issue a close() request
    bool success = true;
    bool run = true;
-   int32_t cmd = 0;
 
    while (run)
    {
       if (self->m_DataChn.recv4(client_ip, client_port, transid, cmd) < 0)
+      {
+         ERR_MSG("Connection broken");
          break;
+      }
 
       switch (cmd)
       {
@@ -146,6 +163,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             if (self->m_DataChn.recv(client_ip, client_port, transid, param, tmp) < 0)
             {
                success = false;
+               ERR_MSG("Error receiving command in read ");
                break;
             }
             int64_t offset = *(int64_t*)param;
@@ -154,15 +172,24 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             int32_t response = bRead ? 0 : -1;
             if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+            {
+               ERR_MSG("Returning error on file error - disk health - network health - error");
                response = -1;
+            }
 
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
+            {
+               ERR_MSG( "Error sending response in read");
                break;
+            }
             if (response == -1)
                break;
 
             if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset, size, encoder) < 0)
+            {
+               ERR_MSG( "Error reading and sending in read");
                success = false;
+            }
             else
                rb += size;
 
@@ -178,6 +205,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             {
                // if the client does not have write permission, disconnect it immediately
                success = false;
+               ERR_MSG("Client does not have write permission");
                break;
             }
 
@@ -185,8 +213,10 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             char* param = NULL;
             int tmp = 8 * 2;
             if (self->m_DataChn.recv(src_ip, src_port, transid, param, tmp) < 0)
+            {
+               ERR_MSG("Error receiving command in write");
                break;
-
+            }
             int64_t offset = *(int64_t*)param;
             int64_t size = *(int64_t*)(param + 8);
             delete [] param;
@@ -198,7 +228,10 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             bool io_status = (size > 0); 
             if (!io_status || (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset, size, tmp_decoder) < size))
+            {
+               ERR_MSG("Error receiving and writing in write");
                io_status = false;
+            }
 
             //TODO: send incomplete write to next slave on chain, rather than -1
 
@@ -239,14 +272,21 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             if (self->m_DataChn.recv8(client_ip, client_port, transid, offset) < 0)
             {
                success = false;
+               ERR_MSG("Error receiving parameters in download");
                break;
             }
 
             int32_t response = bRead ? 0 : -1;
             if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+            {
+               ERR_MSG("File - disk - network error");
                response = -1;
+            }
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
+            {
+               ERR_MSG("Error sendong responce");
                break;
+            }
             if (response == -1)
                break;
 
@@ -265,6 +305,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                if (self->m_DataChn.sendfile(client_ip, client_port, transid, fhandle, offset + sent, block, encoder) < 0)
                {
                   success = false;
+                  ERR_MSG("Error in sending data from file");
                   break;
                }
 
@@ -285,6 +326,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             {
                // if the client does not have write permission, disconnect it immediately
                success = false;
+               ERR_MSG("Client does not have write permission - disconnect"); 
                break;
             }
 
@@ -293,15 +335,22 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             if (self->m_DataChn.recv8(client_ip, client_port, transid, size) < 0)
             {
                success = false;
+               ERR_MSG("Bad size in upload");
                break;
             }
 
             //TODO: check available size
             int32_t response = 0;
             if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+            {
+               ERR_MSG("File - disk - network error");
                response = -1;
+            }
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
+            {
+               ERR_MSG("Error sending responce");
                break;
+            }
             if (response == -1)
                break;
 
@@ -321,6 +370,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                if (self->m_DataChn.recvfile(src_ip, src_port, transid, fhandle, offset + recd, block, tmp_decoder) < 0)
                {
                   success = false;
+                  ERR_MSG( "Error receiving file in upload");
                   break;
                }
 
@@ -328,7 +378,10 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                {
                   // write to uplink for next replica in the chain
                   if (self->m_DataChn.sendfile(dst_ip, dst_port, transid, fhandle, offset + recd, block) < 0)
+                  {
+                     ERR_MSG("Error sending to next replica in upload chain"); 
                      break;
+                  }
                }
 
                recd += block;
@@ -349,10 +402,12 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       case 5: // end session
          // the file has been successfully closed
          run = false;
+         ERR_MSG("Sesion end");
          break;
 
       case 6: // read file path for local IO optimization
          self->m_DataChn.send(client_ip, client_port, transid, self->m_strHomeDir.c_str(), self->m_strHomeDir.length() + 1);
+         ERR_MSG("Send to client path in local IO optimization");
          break;
 
       case 7: // synchronize with the client, make sure write is correct
@@ -360,13 +415,22 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
          //TODO: merge all three recv() to one
          int32_t size = 0;
          if (self->m_DataChn.recv4(client_ip, client_port, transid, size) < 0)
+         {
+            ERR_MSG("Error getting size in synchronize");
             break;
+         }
          char* buf = NULL;
          if (self->m_DataChn.recv(client_ip, client_port, transid, buf, size) < 0)
+         {
+            ERR_MSG("Error receiving par 2");
             break;
+         }
          last_timestamp = 0;
          if (self->m_DataChn.recv4(client_ip, client_port, transid, last_timestamp) < 0)
+         {
+            ERR_MSG("Error receiving par 3");
             break;
+         }
 
          WriteLog log;
          log.deserialize(buf, size);
@@ -387,8 +451,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             utime(filename.c_str(), &ut);
          }
 
-         self->m_DataChn.send(client_ip, client_port, transid, (char*)&confirm, 4);
-
+         if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&confirm, 4) < 0)
+            ERR_MSG("Error sending confirm");
          break;
       }
 
@@ -397,13 +461,22 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
          char* buf = NULL;
          int size = 136;
          if (self->m_DataChn.recv(client_ip, client_port, transid, buf, size) < 0)
+         {
+            ERR_MSG("Error geting parameters");
             break;
+         }
 
          int32_t response = bWrite ? 0 : -1;
          if (fhandle.fail() || !success || !self->m_bDiskHealth || !self->m_bNetworkHealth)
+         {
+            ERR_MSG("File - disk - network error"); 
             response = -1;
+         }
          if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
+         {
+            ERR_MSG("Error sending response");
             break;
+         }
          if (response == -1)
             break;
 
@@ -437,6 +510,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       }
 
       default:
+         ERR_MSG("Undefined comand");
          break;
       }
    }
@@ -463,8 +537,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "file server closed " << src_ip << " " << src_port << " "
-                     << (long long)avgWS << " " << (long long)avgRS << LogEnd();
+   ERR_MSG("File server closed, duration " << duration << " reads " << rb << " bytes " << (long long)avgWS 
+      << " mb/sec, writes " << wb << " bytes " << (long long)avgRS << " mb/sec ");
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
@@ -501,9 +575,15 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    }
 
    if (success)
+   {
+      ERR_MSG("Updating client with success");
       self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
+   }
    else
+   {
+      ERR_MSG("Updating client with error status");
       self->m_DataChn.sendError(client_ip, client_port, transid);
+   }
 
    return NULL;
 }
