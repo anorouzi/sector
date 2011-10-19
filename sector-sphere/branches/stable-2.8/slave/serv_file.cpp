@@ -29,7 +29,8 @@ written by
 #define ERR_MSG( msg ) \
 {\
    self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << " cmd " << cmd << " " << \
-      filename << " " << client_ip << " " << client_port << " " << msg << LogEnd(); \
+      filename << " transid " << transid << " " << client_ip << " " << client_port << \
+   " " << msg << LogEnd(); \
 }
 
 #include "slave.h"
