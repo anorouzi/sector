@@ -397,9 +397,11 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
       ERR_MSG("Error sending read request");
 
    int response = -1;
-   if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
+   int r = 0;
+   r = m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response);
+   if ((r < 0) || (-1 == response))
    {
-      ERR_MSG("Error receiving response");
+      ERR_MSG("Error receiving response, udt result " << r << " response " << response);
       if (reopen() >= 0)
          return 0;
       ERR_MSG("Reopen failed");
