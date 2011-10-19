@@ -19,9 +19,19 @@ written by
    Yunhong Gu, last updated 04/08/2011
 *****************************************************************************/
 
+#include <fstream>
+#include <iostream>
+#include <ctime>
 
 #include "common.h"
 #include "fsclient.h"
+
+#define ERR_MSG( msg ) \
+{\
+      time_t t = time(0); \
+      std::string asStr = ctime(&t);\
+      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << m_strFileName << ' ' << msg << std::endl; \
+}
 
 using namespace std;
 using namespace sector;
@@ -377,18 +387,22 @@ int64_t FSClient::read(char* buf, const int64_t& offset, const int64_t& size, co
 
    // read command: 1
    int32_t cmd = 1;
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
+   if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4) < 0)
+      ERR_MSG("Error sending read command");
 
    char req[16];
    *(int64_t*)req = m_llCurReadPos;
    *(int64_t*)(req + 8) = realsize;
-   m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16);
+   if (m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, req, 16) < 0)
+      ERR_MSG("Error sending read request");
 
    int response = -1;
    if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
    {
+      ERR_MSG("Error receiving response");
       if (reopen() >= 0)
          return 0;
+      ERR_MSG("Reopen failed");
       return SectorError::E_CONNECTION;
    }
 
