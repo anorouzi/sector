@@ -81,6 +81,9 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    int32_t cmd = 0;
 
+   int reads = 0;
+   int writes = 0;
+
    ERR_MSG ("Connecting");
 
    if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
@@ -159,6 +162,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       {
       case 1: // read
          {
+            reads = reads + 1;
             char* param = NULL;
             int tmp = 8 * 2;
             if (self->m_DataChn.recv(client_ip, client_port, transid, param, tmp) < 0)
@@ -196,12 +200,15 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             // update total sent data size
             self->m_SlaveStat.updateIO(client_ip, param[1], (key == 0) ? +SlaveStat::SYS_OUT : +SlaveStat::CLI_OUT);
+            if (reads < 4) // logging first 3 reads
+               ERR_MSG("Read offset " << offset << " size " << size);
 
             break;
          }
 
       case 2: // write
          {
+            writes = writes + 1;
             if (!bWrite)
             {
                // if the client does not have write permission, disconnect it immediately
@@ -263,6 +270,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             // update write log
             writelog.insert(offset, size);
             file_change = true;
+            if (writes < 4) // logging first 3 writes
+               ERR_MSG("Write offset " << offset << " size " << size);    
 
             break;
          }
@@ -516,6 +525,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       }
    }
 
+   cmd = -1; // for comand after end of main loop
+
    // close local file
    fhandle.close();
 
@@ -538,8 +549,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   ERR_MSG("File server closed, duration " << duration << " reads " << rb << " bytes " << (long long)avgWS 
-      << " mb/sec, writes " << wb << " bytes " << (long long)avgRS << " mb/sec ");
+   ERR_MSG("File server closed, duration " << duration << " reads " << reads << " " << rb << " bytes " << (long long)avgWS 
+      << " mb/sec, writes " << writes << " " << wb << " bytes " << (long long)avgRS << " mb/sec ");
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
