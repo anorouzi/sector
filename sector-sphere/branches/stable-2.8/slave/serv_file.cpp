@@ -182,6 +182,9 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
                response = -1;
             }
 
+            if (response == -1)
+               ERR_MSG("Sending response -1");
+
             if (self->m_DataChn.send(client_ip, client_port, transid, (char*)&response, 4) < 0)
             {
                ERR_MSG( "Error sending response in read");
