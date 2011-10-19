@@ -1350,7 +1350,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       //logUserActivity(user, "sysinfo", NULL, 0, NULL, LogLevel::LEVEL_9);
        m_SectorLog << LogStart(9) << "sysinfo " << user->m_strName << " " << ip << " current total number of active transcations " << m_TransManager.getTotalTrans() << LogEnd();
       for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
-          m_SectorLog << LogStart(9) << "OPENED FILE " << t->second.m_strFile << " START TIME " << t->second.m_llStartTime << " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << LogEnd();
+          m_SectorLog << LogStart(9) << "TRASNACTION " << t->second.m_iTransID << " OPENED FILE " << t->second.m_strFile << " START TIME " << t->second.m_llStartTime << " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << LogEnd();
       }
 
 
