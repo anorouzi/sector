@@ -1296,7 +1296,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             processWriteResults(t.m_strFile, t.m_mResults);
             m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
-            logUserActivity(user, "close", t.m_strFile.c_str(), 0, NULL, LogLevel::LEVEL_9);
+            logUserActivity(user, "close", t.m_strFile.c_str(), t.m_iTransID, NULL, LogLevel::LEVEL_9);
          }
       }
 
@@ -2266,7 +2266,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      logUserActivity(user, "open", path.c_str(), 0, addr.rbegin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+      logUserActivity(user, "open", path.c_str(), transid, addr.rbegin()->m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
