@@ -56,7 +56,7 @@ written by
 #include <sstream>
 #include "queue.h"
 #include "core.h"
-
+#include <iostream>
 using namespace std;
 
 
@@ -2566,6 +2566,7 @@ void CUDT::checkTimers()
 
    if (currtime > next_exp_time)
    {
+cout << "UDT EXP " << m_iEXPCount << endl;
       // Haven't receive any information from the peer, is it dead?!
       // timeout: at least 16 expirations and must be greater than 10 seconds
       if ((m_iEXPCount > 16) && (currtime - m_ullLastRspTime > 5000000 * m_ullCPUFrequency))
