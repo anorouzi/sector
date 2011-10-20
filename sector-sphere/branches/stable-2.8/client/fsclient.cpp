@@ -693,7 +693,11 @@ int FSClient::close()
       if (m_pClient->m_DataChn.send(i->m_strIP, i->m_iPort, m_iSession, (char*)&cmd, 4) > 0)
       {
          int response;
-         m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, response);
+         ERR_MSG("Closing file");
+         if (m_pClient->m_DataChn.recv4(i->m_strIP, i->m_iPort, m_iSession, response) < 0)
+            ERR_MSG("Error getting respnce in file close");
+      } else {
+         ERR_MSG("Error closing file");
       }
    }
 
