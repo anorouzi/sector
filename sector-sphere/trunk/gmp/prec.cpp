@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 02/10/2010
+   Yunhong Gu, last updated 12/31/2010
 *****************************************************************************/
 
 #ifndef WIN32
@@ -45,9 +45,11 @@ written by
    #include <windows.h>
 #endif
 
-#include <common.h>
-#include <dhash.h>
-#include <prec.h>
+#include <iostream>
+
+#include "common.h"
+#include "dhash.h"
+#include "prec.h"
 
 using namespace std;
 
@@ -56,141 +58,229 @@ m_strIP(),
 m_iPort(0),
 m_iSession(0),
 m_iID(0),
-m_llTimeStamp(0),
-m_iRTT(0),
-m_iFlowWindow(0),
-m_UDTSocket(UDT::INVALID_SOCK)
+m_llTimeStamp(0)
 {
 }
 
-CPeerManagement::CPeerManagement()
+CPeerRecord& CPeerRecord::operator=(CPeerRecord& obj)
 {
+   m_strIP = obj.m_strIP;
+   m_iPort = obj.m_iPort;
+   m_iSession = obj.m_iSession;
+   m_iID = obj.m_iID;
+   m_llTimeStamp = obj.m_llTimeStamp;
+
+   return *this;
+}
+
+bool CPeerRecord::operator==(CPeerRecord& obj)
+{
+   if (m_strIP != obj.m_strIP)
+      return false;
+   if (m_iPort != obj.m_iPort)
+      return false;
+   if (m_iSession != obj.m_iSession)
+      return false;
+   if (m_iID != obj.m_iID)
+      return false;
+
+   return true;
+}
+
+CPeerRecord* CPeerRecord::clone()
+{
+   CPeerRecord* pr = new CPeerRecord;
+   *pr = *this;
+   return pr;
+}
+
+int CPeerRecord::getKey()
+{
+   return CPeerMgmt::hash(m_strIP, m_iPort, m_iSession, m_iID);
+};
+
+CPeerRTT& CPeerRTT::operator=(CPeerRTT& obj)
+{
+   m_strIP = obj.m_strIP;
+   m_iRTT = obj.m_iRTT;
+   m_llTimeStamp = obj.m_llTimeStamp;
+
+   return *this;   
+}
+
+bool CPeerRTT::operator==(CPeerRTT& obj)
+{
+   return m_strIP == obj.m_strIP;
+}
+
+CPeerRTT* CPeerRTT::clone()
+{
+   CPeerRTT* rtt = new CPeerRTT;
+   *rtt = *this;
+   return rtt;
+}
+
+int CPeerRTT::getKey()
+{
+   return CPeerMgmt::hash(m_strIP);
+}
+
+void CUDTConns::release()
+{
+   // Release openned socket, and acknowledge the peer side to
+   // close its corresponding socket as well.
+   UDT::close(m_UDT);
+}
+
+CUDTConns& CUDTConns::operator=(CUDTConns& obj)
+{
+   m_strIP = obj.m_strIP;
+   m_iPort = obj.m_iPort;
+   m_UDT = obj.m_UDT;
+
+   return *this;
+}
+
+bool CUDTConns::operator==(CUDTConns& obj)
+{
+   if (m_strIP != obj.m_strIP)
+      return false;
+   if (m_iPort != obj.m_iPort)
+      return false;
+   return true;
+}
+
+CUDTConns* CUDTConns::clone()
+{
+   CUDTConns* conn = new CUDTConns;
+   *conn = *this;
+   return conn;
+}
+
+int CUDTConns::getKey()
+{
+   return CPeerMgmt::hash(m_strIP, m_iPort);
+}
+
+CFlowWindow& CFlowWindow::operator=(CFlowWindow& obj)
+{
+   m_strIP = obj.m_strIP;
+   m_iPort = obj.m_iPort;
+   m_iSession = obj.m_iSession;
+   m_iWindowSize = obj.m_iWindowSize;
+   m_llTimeStamp = obj.m_llTimeStamp;
+   return *this;
+}
+
+bool CFlowWindow::operator==(CFlowWindow& obj)
+{
+  return ((m_strIP == obj.m_strIP) &&
+          (m_iPort == obj.m_iPort) &&
+          (m_iSession = obj.m_iSession));
+}
+
+CFlowWindow* CFlowWindow::clone()
+{
+   CFlowWindow* win = new CFlowWindow;
+   *win = *this;
+   return win;
+}
+
+int CFlowWindow::getKey()
+{
+   return CPeerMgmt::hash(m_strIP, m_iPort, m_iSession);
+}
+
+CPeerMgmt::CPeerMgmt()
+{
+   //TODO: this should be larger.
+   m_RecentRec.setSizeLimit(m_uiRecLimit);
+   m_PeerRTT.setSizeLimit(m_uiRecLimit);
+   m_PersistentUDT.setSizeLimit(m_uiRecLimit);
+   m_FlowWindow.setSizeLimit(m_uiRecLimit);
+
    CGuard::createMutex(m_PeerRecLock);
 }
 
-CPeerManagement::~CPeerManagement()
+CPeerMgmt::~CPeerMgmt()
 {
-   clearPR();
+   // Release all cached items.
+   clear();
    CGuard::releaseMutex(m_PeerRecLock);
 }
 
-void CPeerManagement::insert(const string& ip, const int& port, const int& session, const int32_t& id, const int& rtt, const int& fw)
+void CPeerMgmt::insert(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    CGuard recguard(m_PeerRecLock);
 
-   if (rtt > 0)
-   {
-      map<string, int>::iterator t = m_mRTT.find(ip);
-      if (t != m_mRTT.end())
-         t->second = (t->second * 7 + rtt) >> 3;
-      else
-         m_mRTT[ip] = rtt;
-   }
-
-   CPeerRecord* pr = new CPeerRecord;
-   pr->m_strIP = ip;
-   pr->m_iPort = port;
-   pr->m_iSession = session;
-   pr->m_iID = id;
-   pr->m_llTimeStamp = CTimer::getTime();
-   pr->m_iFlowWindow = fw;
-
-   //insert the message record to the recent records list, so to avoid repeated messages
-   addRecentPR(*pr);
-
-   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(pr);
-   map<string, int>::iterator t = m_mRTT.find(ip);
-
-   if (i != m_sPeerRec.end())
-   {
-      if (id > (*i)->m_iID)
-         (*i)->m_iID = id;
-      (*i)->m_iFlowWindow = fw;
-
-      // adjust last updated time
-      m_sPeerRecByTS.erase(*i);
-      (*i)->m_llTimeStamp = CTimer::getTime();
-      m_sPeerRecByTS.insert(*i);
-
-      delete pr;
-   }
-   else
-   {
-      if (id > 0)
-         pr->m_iID = id;
-      else
-         pr->m_iID = -1;
-
-      m_sPeerRec.insert(pr);
-      m_sPeerRecByTS.insert(pr);
-
-      if (m_sPeerRecByTS.size() > m_uiRecLimit)
-      {
-         // delete oldest record
-         set<CPeerRecord*, CFPeerRecByTS>::iterator j = m_sPeerRecByTS.begin();
-
-         CPeerRecord* t = *j;
-
-         // close the UDT connection if necessary
-         if (t->m_UDTSocket != UDT::INVALID_SOCK)
-            UDT::close(t->m_UDTSocket);
-
-         m_sPeerRec.erase(t);
-         m_sPeerRecByTS.erase(j);
-
-         // BUG: when set reaches limit, this cause busy CPU loop
-         /*
-         bool delip = true;
-         for (set<CPeerRecord*, CFPeerRec>::iterator k = m_sPeerRec.begin(); k != m_sPeerRec.end(); ++ k)
-         {
-            if ((*k)->m_strIP == t->m_strIP)
-            {
-               delip = false;
-               break;
-            }
-         }
-
-         if (delip)
-         */
-
-         m_mRTT.erase(t->m_strIP);
-
-         delete t;
-      }
-   }
-}
-
-int CPeerManagement::getRTT(const string& ip)
-{
-   CGuard recguard(m_PeerRecLock);
-
-   map<string, int>::iterator t = m_mRTT.find(ip);
-   if (t != m_mRTT.end())
-      return t->second;
-
-   return -1;
-}
-
-void CPeerManagement::clearRTT(const string& ip)
-{
-   CGuard recguard(m_PeerRecLock);
-   m_mRTT.erase(ip);
-}
-
-int CPeerManagement::flowControl(const string& ip, const int& port, const int& session)
-{
    CPeerRecord pr;
    pr.m_strIP = ip;
    pr.m_iPort = port;
    pr.m_iSession = session;
+   pr.m_iID = id;
+   pr.m_llTimeStamp = CTimer::getTime();
+   m_RecentRec.update(&pr);
+}
 
+int CPeerMgmt::setRTT(const string& ip, const int& rtt)
+{
    CGuard recguard(m_PeerRecLock);
 
-   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
-   if (i == m_sPeerRec.end())
-      return 0;
+   if (rtt <= 0)
+      return -1;
 
-   int thresh = (*i)->m_iFlowWindow - int((CTimer::getTime() - (*i)->m_llTimeStamp) / 1000);
+   CPeerRTT rtt_info;
+   rtt_info.m_strIP = ip;
+   rtt_info.m_iRTT = rtt;
+   return m_PeerRTT.update(&rtt_info);
+}
+
+int CPeerMgmt::getRTT(const string& ip)
+{
+   CGuard recguard(m_PeerRecLock);
+   CPeerRTT rtt_info;
+   rtt_info.m_strIP = ip;
+   if (m_PeerRTT.lookup(&rtt_info) == 0)
+      return rtt_info.m_iRTT;
+   return -1;
+}
+
+void CPeerMgmt::clearRTT(const string& ip)
+{
+   CGuard recguard(m_PeerRecLock);
+   CPeerRTT rtt_info;
+   rtt_info.m_strIP = ip;
+   rtt_info.m_iRTT = -1;
+   m_PeerRTT.update(&rtt_info);
+}
+
+int CPeerMgmt::setFlowWindow(const string& ip, const int& port, const int& session, const int& size)
+{
+   CGuard recguard(m_PeerRecLock);
+   CFlowWindow window;
+   window.m_strIP = ip;
+   window.m_iPort = port;
+   window.m_iSession = session;
+   window.m_iWindowSize = size;
+   return m_FlowWindow.update(&window);
+}
+
+int CPeerMgmt::flowControl(const string& ip, const int& port, const int& session)
+{
+   CGuard::enterCS(m_PeerRecLock);
+   CFlowWindow window;
+   window.m_strIP = ip;
+   window.m_iPort = port;
+   window.m_iSession = session;
+   int ret = m_FlowWindow.lookup(&window);
+   CGuard::leaveCS(m_PeerRecLock);
+
+   if (ret != 0)
+      return -1;
+
+   // TODO: this flow control scheme is very naive. Need better solution.
+
+   int thresh = window.m_iWindowSize - int((CTimer::getTime() - window.m_llTimeStamp) / 1000);
 
    if (thresh > 100)
    {
@@ -215,128 +305,82 @@ int CPeerManagement::flowControl(const string& ip, const int& port, const int& s
    return 0;
 }
 
-int32_t CPeerManagement::hash(const string& ip, const int& port, const int& session, const int32_t& id)
-{
-   char tmp[1024];
-   sprintf(tmp, "%s%d%d%d", ip.c_str(), port, session, id);
-
-   return sector::DHash::hash(tmp, m_uiHashSpace);
-}
-
-int CPeerManagement::addRecentPR(const CPeerRecord& pr)
-{
-   int key = hash(pr.m_strIP, pr.m_iPort, pr.m_iSession, pr.m_iID);
-   map<int, list<CPeerRecord> >::iterator i = m_mRecentRec.find(key);
-   if (i == m_mRecentRec.end())
-   {
-      m_mRecentRec[key].clear();
-      m_mRecentRec[key].push_back(pr);
-   }
-   else
-   {
-      int64_t ts = CTimer::getTime();
-      while (!i->second.empty())
-      {
-         CPeerRecord& p = i->second.front();
-         if (ts - p.m_llTimeStamp < 10 * 1000000)
-            break;
-         i->second.pop_front();
-      }
-      i->second.push_back(pr);
-   }
-
-   return 0;
-}
-
-void CPeerManagement::clearPR()
-{
-   CGuard recguard(m_PeerRecLock);
-
-   for (map<int, list<CPeerRecord> >::iterator i = m_mRecentRec.begin(); i != m_mRecentRec.end(); ++ i)
-   {
-      i->second.clear();
-   }
-   m_mRecentRec.clear();
-
-   for (set<CPeerRecord*, CFPeerRecByTS>::iterator i = m_sPeerRecByTS.begin(); i !=  m_sPeerRecByTS.end(); ++ i)
-   {
-      delete *i;
-   }
-   m_sPeerRecByTS.clear();
-
-   m_sPeerRec.clear();
-}
-
-bool CPeerManagement::hit(const string& ip, const int& port, const int& session, const int32_t& id)
-{
-   CGuard recguard(m_PeerRecLock);
-
-   int key = hash(ip, port, session, id);
-
-   map<int, list<CPeerRecord> >::iterator i = m_mRecentRec.find(key);
-   if (i != m_mRecentRec.end())
-   {
-      for (list<CPeerRecord>::iterator pr = i->second.begin(); pr != i->second.end(); ++ pr)
-      {
-         if ((ip == pr->m_strIP) && (port == pr->m_iPort) && (session == pr->m_iSession) && (id == pr->m_iID))
-            return true;
-      }
-   }
-
-   return false;
-}
-
-int CPeerManagement::setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock)
+bool CPeerMgmt::hit(const string& ip, const int& port, const int& session, const int32_t& id)
 {
    CGuard recguard(m_PeerRecLock);
 
    CPeerRecord pr;
    pr.m_strIP = ip;
    pr.m_iPort = port;
+   pr.m_iSession = session;
+   pr.m_iID = id;
 
-   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
+   return m_RecentRec.lookup(&pr) == 0;
+}
 
-   if (i != m_sPeerRec.end())
-   {
-      (*i)->m_UDTSocket = usock;
-   }
-   else
-   {
-      pr.m_llTimeStamp = CTimer::getTime();
-      pr.m_UDTSocket = usock;
+int CPeerMgmt::setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock)
+{
+   CGuard recguard(m_PeerRecLock);
 
-      m_sPeerRec.insert(&pr);
-      m_sPeerRecByTS.insert(&pr);
-   }
+   CUDTConns conn;
+   conn.m_strIP = ip;
+   conn.m_iPort = port;
+   conn.m_UDT = usock;
+   m_PersistentUDT.update(&conn);
 
    return 0;
 }
 
-int CPeerManagement::getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock)
+int CPeerMgmt::getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock)
 {
    CGuard recguard(m_PeerRecLock);
 
-   CPeerRecord pr;
-   pr.m_strIP = ip;
-   pr.m_iPort = port;
+   CUDTConns conn;
+   conn.m_strIP = ip;
+   conn.m_iPort = port;
 
-   set<CPeerRecord*, CFPeerRec>::iterator i = m_sPeerRec.find(&pr);
-
-   if (i != m_sPeerRec.end())
+   if (m_PersistentUDT.lookup(&conn) >= 0)
    {
-      usock = (*i)->m_UDTSocket;
-      if (usock == UDT::INVALID_SOCK)
-         return -1;
-
-      // check current state; maybe the peer has closed this connection
-      if (UDT::getsockstate(usock) != CONNECTED)
-      {
-         (*i)->m_UDTSocket = usock = UDT::INVALID_SOCK;
-         return -1;
-      }
-
+      usock = conn.m_UDT;
       return 0;
    }
 
    return -1;
+}
+
+void CPeerMgmt::clear()
+{
+   m_RecentRec.clear();
+   m_PeerRTT.clear();
+   m_PersistentUDT.clear();
+   m_FlowWindow.clear();
+}
+
+int32_t CPeerMgmt::hash(const string& ip, const int& port, const int& session, const int32_t& id)
+{
+   char tmp[1024];
+   sprintf(tmp, "%s%d%d%d", ip.c_str(), port, session, id);
+
+   return DHash::hash(tmp, m_uiHashSpace);
+}
+
+int32_t CPeerMgmt::hash(const string& ip, const int& port, const int& session)
+{
+   char tmp[1024];
+   sprintf(tmp, "%s%d%d", ip.c_str(), port, session);
+
+   return DHash::hash(tmp, m_uiHashSpace);
+}
+
+int32_t CPeerMgmt::hash(const string& ip, const int& port)
+{
+   char tmp[1024];
+   sprintf(tmp, "%s%d", ip.c_str(), port);
+
+   return DHash::hash(tmp, m_uiHashSpace);
+}
+
+int32_t CPeerMgmt::hash(const string& ip)
+{
+   return DHash::hash(ip.c_str(), m_uiHashSpace);
 }

@@ -19,30 +19,41 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-#ifndef __DHASH_H__
-#define __DHASH_H__
+#include <stdint.h>
+#include "message.h"
 
-#include <math.h>
-#include <openssl/sha.h>
-#include <string>
-
-namespace sector
+int32_t SectorMsg::getType() const
 {
+   return *(int32_t*)m_pcBuffer;
+}
 
-class DHash
+void SectorMsg::setType(const int32_t& type)
 {
-public:
-   DHash();
-   DHash(const int m);
-   ~DHash();
+   *(int32_t*)m_pcBuffer = type;
+}
 
-   unsigned int hash(const char* str);
-   static unsigned int hash(const char* str, int m);
+int32_t SectorMsg::getKey() const
+{
+   return *(int32_t*)(m_pcBuffer + 4);
+}
 
-private:
-   unsigned int m_im;
-};
+void SectorMsg::setKey(const int32_t& key)
+{
+   *(int32_t*)(m_pcBuffer + 4) = key;
+}
 
-}  // namespace sector
+char* SectorMsg::getData() const
+{
+   return m_pcBuffer + m_iHdrSize;
+}
 
-#endif
+void SectorMsg::setData(const int& offset, const char* data, const int& len)
+{
+   while (m_iHdrSize + offset + len > m_iBufLength)
+      resize(m_iBufLength << 1);
+
+   memcpy(m_pcBuffer + m_iHdrSize + offset, data, len);
+
+   if (m_iDataLength < m_iHdrSize + offset + len)
+      m_iDataLength = m_iHdrSize + offset + len;
+}

@@ -5,7 +5,7 @@ CCFLAGS += -I../common
 ifeq ($(STATIC), 1)
    LDFLAGS += libsecurity.a ../lib/libcommon.a ../lib/libudt.a
 else
-   LDFLAGS += -L../lib -ludt -lcommon -lsecurity
+   LDFLAGS += -L../lib -ludt -lrpc -lcommon -lsecurity
 endif
 
 OBJS = security.o filesrc.o

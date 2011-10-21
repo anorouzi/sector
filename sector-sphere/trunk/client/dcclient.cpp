@@ -19,15 +19,16 @@ written by
    Yunhong Gu, last updated 02/13/2010
 *****************************************************************************/
 
-#include "dcclient.h"
-#include <errno.h>
-#include <common.h>
-#include <iostream>
 #ifdef WIN32
    #include <sys/types.h>
    #include <sys/stat.h>
    #define atoll _atoi64
 #endif
+#include <errno.h>
+#include <iostream>
+#include "common.h"
+#include "dcclient.h"
+#include "message.h"
 
 using namespace std;
 using namespace sector;

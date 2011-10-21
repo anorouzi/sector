@@ -23,16 +23,19 @@ written by
 #ifndef __SECTOR_SLAVE_H__
 #define __SECTOR_SLAVE_H__
 
-#include <sector.h>
-#include <sphere.h>
-#include <gmp.h>
-#include <datachn.h>
-#include <index.h>
-#include <log.h>
-#include <routing.h>
-#include <transaction.h>
-#include <osportable.h>
+#include <queue>
 
+#include "datachn.h"
+#include "gmp.h"
+#include "index.h"
+#include "log.h"
+#include "osportable.h"
+#include "routing.h"
+#include "sector.h"
+#include "sphere.h"
+#include "transaction.h"
+
+class SectorMsg;
 
 namespace sector
 {
@@ -42,7 +45,6 @@ typedef int (*MR_MAP)(const SInput*, SOutput*, SFile*);
 typedef int (*MR_PARTITION)(const char*, int, void*, int);
 typedef int (*MR_COMPARE)(const char*, int, const char*, int);
 typedef int (*MR_REDUCE)(const SInput*, SOutput*, SFile*);
-
 
 class SPEResult
 {

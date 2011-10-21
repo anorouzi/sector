@@ -37,6 +37,8 @@ written by
 #include "transaction.h"
 #include "user.h"
 
+class SectorMsg;
+
 namespace sector
 {
 

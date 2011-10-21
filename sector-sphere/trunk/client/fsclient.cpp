@@ -21,6 +21,7 @@ written by
 
 
 #include "common.h"
+#include "message.h"
 #include "fsclient.h"
 
 using namespace std;

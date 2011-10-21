@@ -33,6 +33,7 @@ written by
 #include "crypto.h"
 #include "dcclient.h"
 #include "fsclient.h"
+#include "message.h"
 #include "ssltransport.h"
 #include "tcptransport.h"
 

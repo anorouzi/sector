@@ -35,109 +35,139 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 12/14/2010
+   Yunhong Gu, last updated 12/31/2010
 *****************************************************************************/
-
 
 #ifndef __GMP_PREC_H__
 #define __GMP_PREC_H__
 
-#ifndef WIN32
-   #include <pthread.h>
-#else
-   #include <udt.h>
-   #include <common.h>
-#endif
-
-#include <set>
-#include <map>
 #include <list>
+#include <map>
+#include <set>
 #include <string>
-#include <udt.h>
 
-struct CPeerRecord
+#include "cache.h"
+#include "common.h"
+#include "udt.h"
+
+// Message record, to avoid repeated messages.
+class CPeerRecord
 {
+public:
    CPeerRecord();
 
+public:
    std::string m_strIP;
    int m_iPort;
    int m_iSession;
    int32_t m_iID;
    int64_t m_llTimeStamp;
+
+public:
+   CPeerRecord& operator=(CPeerRecord& obj);
+   bool operator==(CPeerRecord& obj);
+   CPeerRecord* clone();
+   int getKey();
+   void release() {}
+};
+
+// RTT cache.
+class CPeerRTT
+{
+public:
+   std::string m_strIP;
    int m_iRTT;
-   int32_t m_iFlowWindow;
-
-   UDTSOCKET m_UDTSocket;
-};
-
-struct CFPeerRec
-{
-   bool operator()(const CPeerRecord* p1, const CPeerRecord* p2) const
-   {
-      if (p1->m_strIP == p2->m_strIP)
-      {
-         if (p1->m_iPort == p2->m_iPort)
-            return (p1->m_iSession > p2->m_iSession);
-
-         return (p1->m_iPort > p2->m_iPort);
-      }
-
-      return (p1->m_strIP > p2->m_strIP);
-   }
-};
-
-struct CFPeerRecByIP
-{
-   bool operator()(const CPeerRecord* p1, const CPeerRecord* p2) const
-   {
-      return (p1->m_strIP > p2->m_strIP);
-   }
-};
-
-struct CFPeerRecByTS
-{
-   bool operator()(const CPeerRecord* p1, const CPeerRecord* p2) const
-   {      
-      return (p1->m_llTimeStamp > p2->m_llTimeStamp);
-   }
-};
-
-class CPeerManagement
-{
-public:
-   CPeerManagement();
-   ~CPeerManagement();
+   int64_t m_llTimeStamp;
 
 public:
-   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1, const int& rtt = -1, const int& fw = 0);
-   int getRTT(const std::string& ip);
-   void clearRTT(const std::string& ip);
+   CPeerRTT& operator=(CPeerRTT& obj);
+   bool operator==(CPeerRTT& obj);
+   CPeerRTT* clone();
+   int getKey();
+   void release() {}
+};
+
+// Persistent UDT connections.
+class CUDTConns
+{
+public:
+   std::string m_strIP;
+   int m_iPort;
+   // On the same IP:port address, a GMP may be stoped and started multiple times,
+   // we need a 3rd id to differentiate these connections.
+   // This usually happens when a client terminate itself and then restart immediately.
+   int m_iSession;
+   UDTSOCKET m_UDT;
+   int64_t m_llTimeStamp;
+
+public:
+   CUDTConns& operator=(CUDTConns& obj);
+   bool operator==(CUDTConns& obj);
+   CUDTConns* clone();
+   int getKey();
+   void release();
+};
+
+class CFlowWindow
+{
+public:
+   std::string m_strIP;
+   int m_iPort;
+   int m_iSession;
+   int m_iWindowSize;
+   int64_t m_llTimeStamp;
+
+public:
+   CFlowWindow& operator=(CFlowWindow& obj);
+   bool operator==(CFlowWindow& obj);
+   CFlowWindow* clone();
+   int getKey();
+   void release() {}
+};
+
+class CPeerMgmt
+{
+public:
+   CPeerMgmt();
+   ~CPeerMgmt();
+
+public:
+   void insert(const std::string& ip, const int& port, const int& session, const int32_t& id = -1);
+
+   bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
+
+   int setFlowWindow(const std::string& ip, const int& port, const int& session, const int& size);
    int flowControl(const std::string& ip, const int& port, const int& session);
 
-   int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
-   bool hit(const std::string& ip, const int& port, const int& session, const int32_t& id);
+   int setRTT(const std::string& ip, const int& rtt);
+   int getRTT(const std::string& ip);
+   void clearRTT(const std::string& ip);
 
    int setUDTSocket(const std::string& ip, const int& port, const UDTSOCKET& usock);
    int getUDTSocket(const std::string& ip, const int& port, UDTSOCKET& usock);
 
+   void clear();
+
 private:
    int addRecentPR(const CPeerRecord& pr);
-   void clearPR();
 
 private:
-   //TODO: use hash table and linked list to implement the record cache
-
-   std::set<CPeerRecord*, CFPeerRec> m_sPeerRec;
-   std::set<CPeerRecord*, CFPeerRecByTS> m_sPeerRecByTS;
-   std::map<std::string, int> m_mRTT;
-
-   static const unsigned int m_uiHashSpace = 20;
-   std::map<int, std::list<CPeerRecord> > m_mRecentRec;
+   CCache<CPeerRecord> m_RecentRec;
+   CCache<CPeerRTT> m_PeerRTT;
+   CCache<CUDTConns> m_PersistentUDT;
+   CCache<CFlowWindow> m_FlowWindow;
 
    pthread_mutex_t m_PeerRecLock;
 
 private:
+   static const unsigned int m_uiHashSpace = 20;
    static const unsigned int m_uiRecLimit = 65536;
+
+public:
+   static int32_t hash(const std::string& ip, const int& port, const int& session, const int32_t& id);
+   static int32_t hash(const std::string& ip, const int& port, const int& session);
+   static int32_t hash(const std::string& ip, const int& port);
+   static int32_t hash(const std::string& ip);
 };
 
 #endif

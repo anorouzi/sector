@@ -24,6 +24,7 @@ written by
 #endif
 #include <algorithm>
 
+#include "message.h"
 #include "slave.h"
 #include "sphere.h"
 

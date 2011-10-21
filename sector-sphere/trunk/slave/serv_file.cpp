@@ -26,6 +26,7 @@ written by
    #include <sys/utime.h>
 #endif
 
+#include "message.h"
 #include "slave.h"
 #include "writelog.h"
 

@@ -19,46 +19,25 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-#include <string.h>
+#ifndef __DHASH_H__
+#define __DHASH_H__
 
-#include "dhash.h"
+#include <math.h>
+#include <openssl/sha.h>
+#include <string>
 
-using namespace sector;
-
-DHash::DHash():
-m_im(32)
+class DHash
 {
-}
+public:
+   DHash();
+   DHash(const int m);
+   ~DHash();
 
-DHash::DHash(const int m):
-m_im(m)
-{
-}
+   unsigned int hash(const char* str);
+   static unsigned int hash(const char* str, int m);
 
-DHash::~DHash()
-{
-}
+private:
+   unsigned int m_im;
+};
 
-unsigned int DHash::hash(const char* str)
-{
-   unsigned char res[SHA_DIGEST_LENGTH];
-
-   SHA1((const unsigned char*)str, strlen(str), res);
-
-   return *(unsigned int*)(res + SHA_DIGEST_LENGTH - 4);
-}
-
-unsigned int DHash::hash(const char* str, int m)
-{
-   unsigned char res[SHA_DIGEST_LENGTH];
-
-   SHA1((const unsigned char*)str, strlen(str), res);
-
-   if (m >= 32)
-      return *(unsigned int*)(res + SHA_DIGEST_LENGTH - 4);
-
-   unsigned int mask = 1;
-   mask = (mask << m) - 1;
-
-   return (*(unsigned int*)(res + SHA_DIGEST_LENGTH - 4)) & mask;
-}
+#endif

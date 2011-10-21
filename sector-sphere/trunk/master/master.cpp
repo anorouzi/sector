@@ -26,6 +26,7 @@ written by
 
 #include "common.h"
 #include "master.h"
+#include "message.h"
 #include "ssltransport.h"
 #include "tcptransport.h"
 #include "topology.h"
@@ -362,7 +363,14 @@ int Master::run()
             msg.setType(1006);
             msg.setData(0, (char*)&i->first, 4);
             m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
-            m_GMP.multi_rpc(m_vSlaveList, &msg);
+            vector<string> ips;
+            vector<int> ports;
+            for (vector<Address>::const_iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
+            {
+               ips.push_back(i->m_strIP);
+               ports.push_back(i->m_iPort);
+            }
+            m_GMP.multi_rpc(ips, ports, &msg);
          }
       }
 
@@ -1049,7 +1057,14 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       msg.setData(4, masterIP, strlen(masterIP) + 1);
       msg.setData(68, (char*)&masterPort, 4);
       m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
-      m_GMP.multi_rpc(m_vSlaveList, &msg);
+      vector<string> ips;
+      vector<int> ports;
+      for (vector<Address>::const_iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
+      {
+         ips.push_back(i->m_strIP);
+          ports.push_back(i->m_iPort);
+      }
+      m_GMP.multi_rpc(ips, ports, &msg);
    }
 
    return 0;

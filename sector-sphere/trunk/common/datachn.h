@@ -76,6 +76,7 @@ public:
 
    int connect(const std::string& ip, int port);
    int remove(const std::string& ip, int port);
+   void removeAll() {}
 
    int send(const std::string& ip, int port, int session, const char* data, int size, Crypto* encoder = NULL);
    int recv(const std::string& ip, int port, int session, char*& data, int& size, Crypto* decoder = NULL);

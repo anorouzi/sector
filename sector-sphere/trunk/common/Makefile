@@ -13,14 +13,14 @@ OBJS = osportable.o \
        sphere.o \
        constant.o \
        crypto.o \
-       dhash.o \
        routing.o \
        udttransport.o \
        ssltransport.o \
        tcptransport.o \
        datachn.o \
        threadpool.o \
-       writelog.o
+       writelog.o \
+       message.o
 
 all: libcommon.so libcommon.a
 test: crypto_unittest

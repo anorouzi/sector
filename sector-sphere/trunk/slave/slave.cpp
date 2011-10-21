@@ -37,7 +37,8 @@ written by
 #include <iostream>
 #include <sstream>
 
-#include <common.h>
+#include "common.h"
+#include "message.h"
 #include "slave.h"
 #include "ssltransport.h"
 

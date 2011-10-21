@@ -26,7 +26,6 @@ written by
 #include "routing.h"
 
 using namespace std;
-using namespace sector;
 
 Routing::Routing():
 m_iKeySpace(32)
