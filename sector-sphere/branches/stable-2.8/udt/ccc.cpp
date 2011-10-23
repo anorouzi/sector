@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2009, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 03/17/2011
+   Yunhong Gu, last updated 07/09/2009
 *****************************************************************************/
 
 
@@ -43,6 +43,7 @@ written by
 #include "ccc.h"
 #include <cmath>
 #include <cstring>
+
 
 CCC::CCC():
 m_iSYNInterval(CUDT::m_iSYNInterval),
@@ -102,16 +103,9 @@ void CCC::sendCustomMsg(CPacket& pkt) const
 
 const CPerfMon* CCC::getPerfInfo()
 {
-   try
-   {
-      CUDT* u = CUDT::getUDTHandle(m_UDT);
-      if (NULL != u)
-         u->sample(&m_PerfInfo, false);
-   }
-   catch (...)
-   {
-      return NULL;
-   }
+   CUDT* u = CUDT::getUDTHandle(m_UDT);
+   if (NULL != u)
+      u->sample(&m_PerfInfo, false);
 
    return &m_PerfInfo;
 }
@@ -191,9 +185,6 @@ void CUDTCC::init()
 
 void CUDTCC::onACK(const int32_t& ack)
 {
-   int64_t B = 0;
-   double inc = 0;
-
    uint64_t currtime = CTimer::getTime();
    if (currtime - m_LastRCTime < (uint64_t)m_iRCInterval)
       return;
@@ -219,17 +210,20 @@ void CUDTCC::onACK(const int32_t& ack)
 
    // During Slow Start, no rate increase
    if (m_bSlowStart)
-      goto RATE_LIMIT;
+      return;
 
    if (m_bLoss)
    {
       m_bLoss = false;
-      goto RATE_LIMIT;
+      return;
    }
 
-   B = (int64_t)(m_iBandwidth - 1000000.0 / m_dPktSndPeriod);
+   int64_t B = (int64_t)(m_iBandwidth - 1000000.0 / m_dPktSndPeriod);
    if ((m_dPktSndPeriod > m_dLastDecPeriod) && ((m_iBandwidth / 9) < B))
       B = m_iBandwidth / 9;
+
+   double inc;
+
    if (B <= 0)
       inc = 1.0 / m_iMSS;
    else
@@ -245,8 +239,6 @@ void CUDTCC::onACK(const int32_t& ack)
 
    m_dPktSndPeriod = (m_dPktSndPeriod * m_iRCInterval) / (m_dPktSndPeriod * inc + m_iRCInterval);
 
-
-RATE_LIMIT:
    //set maximum transfer rate
    if ((NULL != m_pcParam) && (m_iPSize == 8))
    {

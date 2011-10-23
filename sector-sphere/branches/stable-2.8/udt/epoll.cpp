@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,21 +35,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/01/2011
+   Yunhong Gu, last updated 10/12/2010
 *****************************************************************************/
 
+#include "udt.h"
+#include "common.h"
+#include "epoll.h"
+#include <errno.h>
+#include <algorithm>
+#include <iterator>
 #ifdef LINUX
    #include <sys/epoll.h>
    #include <unistd.h>
 #endif
-#include <algorithm>
-#include <cerrno>
-#include <cstring>
-#include <iterator>
-
-#include "common.h"
-#include "epoll.h"
-#include "udt.h"
 
 using namespace std;
 
@@ -91,7 +89,7 @@ int CEPoll::create()
    return desc.m_iID;
 }
 
-int CEPoll::add_usock(const int eid, const UDTSOCKET& u, const int* events)
+int CEPoll::add_usock(const int eid, const UDTSOCKET& u, const int* /*events*/)
 {
    CGuard pg(m_EPollLock);
 
@@ -99,10 +97,7 @@ int CEPoll::add_usock(const int eid, const UDTSOCKET& u, const int* events)
    if (p == m_mPolls.end())
       throw CUDTException(5, 13);
 
-   if (!events || (*events & UDT_EPOLL_IN))
-      p->second.m_sUDTSocksIn.insert(u);
-   if (!events || (*events & UDT_EPOLL_OUT))
-      p->second.m_sUDTSocksOut.insert(u);
+   p->second.m_sUDTSocks.insert(u);
 
    return 0;
 }
@@ -122,7 +117,6 @@ int CEPoll::add_ssock(const int eid, const SYSSOCKET& s, const int* events)
       ev.events = EPOLLIN | EPOLLOUT | EPOLLERR;
    else
    {
-      ev.events = 0;
       if (*events & UDT_EPOLL_IN)
          ev.events |= EPOLLIN;
       if (*events & UDT_EPOLL_OUT)
@@ -141,7 +135,7 @@ int CEPoll::add_ssock(const int eid, const SYSSOCKET& s, const int* events)
    return 0;
 }
 
-int CEPoll::remove_usock(const int eid, const UDTSOCKET& u)
+int CEPoll::remove_usock(const int eid, const UDTSOCKET& u, const int* /*events*/)
 {
    CGuard pg(m_EPollLock);
 
@@ -149,17 +143,12 @@ int CEPoll::remove_usock(const int eid, const UDTSOCKET& u)
    if (p == m_mPolls.end())
       throw CUDTException(5, 13);
 
-   p->second.m_sUDTSocksIn.erase(u);
-   p->second.m_sUDTSocksOut.erase(u);
-
-   // when the socket is removed from a monitoring, it is not available anymore for any IO notification
-   p->second.m_sUDTReads.erase(u);
-   p->second.m_sUDTWrites.erase(u);
+   p->second.m_sUDTSocks.erase(u);
 
    return 0;
 }
 
-int CEPoll::remove_ssock(const int eid, const SYSSOCKET& s)
+int CEPoll::remove_ssock(const int eid, const SYSSOCKET& s, const int* events)
 {
    CGuard pg(m_EPollLock);
 
@@ -168,7 +157,21 @@ int CEPoll::remove_ssock(const int eid, const SYSSOCKET& s)
       throw CUDTException(5, 13);
 
 #ifdef LINUX
-   epoll_event ev;  // ev is ignored, for compatibility with old Linux kernel only.
+   epoll_event ev;
+
+   if (NULL == events)
+      ev.events = EPOLLIN | EPOLLOUT | EPOLLERR;
+   else
+   {
+      if (*events & UDT_EPOLL_IN)
+         ev.events |= EPOLLIN;
+      if (*events & UDT_EPOLL_OUT)
+         ev.events |= EPOLLOUT;
+      if (*events & UDT_EPOLL_ERR)
+         ev.events |= EPOLLERR;
+   }
+
+   ev.data.fd = s;
    if (epoll_ctl(p->second.m_iLocalID, EPOLL_CTL_DEL, s, &ev) < 0)
       throw CUDTException();
 #endif
@@ -180,16 +183,6 @@ int CEPoll::remove_ssock(const int eid, const SYSSOCKET& s)
 
 int CEPoll::wait(const int eid, set<UDTSOCKET>* readfds, set<UDTSOCKET>* writefds, int64_t msTimeOut, set<SYSSOCKET>* lrfds, set<SYSSOCKET>* lwfds)
 {
-   // if all fields is NULL and waiting time is infinite, then this would be a deadlock
-   if (!readfds && !writefds && !lrfds && lwfds && (msTimeOut < 0))
-      throw CUDTException(5, 3, 0);
-
-   // Clear these sets in case the app forget to do it.
-   if (readfds) readfds->clear();
-   if (writefds) writefds->clear();
-   if (lrfds) lrfds->clear();
-   if (lwfds) lwfds->clear();
-
    int total = 0;
 
    int64_t entertime = CTimer::getTime();
@@ -202,13 +195,6 @@ int CEPoll::wait(const int eid, set<UDTSOCKET>* readfds, set<UDTSOCKET>* writefd
       {
          CGuard::leaveCS(m_EPollLock);
          throw CUDTException(5, 13);
-      }
-
-      if (p->second.m_sUDTSocksIn.empty() && p->second.m_sUDTSocksOut.empty() && p->second.m_sLocals.empty())
-      {
-         // no socket is being monitored, this may be a deadlock
-         CGuard::leaveCS(m_EPollLock);
-         throw CUDTException(5, 3);
       }
 
       if ((NULL != readfds) && !p->second.m_sUDTReads.empty())
@@ -225,6 +211,12 @@ int CEPoll::wait(const int eid, set<UDTSOCKET>* readfds, set<UDTSOCKET>* writefd
 
       if (lrfds || lwfds)
       {
+         if (lrfds)
+            lrfds->clear();
+
+         if (lwfds)
+            lwfds->clear();
+
          #ifdef LINUX
          const int max_events = p->second.m_sLocals.size();
          epoll_event ev[max_events];
@@ -233,7 +225,7 @@ int CEPoll::wait(const int eid, set<UDTSOCKET>* readfds, set<UDTSOCKET>* writefd
          for (int i = 0; i < nfds; ++ i)
          {
             if ((NULL != lrfds) && (ev[i].events & EPOLLIN))
-           {
+            {
                lrfds->insert(ev[i].data.fd);
                ++ total;
             }
@@ -265,19 +257,28 @@ int CEPoll::wait(const int eid, set<UDTSOCKET>* readfds, set<UDTSOCKET>* writefd
          timeval tv;
          tv.tv_sec = 0;
          tv.tv_usec = 0;
-         if (select(0, &readfds, &writefds, NULL, &tv) > 0
+         int r = select(0, &readfds, &writefds, NULL, &tv);
+
+         if (r > 0)
          {
             for (set<SYSSOCKET>::const_iterator i = p->second.m_sLocals.begin(); i != p->second.m_sLocals.end(); ++ i)
             {
-               if (lrfds && FD_ISSET(*i, &readfds))
+               if (lrfds)
                {
-                  lrfds->insert(*i);
-                  ++ total;
+                  if (FD_ISSET(*i, &readfds))
+                  {
+                     lrfds->insert(*i);
+                     ++ total;
+                  }
                }
-               if (lwfds && (FD_ISSET(*i, &writefds))
+
+               if (lwfds)
                {
-                  lwfds->insert(*i);
-                  ++ total;
+                  if (FD_ISSET(*i, &writefds))
+                  {
+                     lwfds->insert(*i);
+                     ++ total;
+                  }
                }
             }
          }
@@ -330,7 +331,7 @@ int CEPoll::enable_write(const UDTSOCKET& uid, set<int>& eids)
       {
          lost.push_back(*i);
       }
-      else if (p->second.m_sUDTSocksOut.find(uid) != p->second.m_sUDTSocksOut.end())
+      else
       {
          p->second.m_sUDTWrites.insert(uid);
       }
@@ -356,7 +357,7 @@ int CEPoll::enable_read(const UDTSOCKET& uid, set<int>& eids)
       {
          lost.push_back(*i);
       }
-      else if (p->second.m_sUDTSocksIn.find(uid) != p->second.m_sUDTSocksIn.end())
+      else
       {
          p->second.m_sUDTReads.insert(uid);
       }

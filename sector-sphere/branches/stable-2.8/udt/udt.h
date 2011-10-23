@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2001 - 2011, The Board of Trustees of the University of Illinois.
+Copyright (c) 2001 - 2010, The Board of Trustees of the University of Illinois.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -35,7 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /*****************************************************************************
 written by
-   Yunhong Gu, last updated 01/18/2011
+   Yunhong Gu, last updated 12/31/2010
 *****************************************************************************/
 
 #ifndef __UDT_H__
@@ -47,11 +47,10 @@ written by
    #include <sys/socket.h>
    #include <netinet/in.h>
 #else
+   #include <windows.h>
    #ifdef __MINGW__
-      #include <stdint.h>
       #include <ws2tcpip.h>
    #endif
-   #include <windows.h>
 #endif
 #include <fstream>
 #include <set>
@@ -97,15 +96,17 @@ written by
 
 #ifdef WIN32
    #ifndef __MINGW__
+      typedef SOCKET UDPSOCKET;
       typedef SOCKET SYSSOCKET;
    #else
+      typedef int UDPSOCKET;
       typedef int SYSSOCKET;
    #endif
 #else
+   typedef int UDPSOCKET;
    typedef int SYSSOCKET;
 #endif
 
-typedef SYSSOCKET UDPSOCKET;
 typedef int UDTSOCKET;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,7 +126,7 @@ enum EPOLLOpt
    UDT_EPOLL_ERR = 0x8
 };
 
-enum UDTSTATUS {INIT = 1, OPENED, LISTENING, CONNECTING, CONNECTED, BROKEN, CLOSING, CLOSED, NONEXIST};
+enum UDTSTATUS {INIT = 1, OPENED, LISTENING, CONNECTED, BROKEN, CLOSED, NONEXIST};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,9 +148,7 @@ enum UDTOpt
    UDT_SNDTIMEO,        // send() timeout
    UDT_RCVTIMEO,        // recv() timeout
    UDT_REUSEADDR,	// reuse an existing port or create a new one
-   UDT_MAXBW,		// maximum bandwidth (bytes per second) that the connection can use
-   UDT_STATE,		// current socket state, see UDTSTATUS, read only
-   UDT_EVENT		// current avalable events associated with the socket
+   UDT_MAXBW		// maximum bandwidth (bytes per second) that the connection can use
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,8 +323,8 @@ UDT_API int selectEx(const std::vector<UDTSOCKET>& fds, std::vector<UDTSOCKET>* 
 UDT_API int epoll_create();
 UDT_API int epoll_add_usock(const int eid, const UDTSOCKET u, const int* events = NULL);
 UDT_API int epoll_add_ssock(const int eid, const SYSSOCKET s, const int* events = NULL);
-UDT_API int epoll_remove_usock(const int eid, const UDTSOCKET u);
-UDT_API int epoll_remove_ssock(const int eid, const SYSSOCKET s);
+UDT_API int epoll_remove_usock(const int eid, const UDTSOCKET u, const int* events = NULL);
+UDT_API int epoll_remove_ssock(const int eid, const SYSSOCKET s, const int* events = NULL);
 UDT_API int epoll_wait(const int eid, std::set<UDTSOCKET>* readfds, std::set<UDTSOCKET>* writefds, int64_t msTimeOut, std::set<SYSSOCKET>* lrfds = NULL, std::set<SYSSOCKET>* wrfds = NULL);
 UDT_API int epoll_release(const int eid);
 UDT_API ERRORINFO& getlasterror();

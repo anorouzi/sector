@@ -84,8 +84,6 @@ public:
 
    int m_iMuxID;                             // multiplexer ID
 
-   pthread_mutex_t m_ControlLock;            // lock this socket exclusively for control APIs: bind/listen/connect
-
 private:
    CUDTSocket(const CUDTSocket&);
    CUDTSocket& operator=(const CUDTSocket&);
@@ -96,7 +94,6 @@ private:
 class CUDTUnited
 {
 friend class CUDT;
-friend class CRendezvousQueue;
 
 public:
    CUDTUnited();
@@ -176,8 +173,8 @@ public:
    int epoll_create();
    int epoll_add_usock(const int eid, const UDTSOCKET u, const int* events = NULL);
    int epoll_add_ssock(const int eid, const SYSSOCKET s, const int* events = NULL);
-   int epoll_remove_usock(const int eid, const UDTSOCKET u);
-   int epoll_remove_ssock(const int eid, const SYSSOCKET s);
+   int epoll_remove_usock(const int eid, const UDTSOCKET u, const int* events = NULL);
+   int epoll_remove_ssock(const int eid, const SYSSOCKET s, const int* events = NULL);
    int epoll_wait(const int eid, std::set<UDTSOCKET>* readfds, std::set<UDTSOCKET>* writefds, int64_t msTimeOut, std::set<SYSSOCKET>* lrfds = NULL, std::set<SYSSOCKET>* lwfds = NULL);
    int epoll_release(const int eid);
 
@@ -220,9 +217,8 @@ private:
    #endif
 
 private:
-   void connect_complete(const UDTSOCKET u);
    CUDTSocket* locate(const UDTSOCKET u);
-   CUDTSocket* locate(const sockaddr* peer, const UDTSOCKET& id, const int32_t& isn);
+   CUDTSocket* locate(const UDTSOCKET u, const sockaddr* peer, const UDTSOCKET& id, const int32_t& isn);
    void updateMux(CUDTSocket* s, const sockaddr* addr = NULL, const UDPSOCKET* = NULL);
    void updateMux(CUDTSocket* s, const CUDTSocket* ls);
 
@@ -231,7 +227,7 @@ private:
    pthread_mutex_t m_MultiplexerLock;
 
 private:
-   CCache<CInfoBlock>* m_pCache;			// UDT network information cache
+   CCache* m_pCache;					// UDT network information cache
 
 private:
    volatile bool m_bClosing;
