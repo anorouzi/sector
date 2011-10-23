@@ -535,10 +535,7 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
           ERR_MSG( "Reread fail with error code " << r << " file " << path <<
            " size " << size << " offset " << offset );
           return -1;
-      } else {
-          ERR_MSG( "Reread successful, read bytes  " << r << " file " << path <<
-           " size " << size << " offset " << offset);
-      }
+      } 
    }
    return r;
 }
