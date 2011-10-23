@@ -28,10 +28,25 @@ written by
 
 #define ERR_MSG( msg ) \
 {\
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << " cmd " << cmd << " " << \
+      filename << " transid " << transid << " " << client_ip << " " << client_port << \
+   " " << msg << LogEnd(); \
+}
+
+#define INFO_MSG( msg ) \
+{\
    self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << " cmd " << cmd << " " << \
       filename << " transid " << transid << " " << client_ip << " " << client_port << \
    " " << msg << LogEnd(); \
 }
+
+#define DBG_MSG( msg ) \
+{\
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << " cmd " << cmd << " " << \
+      filename << " transid " << transid << " " << client_ip << " " << client_port << \
+   " " << msg << LogEnd(); \
+}
+
 
 #include "slave.h"
 #include "writelog.h"
@@ -84,7 +99,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    int reads = 0;
    int writes = 0;
 
-   ERR_MSG ("Connecting");
+   INFO_MSG ("Connecting");
 
    if ((!self->m_DataChn.isConnected(client_ip, client_port)) && (self->m_DataChn.connect(client_ip, client_port) < 0))
    {
@@ -203,6 +218,8 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             // update total sent data size
             self->m_SlaveStat.updateIO(client_ip, param[1], (key == 0) ? +SlaveStat::SYS_OUT : +SlaveStat::CLI_OUT);
+            if (reads < 4) // logging first 3 reads
+               DBG_MSG("Read offset " << offset << " size " << size);
 
             break;
          }
@@ -272,7 +289,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
             writelog.insert(offset, size);
             file_change = true;
             if (writes < 4) // logging first 3 writes
-               ERR_MSG("Write offset " << offset << " size " << size);    
+               DBG_MSG("Write offset " << offset << " size " << size);    
 
             break;
          }
@@ -413,12 +430,12 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       case 5: // end session
          // the file has been successfully closed
          run = false;
-         ERR_MSG("Sesion end");
+         DBG_MSG("Sesion end");
          break;
 
       case 6: // read file path for local IO optimization
          self->m_DataChn.send(client_ip, client_port, transid, self->m_strHomeDir.c_str(), self->m_strHomeDir.length() + 1);
-         ERR_MSG("Send to client path in local IO optimization");
+         DBG_MSG("Send to client path in local IO optimization");
          break;
 
       case 7: // synchronize with the client, make sure write is correct
@@ -550,7 +567,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   ERR_MSG("File server closed, duration " << duration << " reads " << reads << " " << rb << " bytes " << (long long)avgWS 
+   INFO_MSG("File server closed, duration " << duration << " reads " << reads << " " << rb << " bytes " << (long long)avgWS 
       << " mb/sec, writes " << writes << " " << wb << " bytes " << (long long)avgRS << " mb/sec ");
 
    // clear this transaction
@@ -589,7 +606,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    if (success)
    {
-      ERR_MSG("Updating client with success");
+      DBG_MSG("Updating client with success");
       self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
    }
    else
