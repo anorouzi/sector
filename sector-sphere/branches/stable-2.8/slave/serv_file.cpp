@@ -203,8 +203,6 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
             // update total sent data size
             self->m_SlaveStat.updateIO(client_ip, param[1], (key == 0) ? +SlaveStat::SYS_OUT : +SlaveStat::CLI_OUT);
-            if (reads < 4) // logging first 3 reads
-               ERR_MSG("Read offset " << offset << " size " << size);
 
             break;
          }
