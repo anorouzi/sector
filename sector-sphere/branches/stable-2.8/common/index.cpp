@@ -1003,6 +1003,9 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
 
          if (curr_rep_num < target_rep_num)
             under.push_back(abs_path);
+
+         // TODO (sergey)
+
          else if (curr_rep_num > target_rep_num)
             over.push_back(abs_path);
       }
