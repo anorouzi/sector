@@ -57,14 +57,14 @@ int Master::init()
 {
    if (ConfLocation::locate(m_strSectorHome) < 0)
    {
-      cerr << "unable to read/parse configuration file.\n";
+      cerr << "Unable to read/parse configuration file.\n";
       return -1;
    }
 
    // read configuration from master.conf
    if (m_SysConfig.init(m_strSectorHome + "/conf/master.conf") < 0)
    {
-      cerr << "unable to read/parse configuration file.\n";
+      cerr << "Unable to read/parse configuration file.\n";
       return -1;
    }
 
@@ -90,7 +90,7 @@ int Master::init()
    {
       if (errno != ENOENT)
       {
-         cerr << "unable to configure home directory.\n";
+         cerr << "Unable to configure home directory.\n";
          return -1;
       }
 
@@ -103,7 +103,7 @@ int Master::init()
          currpath += *i;
          if (LocalFS::mkdir(currpath) < 0)
          {
-            m_SectorLog.insert("unable to configure home directory.");
+            cerr << "Unable to configure home directory.";
             return -1;
          }
          currpath += "/";
@@ -118,7 +118,7 @@ int Master::init()
       || (LocalFS::stat(m_strHomeDir + ".tmp", s) < 0)
       || (LocalFS::stat(m_strHomeDir + ".log", s) < 0))
    {
-      cerr << "unable to create home directory " << m_strHomeDir << endl;
+      cerr << "Unable to create home directory " << m_strHomeDir << endl;
       return -1;
    }
 
@@ -148,7 +148,7 @@ int Master::init()
    // start GMP
    if (m_GMP.init(m_SysConfig.m_iServerPort) < 0)
    {
-      cerr << "cannot initialize GMP.\n";
+      m_SectorLog.insert("Cannot initialize GMP");
       return -1;
    }
 
@@ -156,14 +156,14 @@ int Master::init()
    SSLTransport secconn;
    if (secconn.initClientCTX((m_strSectorHome + "/conf/security_node.cert").c_str()) < 0)
    {
-      cerr << "No security node certificate found.\n";
+      m_SectorLog.insert( "No security node certificate found");
       return -1;
    }
    secconn.open(NULL, 0);
    if (secconn.connect(m_SysConfig.m_strSecServIP.c_str(), m_SysConfig.m_iSecServPort) < 0)
    {
       secconn.close();
-      cerr << "Failed to find security server.\n";
+      m_SectorLog.insert( "Failed to find security server");
       return -1;
    }
 
@@ -238,7 +238,7 @@ int Master::join(const char* ip, const int& port)
    s.open(NULL, 0);
    if (s.connect(ip, port) < 0)
    {
-      cerr << "unable to set up secure channel to the existing master.\n";
+      m_SectorLog.insert("Unable to set up secure channel to the existing master");
       return -1;
    }
 
@@ -252,7 +252,7 @@ int Master::join(const char* ip, const int& port)
    s.recv((char*)&key, 4);
    if (key < 0)
    {
-      cerr << "security check failed. code: " << key << endl;
+      m_SectorLog.insert("Security check failed. code: " + key);
       return -1;
    }
 
@@ -384,8 +384,8 @@ int Master::run()
                m_TransManager.updateSlave(*t, *s);
             }
          }
-
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << " timeout. Kicked out." << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << 
+            " " << (*i)->m_strIP << " Timeout. Kicked out." << LogEnd();
          delete *i;
       }
       iu.clear();
@@ -408,13 +408,15 @@ int Master::run()
 
       for (map<int, SlaveNode>::iterator i = bad.begin(); i != bad.end(); ++ i)
       {
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << " Bad slave detected " << i->second.m_strIP << " ID " << i->first << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << " Bad slave detected " << i->second.m_strIP << ":" << 
+           i->second.m_iPort << " ID " << i->first << LogEnd();
          //TODO: create replica for files on the bad nodes, gradually move data out of those nodes
       }
 
       for (map<int, SlaveNode>::iterator i = lost.begin(); i != lost.end(); ++ i)
       {
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave lost " << i->second.m_strIP << " ID " << i->first << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave lost " << i->second.m_strIP <<":" <<
+           i->second.m_iPort << " ID " << i->first << LogEnd();
 
          Address addr;
          addr.m_strIP = i->second.m_strIP;
@@ -425,7 +427,7 @@ int Master::run()
          if (i->second.m_strAddr.empty())
             continue;
 
-         m_SectorLog.insert(("Restart slave " + i->second.m_strAddr + " " + i->second.m_strBase).c_str());
+         m_SectorLog.insert(("Restart slave " + i->second.m_strAddr + ":" +  i->second.m_strIP + " " + i->second.m_strBase).c_str());
 
          SectorMsg newmsg;
          newmsg.setType(8);
@@ -447,7 +449,9 @@ int Master::run()
 
       for (map<int, SlaveNode>::iterator i = dead.begin(); i != dead.end(); ++ i)
       {
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << i->second.m_strIP << " ID " << i->first << " has been failed for a long time; Give it up now." << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << i->second.m_strIP << ":" <<
+           i->second.m_iPort <<" ID " << i->first << " has been failed for a long time; Give it up now." 
+          << LogEnd();
          m_SlaveManager.remove(i->first);
       }
 
@@ -916,7 +920,7 @@ int Master::processUserJoin(SSLTransport& cliconn,
 
       m_UserManager.insert(au);
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " ID " << key << " login from " << ip << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " UID " << key << " login from " << ip << LogEnd();
 
       if (ukey <= 0)
       {
@@ -1090,7 +1094,8 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       if (NULL == user)
       {
          self->reject(ip, port, id, SectorError::E_EXPIRED);
-         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Rejected Req from " << ip << " " << port << " " << id << " " << SectorError::E_EXPIRED << LogEnd();
+         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "UID " << key << " Rejected login from " << ip << 
+          ":" << port << " " << id << " - session expired" << LogEnd();
          continue;
       }
 
@@ -1126,7 +1131,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       if (!secure)
       {
          self->reject(ip, port, id, SectorError::E_SECURITY);
-         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Rejected Req from " << user->m_strName << " " << user->m_iKey << " " << ip << " " << port << " " << id << " " << SectorError::E_SECURITY << LogEnd();
+         self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Rejected Req from " << user->m_strName << " " << user->m_iKey << " " << ip << " " << port << " " << id << " bad password/certificate " << SectorError::E_SECURITY << LogEnd();
          continue;
       }
 
@@ -1259,7 +1264,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
-            m_SectorLog << LogStart(9) << " new replica is created " << sn.m_strName << " " << addr.m_strIP << LogEnd();
+            m_SectorLog << LogStart(9) << "New replica is created " << sn.m_strName << " " << addr.m_strIP 
+             << ":" << addr.m_iPort << LogEnd();
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
             m_ReplicaLock.acquire();
             m_sstrOnReplicate.erase(Metadata::revisePath(sn.m_strName));
@@ -1289,8 +1295,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          // remove this slave from the transaction
          int r = m_TransManager.updateSlave(transid, slaveid);
          m_SlaveManager.decActTrans(slaveid);
-         m_SectorLog << LogStart(9) << " Slave Transaction Close " << slaveid << " " << transid << " "
-                     << t.m_strFile << " " << t.m_iUserKey << " Slaves Left " << r << LogEnd();
+         m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey << " slave " 
+           << slaveid << " Transaction close "  << t.m_strFile << " Slaves Left " << r << LogEnd();
 
          // unlock the file, if this is a file operation, and all slaves have completed
          // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
@@ -1298,7 +1304,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             processWriteResults(t.m_strFile, t.m_mResults);
             m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
-            logUserActivity(user, "close", t.m_strFile.c_str(), t.m_iTransID, NULL, LogLevel::LEVEL_9);
+            m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey <<" Final transaction Close "
+              << t.m_strFile << LogEnd();
          }
       }
 
@@ -1320,7 +1327,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
    case 2: // client logout
    {
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " ID " << user->m_iKey << " logout from " << ip << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " UID " << user->m_iKey << " logout " << ip << LogEnd();
 
       m_UserManager.remove(key);
 
@@ -1349,19 +1356,23 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          //TODO: send current users, current transactions
       }
 
-       m_SectorLog << LogStart(9) << "sysinfo " << user->m_strName << " " << ip << " current total number of active transcations " << m_TransManager.getTotalTrans() << LogEnd();
+       m_SectorLog << LogStart(9) << "sysinfo " << user->m_strName << " " << ip << " Current total number of active transcations " << m_TransManager.getTotalTrans() << LogEnd();
 
        CGuard::enterCS(m_TransManager.m_TLLock);     
       for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
-          m_SectorLog << LogStart(9) << "TRASNACTION " << t->second.m_iTransID << " OPENED FILE " << t->second.m_strFile << " DURATION " << (CTimer::getTime() - t->second.m_llStartTime) / 100000 << " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << " USER " << t->second.m_iUserKey << LogEnd();
+          m_SectorLog << LogStart(9) << "TID " << t->second.m_iTransID << " UID " << t->second.m_iUserKey << " "
+            << t->second.m_strFile << " DURATION " << (CTimer::getTime() - t->second.m_llStartTime) / 1000000 <<
+             " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << LogEnd();
       }
       CGuard::leaveCS(m_TransManager.m_TLLock);
 
       m_UserManager.m_Lock.acquire();
+       m_SectorLog << LogStart(9) << "List of active users" << LogEnd();
       for (map<int, User*>::const_iterator u = m_UserManager.m_mActiveUsers.begin(); u !=  m_UserManager.m_mActiveUsers.end(); ++ u)
       {
-         m_SectorLog << LogStart(9) << " ACTIVE USER " << u->second->m_strName << " " << u->second->m_iKey << " "
-                     << u->second->m_strIP << " " << (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << LogEnd();
+         m_SectorLog << LogStart(9) << "User " << u->second->m_strName << " UID " << u->second->m_iKey << " "
+                     << u->second->m_strIP << " Last seen " << 
+          (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago " <<LogEnd();
       }
       m_UserManager.m_Lock.release();
 
@@ -2277,7 +2288,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       m_GMP.sendto(ip, port, id, msg);
 
-      logUserActivity(user, "open", path.c_str(), transid, addr.rbegin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "TID " << transid << " UID " << user->m_iKey << " " <<
+         user->m_strIP << " open PATH " << path << LogEnd();
 
       break;
    }
@@ -2297,12 +2309,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       SNode attr;
       m_pMetadata->lookup(t.m_strFile.c_str(), attr);
-      if (attr.m_sLocation.size() <= 1)
-      {
-         reject(ip, port, id, SectorError::E_RESOURCE);
-         logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
-         break;
-      }
+//      if (attr.m_sLocation.size() <= 1)
+//      {
+//         reject(ip, port, id, SectorError::E_RESOURCE);
+//         logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+//         break;
+//      }
 
       // choose from unused data locations only
       set<Address, AddrComp> candidates = attr.m_sLocation;
@@ -3287,13 +3299,12 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
 void Master::logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level)
 {
    stringstream buf;
-   buf << "user request => USER: " << user->m_strName << " UID: " << user->m_iKey << " IP: " << user->m_strIP << " CMD: " << cmd;
+   buf << "USER " << user->m_strName << " UID " << user->m_iKey << " " << user->m_strIP << " " << cmd;
    if (NULL != file)
-      buf << " PATH: " << file;
-   buf << " RESULT: " << res;
+      buf << " PATH " << file;
+   buf << " RESULT " << res;
    if (NULL != info)
-      buf << " SLAVE: " << info;
-
+      buf << " SLAVE " << info;
    m_SectorLog.insert(buf.str().c_str(), level);
 }
 
