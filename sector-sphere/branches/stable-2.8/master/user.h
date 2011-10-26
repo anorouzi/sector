@@ -70,7 +70,7 @@ public:
    User* lookup(int key);
    int remove(int key);
 
-private:
+public:
    std::map<int, User*> m_mActiveUsers;
    CMutex m_Lock;
 };

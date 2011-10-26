@@ -530,7 +530,7 @@ int Master::stop()
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
 #endif
 
-   const int ServiceWorker = 4;
+   const int ServiceWorker = 1;
    for (int i = 0; i < ServiceWorker; ++ i)
    {
 #ifndef WIN32
@@ -1289,6 +1289,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          // remove this slave from the transaction
          int r = m_TransManager.updateSlave(transid, slaveid);
          m_SlaveManager.decActTrans(slaveid);
+         m_SectorLog << LogStart(9) << " Slave Transaction Close " << slaveid << " " << transid << " "
+                     << t.m_strFile << " " << t.m_iUserKey << " Slaves Left " << r << LogEnd();
 
          // unlock the file, if this is a file operation, and all slaves have completed
          // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
@@ -1347,12 +1349,21 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          //TODO: send current users, current transactions
       }
 
-      //logUserActivity(user, "sysinfo", NULL, 0, NULL, LogLevel::LEVEL_9);
        m_SectorLog << LogStart(9) << "sysinfo " << user->m_strName << " " << ip << " current total number of active transcations " << m_TransManager.getTotalTrans() << LogEnd();
-      for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
-          m_SectorLog << LogStart(9) << "TRASNACTION " << t->second.m_iTransID << " OPENED FILE " << t->second.m_strFile << " START TIME " << t->second.m_llStartTime << " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << LogEnd();
-      }
 
+       CGuard::enterCS(m_TransManager.m_TLLock);     
+      for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
+          m_SectorLog << LogStart(9) << "TRASNACTION " << t->second.m_iTransID << " OPENED FILE " << t->second.m_strFile << " DURATION " << (CTimer::getTime() - t->second.m_llStartTime) / 100000 << " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << " USER " << t->second.m_iUserKey << LogEnd();
+      }
+      CGuard::leaveCS(m_TransManager.m_TLLock);
+
+      m_UserManager.m_Lock.acquire();
+      for (map<int, User*>::const_iterator u = m_UserManager.m_mActiveUsers.begin(); u !=  m_UserManager.m_mActiveUsers.end(); ++ u)
+      {
+         m_SectorLog << LogStart(9) << " ACTIVE USER " << u->second->m_strName << " " << u->second->m_iKey << " "
+                     << u->second->m_strIP << " " << (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << LogEnd();
+      }
+      m_UserManager.m_Lock.release();
 
       break;
    }

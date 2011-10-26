@@ -299,6 +299,7 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
 int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
    // If all source nodes are busy, we should skip the replica.
+   /*
    bool idle = false;
    for (set<int>::const_iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
@@ -311,6 +312,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    }
    if (!idle)
       return -1;
+   */
 
    vector< set<int> > avail;
    avail.resize(m_pTopology->m_uiLevel + 2);
@@ -552,6 +554,9 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
 
    int min_dist = 1024;
    int64_t min_avail_space = -1;
+
+
+   // TODO (sergey)
 
    // Remove a node such that the rest has the max-min distance;
    // When the first rule ties, choose one with least available space.
