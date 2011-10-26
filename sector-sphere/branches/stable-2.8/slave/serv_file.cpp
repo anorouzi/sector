@@ -28,25 +28,21 @@ written by
 
 #define ERR_MSG( msg ) \
 {\
-   self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << " cmd " << cmd << " " << \
-      filename << " transid " << transid << " " << client_ip << " " << client_port << \
-   " " << msg << LogEnd(); \
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "TID " << transid << " " << \
+     client_ip << ":" << client_port << " cmd " << cmd << " " << filename << " " << msg << LogEnd(); \
 }
 
 #define INFO_MSG( msg ) \
 {\
-   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << " cmd " << cmd << " " << \
-      filename << " transid " << transid << " " << client_ip << " " << client_port << \
-   " " << msg << LogEnd(); \
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_3) << "TID " << transid << " " << \
+     client_ip << ":" << client_port << " cmd " << cmd << " " << filename << " " << msg << LogEnd(); \
 }
 
 #define DBG_MSG( msg ) \
 {\
-   self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << " cmd " << cmd << " " << \
-      filename << " transid " << transid << " " << client_ip << " " << client_port << \
-   " " << msg << LogEnd(); \
+   self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "TID " << transid << " " << \
+     client_ip << ":" << client_port << " cmd " << cmd << " " << filename << " " << msg << LogEnd(); \
 }
-
 
 #include "slave.h"
 #include "writelog.h"
@@ -567,8 +563,9 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
       avgWS = wb / duration * 8.0 / 1000000.0;
    }
 
-   INFO_MSG("File server closed, duration " << duration << " reads " << reads << " " << rb << " bytes " << (long long)avgWS 
-      << " mb/sec, writes " << writes << " " << wb << " bytes " << (long long)avgRS << " mb/sec ");
+   INFO_MSG("File server closed, duration " << duration << 
+       " reads " << reads << " " << rb << " bytes " << (long long)avgRS 
+      << " mb/sec, writes " << writes << " " << wb << " bytes " << (long long)avgWS << " mb/sec ");
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);

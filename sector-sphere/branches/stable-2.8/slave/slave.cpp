@@ -41,6 +41,20 @@ written by
 #include "slave.h"
 #include "ssltransport.h"
 
+#define ERR_MSG( msg ) \
+{\
+   m_SectorLog << LogStart(LogLevel::LEVEL_1) << msg << LogEnd(); \
+}
+
+#define INFO_MSG( msg ) \
+{\
+   m_SectorLog << LogStart(LogLevel::LEVEL_3) << msg << LogEnd(); \
+}
+
+#define DBG_MSG( msg ) \
+{\
+   m_SectorLog << LogStart(LogLevel::LEVEL_9) << msg << LogEnd(); \
+}
 
 using namespace std;
 using namespace sector;
@@ -127,7 +141,7 @@ int Slave::init(const string* base, const SlaveConf* global_conf)
       LocalFS::copy(m_strBase + "/slave/sphere/" + i->m_strName, m_strHomeDir + "/.sphere/perm/" + i->m_strName);
    }
 
-   cout << "scanning " << m_strHomeDir << endl;
+   INFO_MSG( "Scanning " << m_strHomeDir);
    m_pLocalFile = new Index;
    m_pLocalFile->init(m_strHomeDir + ".metadata");
    m_pLocalFile->scan(m_strHomeDir.c_str(), "/");
@@ -170,7 +184,7 @@ int Slave::connect()
          (secconn.open(NULL, 0) < 0) ||
          (secconn.connect(mip.c_str(), mport) < 0))
       {
-         cerr << "unable to set up secure channel to the master.\n";
+         ERR_MSG( "Unable to set up secure channel to the master");
          return -1;
       }
 
@@ -182,7 +196,7 @@ int Slave::connect()
          m_iDataPort = 0;
          if (m_DataChn.init(m_strLocalIP, m_iDataPort) < 0)
          {
-            cerr << "unable to create data channel.\n";
+            ERR_MSG("Unable to create data channel");
             secconn.close();
             return -1;
          }
@@ -204,7 +218,7 @@ int Slave::connect()
       secconn.recv((char*)&res, 4);
       if (res < 0)
       {
-         cerr << "slave join rejected. code: " << res << endl;
+         ERR_MSG("Slave join rejected. code: " << res);
          return res;
       }
 
@@ -252,7 +266,7 @@ int Slave::connect()
 
          vector<string> fl;
          attic->list_r("/", fl);
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "CONFLICT no of files: " << fl.size() << LogEnd();
+         INFO_MSG("CONFLICT no of files: " << fl.size());
          for (vector<string>::iterator i = fl.begin(); i != fl.end(); ++ i)
          {
             // move it from local file system
@@ -261,14 +275,14 @@ int Slave::connect()
             createDir(dst_dir);
             if (LocalFS::rename(m_strHomeDir + *i, m_strHomeDir + dst_file)< 0)
             {
-               m_SectorLog << LogStart(1) << "Error: failed to rename file " << m_strHomeDir + *i << " to " <<  m_strHomeDir + dst_file << LogEnd();
+               ERR_MSG( "Error: failed to rename file " << m_strHomeDir + *i << " to " << m_strHomeDir + dst_file);
                perror("move file");
             }
 
             // remove it from the local metadata
             m_pLocalFile->remove(*i);
 
-            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "CONFLICT -> ATTIC: " << m_strHomeDir + *i << " " << m_strHomeDir + dst_file << LogEnd();
+            INFO_MSG( "CONFLICT -> ATTIC: " << m_strHomeDir + *i << " " << m_strHomeDir + dst_file);
          }
 
          attic->clear();
@@ -312,7 +326,7 @@ int Slave::connect()
    // initialize slave statistics
    m_SlaveStat.init();
 
-   cout << "This Sector slave is successfully initialized and running now.\n";
+   INFO_MSG("This Sector slave is successfully initialized and running now");
 
    return 1;
 }
@@ -325,7 +339,7 @@ void Slave::run()
    SectorMsg* msg = new SectorMsg;
    msg->resize(65536);
 
-   cout << "slave process: " << "GMP " << m_iLocalPort << " DATA " << m_DataChn.getPort() << endl;
+   INFO_MSG( "Slave process: " << "GMP " << m_iLocalPort << " DATA " << m_DataChn.getPort());
 
    m_bRunning = true;
 
@@ -342,7 +356,7 @@ void Slave::run()
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
          break;
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_9) << "recv cmd " << ip << " " << port << " type " << msg->getType() << LogEnd();
+      DBG_MSG( "Received cmd " << msg->getType() << " from "  << ip << ":" << port );
 
       // a slave only accepts commands from the masters
       Address addr;
@@ -393,7 +407,7 @@ void Slave::run()
 
    // TODO: check and cancel all file&spe threads
 
-   cout << "slave is stopped by master\n";
+   INFO_MSG( "Slave is stopped by master");
 }
 
 void Slave::close()
@@ -434,10 +448,12 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
    {
    case 103: // mkdir
    {
-      createDir(msg->getData());
+      int r = createDir(msg->getData());
+      if (r < 0 )
+          ERR_MSG("Error creating new directory " << msg->getData());
       // TODO: update metatdata
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "created new directory " << msg->getData() << LogEnd();
+      DBG_MSG ("Created new directory " << msg->getData());
 
       break;
    }
@@ -453,11 +469,16 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       newname = Metadata::revisePath(newname);
 
       m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
-      createDir(dst);
-      LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname);
+      int r = createDir(dst);
+      if (r < 0 )
+          ERR_MSG("Error creating new directory in move " << dst);
+      r = LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname);
+       if (r < 0 )
+          ERR_MSG("Error moving file/directory " << m_strHomeDir + src << " " << m_strHomeDir + dst + newname);
+
       // TODO: check return value and acknowledge error to master.
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogEnd();
+      DBG_MSG( "Dir/file moved from " << src << " to " << dst << "/" << newname);
 
       break;
    }
@@ -468,9 +489,12 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       m_pLocalFile->remove(path, true);
 
       //TODO: removed files may be moved to .attic instead of removing immediately, thus users may be able to restore them
-      LocalFS::rmdir(m_strHomeDir + path);
+      int r = LocalFS::rmdir(m_strHomeDir + path);
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file " << path << " is deleted." << LogEnd();
+      if (r < 0 )
+          ERR_MSG("Error removing directory " << m_strHomeDir + path);
+
+      DBG_MSG( "Dir/file " << path << " is deleted");
 
       break;
    }
@@ -484,7 +508,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       ut.modtime = *(int64_t*)(msg->getData() + strlen(path) + 1);;
       utime((m_strHomeDir + path).c_str(), &ut);
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file " << path << " timestamp changed " << LogEnd();
+      DBG_MSG( "Dir/file " << path << " timestamp changed ");
 
       break;
    }
@@ -516,7 +540,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
          break;
       }
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "opened file " << p->filename << " from " << p->client_ip << ":" << p->client_port << LogEnd();
+      INFO_MSG( "TID " << p->transid << " " << p->client_ip << ":" << p->client_port << " Opened file " << p->filename);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -547,7 +571,7 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       p->master_ip = ip;
       p->master_port = port;
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "creating replica " << p->src << " " << p->dst << LogEnd();
+      DBG_MSG("TID " << p->transid << " Creating replica " << p->src << " " << p->dst);
 
       m_TransManager.addSlave(p->transid, m_iSlaveID);
 
@@ -711,7 +735,7 @@ int Slave::processMCmd(const string& ip, const int port, int id, SectorMsg* msg)
       m_Routing.insert(key, addr);
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
       m_GMP.sendto(ip, port, id, msg);
-
+      INFO_MSG("New master " << addr.m_strIP << ":" << addr.m_iPort);
       break;
    }
 
@@ -720,10 +744,13 @@ int Slave::processMCmd(const string& ip, const int port, int id, SectorMsg* msg)
       m_Routing.remove(*(int32_t*)msg->getData());
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
       m_GMP.sendto(ip, port, id, msg);
+      
+      ERR_MSG("Master lost ");
       break;
    }
 
    default:
+      ERR_MSG("Bad MC cmd " << msg->getType());
       return -1; 
    }
 
