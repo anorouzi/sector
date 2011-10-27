@@ -23,6 +23,8 @@ written by
 #include <sector.h>
 #include <fstream>
 #include <iostream>
+#include <ctime>
+#include <algorithm>
 #include <signal.h>
 #include <sys/types.h>
 #ifndef WIN32
@@ -51,7 +53,7 @@ SSource::~SSource()
 }
 
 SServer::SServer():
-m_iKeySeed(1),
+m_iKeySeed(time(0)),
 m_iPort(0),
 m_pSecuritySource(NULL)
 {
@@ -147,6 +149,20 @@ int32_t SServer::generateKey()
    return m_iKeySeed ++;
 }
 
+std::string getTimestamp() {
+   time_t t = time(0);
+   std::string asStr = ctime(&t); 
+   asStr[ asStr.length() - 1 ] = ' ';
+   return asStr;
+}
+
+template< size_t N >
+std::string stringify( char (&buf)[ N ] )
+{
+   char* nul = std::find( buf, buf + N, '\0' );
+   return std::string( buf, nul );
+}
+
 #ifndef WIN32
    void* SServer::process(void* p)
 #else
@@ -161,7 +177,10 @@ int32_t SServer::generateKey()
    {
       int32_t cmd;
       if (s->recv((char*)&cmd, 4) <= 0)
+      {
+         std::cout <<  getTimestamp() << "Error receiving command - exiting" << std::endl;
          goto EXIT;
+      }
 
       // check if the security source has been updated (e.g., user account change)
       if (self->m_pSecuritySource->isUpdated())
@@ -171,6 +190,7 @@ int32_t SServer::generateKey()
       {
       case 1: // slave node join
       {
+         std::cout <<  getTimestamp() << "Start slave join" << std::endl;
          char ip[64];
          if (s->recv(ip, 64) <= 0)
             goto EXIT;
@@ -181,11 +201,16 @@ int32_t SServer::generateKey()
          if (s->send((char*)&key, 4) <= 0)
             goto EXIT;
 
+         std::cout <<  getTimestamp() << "Slave join done " << stringify( ip ) << " key " << key << std::endl;
+
          break;
       }
 
       case 2: // user login
       {
+
+         std::cout << getTimestamp() << "Start processing user login" << std::endl;
+
          char user[64];
          if (s->recv(user, 64) <= 0)
             goto EXIT;
@@ -204,8 +229,14 @@ int32_t SServer::generateKey()
          else
             key = SectorError::E_SECURITY;
 
+         std::cout << getTimestamp() << "Login info: user " << stringify( user ) << " IP " << stringify( ip ) <<
+           " key " << key << std::endl;
+
          if (s->send((char*)&key, 4) <= 0)
+         {
+            cout << "Error sending key " << key << std::endl;
             goto EXIT;
+         }
 
          if (key > 0)
          {
@@ -223,6 +254,10 @@ int32_t SServer::generateKey()
             int exec = u.m_bExec ? 1 : 0;
             if (s->send((char*)&exec, 4) <= 0)
                goto EXIT;
+            std::cout << getTimestamp() << "Privileges sent to master" << std::endl;
+         } else
+         {
+            std::cout << getTimestamp() << "Authorization error" << std::endl;
          }
 
          break;
@@ -230,6 +265,7 @@ int32_t SServer::generateKey()
 
       case 3: // master join
       {
+         std::cout <<  getTimestamp() << "Start master join" << std::endl;
          char ip[64];
          if (s->recv(ip, 64) <= 0)
             goto EXIT;
@@ -239,21 +275,26 @@ int32_t SServer::generateKey()
             res = SectorError::E_ACL;
          if (s->send((char*)&res, 4) <= 0)
             goto EXIT;
+         std::cout <<  getTimestamp() << "Master join complete " << stringify( ip ) << std::endl;
 
          break;
       }
 
       case 4: // master init
       {
+         std::cout <<  getTimestamp() << "Start master init" << std::endl;
+        
          int32_t key = self->generateKey();
 
          if (s->send((char*)&key, 4) <= 0)
             goto EXIT;
+         std::cout <<  getTimestamp() << "Master init complete, key " << key << std::endl;
 
          break;
       }
 
       default:
+         std::cout <<  getTimestamp() << "Strange command " << cmd << " - exiting" << std::endl;
          goto EXIT;
       }
    }
