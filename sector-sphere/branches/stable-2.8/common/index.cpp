@@ -1004,10 +1004,23 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
          if (curr_rep_num < target_rep_num)
             under.push_back(abs_path);
 
-         // TODO (sergey)
-
          else if (curr_rep_num > target_rep_num)
             over.push_back(abs_path);
+         // Sergey check if replcas on same node for node with several slaves (volumes)
+         else if( i->second.m_sLocation.size() > 1 )
+         { 
+            std::string cur_ip;
+            std::set<Address, AddrComp>::const_iterator cur = i->second.m_sLocation.begin();
+            std::set<Address, AddrComp>::const_iterator last = i->second.m_sLocation.end();
+            for( ; cur != last; ++cur )
+                if( cur->m_strIP == cur_ip )
+                {
+                    under.push_back(abs_path);
+                    break;
+                } else
+                    cur_ip = cur->m_strIP;
+         }
+
       }
       else
          checkReplica(abs_path, i->second.m_mDirectory, under, over);
