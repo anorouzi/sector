@@ -871,7 +871,11 @@ int Master::processUserJoin(SSLTransport& cliconn,
    secconn.recv((char*)&key, 4);
 
    if ((key > 0) && (ukey > 0))
+   {
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " login from " << ip << " replacing UID "
+        << key << " with ID from prev session " << ukey << LogEnd();
       key = ukey;
+   }
 
    /* forward sec key to client */
    cliconn.send((char*)&key, 4);
@@ -1295,8 +1299,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          // remove this slave from the transaction
          int r = m_TransManager.updateSlave(transid, slaveid);
          m_SlaveManager.decActTrans(slaveid);
-         m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey << " slave " 
-           << slaveid << " Transaction close "  << t.m_strFile << " Slaves Left " << r << LogEnd();
+//         m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey << " slave " 
+//           << slaveid << " Transaction close "  << t.m_strFile << " Slaves Left " << r << LogEnd();
 
          // unlock the file, if this is a file operation, and all slaves have completed
          // update transaction status, if this is a file operation; if it is sphere, a final sphere report will be sent, see #4.
@@ -1304,7 +1308,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             processWriteResults(t.m_strFile, t.m_mResults);
             m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
-            m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey <<" Final transaction Close "
+            m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey <<" Transaction Close "
               << t.m_strFile << LogEnd();
          }
       }
