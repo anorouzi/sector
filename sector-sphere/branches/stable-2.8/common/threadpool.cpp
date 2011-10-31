@@ -62,3 +62,9 @@ int ThreadJobQueue::release(int num)
 
    return 0;
 }
+
+size_t ThreadJobQueue::size()
+{
+   CGuardEx tg(m_QueueLock);
+   return m_qJobs.size();
+}
