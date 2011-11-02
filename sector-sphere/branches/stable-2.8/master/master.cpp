@@ -3017,7 +3017,11 @@ int Master::createReplica(const ReplicaJob& job)
          {
             m_SectorLog << LogStart(9) << "Create replica more replicas than needed " << LogEnd();
             return 0;
-         } else if (attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
+         } else if ( job.m_bForceReplicate )
+         {
+            m_SectorLog << LogStart(9) << "Create replica replication forced" << LogEnd();
+         }
+         else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
             m_SectorLog << LogStart(9) << "Create replica replicas equal" << LogEnd();
             std::string cur_ip;
