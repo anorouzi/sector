@@ -264,7 +264,8 @@ int SSLTransport::close()
       return 0;
    m_bConnected = false;
    // SSL shutdown requires up to 4 rounds of attempts.
-   for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
+//   for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
+   SSL_shutdown(m_pSSL);
 #ifndef WIN32
    return ::close(m_iSocket);
 #else
