@@ -56,6 +56,8 @@ public:
 
    int release(int num);
 
+   size_t size();
+
 private:
    // TODO: use priority queue
    std::queue<void*> m_qJobs;
