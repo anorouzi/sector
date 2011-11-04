@@ -2861,7 +2861,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       self->m_ReplicaLock.acquire();
       self->m_ReplicaCond.wait(self->m_ReplicaLock, 600*1000);
       self->m_ReplicaLock.release();
-      self->m_SectorLog << LogStart(9) << "Replica process awaken - replication queue size is " << m_ReplicaMgmt.size() << " replication in process " << self->m_sstrOnReplicate.size() << LogEnd();
+      self->m_SectorLog << LogStart(9) << "Replica process awaken - replication queue size is " << self->m_ReplicaMgmt.getTotalNum() << " replication in process " << self->m_sstrOnReplicate.size() << LogEnd();
 
       // check replica, create or remove replicas if necessary
       if (self->m_ReplicaMgmt.getTotalNum() == 0)
