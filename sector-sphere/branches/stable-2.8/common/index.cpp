@@ -172,7 +172,17 @@ int Index::lookup(const string& path, SNode& attr)
       currdir = &(s->second.m_mDirectory);
    }
 
-   attr = s->second;
+ //  attr = s->second;
+   attr.m_strName = s->second.m_strName;
+   attr.m_bIsDir = s->second.m_bIsDir;
+   attr.m_sLocation = s->second.m_sLocation;
+   attr.m_mDirectory.clear();
+   attr.m_llTimeStamp = s->second.m_llTimeStamp;
+   attr.m_llSize = s->second.m_llSize;
+   attr.m_strChecksum = s->second.m_strChecksum;
+   attr.m_iReplicaNum = s->second.m_iReplicaNum;
+   attr.m_iReplicaDist = s->second.m_iReplicaDist;
+   attr.m_viRestrictedLoc = s->second.m_viRestrictedLoc;
 
    return s->second.m_mDirectory.size();
 }
