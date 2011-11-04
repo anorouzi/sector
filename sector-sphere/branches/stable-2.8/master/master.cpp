@@ -2861,7 +2861,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       self->m_ReplicaLock.acquire();
       self->m_ReplicaCond.wait(self->m_ReplicaLock, 600*1000);
       self->m_ReplicaLock.release();
-      self->m_SectorLog << LogStart(9) << "Replica process awaken" << LogEnd();
+      self->m_SectorLog << LogStart(9) << "Replica process awaken - replication queue size is " << m_ReplicaMgmt.size() << " replication in process " << self->m_sstrOnReplicate.size() << LogEnd();
 
       // check replica, create or remove replicas if necessary
       if (self->m_ReplicaMgmt.getTotalNum() == 0)
@@ -2985,7 +2985,7 @@ int Master::createReplica(const ReplicaJob& job)
    SNode attr;
    if (m_pMetadata->lookup(job.m_strSource.c_str(), attr) < 0)
    {
-      m_SectorLog << LogStart(9) << "Create replica lookup return 0 " << m_pMetadata->lookup(job.m_strSource.c_str(), attr) << LogEnd();
+      m_SectorLog << LogStart(9) << "Create replica: lookup return 0 " << m_pMetadata->lookup(job.m_strSource.c_str(), attr) << LogEnd();
       return 0;
    }
 
@@ -2996,7 +2996,7 @@ int Master::createReplica(const ReplicaJob& job)
       // Only nosplit dir can be replicated as a whole.
       if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
       {
-         m_SectorLog << LogStart(9) << "Create replica lookup nosplit return 0 " << m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) << LogEnd();
+         m_SectorLog << LogStart(9) << "Create replica: lookup nosplit return 0 " << m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) << LogEnd();
          return 0;         
       }
    }
@@ -3006,7 +3006,7 @@ int Master::createReplica(const ReplicaJob& job)
       // do not create multiple replicas at the same time
       if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
       {
-	m_SectorLog << LogStart(9) << "Create replica multiple replicas " << LogEnd();
+	m_SectorLog << LogStart(9) << "Create replica: replication in process for " << job.m_strSource << LogEnd();
          return -1;
       }
 
@@ -3015,11 +3015,11 @@ int Master::createReplica(const ReplicaJob& job)
          // do not over replicate
          if (attr.m_sLocation.size() > (unsigned int)attr.m_iReplicaNum)
          {
-            m_SectorLog << LogStart(9) << "Create replica more replicas than needed " << LogEnd();
+            m_SectorLog << LogStart(9) << "Create replica: more replicas than needed " << LogEnd();
             return 0;
          } else if ( job.m_bForceReplicate )
          {
-            m_SectorLog << LogStart(9) << "Create replica replication forced" << LogEnd();
+            m_SectorLog << LogStart(9) << "Create replica: replication forced" << LogEnd();
          }
          else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
@@ -3037,14 +3037,14 @@ int Master::createReplica(const ReplicaJob& job)
 
             if( !has_same_ip )
             {
-               m_SectorLog << LogStart(9) << "Create replica replication correct" << LogEnd();
+               m_SectorLog << LogStart(9) << "Create replica: replication correct" << LogEnd();
                return 0;
             }
          }
 
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
          {
-            m_SectorLog << LogStart(9) << "Create replica choose replica node " << LogEnd();
+            m_SectorLog << LogStart(9) << "Create replica: choose replica node " << LogEnd();
             return -1;
          }
       }
@@ -3052,12 +3052,12 @@ int Master::createReplica(const ReplicaJob& job)
       {
          if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
          {
-            m_SectorLog << LogStart(9) << "Create replica location size " << LogEnd();
+            m_SectorLog << LogStart(9) << "Create replica: location size " << LogEnd();
             return 0;
          }
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
          {
-            m_SectorLog << LogStart(9) << "Create replica choose replica node 2 " << LogEnd();
+            m_SectorLog << LogStart(9) << "Create replica: choose replica node 2 " << LogEnd();
             return -1;
          }
       }
@@ -3069,7 +3069,7 @@ int Master::createReplica(const ReplicaJob& job)
       vector<int> rl;
       m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
       if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0){
-         m_SectorLog << LogStart(9) << "Create replica choose replica node 3 " << LogEnd();
+         m_SectorLog << LogStart(9) << "Create replica: choose replica node 3 " << LogEnd();
          return -1;
 	}
    }
