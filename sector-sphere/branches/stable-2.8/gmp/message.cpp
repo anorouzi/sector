@@ -111,8 +111,12 @@ char* SectorMsg::getData() const
 
 void SectorMsg::setData(const int& offset, const char* data, const int& len)
 {
-   while (m_iHdrSize + offset + len > m_iBufLength)
-      resize(m_iBufLength << 1);
+   int newBufLen = m_iBufLength;
+   while (m_iHdrSize + offset + len > newBufLen)
+      newBufLen <<= 1;
+
+   if( newBufLen > m_iBufLength )
+      resize(newBufLen);
 
    memcpy(m_pcBuffer + m_iHdrSize + offset, data, len);
 
