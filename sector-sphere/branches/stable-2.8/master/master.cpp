@@ -1342,6 +1342,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
    case 3: // sysinfo
    {
+      m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " sysinfo " << ip << LogEnd();
       if (!m_Routing.match(key, m_iRouterKey))
       {
          reject(ip, port, id, SectorError::E_ROUTING);
@@ -1359,29 +1360,6 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       {
          //TODO: send current users, current transactions
       }
-
-       m_SectorLog << LogStart(9) << "sysinfo " << user->m_strName << " " << ip << " Current total number of active transcations " << m_TransManager.getTotalTrans() << LogEnd();
-
-       CGuard::enterCS(m_TransManager.m_TLLock);     
-      for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
-          m_SectorLog << LogStart(9) << "TID " << t->second.m_iTransID << " UID " << t->second.m_iUserKey << " "
-            << t->second.m_strFile << " DURATION " << (CTimer::getTime() - t->second.m_llStartTime) / 1000000 <<
-             " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << LogEnd();
-      }
-      CGuard::leaveCS(m_TransManager.m_TLLock);
-
-      m_UserManager.m_Lock.acquire();
-       m_SectorLog << LogStart(9) << "List of active users" << LogEnd();
-      for (map<int, User*>::const_iterator u = m_UserManager.m_mActiveUsers.begin(); u !=  m_UserManager.m_mActiveUsers.end(); ++ u)
-      {
-         m_SectorLog << LogStart(9) << "User " << u->second->m_strName << " UID " << u->second->m_iKey << " "
-                     << u->second->m_strIP << " Last seen " << 
-          (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago " <<LogEnd();
-      }
-      m_UserManager.m_Lock.release();
-      m_SectorLog << LogStart(9) << "Size of queues: service = " << m_ServiceJobQueue.size()
-		<< " process = " << m_ProcessJobQueue.size() << LogEnd();
-
       break;
    }
 
@@ -1578,6 +1556,44 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       break;
    }
 
+   case 11: //Debug info - list of transactions and list of user sessions, along with some more info
+   {
+      m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " debuginfo " << ip << LogEnd();
+
+      stringstream sbuf;
+      sbuf << "Current total number of active transcations " << m_TransManager.getTotalTrans() << std::endl;
+      CGuard::enterCS(m_TransManager.m_TLLock);
+
+      for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
+          sbuf << "TID " << t->second.m_iTransID << " UID " << t->second.m_iUserKey << " "
+            << t->second.m_strFile << " DURATION " << (CTimer::getTime() - t->second.m_llStartTime) / 1000000 <<
+             " SLAVE " << *t->second.m_siSlaveID.begin() << " MODE " << t->second.m_iMode << std::endl;
+      }
+      CGuard::leaveCS(m_TransManager.m_TLLock);
+
+      m_UserManager.m_Lock.acquire();
+      sbuf << "List of active users" << std::endl;
+      for (map<int, User*>::const_iterator u = m_UserManager.m_mActiveUsers.begin(); u !=  m_UserManager.m_mActiveUsers.end(); ++ u)
+      {
+         sbuf << "User " << u->second->m_strName << " UID " << u->second->m_iKey << " "
+                     << u->second->m_strIP << " Last seen " <<
+         (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago " << std::endl;
+      }
+      m_UserManager.m_Lock.release();
+
+      sbuf << "Size of queues: service = " << m_ServiceJobQueue.size()
+                << " process = " << m_ProcessJobQueue.size() << std::endl;
+
+      sbuf << "Replication queue size " << m_ReplicaMgmt.getTotalNum() << " for total file size " <<
+          m_ReplicaMgmt.getTotalSize() << " bytes" << std::endl;
+
+      string data = sbuf.str();
+      msg->setData(0, data.c_str(), data.length());
+      m_GMP.sendto(ip, port, id, msg);
+
+      break;
+
+   }
    default:
       reject(ip, port, id, SectorError::E_UNKNOWN);
       return -1;
@@ -1596,8 +1612,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "ls", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1605,8 +1621,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string dir = Metadata::revisePath(msg->getData());
       if (!user->match(dir, rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "ls", dir.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -1614,16 +1630,16 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int r = m_pMetadata->lookup(dir, attr);
       if (r < 0)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "ls", dir.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
 
       // !!list directory content only!!
       if (!attr.m_bIsDir)
       {
-         reject(ip, port, id, SectorError::E_NOTDIR);
          logUserActivity(user, "ls", dir.c_str(), SectorError::E_NOTDIR, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOTDIR);
          break;
       }
 
@@ -1641,9 +1657,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       msg->setData(size, "\0", 1);
 
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "ls", dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -1652,8 +1667,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "stat", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1661,8 +1676,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string path = Metadata::revisePath(msg->getData());
       if (!user->match(path, rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "stat", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -1670,8 +1685,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int r = m_pMetadata->lookup(path, attr);
       if (r < 0)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "stat", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
 
@@ -1680,9 +1695,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       msg->setData(0, buf, strlen(buf) + 1);
       delete [] buf;
 
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "stat", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -1691,8 +1706,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "mkdir", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1700,8 +1715,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string path = Metadata::revisePath(msg->getData());
       if (!user->match(path, rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "mkdir", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -1709,8 +1724,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (m_pMetadata->lookup(path, attr) >= 0)
       {
          // directory already exist
-         reject(ip, port, id, SectorError::E_EXIST);
          logUserActivity(user, "mkdir", path.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
 
@@ -1721,8 +1736,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       vector<SlaveNode> addr;
       if (m_SlaveManager.chooseIONode(empty, SF_MODE::WRITE, addr, option) <= 0)
       {
-         reject(ip, port, id, SectorError::E_RESOURCE);
          logUserActivity(user, "mkdir", path.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_RESOURCE);
          break;
       }
 
@@ -1738,9 +1753,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       // send file changes to all other masters
       sync(path.c_str(), path.length() + 1, 1103);
 
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "mkdir", path.c_str(), 0, addr.begin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -1758,22 +1773,22 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "move", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
       SNode tmp;
       if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "move", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
       if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
       {
-         reject(ip, port, id, SectorError::E_EXIST);
          logUserActivity(user, "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
 
@@ -1781,15 +1796,15 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int rwx = SF_MODE::READ | SF_MODE::WRITE;
       if ((src == "/") || (!user->match(src.c_str(), rwx)))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "move", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
       rwx = SF_MODE::WRITE;
       if (!user->match(dst.c_str(), rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "move", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -1801,14 +1816,14 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (rs < 0)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "move", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
       if ((rt >= 0) && (!at.m_bIsDir))
       {
-         reject(ip, port, id, SectorError::E_EXIST);
          logUserActivity(user, "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
 
@@ -1817,8 +1832,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       rwx = SF_MODE::WRITE;
       if (m_pMetadata->lock(src.c_str(), key, rwx) < 0)
       {
-         reject(ip, port, id, SectorError::E_BUSY);
          logUserActivity(user, "move", src.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_BUSY);
          break;
       }
       m_pMetadata->unlock(src.c_str(), key, rwx);
@@ -1864,9 +1879,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          sync(newmsg.getData(), newmsg.m_iDataLength, 1104);
       }
 
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "move", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
+
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -1875,8 +1890,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "delete", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1884,8 +1899,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string path = Metadata::revisePath(msg->getData());
       if ((path == "/") || !user->match(path, rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "delete", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -1894,8 +1909,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (n < 0)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "delete", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
       else if (attr.m_bIsDir)
@@ -1904,8 +1919,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          if (m_pMetadata->list(path, fl) > 0)
          {
             // directory not empty
-            reject(ip, port, id, SectorError::E_NOEMPTY);
             logUserActivity(user, "delete", path.c_str(), SectorError::E_NOEMPTY, NULL, LogLevel::LEVEL_8);
+            reject(ip, port, id, SectorError::E_NOEMPTY);
             break;
          }
       }
@@ -1937,9 +1952,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       sync(path.c_str(), path.length() + 1, 1105);
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "delete", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -1953,8 +1967,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "copy", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -1962,16 +1976,16 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       SNode as;
       if (m_pMetadata->lookup(src.c_str(), as) < 0)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "copy", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
 
       // check available disk space
       if (as.m_llSize > (int64_t)m_SlaveManager.getTotalDiskSpace())
       {
-         reject(ip, port, id, SectorError::E_NODISK);
          logUserActivity(user, "copy", src.c_str(), SectorError::E_NODISK, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NODISK);
          break;
       }
 
@@ -1979,8 +1993,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int rwx = SF_MODE::READ;
       if ((src == "/") || !user->match(src.c_str(), rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "copy", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2004,8 +2018,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       rwx = SF_MODE::WRITE;
       if (!user->match(dst.c_str(), rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "copy", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2014,15 +2028,15 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int rt = m_pMetadata->lookup(dst.c_str(), tmp);
       if ((rt >= 0) && (!tmp.m_bIsDir))
       {
-         reject(ip, port, id, SectorError::E_EXIST);
          logUserActivity(user, "copy", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
 
       if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "copy", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
 
@@ -2030,8 +2044,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
          // destination file cannot exist, no overwite
 
-         reject(ip, port, id, SectorError::E_EXIST);
          logUserActivity(user, "copy", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_EXIST);
          break;
       }
 
@@ -2061,10 +2075,10 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          job.m_iPriority = COPY;
          m_ReplicaMgmt.insert(job);
       }
+      logUserActivity(user, "copy", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
       m_ReplicaCond.signal();
       m_ReplicaLock.release();
 
-      logUserActivity(user, "copy", (src + "->" + dst).c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       break;
    }
@@ -2073,8 +2087,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "utime", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -2082,16 +2096,16 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string path = Metadata::revisePath(msg->getData());
       if ((path == "/") || !user->match(path, rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "utime", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
       SNode attr;
       if (m_pMetadata->lookup(path.c_str(), attr) < 0)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "utime", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
 
@@ -2115,9 +2129,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "utime", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -2140,8 +2153,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       if (!m_Routing.match(path.c_str(), m_iRouterKey))
       {
-         reject(ip, port, id, SectorError::E_ROUTING);
          logUserActivity(user, "open file", path.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
 
@@ -2149,8 +2162,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int rwx = mode;
       if (!user->match(path.c_str(), rwx))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "open file", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2164,8 +2177,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          // file does not exist
          if (!(mode & SF_MODE::WRITE))
          {
-            reject(ip, port, id, SectorError::E_NOEXIST);
             logUserActivity(user, "open file", path.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+            reject(ip, port, id, SectorError::E_NOEXIST);
             break;
          }
 
@@ -2204,8 +2217,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
          if (m_SlaveManager.chooseIONode(candidates, mode, addr, option, sn.m_iReplicaDist, &sn.m_viRestrictedLoc) <= 0)
          {
-            reject(ip, port, id, SectorError::E_NODISK);
             logUserActivity(user, "open file", path.c_str(), SectorError::E_NODISK, NULL, LogLevel::LEVEL_8);
+            reject(ip, port, id, SectorError::E_NODISK);
             break;
          }
 
@@ -2226,16 +2239,16 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          if (attr.m_bIsDir)
          {
             // if this is a directory, cannot open it as a regular file
-            reject(ip, port, id, SectorError::E_NOTFILE);
             logUserActivity(user, "open file", path.c_str(), SectorError::E_NOTFILE, NULL, LogLevel::LEVEL_8);
+            reject(ip, port, id, SectorError::E_NOTFILE);
             break;
          }
 
          r = m_pMetadata->lock(path.c_str(), key, rwx);
          if (r < 0)
          {
-            reject(ip, port, id, SectorError::E_BUSY);
             logUserActivity(user, "open file", path.c_str(), SectorError::E_BUSY, NULL, LogLevel::LEVEL_8);
+            reject(ip, port, id, SectorError::E_BUSY);
             break;
          }
 
@@ -2308,8 +2321,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       Transaction t;
       if ((m_TransManager.retrieve(transid, t) < 0) || (key != t.m_iUserKey))
       {
-         reject(ip, port, id, SectorError::E_SECURITY);
          logUserActivity(user, "re-open", NULL, SectorError::E_SECURITY, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_SECURITY);
          break;
       }
 
@@ -2317,8 +2330,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       m_pMetadata->lookup(t.m_strFile.c_str(), attr);
 //      if (attr.m_sLocation.size() <= 1)
 //      {
-//         reject(ip, port, id, SectorError::E_RESOURCE);
 //         logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+//         reject(ip, port, id, SectorError::E_RESOURCE);
 //         break;
 //      }
 
@@ -2341,8 +2354,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       m_SlaveManager.chooseIONode(candidates, t.m_iMode, addr, option);
       if (addr.empty())
       {
-         reject(ip, port, id, SectorError::E_RESOURCE);
          logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_RESOURCE);
          break;
       }
 
@@ -2359,8 +2372,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       SectorMsg response;
       if ((m_GMP.rpc(addr.begin()->m_strIP.c_str(), addr.begin()->m_iPort, msg, &response) < 0) || (response.getType() < 0))
       {
-         reject(ip, port, id, SectorError::E_RESOURCE);
          logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_RESOURCE);
       }
 
       m_TransManager.addSlave(transid, addr.begin()->m_iNodeID);
@@ -2372,9 +2385,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       msg->setData(64, (char*)&(addr.begin()->m_iDataPort), 4);
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 68;
 
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "re-open", t.m_strFile.c_str(), SectorError::E_RESOURCE, addr.begin()->m_strIP.c_str(), LogLevel::LEVEL_9);
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -2397,8 +2409,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
    {
       if (!user->m_bExec)
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "request SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2422,8 +2434,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
 
       if (notfound)
       {
-         reject(ip, port, id, SectorError::E_NOEXIST);
          logUserActivity(user, "request SPE", NULL, SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
 
@@ -2435,9 +2447,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "request SPE", NULL, 0, NULL, LogLevel::LEVEL_9);
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -2446,8 +2457,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
    {
       if (!user->m_bExec)
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "locate SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2467,9 +2478,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
          c ++;
       }
 
-      m_GMP.sendto(ip, port, id, msg);
-
       logUserActivity(user, "locate SPE", NULL, 0, NULL, LogLevel::LEVEL_9);
+      m_GMP.sendto(ip, port, id, msg);
 
       break;
    }
@@ -2478,8 +2488,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
    {
       if (!user->m_bExec)
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "start SPE", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2502,16 +2512,16 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
          m_TransManager.updateSlave(transid, slaveid);
          m_SlaveManager.decActTrans(slaveid);
 
-         reject(ip, port, id, SectorError::E_RESOURCE);
          logUserActivity(user, "start SPE", NULL, SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_RESOURCE);
          break;
       }
 
       msg->setData(0, (char*)&transid, 4);
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
+      logUserActivity(user, "start SPE", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
       m_GMP.sendto(ip, port, id, msg);
 
-      logUserActivity(user, "start SPE", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
@@ -2523,8 +2533,8 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
       // check user sphere exec permission and output path write permission
       if (!user->m_bExec || !user->match(path.c_str(), SF_MODE::WRITE))
       {
-         reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "start Shuffler", NULL, SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
 
@@ -2546,23 +2556,23 @@ int Master::processDCCmd(const string& ip, const int port,  const User* user, co
          m_TransManager.updateSlave(transid, m_SlaveManager.getSlaveID(addr));
          m_SlaveManager.decActTrans(m_SlaveManager.getSlaveID(addr));
 
-         reject(ip, port, id, SectorError::E_RESOURCE);
          logUserActivity(user, "start Shuffler", NULL, SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
+         reject(ip, port, id, SectorError::E_RESOURCE);
          break;
       }
 
       msg->setData(4, (char*)&transid, 4);
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 8;
+      logUserActivity(user, "start Shuffler", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
       m_GMP.sendto(ip, port, id, msg);
 
-      logUserActivity(user, "start Shuffler", NULL, 0, addr.m_strIP.c_str(), LogLevel::LEVEL_9);
 
       break;
    }
 
    default:
-      reject(ip, port, id, SectorError::E_UNKNOWN);
       logUserActivity(user, "unknown", NULL, SectorError::E_UNKNOWN, NULL, LogLevel::LEVEL_7);
+      reject(ip, port, id, SectorError::E_UNKNOWN);
       return -1;
    }
 
@@ -2849,27 +2859,34 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    // initially the master should wait for a while, because before all slaves join,
    // many files could be treated as undereplicated incorrectly.
    // we will wait for 10 minutes before the first check.
-   sleep(10 * 60);
+   sleep(self->m_SysConfig.m_iReplicationStartDelay);
 
-   int64_t last_replica_erase_time = CTimer::getTime();
+   uint64_t last_replica_erase_time = CTimer::getTime(); // wants to do first time with delay
+   uint64_t last_full_rescan_time =  0; // wants to do first time immediately
    vector<string> under_replicated;
    vector<string> over_replicated;
 
    while (self->m_Status == RUNNING)
    {
       // wait for 600 seconds for the next check
-      self->m_ReplicaLock.acquire();
-      self->m_ReplicaCond.wait(self->m_ReplicaLock, 600*1000);
+      self->m_ReplicaLock.acquire();         
+      self->m_ReplicaCond.wait(self->m_ReplicaLock, self->m_SysConfig.m_iReplicaFullScanDelay*1000); // Time in msec
       self->m_ReplicaLock.release();
-      self->m_SectorLog << LogStart(9) << "Replica process awaken - replication queue size is " << self->m_ReplicaMgmt.getTotalNum() << " replication in process " << self->m_sstrOnReplicate.size() << LogEnd();
+      self->m_SectorLog << LogStart(9) << "Replica thread awaken - replication queue size is " << 
+       self->m_ReplicaMgmt.getTotalNum() << " total file size is " <<  self->m_ReplicaMgmt.getTotalSize () << 
+       " replication in process " << self->m_sstrOnReplicate.size() << 
+       " time since last full rescan " << ((CTimer::getTime() - last_full_rescan_time)/1000000LL) << " sec" 
+        << LogEnd();
 
       // check replica, create or remove replicas if necessary
-      if (self->m_ReplicaMgmt.getTotalNum() == 0)
+      if ((CTimer::getTime() - last_full_rescan_time >= self->m_SysConfig.m_iReplicaFullScanDelay*1000000 -1) &&
+          (self->m_ReplicaMgmt.getTotalNum() == 0))
       {
          // only the first master is responsible for replica checking
          if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
             continue;
-
+         last_full_rescan_time = CTimer::getTime();
+         self->m_SectorLog << LogStart(4) << "Replica full rescan" << LogEnd();
          // refresh special replication settings
          if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
             self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
@@ -2881,15 +2898,15 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
          if (!under_replicated.empty())
          {
-            self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Warning: found " << under_replicated.size() << " files that are under replicated. Printing first 100." << LogEnd();
+            self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Replica found " << under_replicated.size() << " files that are under replicated. Printing first 100." << LogEnd();
 
             self->m_ReplicaLock.acquire();
             int cnt = 0;
             for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)
             {
                cnt++;
-               if (cnt < 100) // Printo only top 100 underreplicated files
-                self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File " << *i << " underreplicated" << LogEnd();
+               if (cnt < 100) // Print only top 100 underreplicated files
+                self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Replica File " << *i << " underreplicated" << LogEnd();
                ReplicaJob job;
                job.m_strSource = job.m_strDest = *i;
                job.m_iPriority = BACKGROUND;
@@ -2898,14 +2915,27 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             self->m_ReplicaLock.release();
          }
 
+         if (!over_replicated.empty())
+         {
+           self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Replica found " << over_replicated.size() << " files that are overreplicated. Printing first 100." << LogEnd();
+           int cnt = 0;
+            for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
+            {
+               cnt++;
+               if (cnt < 100) // Print only top 100 overreplicated files
+                self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Replica File " << *i << " overreplicated" << LogEnd();
+            }
+         }
+
          // create replicas for files on slaves without enough disk space
          // so that some files can be removed from these nodes
          map<int64_t, Address> lowdisk;
          self->m_SlaveManager.checkStorageBalance(lowdisk);
          for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
          {
-            self->m_SectorLog << LogStart(1) << "Warning: found slave " << i->second.m_strIP
-                              << " with insufficient storage space. Printing first 100 files to be moved." << LogEnd();
+            self->m_SectorLog << LogStart(1) << "Replica found slave " << i->second.m_strIP << ":" <<
+               i->second.m_iPort << " with insufficient storage space. Printing first 100 files to be moved." 
+               << LogEnd();
 
             vector<string> path;
             self->chooseDataToMove(path, i->second, i->first);
@@ -2932,7 +2962,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          // The number of concurrent replication in the system must be limited.	
          if (self->m_sstrOnReplicate.size() > self->m_SlaveManager.getNumberOfSlaves())
          {
-            self->m_SectorLog << LogStart(9) << "Num of in-flight replica = " << self->m_sstrOnReplicate.size() << " vs. num of slaves " << self->m_SlaveManager.getNumberOfSlaves() << LogEnd();
+            self->m_SectorLog << LogStart(9) << "Replica Num of running replica = " << self->m_sstrOnReplicate.size() << " greater than num of slaves " << self->m_SlaveManager.getNumberOfSlaves() << LogEnd();
             break;
          }
 
@@ -2950,7 +2980,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       self->m_ReplicaLock.release();
 
       // over replication should be erased at a longer period, we use 1 hour 
-      if (CTimer::getTime() - last_replica_erase_time < 3600*1000000LL)
+      if (CTimer::getTime() - last_replica_erase_time < self->m_SysConfig.m_iReplicaEraseDelay*1000000)
          over_replicated.clear();
       else if (!over_replicated.empty())
          last_replica_erase_time = CTimer::getTime();
@@ -2972,7 +3002,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
             continue;
 
-         self->m_SectorLog << LogStart(9) << "Replica " << *i << " will be removed from " << addr.m_strIP << LogEnd();
+         self->m_SectorLog << LogStart(9) << "Replica " << *i << " will be removed from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
          self->removeReplica(*i, addr);
       }
    }
@@ -2985,7 +3015,7 @@ int Master::createReplica(const ReplicaJob& job)
    SNode attr;
    if (m_pMetadata->lookup(job.m_strSource.c_str(), attr) < 0)
    {
-      m_SectorLog << LogStart(9) << "Create replica: lookup return 0 " << m_pMetadata->lookup(job.m_strSource.c_str(), attr) << LogEnd();
+      m_SectorLog << LogStart(9) << "Replica create: file not found " << job.m_strSource << LogEnd();
       return 0;
    }
 
@@ -2996,7 +3026,7 @@ int Master::createReplica(const ReplicaJob& job)
       // Only nosplit dir can be replicated as a whole.
       if (m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) < 0)
       {
-         m_SectorLog << LogStart(9) << "Create replica: lookup nosplit return 0 " << m_pMetadata->lookup((job.m_strSource + "/.nosplit").c_str(), sub_attr) << LogEnd();
+         m_SectorLog << LogStart(9) << "Replica create: nosplit not found " << job.m_strSource << "/.nosplit" << LogEnd();
          return 0;         
       }
    }
@@ -3006,7 +3036,7 @@ int Master::createReplica(const ReplicaJob& job)
       // do not create multiple replicas at the same time
       if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
       {
-	m_SectorLog << LogStart(9) << "Create replica: replication in process for " << job.m_strSource << LogEnd();
+	m_SectorLog << LogStart(9) << "Replica create: replication in process for " << job.m_strSource << LogEnd();
          return -1;
       }
 
@@ -3015,49 +3045,53 @@ int Master::createReplica(const ReplicaJob& job)
          // do not over replicate
          if (attr.m_sLocation.size() > (unsigned int)attr.m_iReplicaNum)
          {
-            m_SectorLog << LogStart(9) << "Create replica: more replicas than needed " << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: more replicas than needed " << LogEnd();
             return 0;
          } else if ( job.m_bForceReplicate )
          {
-            m_SectorLog << LogStart(9) << "Create replica: replication forced" << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: replication forced" << LogEnd();
          }
          else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
-            m_SectorLog << LogStart(9) << "Create replica replicas equal" << LogEnd();
-            std::string cur_ip;
-            std::set<Address, AddrComp>::const_iterator cur = attr.m_sLocation.begin();
-            std::set<Address, AddrComp>::const_iterator last = attr.m_sLocation.end();
-            bool has_same_ip = false;
-            for( ; cur != last; ++cur )
-                if( cur->m_strIP == cur_ip ) {
-                   has_same_ip = true;
-                   break;
-                } else
-                   cur_ip = cur->m_strIP;
-
-            if( !has_same_ip )
-            {
-               m_SectorLog << LogStart(9) << "Create replica: replication correct" << LogEnd();
-               return 0;
-            }
+            m_SectorLog << LogStart(9) << "Replica create: replicas no correct" << LogEnd();
+            return 0;
+// Code below will check if replica created on slaves inside same ip (several slaves per node)
+// to reenable, change should be done here and in index.cpp
+//            std::string cur_ip;
+//            std::set<Address, AddrComp>::const_iterator cur = attr.m_sLocation.begin();
+//            std::set<Address, AddrComp>::const_iterator last = attr.m_sLocation.end();
+//            bool has_same_ip = false;
+//            for( ; cur != last; ++cur )
+//                if( cur->m_strIP == cur_ip ) {
+//                   has_same_ip = true;
+//                   break;
+//                } else
+//                   cur_ip = cur->m_strIP;
+//
+//            if( !has_same_ip )
+//            {
+//               m_SectorLog << LogStart(9) << "Create replica: replication correct" << LogEnd();
+//               return 0;
+//            }
          }
 
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
          {
-            m_SectorLog << LogStart(9) << "Create replica: choose replica node " << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: error choosing replica node " << LogEnd();
             return -1;
          }
+         m_SectorLog << LogStart(9) << "Replica create: dest slave " << sn.m_strIP << ":" << sn.m_iPort << LogEnd();
       }
       else
       {
          if (sub_attr.m_sLocation.size() >= (unsigned int)sub_attr.m_iReplicaNum)
          {
-            m_SectorLog << LogStart(9) << "Create replica: location size " << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: more or equal replicas  " << LogEnd();
             return 0;
          }
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
          {
-            m_SectorLog << LogStart(9) << "Create replica: choose replica node 2 " << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: choose replica node 2 " << LogEnd();
             return -1;
          }
       }
@@ -3069,7 +3103,7 @@ int Master::createReplica(const ReplicaJob& job)
       vector<int> rl;
       m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
       if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0){
-         m_SectorLog << LogStart(9) << "Create replica: choose replica node 3 " << LogEnd();
+         m_SectorLog << LogStart(9) << "Replica create: choose replica node 3 " << LogEnd();
          return -1;
 	}
    }
@@ -3087,7 +3121,7 @@ int Master::createReplica(const ReplicaJob& job)
    msg.setData(8, job.m_strSource.c_str(), job.m_strSource.length() + 1);
    msg.setData(8 + job.m_strSource.length() + 1, job.m_strDest.c_str(), job.m_strDest.length() + 1);
 
-   m_SectorLog << LogStart(9) << "Create replica for file " << job.m_strSource << " on node " << sn.m_strIP << LogEnd();
+   m_SectorLog << LogStart(9) << "Replica create: file " << job.m_strSource << " on node " << sn.m_strIP << ":" << sn.m_iPort << LogEnd();
    if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
    {
       m_sstrOnReplicate.erase(job.m_strSource);
@@ -3347,6 +3381,11 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
    system(cmd.c_str());
 }
 
+
+// WARNING!!!!
+//Concurrency issue!!!!
+// Alsays call logUserActivity before last send/reject, or you are risk that user* will point to
+//freed by other thread memory
 void Master::logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level)
 {
    stringstream buf;

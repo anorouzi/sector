@@ -225,7 +225,7 @@ void print(const SysStat& s, bool address = false)
    }
 
    cout << "-----------------------------------------------------------------------\n";
-   cout << format("SLAVE_ID", 10)
+   cout << format("SLAVE_ID", 11)
         << format("Address", 24)
         << format("CLUSTER", 8)
         << format("STATUS", 10)
@@ -239,7 +239,7 @@ void print(const SysStat& s, bool address = false)
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
-      cout << format(i->m_iID, 10)
+      cout << format(i->m_iID, 11)
            << format(i->m_strIP + ":" + toString(i->m_iPort) , 24)
            << format(i->m_iClusterID, 8)
            << formatStatus(i->m_iStatus, 10)
@@ -262,7 +262,7 @@ void print(const SysStat& s, bool address = false)
 
 void help()
 {
-   cout << "sector_sysinfo [-a]" << endl;
+   cout << "sector_sysinfo [-a|-d]" << endl;
 }
 
 int main(int argc, char** argv)
@@ -274,6 +274,7 @@ int main(int argc, char** argv)
       return -1;
 
    bool address = false;
+   bool debuginfo = false;
 
    CmdLineParser clp;
    if (clp.parse(argc, argv) < 0)
@@ -286,6 +287,8 @@ int main(int argc, char** argv)
    {
       if (i->first == "a")
          address = true;
+      else if (i->first == "d")
+         debuginfo = true;
       else
       {
          help();
@@ -297,6 +300,8 @@ int main(int argc, char** argv)
    {
       if (*i == "a")
          address = true;
+      else if (*i == "d")
+         debuginfo = true;
       else
       {
          help();
@@ -304,13 +309,21 @@ int main(int argc, char** argv)
       }
    }
 
-   SysStat sys;
-   int result = client.sysinfo(sys);
-   if (result >= 0)
-      print(sys, address);
-   else
-      Utility::print_error(result);
-
+   int result = 0;
+   if (debuginfo)
+   {
+      string debugstr;
+      result = client.debuginfo(debugstr);
+      cout << debugstr;
+   } else
+   {
+     SysStat sys;
+     result = client.sysinfo(sys);
+     if (result >= 0)
+        print(sys, address);
+     else
+        Utility::print_error(result);
+   } 
    Utility::logout(client);
 
    return result;

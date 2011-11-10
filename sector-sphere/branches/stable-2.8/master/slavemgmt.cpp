@@ -424,7 +424,9 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
    if (!loclist.empty())
    {
       SlaveNode sn;
-      findNearestNode(loclist, option.m_strHintIP, sn);
+      int rc = findNearestNode(loclist, option.m_strHintIP, sn);
+      if( rc < 0 )
+          return rc;
 
       sl.push_back(sn);
 
@@ -1107,8 +1109,8 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
 
    sn = m_mSlaveList[n];
 
-   /*
    // choose node with least active transactions; disabled as this is dangerous to get certan nodes starved
+   // re-enabled by sergey
    if (sn.m_iActiveTrans == 0)
       return 0;
 
@@ -1124,7 +1126,6 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
             break;
       }
    }
-   */
 
    return 0;
 }

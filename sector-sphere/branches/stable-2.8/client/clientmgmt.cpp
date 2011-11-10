@@ -242,6 +242,12 @@ int Sector::sysinfo(SysStat& sys)
    return c->sysinfo(sys);
 }
 
+int Sector::debuginfo(std::string& dbg)
+{
+   FIND_CLIENT_OR_ERROR(c)
+   return c->debuginfo(dbg);
+}
+
 int Sector::shutdown(const int& type, const string& param)
 {
    FIND_CLIENT_OR_ERROR(c)

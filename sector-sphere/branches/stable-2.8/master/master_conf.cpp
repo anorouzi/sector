@@ -51,7 +51,10 @@ m_iSlaveRetryTime(600),
 m_llSlaveMinDiskSpace(10000000000LL),
 m_iClientTimeOut(600),
 m_iLogLevel(1),
-m_iRepTransThresh(4)
+m_iRepTransThresh(4),
+m_iReplicationStartDelay(10*60),  // 10 min
+m_iReplicaFullScanDelay(600),  // 10 min
+m_iReplicaEraseDelay(3600) // 1 hr
 {
 }
 

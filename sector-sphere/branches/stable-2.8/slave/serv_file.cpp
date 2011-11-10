@@ -44,6 +44,12 @@ written by
      client_ip << ":" << client_port << " cmd " << cmd << " " << filename << " " << msg << LogEnd(); \
 }
 
+#define DBG_REP( msg ) \
+{\
+  self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "TID " << transid << " file " << src << " " <<  msg \
+   << LogEnd(); \
+}
+
 #include "slave.h"
 #include "writelog.h"
 
@@ -621,6 +627,7 @@ void* Slave::copy(void* p)
 DWORD WINAPI Slave::copy(LPVOID p)
 #endif
 {
+   int rc;
    Slave* self = ((Param3*)p)->serv_instance;
    int transid = ((Param3*)p)->transid;
    int dir = ((Param3*)p)->dir;
@@ -634,6 +641,8 @@ DWORD WINAPI Slave::copy(LPVOID p)
       src = "/" + src;
    if (dst.c_str()[0] == '\0')
       dst = "/" + dst;
+
+   DBG_REP(" Replication start");
 
    bool success = true;
 
@@ -711,14 +720,16 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          //IMPORTANT!!!
          //local files must be read directly from local disk, and cannot be read via datachn due to its limitation
-
+         DBG_REP("Local copy");
          string dst_path = dst;
          if (src != src_path)
             dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
 
          //copy to .tmp first, then move to real location
          self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
-         LocalFS::copy(self->m_strHomeDir + src_path, self->m_strHomeDir + ".tmp" + dst_path);
+         rc = LocalFS::copy(self->m_strHomeDir + src_path, self->m_strHomeDir + ".tmp" + dst_path);
+         if (rc < 0 )
+           DBG_REP("Error in copy " << rc);
       }
       else
       {
@@ -742,9 +753,11 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {
+            DBG_REP("Error 1");
             success = false;
             break;
          }
+         DBG_REP("Creating replica from " << addr.m_strIP << ":" << addr.m_iPort);
 
          int32_t session = *(int32_t*)msg.getData();
          int64_t size = *(int64_t*)(msg.getData() + 4);
@@ -755,8 +768,10 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          if (!self->m_DataChn.isConnected(ip, port))
          {
+            DBG_REP("Not connected to slave - connect " << addr.m_strIP << ":" << addr.m_iPort);
             if (self->m_DataChn.connect(ip, port) < 0)
             {
+               DBG_REP("Error 2");
                success = false;
                break;
             }
@@ -764,14 +779,17 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          // download command: 3
          int32_t cmd = 3;
-         self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+         int rc = self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+         if (rc < 0) DBG_REP("Error sending download command");
 
          int64_t offset = 0;
-         self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
+         rc = self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
+         if (rc < 0) DBG_REP("Error receiving download confirmation");
 
          int response = -1;
          if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
          {
+            DBG_REP("Error 3");
             success = false;
             break;
          }
@@ -781,10 +799,12 @@ DWORD WINAPI Slave::copy(LPVOID p)
             dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
 
          //copy to .tmp first, then move to real location
-         self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
+         rc = self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
+         if (rc < 0) DBG_REP("Error creating temp dir");
 
          fstream ofs;
          ofs.open((self->m_strHomeDir + ".tmp" + dst_path).c_str(), ios::out | ios::binary | ios::trunc);
+          if (ofs.fail()) DBG_REP("Error creating opening file");
 
          int64_t unit = 64000000; //send 64MB each time
          int64_t torecv = size;
@@ -794,6 +814,7 @@ DWORD WINAPI Slave::copy(LPVOID p)
             int64_t block = (torecv < unit) ? torecv : unit;
             if (self->m_DataChn.recvfile(ip, port, session, ofs, offset + recd, block) < 0)
             {
+               DBG_REP("Error receiving block of data");
                success = false;
                break;
             }
@@ -808,8 +829,10 @@ DWORD WINAPI Slave::copy(LPVOID p)
          self->m_SlaveStat.updateIO(ip, size, +SlaveStat::SYS_IN);
 
          cmd = 5;
-         self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
-         self->m_DataChn.recv4(ip, port, session, cmd);
+         rc = self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+         if (rc < 0) DBG_REP("Error sending close command");
+         rc = self->m_DataChn.recv4(ip, port, session, cmd);
+         if (rc < 0) DBG_REP("Error receiving close confirmation");
 
          if (src == dst)
          {
@@ -826,22 +849,32 @@ DWORD WINAPI Slave::copy(LPVOID p)
    {
       // move from temporary dir to the real dir when the copy is completed
       self->createDir(dst.substr(0, dst.rfind('/')));
-      LocalFS::rename(self->m_strHomeDir + ".tmp" + dst, self->m_strHomeDir + dst);
+      rc = LocalFS::rename(self->m_strHomeDir + ".tmp" + dst, self->m_strHomeDir + dst);
+      if (rc < 0 ) DBG_REP("Error moving copied file from tmp");
 
       // if the file has been modified during the replication, remove this replica
       int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
+      DBG_REP("Updating master with success");
       if (self->report(master_ip, master_port, transid, dst, type) < 0)
+      {
+         DBG_REP("File was updated during replication, remove replica");
          LocalFS::erase(self->m_strHomeDir + dst);
+      }
    }
    else
    {
+      DBG_REP("Failed, remove all temporary files");
       // failed, remove all temporary files
-      LocalFS::erase(self->m_strHomeDir + ".tmp" + dst);
-      self->report(master_ip, master_port, transid, "", +FileChangeType::FILE_UPDATE_NO);
+      rc = LocalFS::erase(self->m_strHomeDir + ".tmp" + dst);
+      if (rc < 0) DBG_REP ("Error deleting temp file");
+      rc = self->report(master_ip, master_port, transid, "", +FileChangeType::FILE_UPDATE_NO);
+      if (rc < 0) DBG_REP ("Error reporting to master");
    }
 
    // clear this transaction
    self->m_TransManager.updateSlave(transid, self->m_iSlaveID);
+
+   DBG_REP("Replication complete");
 
    return NULL;
 }

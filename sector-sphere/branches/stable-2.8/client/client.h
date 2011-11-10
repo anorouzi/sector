@@ -76,6 +76,7 @@ public:
 
 public:
    int sysinfo(SysStat& sys);
+   int debuginfo(std::string& dbg);
    int shutdown(const int& type, const std::string& param = "");
    int fsck(const std::string& path);
 

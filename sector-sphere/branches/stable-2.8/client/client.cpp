@@ -587,6 +587,27 @@ int Client::sysinfo(SysStat& sys)
    return 0;
 }
 
+int Client::debuginfo(string& dbg)
+{
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(11);
+   msg.m_iDataLength = SectorMsg::m_iHdrSize;
+
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_MASTER;
+
+   if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_MASTER;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+
+   dbg = std::string( msg.getData(), msg.m_iDataLength );
+   return 0;
+}
+
 int Client::shutdown(const int& type, const string& param)
 {
    SectorMsg msg;
