@@ -64,10 +64,10 @@ public:
    int64_t m_llSlaveMinDiskSpace;       // minimum available disk space allowed on each slave
    int m_iClientTimeOut;                // client timeout threshold
    int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log
-   int m_iRepTransThresh;               // number of transactions on a slave to cut off replication.
+   int m_iReplicationMaxTrans;          // Max number of replication transactions.
    int m_iReplicationStartDelay;        // Delay in sec of replcation thread start on master start
-   unsigned m_iReplicaFullScanDelay;    // Min time in sec between full scans by replica thread
-   unsigned m_iReplicaEraseDelay;       // Min time in sec between erase replica time
+   unsigned m_iReplicationFullScanDelay;    // Min time in sec between full scans by replica thread
+   int m_iProcessThreads;               // Number of process threads to start
 };
 
 class ReplicaConf

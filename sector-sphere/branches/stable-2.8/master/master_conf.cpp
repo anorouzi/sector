@@ -51,10 +51,10 @@ m_iSlaveRetryTime(600),
 m_llSlaveMinDiskSpace(10000000000LL),
 m_iClientTimeOut(600),
 m_iLogLevel(1),
-m_iRepTransThresh(4),
+m_iReplicationMaxTrans(0),        // 0 - no of slaves
 m_iReplicationStartDelay(10*60),  // 10 min
-m_iReplicaFullScanDelay(600),  // 10 min
-m_iReplicaEraseDelay(3600) // 1 hr
+m_iReplicationFullScanDelay(600), // 10 min
+m_iProcessThreads(1)              // 1 thread
 {
 }
 
@@ -138,9 +138,21 @@ int MasterConf::init(const string& path)
       {
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       }
-      else if ("SLAVE_TRANS_REPLICA_THRESH" == param.m_strName)
+      else if ("REPLICATION_MAX_TRANS" == param.m_strName)
       {
-         m_iRepTransThresh = atoi(param.m_vstrValue[0].c_str());
+         m_iReplicationMaxTrans = atoi(param.m_vstrValue[0].c_str());
+      }
+      else if ("PROCESS_THREADS" == param.m_strName)
+      {
+         m_iProcessThreads = atoi(param.m_vstrValue[0].c_str());
+      }
+      else if ("REPLICATION_START_DELAY" == param.m_strName)
+      {
+         m_iReplicationStartDelay = atoi(param.m_vstrValue[0].c_str());
+      }
+      else if ("REPLICATION_FULL_SCAN_DELAY"  == param.m_strName)
+      {
+         m_iReplicationFullScanDelay = atoi(param.m_vstrValue[0].c_str());
       }
       else
       {
