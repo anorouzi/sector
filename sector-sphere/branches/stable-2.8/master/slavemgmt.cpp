@@ -377,6 +377,20 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    if (NULL == candidate)
       return SectorError::E_NODISK;
 
+   set<int64_t> freeSpace;
+   for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
+       freeSpace.insert( i->second.m_llAvailDiskSpace );
+   while( freeSpace.size() > m_mSlaveList.size() / 2 )
+       freeSpace.erase( freeSpace.begin() );
+   for( set<int>::iterator c = candidate->begin(); c != candidate->end(); )
+       if( m_mSlaveList[*c].m_llAvailDiskSpace < *freeSpace.begin() )
+       {
+           set<int>::iterator tmp = c++;
+           candidate->erase( tmp );
+       }
+       else
+           ++c;
+
    // Choose a random node.
    timeval t;
    gettimeofday(&t, 0);

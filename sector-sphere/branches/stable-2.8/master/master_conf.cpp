@@ -51,9 +51,6 @@ m_iSlaveRetryTime(600),
 m_llSlaveMinDiskSpace(10000000000LL),
 m_iClientTimeOut(600),
 m_iLogLevel(1),
-m_iReplicationMaxTrans(0),        // 0 - no of slaves
-m_iReplicationStartDelay(10*60),  // 10 min
-m_iReplicationFullScanDelay(600), // 10 min
 m_iProcessThreads(1)              // 1 thread
 {
 }
@@ -138,21 +135,9 @@ int MasterConf::init(const string& path)
       {
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
       }
-      else if ("REPLICATION_MAX_TRANS" == param.m_strName)
-      {
-         m_iReplicationMaxTrans = atoi(param.m_vstrValue[0].c_str());
-      }
       else if ("PROCESS_THREADS" == param.m_strName)
       {
          m_iProcessThreads = atoi(param.m_vstrValue[0].c_str());
-      }
-      else if ("REPLICATION_START_DELAY" == param.m_strName)
-      {
-         m_iReplicationStartDelay = atoi(param.m_vstrValue[0].c_str());
-      }
-      else if ("REPLICATION_FULL_SCAN_DELAY"  == param.m_strName)
-      {
-         m_iReplicationFullScanDelay = atoi(param.m_vstrValue[0].c_str());
       }
       else
       {
@@ -166,8 +151,40 @@ int MasterConf::init(const string& path)
 }
 
 ReplicaConf::ReplicaConf():
+m_iReplicationStartDelay(10*60),    // 10 min
+m_iReplicationFullScanDelay(10*60), // 10 min
+m_iReplicationMaxTrans(0),          // 0 - no of slaves
 m_llTimeStamp(0)
 {
+}
+
+std::string ReplicaConf::toString() const
+{
+   std::stringstream buf;
+   
+   buf << "Replication configuration:\n";
+   buf << "REPLICATION_MAX_TRANS " << m_iReplicationMaxTrans << std::endl;
+   buf << "REPLICATION_START_DELAY " << m_iReplicationStartDelay << std::endl;
+   buf << "REPLICATION_FULL_SCAN_DELAY " << m_iReplicationFullScanDelay << std::endl;
+   buf << "Number of replicas:\n"; 
+   for( std::map<std::string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++i )
+      buf << i->first << " => " << i->second << '\n';
+
+   buf << "Replication distance:\n";
+   for( std::map<std::string, int>::const_iterator i = m_mReplicaDist.begin(); i != m_mReplicaDist.end(); ++i )
+      buf << i->first << " => " << i->second << '\n';
+
+   buf << "Restricted locations:\n";
+   for( std::map<std::string, std::vector<int> >::const_iterator i = m_mRestrictedLoc.begin(); i != m_mRestrictedLoc.end(); ++i )
+   {
+      buf << i->first << " => [";
+      for( size_t j = 0; j < i->second.size(); ++j )
+        buf << ' ' << i->second[j];
+      buf << "]\n";
+   }
+
+   buf << "End of replication configuration\n";
+   return buf.str();
 }
 
 bool ReplicaConf::refresh(const string& path)
@@ -189,6 +206,7 @@ bool ReplicaConf::refresh(const string& path)
 
    while (parser.getNextParam(param) >= 0)
    {
+      //cerr << "Read string =>"<< param.m_strName << std::endl;
       if ("REPLICATION_NUMBER" == param.m_strName)
       {
          for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
@@ -199,10 +217,13 @@ bool ReplicaConf::refresh(const string& path)
             {
                string rp = Metadata::revisePath(path);
                if (rp.length() > 0)
+               {
                   m_mReplicaNum[rp] = num;
+               }
             }
          }
       }
+
       else if ("REPLICATION_DISTANCE" == param.m_strName)
       {
          for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
@@ -232,6 +253,29 @@ bool ReplicaConf::refresh(const string& path)
                   m_mRestrictedLoc[rp] = topo;
             }
          }
+      }
+      else if ("REPLICATION_MAX_TRANS" == param.m_strName)
+      {
+         if( !param.m_vstrValue.empty() )
+             m_iReplicationMaxTrans = atoi(param.m_vstrValue[0].c_str());
+         else
+             cerr << "no value specified for REPLICATION_MAX_TRANS" << endl;
+      }
+      else if ("REPLICATION_START_DELAY" == param.m_strName)
+      {
+         if( !param.m_vstrValue.empty() )
+             m_iReplicationStartDelay = atoi(param.m_vstrValue[0].c_str());
+         else
+             cerr << "no value specified for REPLICATION_START_DELAY" << endl;
+      }
+      else if ("REPLICATION_FULL_SCAN_DELAY"  == param.m_strName)
+      {
+         if( !param.m_vstrValue.empty() )
+             m_iReplicationFullScanDelay = atoi(param.m_vstrValue[0].c_str());
+         else
+             cerr << "no value specified for REPLICATION_FULL_SCAN_DELAY" << endl;
+         if (m_iReplicationFullScanDelay < 60) 
+            m_iReplicationFullScanDelay = 60;
       }
       else
       {

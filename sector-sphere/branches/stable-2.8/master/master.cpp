@@ -1564,7 +1564,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " debuginfo " << ip << LogEnd();
 
       stringstream sbuf;
-      sbuf << "Current total number of active transcations " << m_TransManager.getTotalTrans() << std::endl;
+      sbuf << "Current total number of active transactions " << m_TransManager.getTotalTrans() << std::endl;
       CGuard::enterCS(m_TransManager.m_TLLock);
 
       for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
@@ -1593,11 +1593,18 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       sbuf << "Size of queues: service = " << m_ServiceJobQueue.size()
                 << " process = " << m_ProcessJobQueue.size() << std::endl;
 
-      sbuf << "Replication queue size " << m_ReplicaMgmt.getTotalNum() << " for total file size " <<
-          m_ReplicaMgmt.getTotalSize() << " bytes" << std::endl;
+      sbuf << "Replication queue size " << m_ReplicaMgmt.getTotalNum() << std::endl;
+      m_ReplicaLock.acquire();
+      sbuf << "Total " << m_sstrOnReplicate.size() << " replication in process:" << std::endl;
+      for (std::set<std::string>::iterator i = m_sstrOnReplicate.begin(); i != m_sstrOnReplicate.end(); ++i)
+      {
+         sbuf << *i << std::endl;
+      }
+      m_ReplicaLock.release();
+ 
 
       string data = sbuf.str();
-      msg->setData(0, data.c_str(), data.length());
+      msg->setData(0, data.c_str(), data.length()+1);
       m_GMP.sendto(ip, port, id, msg);
 
       break;
@@ -2868,26 +2875,27 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    // initially the master should wait for a while, because before all slaves join,
    // many files could be treated as undereplicated incorrectly.
    // we will wait for 10 minutes before the first check.
-   sleep(self->m_SysConfig.m_iReplicationStartDelay);
+   sleep(self->m_ReplicaConf.m_iReplicationStartDelay);
 
    uint64_t last_full_rescan_time =  0; // wants to do first time immediately
    vector<string> under_replicated;
    vector<string> over_replicated;
-
+   self->m_SectorLog << LogStart(9) << "Replica thread start - configuration settings:\n" << 
+      self->m_ReplicaConf.toString() << LogEnd();
+   int64_t maxTran = self->m_ReplicaConf.m_iReplicationMaxTrans;
    while (self->m_Status == RUNNING)
-   {
-      // wait for 600 seconds for the next check
+   {  // do more complex caclulation of waitTime, to ensure we do full scan at regular intervals
       self->m_ReplicaLock.acquire();         
-      self->m_ReplicaCond.wait(self->m_ReplicaLock, self->m_SysConfig.m_iReplicationFullScanDelay*1000); // Time in msec
+      self->m_ReplicaCond.wait(self->m_ReplicaLock, self->m_ReplicaConf.m_iReplicationFullScanDelay*1000); // Time in msec
+      size_t replSize =  self->m_sstrOnReplicate.size();
       self->m_ReplicaLock.release();
       self->m_SectorLog << LogStart(9) << "Replica thread awaken - replication queue size is " << 
-       self->m_ReplicaMgmt.getTotalNum() << " replication in process " << self->m_sstrOnReplicate.size() << 
+       self->m_ReplicaMgmt.getTotalNum() << " replication in process " << replSize << 
        " time since last full rescan " << ((CTimer::getTime() - last_full_rescan_time)/1000000LL) << " sec" 
         << LogEnd();
 
       // check replica, create or remove replicas if necessary
-      if ((CTimer::getTime() - last_full_rescan_time >= self->m_SysConfig.m_iReplicationFullScanDelay*1000000 -1) &&
-          (self->m_ReplicaMgmt.getTotalNum() == 0))
+      if ((CTimer::getTime() - last_full_rescan_time >= self->m_ReplicaConf.m_iReplicationFullScanDelay*1000000 -1)) 
       {
          // only the first master is responsible for replica checking
          if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
@@ -2897,111 +2905,128 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          // refresh special replication settings
          if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
          {
-            self->m_SectorLog << LogStart(9) << "Refresh replication settings"  << LogEnd();
+            self->m_SectorLog << LogStart(9) << "Replica New settings detected and read\n" << self->m_ReplicaConf.toString() << LogEnd();            
             self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
          }
-         // TODO:: optimize this process: if there are too many files, this scan may kill the master
-         under_replicated.clear();
-         over_replicated.clear();
-         self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
-
-         if (!under_replicated.empty())
-         {
-            self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Replica found " << under_replicated.size() << " files that are under replicated. Printing first 100." << LogEnd();
-
-            self->m_ReplicaLock.acquire();
-            int cnt = 0;
-            for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)
-            {
-               cnt++;
-               if (cnt < 100) // Print only top 100 underreplicated files
-                self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Replica File " << *i << " underreplicated" << LogEnd();
-               ReplicaJob job;
-               job.m_strSource = job.m_strDest = *i;
-               job.m_iPriority = BACKGROUND;
-               self->m_ReplicaMgmt.insert(job);
-            }
-            self->m_ReplicaLock.release();
-         }
-
-         if (!over_replicated.empty())
-         {
-           self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Replica found " << over_replicated.size() << " files that are overreplicated. Printing first 100." << LogEnd();
-           int cnt = 0;
-            for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
-            {
-               cnt++;
-               if (cnt < 100) // Print only top 100 overreplicated files
-                self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Replica File " << *i << " overreplicated" << LogEnd();
-            }
-
-           // remove replicas from those over-replicated files
-           // extra replicas can decrease write performance, and occupy disk spaces
-           for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
-           {
-              // choose one replica and remove it
-              SNode attr;
-              if (self->m_pMetadata->lookup(*i, attr) < 0)
-                continue;
-
-              // remove a directory, this must be a dir with .nosplit
-              if ((attr.m_bIsDir) && (self->m_pMetadata->lookup(*i + "/.nosplit", attr) < 0))
-                continue;
-
-              Address addr;
-              if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
-                continue;
-
-              self->m_SectorLog << LogStart(9) << "Replica " << *i << " will be removed from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
-              self->removeReplica(*i, addr);
-           }
-         }
-
-         // create replicas for files on slaves without enough disk space
-         // so that some files can be removed from these nodes
-         map<int64_t, Address> lowdisk;
-         self->m_SlaveManager.checkStorageBalance(lowdisk);
-         for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
-         {
-            vector<string> path;
-            self->chooseDataToMove(path, i->second, i->first);
-            self->m_SectorLog << LogStart(1) << "Replica found slave " << i->second.m_strIP << ":" <<
-               i->second.m_iPort << " with space deficit of " << i->first << " bytes. Will be moving out  " << path.size() << " files - Printing first 100." 
-               << LogEnd();
-
-            self->m_ReplicaLock.acquire();
-            int cnt=0;
-            for (vector<string>::iterator j = path.begin(); j != path.end(); ++ j)
-            {
-               cnt++;
-               if (cnt<100)
-                 self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File " << *j << 
-                   " will be replicated to move out of full slave" 
-                      << i->second.m_strIP << ":" << i->second.m_iPort << LogEnd();
-               if (cnt > 20)
-               {
-                 self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << 
-                 "Debug - no more than 20 files to be moved out of full slave " << 
-                  i->second.m_strIP << ":" << i->second.m_iPort << LogEnd();
-                  break;
-               }
-               ReplicaJob job;
-               job.m_strSource = job.m_strDest = *j;
-               job.m_bForceReplicate = true;
-               self->m_ReplicaMgmt.insert(job);
-            }
-            self->m_ReplicaLock.release();
-         }
-      }
-
-      // start any replication jobs in queue
-      self->m_ReplicaLock.acquire();
-      for (ReplicaMgmt::iterator i = self->m_ReplicaMgmt.begin(); i != self->m_ReplicaMgmt.end();)
-      {
          // The number of concurrent replication in the system must be limited.	
          // if REPLICATION_MAX_TRAN parameter is not specified or 0, it will be number of slaves
-         unsigned maxTran = self->m_SysConfig.m_iReplicationMaxTrans;
-         if (maxTran == 0) maxTran = self->m_SlaveManager.getNumberOfSlaves();
+         // if REPLICATION_MAX_TRAN parameter is < 0, it will disable replication
+         // if REPLICATION_MAX_TRAN parameter is > 2x no_of_slaves,  it will be 2x no_of_slaves
+         int64_t prevMaxTran = maxTran;
+         maxTran = self->m_ReplicaConf.m_iReplicationMaxTrans;
+         // dynamically set max replicas to number of slaves each time in full scan
+         if (self->m_ReplicaConf.m_iReplicationMaxTrans == 0) maxTran = self->m_SlaveManager.getNumberOfSlaves();
+         if (self->m_ReplicaConf.m_iReplicationMaxTrans >  (self->m_SlaveManager.getNumberOfSlaves() * 2))
+            maxTran = self->m_SlaveManager.getNumberOfSlaves()*2;
+         if (self->m_ReplicaConf.m_iReplicationMaxTrans < 0) maxTran = 0;
+         if (prevMaxTran != maxTran) 
+            self->m_SectorLog << LogStart(9) << "Replica Max parallel replication changed from  " << 
+             prevMaxTran << " to " << maxTran << LogEnd();
+         if (self->m_ReplicaMgmt.getTotalNum() >= maxTran) 
+         {
+            self->m_SectorLog << LogStart(9) << "Replica Size of rep queue " << 
+                self->m_ReplicaMgmt.getTotalNum() << " bigger or equal to max allowed replications " <<  
+                maxTran << " - skipping full rescan" << LogEnd();
+         } else
+         {  // there is a space in running replication transactions, we can do full scan
+           // TODO:: optimize this process: if there are too many files, this scan may kill the master
+           under_replicated.clear();
+           over_replicated.clear();
+           self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
+
+           if (!under_replicated.empty())
+           {
+              self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Replica found " << under_replicated.size() << " files that are under replicated. Printing first 100." << LogEnd();
+
+              self->m_ReplicaLock.acquire();
+              int cnt = 0;
+              for (vector<string>::iterator i = under_replicated.begin(); i != under_replicated.end(); ++ i)
+              {
+                 cnt++;
+                 if (cnt < 100) // Print only top 100 underreplicated files
+                  self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Replica File " << *i << " underreplicated" << LogEnd();
+                 ReplicaJob job;
+                 job.m_strSource = job.m_strDest = *i;
+                 job.m_iPriority = BACKGROUND;
+                 self->m_ReplicaMgmt.insert(job);
+              }
+              self->m_ReplicaLock.release();
+           }
+
+           if (!over_replicated.empty())
+           {
+             self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Replica found " << over_replicated.size() << " files that are overreplicated. Printing first 100." << LogEnd();
+             int cnt = 0;
+              for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
+              {
+                 cnt++;
+                 if (cnt < 100) // Print only top 100 overreplicated files
+                  self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Replica File " << *i << " overreplicated" << LogEnd();
+              }
+
+             // remove replicas from those over-replicated files
+             // extra replicas can decrease write performance, and occupy disk spaces
+             for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
+             {
+                // choose one replica and remove it
+                SNode attr;
+                if (self->m_pMetadata->lookup(*i, attr) < 0)
+                  continue;
+
+                // remove a directory, this must be a dir with .nosplit
+                if ((attr.m_bIsDir) && (self->m_pMetadata->lookup(*i + "/.nosplit", attr) < 0))
+                  continue;
+
+                Address addr;
+                if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
+                  continue;
+
+                self->m_SectorLog << LogStart(9) << "Replica " << *i << " will be removed from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
+                self->removeReplica(*i, addr);
+             }
+           }
+
+           // create replicas for files on slaves without enough disk space
+           // so that some files can be removed from these nodes
+           map<int64_t, Address> lowdisk;
+           self->m_SlaveManager.checkStorageBalance(lowdisk);
+           for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
+           {
+              vector<string> path;
+              self->chooseDataToMove(path, i->second, i->first);
+              self->m_SectorLog << LogStart(1) << "Replica found slave " << i->second.m_strIP << ":" <<
+                 i->second.m_iPort << " with space deficit of " << i->first << " bytes. Will be moving out  " << path.size() << " files - Printing first 100." 
+                 << LogEnd();
+
+              self->m_ReplicaLock.acquire();
+              int cnt=0;
+              for (vector<string>::iterator j = path.begin(); j != path.end(); ++ j)
+              {
+                 cnt++;
+                 if (cnt<100)
+                   self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File " << *j << 
+                     " will be replicated to move out of full slave" 
+                        << i->second.m_strIP << ":" << i->second.m_iPort << LogEnd();
+                 if (cnt > 20)
+                 {
+                   self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << 
+                   "Debug - no more than 20 files to be moved out of full slave " << 
+                    i->second.m_strIP << ":" << i->second.m_iPort << LogEnd();
+                    break;
+                 }
+                 ReplicaJob job;
+                 job.m_strSource = job.m_strDest = *j;
+                 job.m_bForceReplicate = true;
+                 self->m_ReplicaMgmt.insert(job);
+              }
+              self->m_ReplicaLock.release();
+           }
+        }
+      }
+        // start any replication jobs in queue
+        self->m_ReplicaLock.acquire();
+      for (ReplicaMgmt::iterator i = self->m_ReplicaMgmt.begin(); i != self->m_ReplicaMgmt.end();)
+      {
          if (self->m_sstrOnReplicate.size() > maxTran)
          {
             self->m_SectorLog << LogStart(9) << "Replica Num of running replica = " << self->m_sstrOnReplicate.size() << " greater than limit " << maxTran << LogEnd();
@@ -3136,9 +3161,11 @@ int Master::createReplica(const ReplicaJob& job)
    msg.setData(8 + job.m_strSource.length() + 1, job.m_strDest.c_str(), job.m_strDest.length() + 1);
 
    m_SectorLog << LogStart(9) << "Replica create: message to slave file " << job.m_strSource << " on node " << sn.m_strIP << ":" << sn.m_iPort << " " << job.m_strSource << LogEnd();
-   if ((m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg) < 0) || (msg.getData() < 0))
+   int rc = m_GMP.rpc(sn.m_strIP.c_str(), sn.m_iPort, &msg, &msg);
+   int rcm = 0;
+   if ((rc < 0) || (rcm = msg.getData() < 0))
    {
-      m_SectorLog << LogStart(9) << "Replica create: gmp error " << job.m_strSource << LogEnd();
+      m_SectorLog << LogStart(9) << "Replica create: gmp error " << rc << " msg error "<< rcm << ", stop replicating file and removing from currently replicated " << job.m_strSource << LogEnd();
       m_sstrOnReplicate.erase(job.m_strSource);
       return -1;
    }

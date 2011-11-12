@@ -64,10 +64,7 @@ public:
    int64_t m_llSlaveMinDiskSpace;       // minimum available disk space allowed on each slave
    int m_iClientTimeOut;                // client timeout threshold
    int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log
-   int m_iReplicationMaxTrans;          // Max number of replication transactions.
-   int m_iReplicationStartDelay;        // Delay in sec of replcation thread start on master start
-   unsigned m_iReplicationFullScanDelay;    // Min time in sec between full scans by replica thread
-   int m_iProcessThreads;               // Number of process threads to start
+   int m_iProcessThreads;               // Number of processing threads.
 };
 
 class ReplicaConf
@@ -75,11 +72,15 @@ class ReplicaConf
 public:
    ReplicaConf();
    bool refresh(const std::string& path);
+   std::string toString() const;
 
 public:
    std::map<std::string, int> m_mReplicaNum;	// number of replicas
    std::map<std::string, int> m_mReplicaDist;	// distance of replicas
    std::map<std::string, std::vector<int> > m_mRestrictedLoc;	// restricted locations for certain files
+   int m_iReplicationStartDelay;        // Delay in sec of replcation thread start on master start
+   unsigned m_iReplicationFullScanDelay;    // Min time in sec between full scans by replica thread
+   int m_iReplicationMaxTrans;               // Max no of concurrent replications
 
 public:
    int getReplicaNum(const std::string& path, int default_val);
