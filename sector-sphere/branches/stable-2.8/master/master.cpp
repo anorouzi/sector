@@ -839,7 +839,8 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       branch->clear();
       delete branch;
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << ":" << sn.m_iPort << " joined." << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << ":" << sn.m_iPort << " joined. Now " <<
+        m_SlaveManager.getNumberOfSlaves() << " slaves" <<  LogEnd();
    }
    else
    {
@@ -3076,7 +3077,7 @@ int Master::createReplica(const ReplicaJob& job)
       if (m_sstrOnReplicate.find(job.m_strSource) != m_sstrOnReplicate.end())
       {
 	m_SectorLog << LogStart(9) << "Replica create: replication in process for " << job.m_strSource << LogEnd();
-         return -1;
+         return 0;
       }
 
       if (!attr.m_bIsDir)
