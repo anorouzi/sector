@@ -2322,11 +2322,11 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
 
-      m_GMP.sendto(ip, port, id, msg);
 
       m_SectorLog << LogStart(LogLevel::LEVEL_3) << "TID " << transid << " UID " << user->m_iKey << " " <<
          user->m_strIP << " open PATH " << path << LogEnd();
 
+      m_GMP.sendto(ip, port, id, msg);
       break;
    }
 
