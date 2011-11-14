@@ -2297,11 +2297,17 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             else
             {
                //TODO: roll back 
+               m_SectorLog << LogStart(LogLevel::LEVEL_1) << "TID " << transid << " UID " << user->m_iKey << " " <<
+                   user->m_strIP << " open PATH " << path << " failed response from slave " <<
+                   i->m_strIP << ':' << i->m_iPort << LogEnd();
             }
          }
          else 
          {
             //TODO: remove this slave
+            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "TID " << transid << " UID " << user->m_iKey << " " <<
+               user->m_strIP << " open PATH " << path << " failed communication with slave " <<
+               i->m_strIP << ':' << i->m_iPort << LogEnd();
          }
       }
 
@@ -2917,7 +2923,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          maxTran = self->m_ReplicaConf.m_iReplicationMaxTrans;
          // dynamically set max replicas to number of slaves each time in full scan
          if (self->m_ReplicaConf.m_iReplicationMaxTrans == 0) maxTran = self->m_SlaveManager.getNumberOfSlaves();
-         if (self->m_ReplicaConf.m_iReplicationMaxTrans >  (self->m_SlaveManager.getNumberOfSlaves() * 2))
+         if (self->m_ReplicaConf.m_iReplicationMaxTrans > (int)(self->m_SlaveManager.getNumberOfSlaves() * 2))
             maxTran = self->m_SlaveManager.getNumberOfSlaves()*2;
          if (self->m_ReplicaConf.m_iReplicationMaxTrans < 0) maxTran = 0;
          if (prevMaxTran != maxTran) 
@@ -3028,7 +3034,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
         self->m_ReplicaLock.acquire();
       for (ReplicaMgmt::iterator i = self->m_ReplicaMgmt.begin(); i != self->m_ReplicaMgmt.end();)
       {
-         if (self->m_sstrOnReplicate.size() > maxTran)
+         if ((ssize_t)self->m_sstrOnReplicate.size() > maxTran)
          {
             self->m_SectorLog << LogStart(9) << "Replica Num of running replica = " << self->m_sstrOnReplicate.size() << " greater than limit " << maxTran << LogEnd();
             break;
