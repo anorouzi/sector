@@ -2160,6 +2160,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string path = Metadata::revisePath(msg->getData() + 12);
       int32_t opt_len = *(int32_t*)(msg->getData() + 12 + name_len);
 
+      string str_ip = user->m_strIP;
+      uint64_t key = user->m_iKey;
+
       SF_OPT option;
       if (opt_len > 0)
          option.deserialize(msg->getData() + 12 + name_len + 4);
@@ -2329,8 +2332,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       msg->m_iDataLength = SectorMsg::m_iHdrSize + offset;
 
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "TID " << transid << " UID " << user->m_iKey << " " <<
-         user->m_strIP << " open PATH " << path << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "TID " << transid << " UID " << key << " " <<
+         str_ip << " open PATH " << path << LogEnd();
 
       m_GMP.sendto(ip, port, id, msg);
       break;
