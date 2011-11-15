@@ -138,6 +138,8 @@ int Master::init()
    User* au = new User;
    au->m_strName = "system";
    au->m_iKey = 0;
+   au->m_bLoggedOut = false;
+   au->m_iUseCount = 1; // We never want to log out slaves anyway...
    au->m_vstrReadList.insert(au->m_vstrReadList.begin(), "/");
    //au->m_vstrWriteList.insert(au->m_vstrWriteList.begin(), "/");
    m_UserManager.insert(au);
@@ -306,6 +308,8 @@ int Master::join(const char* ip, const int& port)
       s.recv(ubuf, size);
       User* u = new User;
       u->deserialize(ubuf, size);
+      u->m_bLoggedOut = false;
+      u->m_iUseCount = 1; 
       delete [] ubuf;
       m_UserManager.insert(u);
    }
@@ -386,7 +390,8 @@ int Master::run()
          }
          m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << 
             " " << (*i)->m_strIP << " Timeout. Kicked out." << LogEnd();
-         delete *i;
+
+         delete *i;      
       }
       iu.clear();
 
@@ -888,6 +893,8 @@ int Master::processUserJoin(SSLTransport& cliconn,
       au->m_strIP = ip;
       au->m_iKey = key;
       au->m_llLastRefreshTime = CTimer::getTime();
+      au->m_bLoggedOut = false;
+      au->m_iUseCount = 0;
 
       cliconn.recv((char*)&au->m_iPort, 4);
       cliconn.recv((char*)&au->m_iDataPort, 4);
@@ -1097,7 +1104,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
          continue;
 
       int32_t key = msg->getKey();
-      User* user = self->m_UserManager.lookup(key);
+      User* user = self->m_UserManager.acquire(key);
       if (NULL == user)
       {
          self->reject(ip, port, id, SectorError::E_EXPIRED);
@@ -1205,6 +1212,8 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       default:
          self->reject(p->ip, p->port, p->id, SectorError::E_UNKNOWN);
       }
+
+      self->m_UserManager.release(p->user);
 
       delete p->msg;
       delete p;
@@ -1335,9 +1344,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
    case 2: // client logout
    {
       m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " UID " << user->m_iKey << " logout " << ip << LogEnd();
-
-      m_UserManager.remove(key);
-
+      const_cast<User*>(user)->setLogout(true);
       m_GMP.sendto(ip, port, id, msg);
 
       break;
@@ -1565,6 +1572,9 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " debuginfo " << ip << LogEnd();
 
       stringstream sbuf;
+      sbuf << "Size of queues: service = " << m_ServiceJobQueue.size()
+                << " process = " << m_ProcessJobQueue.size() << std::endl;
+      sbuf << "Replication queue size " << m_ReplicaMgmt.getTotalNum() << std::endl;
       sbuf << "Current total number of active transactions " << m_TransManager.getTotalTrans() << std::endl;
       CGuard::enterCS(m_TransManager.m_TLLock);
 
@@ -1587,14 +1597,11 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       {
          sbuf << "User " << u->second->m_strName << " UID " << u->second->m_iKey << " "
                      << u->second->m_strIP << " Last seen " <<
-         (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago " << std::endl;
+         (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago Use count " << 
+         u->second->getUseCount() << " logged out = " << std::boolalpha << u->second->hasLoggedOut() << std::endl;
       }
       m_UserManager.m_Lock.release();
 
-      sbuf << "Size of queues: service = " << m_ServiceJobQueue.size()
-                << " process = " << m_ProcessJobQueue.size() << std::endl;
-
-      sbuf << "Replication queue size " << m_ReplicaMgmt.getTotalNum() << std::endl;
       m_ReplicaLock.acquire();
       sbuf << "Total " << m_sstrOnReplicate.size() << " replication in process:" << std::endl;
       for (std::set<std::string>::iterator i = m_sstrOnReplicate.begin(); i != m_sstrOnReplicate.end(); ++i)
