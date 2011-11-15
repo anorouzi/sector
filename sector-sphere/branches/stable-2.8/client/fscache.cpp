@@ -131,6 +131,7 @@ void Cache::evict(const string& path)
           --m_iBlockNum;
           delete [] (**block)->m_pcBlock;
           delete (**block);
+          m_lCacheBlocks.erase(*block);
       }
 }
 
