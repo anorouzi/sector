@@ -109,11 +109,29 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
       s->second.m_llTimeStamp = ts;
       s->second.m_llSize = size;
       s->second.m_llLastAccessTime = CTimer::getTime() / 1000000;
+      evict(path);
    }
 
    // Increase reference count.
    if (first)
       s->second.m_iCount ++;
+}
+
+// Note: must be called with m_Lock held.
+void Cache::evict(const string& path)
+{
+   FileCacheMap::iterator c = m_mFileCache.find(path);
+   if (c == m_mFileCache.end())
+      return;
+
+   for( BlockIndexMap::iterator bi = c->second.begin(); bi != c->second.end(); ++bi )
+      for( BlockIndex::iterator block = bi->second.begin(); block != bi->second.end(); ++block )
+      {
+          m_llCacheSize -= (**block)->m_llSize;
+          --m_iBlockNum;
+          delete [] (**block)->m_pcBlock;
+          delete (**block);
+      }
 }
 
 void Cache::remove(const string& path)

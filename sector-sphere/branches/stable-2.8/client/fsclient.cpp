@@ -19,6 +19,7 @@ written by
    Yunhong Gu, last updated 04/08/2011
 *****************************************************************************/
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <ctime>
@@ -180,6 +181,8 @@ int FSClient::open(const string& filename, int mode, const SF_OPT* option)
       if (m_pClient->m_DataChn.connect(addr.m_strIP, addr.m_iPort) >= 0)
          m_vReplicaAddress.push_back(addr);
    }
+
+   std::random_shuffle( m_vReplicaAddress.begin(), m_vReplicaAddress.end() );
 
    while (m_bWrite && !m_vReplicaAddress.empty() && (organizeChainOfWrite() < 0)) {}
 

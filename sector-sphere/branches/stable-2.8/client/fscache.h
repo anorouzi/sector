@@ -113,6 +113,7 @@ private:
    void shrink();
    void parseIndexOffset(const int64_t& offset, const int64_t& size, int64_t& index_off, int64_t& block_num);
    void releaseBlock(CacheBlock* cb);
+   void evict(const std::string& path);
 
 private:
    InfoBlockMap m_mOpenedFiles;
