@@ -88,7 +88,7 @@ public:
    int64_t getCacheSize() {return m_llCacheSize;}
 
 public: // operations for file metadata cache
-   void update(const std::string& path, const int64_t& ts, const int64_t& size, bool first = false);
+   void update(const std::string& path, const int64_t& ts, const int64_t& size, bool first = false, bool doEvict = true);
    void remove(const std::string& path);
    int stat(const std::string& path, SNode& attr);
 

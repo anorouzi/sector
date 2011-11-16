@@ -21,7 +21,7 @@ written by
 
 #include <assert.h>
 #include <string.h>
-
+#include <iostream>
 #include "common.h"
 #include "fscache.h"
 
@@ -85,7 +85,7 @@ int Cache::setMaxCacheBlocks(const int num)
    return 0;
 }
 
-void Cache::update(const string& path, const int64_t& ts, const int64_t& size, bool first)
+void Cache::update(const string& path, const int64_t& ts, const int64_t& size, bool first, bool doEvict)
 {
    CGuard sg(m_Lock);
 
@@ -109,7 +109,8 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
       s->second.m_llTimeStamp = ts;
       s->second.m_llSize = size;
       s->second.m_llLastAccessTime = CTimer::getTime() / 1000000;
-      evict(path);
+      if( doEvict )
+          evict(path);
    }
 
    // Increase reference count.
@@ -133,6 +134,8 @@ void Cache::evict(const string& path)
           delete (**block);
           m_lCacheBlocks.erase(*block);
       }
+
+   m_mFileCache.erase(c);
 }
 
 void Cache::remove(const string& path)
