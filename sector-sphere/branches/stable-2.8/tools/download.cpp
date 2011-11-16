@@ -40,9 +40,9 @@ written by
 
 using namespace std;
 
-void help()
+void help(const char* argv0)
 {
-   cout << "download sector_file/dir local_dir [--e]" << endl;
+   cout << argv0 << " sector_file/dir local_dir [--e (will encrypt) |--smart (skip download if file is same/ resume download if file is smaller, based purely on size)]" << endl;
 }
 
 int download(const char* file, const char* dest, Sector& client, bool encryption)
@@ -156,32 +156,35 @@ int main(int argc, char** argv)
 {
    if (argc < 3)
    {
-      help();
+      help(argv[0]);
       return -1;
    }
 
    CmdLineParser clp;
    if (clp.parse(argc, argv) < 0)
    {
-      help();
+      help(argv[0]);
       return -1;
    }
 
    if (clp.m_vParams.size() < 2)
    {
-      help();
+      help(argv[0]);
       return -1;
    }
 
    bool encryption = false;
+   bool resume = false;
 
    for (vector<string>::const_iterator i = clp.m_vSFlags.begin(); i != clp.m_vSFlags.end(); ++ i)
    {
       if (*i == "e")
          encryption = true;
+      else if( *i == "smart" )
+         resume = true;
       else
       {
-         help();
+         help(argv[0]);
          return -1;
       }
    }
@@ -290,6 +293,34 @@ int main(int argc, char** argv)
                cerr << "ERROR: unable to create local directory " << localdir << endl;
                break;
             }
+         }
+
+         if (!resume )
+         {
+            string fileName = *i;
+            if( fileName.rfind( '/' ) != fileName.npos )
+                fileName = fileName.substr( fileName.rfind( '/' ) + 1 );
+            string destFile = localdir + '/' + fileName;
+            if( LocalFS::stat( destFile, s ) >= 0 )
+            {
+                cout << "Destination directory already contains file '" << fileName << "', removing." << endl;
+                if( LocalFS::erase( destFile ) < 0 )
+                {
+                   int save_errno = errno;
+                   cerr << "ERROR: could not remove destination file: " << strerror( save_errno ) << endl
+                       << "NOT downloading file!" << endl;
+                   return -1;
+                }
+            }
+         } 
+         else
+         {
+            string fileName = *i;
+            if( fileName.rfind( '/' ) != fileName.npos )
+                fileName = fileName.substr( fileName.rfind( '/' ) + 1 );
+            string destFile = localdir + '/' + fileName;
+            if( LocalFS::stat( destFile, s ) >= 0 )
+                cout << "Destination directory already contains file '" << fileName << "', resuming partial download." << endl;
          }
 
          if (download(i->c_str(), localdir.c_str(), client, encryption) < 0)
