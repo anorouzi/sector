@@ -840,7 +840,7 @@ DWORD WINAPI CGMP::rcvHandler(LPVOID s)
       getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), ip, sizeof(ip),
                   port_str, sizeof(port_str), NI_NUMERICHOST|NI_NUMERICSERV);
       const int port = atoi(port_str);
-cout << "recvfrom " << ip << " " << port << " " << type << " " << session << " " << id << endl;
+
       CChannelRec* chn = self->getChnHandle(dst_chn);
       if (NULL == chn)
          continue;
@@ -857,7 +857,6 @@ cout << "recvfrom " << ip << " " << port << " " << type << " " << session << " "
                if (id == (*i)->m_pMsg->m_iID)
                {
                   int rtt = int(CTimer::getTime() - (*i)->m_llTimeStamp);
-cout << "detect rtt = " << rtt << endl;
                   self->m_pPeerMgmt->setRTT(ip, rtt);
                   self->m_pPeerMgmt->setFlowWindow(ip, port, CGMPMessage::g_iSession, info);
 
@@ -1007,9 +1006,8 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
 
    while (!self->m_bClosed)
    {
-      //TODO: use timeout.
       set<UDTSOCKET> readfds;
-      UDT::epoll_wait(self->m_iUDTEPollID, &readfds, NULL, -1);
+      UDT::epoll_wait(self->m_iUDTEPollID, &readfds, NULL, 1000);
 
       for (set<UDTSOCKET>::iterator i = readfds.begin(); i != readfds.end(); ++ i)
       {
@@ -1044,7 +1042,7 @@ DWORD WINAPI CGMP::udtRcvHandler(LPVOID s)
          rec->m_pMsg->m_iDstChn = header[3];
          rec->m_pMsg->m_iID = header[4];
          rec->m_pMsg->m_iInfo = header[5];
-cout << "udt recv " << peer_ip << " " << port << endl;
+
          // recv parameter size
          if (self->UDTRecv(*i, (char*)&(rec->m_pMsg->m_iLength), 4) < 0)
          {
