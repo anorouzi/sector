@@ -26,8 +26,13 @@ written by
 #include <meta.h>
 #include <osportable.h>
 
+namespace sector
+{
+
 class Index: public Metadata
 {
+struct STree;
+
 public:
    Index();
    virtual ~Index();
@@ -42,8 +47,9 @@ public:
    virtual int lookup(const std::string& path, std::set<Address, AddrComp>& addr);
 
 public:
+   virtual int create(const std::string& path, const SNode& node);
    virtual int create(const SNode& node);
-   virtual int move(const std::string& oldpath, const std::string& newpath, const std::string& newname = "");
+   virtual int rename(const std::string& src, const std::string& dst);
    virtual int remove(const std::string& path, bool recursive = false);
    virtual int addReplica(const std::string& path, const int64_t& ts, const int64_t& size, const Address& addr);
    virtual int removeReplica(const std::string& path, const Address& addr);
@@ -55,7 +61,7 @@ public:
    virtual int scan(const std::string& data_dir, const std::string& meta_dir);
 
 public:
-   virtual int merge(const std::string& path, Metadata* branch, const unsigned int& replica);
+   virtual int merge(Metadata* branch, const unsigned int& replica);
    virtual int substract(const std::string& path, const Address& addr);
 
    virtual int64_t getTotalDataSize(const std::string& path);
@@ -65,27 +71,44 @@ public:
    virtual int getSlaveMeta(Metadata* branch, const Address& addr);
 
 public:
-   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc);
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist,
+                                  std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist,
+                                  std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
-   int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
-   int deserialize(std::ifstream& ifs, std::map<std::string, SNode>& currdir, const Address* addr = NULL);
-   int scan(const std::string& currdir, std::map<std::string, SNode>& metadata);
-   int merge(std::map<std::string, SNode>& currdir, std::map<std::string, SNode>& branch, const unsigned int& replica);
-   int substract(std::map<std::string, SNode>& currdir, const Address& addr);
+   STree* lookup(const std::vector<std::string>& dir_vec);
+   STree* lookup(const std::string& path);
+   STree* lookupParent(const std::string& path);
+   STree* create(const std::string& path);
 
-   int64_t getTotalDataSize(const std::map<std::string, SNode>& currdir) const;
-   int64_t getTotalFileNum(const std::map<std::string, SNode>& currdir) const;
-   int collectDataInfo(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& result) const;
-   int checkReplica(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over) const;
-   int list_r(const std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist) const;
-   int getSlaveMeta(const std::map<std::string, SNode>& currdir, const std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr) const;
+   int serialize(std::ofstream& ofs, STree* tree, int level);
+   int deserialize(std::ifstream& ifs, STree* tree, const Address* addr = NULL);
+   int scan(const std::string& currdir, STree* tree);
+   int merge(STree* tree, STree* branch, const unsigned int& replica);
+   int substract(STree* parent, STree* tree, const Address& addr);
 
-   int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc);
+   int64_t getTotalDataSize(const STree& tree) const;
+   int64_t getTotalFileNum(const STree& tree) const;
+   int collectDataInfo(const std::string& path, const STree* parent, const STree* tree, std::vector<std::string>& result) const;
+   int checkReplica(const std::string& path, const STree& tree, std::vector<std::string>& under, std::vector<std::string>& over) const;
+   int list_r(const STree& tree, const std::string& path, std::vector<std::string>& filelist) const;
+   int getSlaveMeta(const STree& tree, const std::vector<std::string>& path, STree* target, const Address& addr) const;
+
+   int refreshRepSetting(const std::string& path, STree* tree, int default_num, int default_dist,
+                         std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist,
+                         std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
-   std::map<std::string, SNode> m_mDirectory;
+   struct STree
+   {
+      SNode m_Node;
+      std::map<std::string, STree> m_mDirectory;
+      void clear() {m_mDirectory.clear();}
+   } m_MetaTree;
+
    RWLock m_MetaLock;
 };
+
+}  // namespace sector
 
 #endif

@@ -33,6 +33,7 @@ written by
 #include <common.h>
 
 enum MetaForm {DEFAULT, MEMORY, DISK};
+const char NOSPLIT[] = ".nosplit";
 
 class Metadata
 {
@@ -54,7 +55,7 @@ public:	// list and lookup operations
       //    1) [in] path: file or dir name
       //    2) [out] filelist: list of files and dirs to be replicated or copied
       // Returned value:
-      //    0 success, otherwise negative error number.
+      //    0 success, otherwise negative error code.
 
    virtual int list_r(const std::string& path, std::vector<std::string>& filelist) = 0;
 
@@ -70,8 +71,9 @@ public:	// list and lookup operations
    virtual int lookup(const std::string& path, std::set<Address, AddrComp>& addr) = 0;
 
 public:	// update operations
+   virtual int create(const std::string& path, const SNode& node) = 0;
    virtual int create(const SNode& node) = 0;
-   virtual int move(const std::string& oldpath, const std::string& newpath, const std::string& newname = "") = 0;
+   virtual int rename(const std::string& src, const std::string& dst) = 0;
    virtual int remove(const std::string& path, bool recursive = false) = 0;
    virtual int addReplica(const std::string& path, const int64_t& ts, const int64_t& size, const Address& addr) = 0;
    virtual int removeReplica(const std::string& path, const Address& addr) = 0;
@@ -92,7 +94,6 @@ public:	// lock/unlock
    virtual int unlock(const std::string& path, int user, int mode);
 
 public:	// serialization
-   // TODO: use memory buffer to store the serialized metadata instead of a file
    virtual int serialize(const std::string& path, const std::string& dstfile) = 0;
    virtual int deserialize(const std::string& path, const std::string& srcfile, const Address* addr) = 0;
    virtual int scan(const std::string& data_dir, const std::string& meta_dir) = 0;
@@ -102,13 +103,12 @@ public:	// medadata and file system operations
       // Functionality:
       //    merge a slave's index with the system file index.
       // Parameters:
-      //    1) [in] path: merge into this director, usually "/"
-      //    2) [in, out] branch: new metadata to be included; excluded/conflict metadata will be left, while others will be removed
-      //    3) [in] replica: number of replicas
+      //    1) [in, out] branch: new metadata to be included; excluded/conflict metadata will be left, while others will be removed
+      //    2) [in] replica: number of replicas
       // Returned value:
       //    0 on success, or -1 on error.
 
-   virtual int merge(const std::string& path, Metadata* branch, const unsigned int& replica) = 0;
+   virtual int merge(Metadata* branch, const unsigned int& replica) = 0;
 
    virtual int substract(const std::string& path, const Address& addr) = 0;
    virtual int64_t getTotalDataSize(const std::string& path) = 0;
@@ -121,6 +121,8 @@ public:	// medadata and file system operations
 public:
    static int parsePath(const std::string& path, std::vector<std::string>& result);
    static std::string revisePath(const std::string& path);
+   static std::string getPathName(const std::string& path);
+   static std::string getNodeName(const std::string& path);
 
 public:
       // Functionality:
@@ -135,11 +137,11 @@ public:
       // Returned value:
       //    0 on success, or -1 on error.
 
-   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num, std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc) = 0;
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, std::map<std::string, int>& rep_num,
+                                  std::map<std::string, int>& rep_dist, std::map<std::string, std::vector<int> >& restrict_loc) = 0;
 
 protected:
    // TODO: The locking can be sharded.
-
    pthread_mutex_t m_FileLockProtection;
 
    struct LockSet
@@ -149,7 +151,7 @@ protected:
    };
    std::map<std::string, LockSet> m_mLock;
 
-private:
+protected:
    static bool initLC();
    static bool m_pbLegalChar[256];
    static bool m_bInit;

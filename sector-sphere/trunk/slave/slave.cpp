@@ -446,21 +446,41 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
    {
       string src = msg->getData();
       string dst = msg->getData() + src.length() + 1;
-      string newname = msg->getData() + src.length() + 1 + dst.length() + 1;
-
       src = Metadata::revisePath(src);
       dst = Metadata::revisePath(dst);
-      newname = Metadata::revisePath(newname);
 
-      // rename() does not create new dir, so we must call createDir first.
-      createDir(dst);
-      if (LocalFS::rename(m_strHomeDir + src, m_strHomeDir + dst + newname) >= 0)
+      SNode s;
+      if (m_pLocalFile->lookup(src, s) < 0)
       {
-         // update metadata only if the actual move succeeded.
-         m_pLocalFile->move(src.c_str(), dst.c_str(), newname.c_str());
+         // src does not exist on this node, remove dst.
+         LocalFS::erase(m_strHomeDir + dst);
+         m_pLocalFile->remove(dst);
+      }
+      else
+      {
+         string newname = dst;
+         SNode d;
+         if (m_pLocalFile->lookup(dst, d) < 0)
+         {
+            // rename() does not create new dir, so we must call createDir first.
+            string uplevel = dst.substr(0, dst.rfind('/'));
+            createDir(uplevel);
+         }
+         else if (!s.m_bIsDir && d.m_bIsDir)
+         {
+           // In case that dst is an exsiting directory,
+           // but src is a file, we put the file under dst.
+           newname = dst + "/" + Metadata::getNodeName(src);
+         }
+
+         if (LocalFS::rename(m_strHomeDir + src, m_strHomeDir + newname) >= 0)
+         {
+            // update metadata only if the actual move succeeded.
+            m_pLocalFile->rename(src, dst);
+         }
       }
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << "/" << newname << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_3) << "dir/file moved from " << src << " to " << dst << LogEnd();
 
       break;
    }

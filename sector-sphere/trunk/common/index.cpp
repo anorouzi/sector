@@ -1,4 +1,4 @@
-/*****************************************************************************
+/****************************************************************************
 Copyright 2005 - 2011 The Board of Trustees of the University of Illinois.
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
@@ -34,11 +34,17 @@ written by
 #include "index.h"
 #include "sector.h"
 
-
 using namespace std;
+using namespace sector;
 
 Index::Index()
 {
+   // Initialize root node.
+   SNode& s = m_MetaTree.m_Node;
+   s.m_strName = "";
+   s.m_bIsDir = true;
+   s.m_llSize = 0;
+   s.m_llTimeStamp = time(NULL);
 }
 
 Index::~Index()
@@ -47,42 +53,31 @@ Index::~Index()
 
 int Index::list(const string& path, vector<string>& filelist)
 {
+   filelist.clear();
+
    RWGuard mg(m_MetaLock, RW_READ);
 
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
-   map<string, SNode>* currdir = &m_mDirectory;
-   unsigned int depth = 1;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      map<string, SNode>::iterator s = currdir->find(*d);
-      if (s == currdir->end())
-         return SectorError::E_NOEXIST;
-
-      if (!s->second.m_bIsDir)
-      {
-         if (depth != dir.size())
-            return SectorError::E_NOEXIST;
-
-         char* buf = NULL;
-         if (s->second.serialize(buf) >= 0)
-            filelist.insert(filelist.end(), buf);
-         delete [] buf;
-         return 1;
-      }
-
-      currdir = &(s->second.m_mDirectory);
-      depth ++;
-   }
-
-   filelist.clear();
-   for (map<string, SNode>::const_iterator i = currdir->begin(); i != currdir->end(); ++ i)
+   // This is a file.
+   if (!tree->m_Node.m_bIsDir)
    {
       char* buf = NULL;
-      if (i->second.serialize(buf) >= 0)
-         filelist.insert(filelist.end(), buf);
+      if (tree->m_Node.serialize(buf) >= 0)
+         filelist.push_back(buf);
+      delete [] buf;
+      return filelist.size();
+   }
+
+   // This is a directory.
+   for (map<string, STree>::const_iterator i = tree->m_mDirectory.begin();
+        i != tree->m_mDirectory.end(); ++ i)
+   {
+      char* buf = NULL;
+      if (i->second.m_Node.serialize(buf) >= 0)
+         filelist.push_back(buf);
       delete [] buf;
    }
 
@@ -91,127 +86,48 @@ int Index::list(const string& path, vector<string>& filelist)
 
 int Index::list_r(const string& path, vector<string>& filelist)
 {
+   filelist.clear();
+
    RWGuard mg(m_MetaLock, RW_READ);
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return SectorError::E_NOEXIST;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   // if this is root dir, list its content, but not itself
-   if (dir.empty())
-      return list_r(*currdir, path, filelist);
-
-   if (s->second.m_bIsDir)
-   {
-      if (s->second.m_mDirectory.find(".nosplit") != s->second.m_mDirectory.end())
-      {
-         // nosplit dir, only dir name is returned 
-         filelist.push_back(path);
-         return 0;
-      }
-
-      if (s->second.m_mDirectory.empty())
-      {
-         filelist.push_back(path);
-         return 0;
-      }
-
-      return list_r(*currdir, path, filelist);
-   }
-   else
-   {
-      filelist.push_back(path);
-   }
-
-   return 0;
+   return list_r(*tree, path, filelist);
 }
 
 int Index::lookup(const string& path, SNode& attr)
 {
    RWGuard mg(m_MetaLock, RW_READ);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   if (dir.empty())
-   {
-      // stat on the root directory "/"
-      attr.m_strName = "/";
-      attr.m_bIsDir = true;
-      attr.m_llSize = 0;
-      attr.m_llTimeStamp = 0;
-      for (map<string, SNode>::iterator i = m_mDirectory.begin(); i != m_mDirectory.end(); ++ i)
-      {
-         attr.m_llSize += i->second.m_llSize;
-         if (attr.m_llTimeStamp < i->second.m_llTimeStamp)
-            attr.m_llTimeStamp = i->second.m_llTimeStamp;
-      }
-      return m_mDirectory.size();
-   }
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   attr = s->second;
-
-   return s->second.m_mDirectory.size();
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
+   attr = tree->m_Node;
+   return tree->m_mDirectory.size();
 }
 
 int Index::lookup(const string& path, set<Address, AddrComp>& addr)
 {
    RWGuard mg(m_MetaLock, RW_READ);
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
-   vector<string> dir;
-   if (parsePath(path, dir) <= 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   stack<SNode*> scanmap;
-   scanmap.push(&(s->second));
-
+   queue<const STree*> scanmap;
+   scanmap.push(tree);
    while (!scanmap.empty())
    {
-      SNode* n = scanmap.top();
+      const STree* t = scanmap.front();
       scanmap.pop();
 
-      if (n->m_bIsDir)
+      if (t->m_Node.m_bIsDir)
       {
-         for (map<string, SNode>::iterator i = n->m_mDirectory.begin(); i != n->m_mDirectory.end(); ++ i)
-            scanmap.push(&(i->second));
+         for (map<string, STree>::const_iterator i = t->m_mDirectory.begin(); i != t->m_mDirectory.end(); ++ i)
+            scanmap.push(&i->second);
       }
       else
       {
-         for (set<Address, AddrComp>::iterator i = n->m_sLocation.begin(); i != n->m_sLocation.end(); ++ i)
+         for (set<Address, AddrComp>::const_iterator i = t->m_Node.m_sLocation.begin(); i != t->m_Node.m_sLocation.end(); ++ i)
             addr.insert(*i);
       }
    }
@@ -219,150 +135,92 @@ int Index::lookup(const string& path, set<Address, AddrComp>& addr)
    return addr.size();
 }
 
-int Index::create(const SNode& node)
+int Index::create(const string& path, const SNode& node)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
 
-   vector<string> dir;
-   if (parsePath(node.m_strName.c_str(), dir) <= 0)
-      return -3;
-
-   if (dir.empty())
+   STree* tree = create(path);
+   if (tree == NULL)
       return -1;
 
-   bool found = true;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   string filename;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-      {
-         SNode n;
-         n.m_strName = *d;
-         n.m_bIsDir = true;
-         n.m_llTimeStamp = time(NULL);
-         n.m_llSize = 0;
-         (*currdir)[*d] = n;
-         s = currdir->find(*d);
-
-         filename = *d;
-
-         found = false;
-      }
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   // if already exist, return error
-   if (found)
-      return -1;
-
-   // node initially contains full path name, revise it to file name only
-   s->second = node;
-   s->second.m_strName = filename;
-
-   return 0;
+   STree new_tree;
+   new_tree.m_Node = node;
+   return tree->m_mDirectory.insert(pair<string, STree>(node.m_strName, new_tree)).second;
 }
 
-int Index::move(const string& oldpath, const string& newpath, const string& newname)
+int Index::create(const SNode& node)
+{
+   string abs_path = node.m_strName;
+   SNode real_node = node;
+   real_node.m_strName = getNodeName(abs_path);
+   return create(getPathName(abs_path), real_node);
+}
+
+int Index::rename(const string& src, const string& dst)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
 
-   vector<string> olddir;
-   if (parsePath(oldpath, olddir) <= 0)
-      return -3;
-
-   if (olddir.empty())
+   STree* src_parent = lookupParent(src);
+   if (src_parent == NULL)
+      return -1;
+   string name = getNodeName(src);
+   map<string, STree>::iterator t = src_parent->m_mDirectory.find(name);
+   if (t == src_parent->m_mDirectory.end())
       return -1;
 
-   vector<string> newdir;
-   if (parsePath(newpath, newdir) < 0)
-      return -3;
+   STree* dst_tree = lookup(dst);
 
-   map<string, SNode>* od = &m_mDirectory;
-   map<string, SNode>::iterator os;
-   for (vector<string>::iterator d = olddir.begin();;)
+   // POSIT semantic: if source is a directory but the destination
+   // is a non-empty directory, return error.
+   if (t->second.m_Node.m_bIsDir &&
+       (dst_tree != NULL) &&
+       dst_tree->m_Node.m_bIsDir &&
+       !dst_tree->m_mDirectory.empty())
    {
-      os = od->find(*d);
-      if (os == od->end())
-         return -1;
-
-      if (++ d == olddir.end())
-         break;
-
-      od = &(os->second.m_mDirectory);
+      return -1;
    }
 
-   map<string, SNode>* nd = &m_mDirectory;
-   map<string, SNode>::iterator ns;
-   for (vector<string>::iterator d = newdir.begin(); d != newdir.end(); ++ d)
+   bool dst_exist = true;
+   if (dst_tree == NULL)
    {
-      ns = nd->find(*d);
-      if (ns == nd->end())
-      {
-         SNode n;
-         n.m_strName = *d;
-         n.m_bIsDir = true;
-         n.m_llTimeStamp = 0;
-         n.m_llSize = 0;
-         (*nd)[*d] = n;
-         ns = nd->find(*d);
-      }
-
-      nd = &(ns->second.m_mDirectory);
+      dst_tree = create(dst);
+      dst_exist = false;
    }
 
-   if (newname.length() == 0)
-      (*nd)[os->first] = os->second;
+   if (!dst_exist || !dst_tree->m_Node.m_bIsDir)
+   {
+     // If dst does not exist or it is a file, replace dst with src,
+     // but keep its name.
+     string orig_name = dst_tree->m_Node.m_strName;
+     dst_tree->m_Node = t->second.m_Node;
+     dst_tree->m_mDirectory = t->second.m_mDirectory;
+     dst_tree->m_Node.m_strName = orig_name;
+   }
    else
    {
-      os->second.m_strName = newname;
-      (*nd)[newname] = os->second;
+     // Otherwise if dst is a directory,
+     // put the moved files under the dst directory.
+     dst_tree->m_mDirectory[t->first] = t->second;
    }
 
-   od->erase(os->first);
+   // Remove source.
+   src_parent->m_mDirectory.erase(t);
 
-   return 1;
+   return 0;
 }
 
 int Index::remove(const string& path, bool recursive)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   if (parsePath(path, dir) <= 0)
-      return SectorError::E_INVALID;
-
-   if (dir.empty())
+   STree* tree = lookup(path);
+   STree* parent = lookupParent(path);
+   if (!tree || !parent)
       return -1;
 
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); ; )
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
+   if (!tree->m_mDirectory.empty() && !recursive)
+      return -1;
 
-      if (++ d == dir.end())
-         break;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   if (s->second.m_bIsDir)
-   {
-      if (recursive)
-         currdir->erase(s);
-      else
-         return -1;
-   }
-   else
-   {
-      currdir->erase(s);
-   }
+   parent->m_mDirectory.erase(getNodeName(path));
 
    return 0;
 }
@@ -370,30 +228,14 @@ int Index::remove(const string& path, bool recursive)
 int Index::addReplica(const string& path, const int64_t& ts, const int64_t& size, const Address& addr)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   parsePath(path.c_str(), dir);
-   if (dir.empty())
+   STree* tree = lookup(path);
+   if (tree == NULL)
       return -1;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-      {
-         // file does not exist, return error
-         return SectorError::E_NOEXIST;
-      }
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   if ((s->second.m_llSize != size) || (s->second.m_llTimeStamp != ts))
+   if (tree->m_Node.m_bIsDir)
       return -1;
-
-   s->second.m_sLocation.insert(addr);
-
+   if ((tree->m_Node.m_llSize != size) || (tree->m_Node.m_llTimeStamp != ts))
+      return -1;
+   tree->m_Node.m_sLocation.insert(addr);
    return 0;
 }
 
@@ -401,48 +243,18 @@ int Index::removeReplica(const string& path, const Address& addr)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
 
-   vector<string> dir;
-   parsePath(path.c_str(), dir);
-   if (dir.empty())
+   STree* parent = lookupParent(path);
+   if (parent == NULL)
+      return -1;
+   STree* tree = lookup(path);
+   if (tree == NULL)
       return -1;
 
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-      {
-         // file does not exist, return error
-         return SectorError::E_NOEXIST;
-      }
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   // if this is a single file, remove the address from its location list
-   if (!s->second.m_bIsDir)
-   {
-      s->second.m_sLocation.erase(addr);
-      return 0;
-   }
-
-   // if this is a directory, remove the address from all files in the directory
-   queue<SNode*> fq;
-   fq.push(&s->second);
-   while (!fq.empty())
-   {
-      SNode* p = fq.front();
-      fq.pop();
-      if (p->m_bIsDir)
-      {
-         for (map<string, SNode>::iterator i = p->m_mDirectory.begin(); i != p->m_mDirectory.end(); ++ i)
-            fq.push(&i->second);
-      }
-      else
-      {
-         p->m_sLocation.erase(addr);
-      }
-   }
+   if (tree->m_Node.m_bIsDir)
+      return -1;
+   tree->m_Node.m_sLocation.erase(addr);
+   if (tree->m_Node.m_sLocation.empty())
+      parent->m_mDirectory.erase(tree->m_Node.m_strName);
 
    return 0;
 }
@@ -450,58 +262,28 @@ int Index::removeReplica(const string& path, const Address& addr)
 int Index::update(const string& path, const int64_t& ts, const int64_t& size)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   parsePath(path, dir);
-
-   if (dir.empty())
-      return 0;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
    // sometime it may be necessary to update timestamp only. In this case size should be set to <0.
    if (size >= 0)
-      s->second.m_llSize = size;
-
-   s->second.m_llTimeStamp = ts;
-
-   return 1;
+      tree->m_Node.m_llSize = size;
+   tree->m_Node.m_llTimeStamp = ts;
+   return 0;
 }
 
 int Index::serialize(const string& path, const string& dstfile)
 {
    RWGuard mg(m_MetaLock, RW_READ);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
    ofstream ofs(dstfile.c_str());
    if (ofs.bad() || ofs.fail())
       return -1;
-
-   serialize(ofs, *currdir, 1);
-
+   serialize(ofs, tree, 1);
    ofs.close();
    return 0;
 }
@@ -509,28 +291,14 @@ int Index::serialize(const string& path, const string& dstfile)
 int Index::deserialize(const string& path, const string& srcfile,  const Address* addr)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
    ifstream ifs(srcfile.c_str());
    if (ifs.bad() || ifs.fail())
       return -1;
-
-   deserialize(ifs, *currdir, addr);
-
+   deserialize(ifs, tree, addr);
    ifs.close();
    return 0;
 }
@@ -538,143 +306,60 @@ int Index::deserialize(const string& path, const string& srcfile,  const Address
 int Index::scan(const string& datadir, const string& metadir)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   if (parsePath(metadir, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   scan(datadir, *currdir);
-
+   STree* tree = lookup(metadir);
+   if (tree == NULL)
+      return -1;
+   scan(datadir, tree);
    return 0;
 }
 
-int Index::merge(const string& /*path*/, Metadata* meta, const unsigned int& replica)
+int Index::merge(Metadata* branch, const unsigned int& replica)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   merge(m_mDirectory, ((Index*)meta)->m_mDirectory, replica);
-
+   merge(&m_MetaTree, &((Index*)branch)->m_MetaTree, replica);
    return 0;
 }
 
 int Index::substract(const string& path, const Address& addr)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   substract(*currdir, addr);
-
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
+   STree* parent = lookupParent(path);
+   // if parent is NULL, it means this is root directory.
+   substract(parent, tree, addr);
    return 0;
 }
 
 int64_t Index::getTotalDataSize(const string& path)
 {
    RWGuard mg(m_MetaLock, RW_READ);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   return getTotalDataSize(*currdir);
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
+   return getTotalDataSize(*tree);
 }
 
 int64_t Index::getTotalFileNum(const string& path)
 {
    RWGuard mg(m_MetaLock, RW_READ);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   return getTotalFileNum(*currdir);
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
+   return getTotalFileNum(*tree);
 }
 
-int Index::collectDataInfo(const string& file, vector<string>& result)
+int Index::collectDataInfo(const string& path, vector<string>& result)
 {
    RWGuard mg(m_MetaLock, RW_READ);
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
+   STree* parent = lookupParent(path);
+   // if parent is NULL, it means this is root directory.
 
-   vector<string> dir;
-   if (parsePath(file, dir) <= 0)
-      return -3;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>* updir = NULL;
-   map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      updir = currdir;
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   if (!s->second.m_bIsDir)
-   {
-      string idx = *dir.rbegin() + ".idx";
-      int64_t rows = -1;
-      map<string, SNode>::iterator i = updir->find(idx);
-      if (i != updir->end())
-         rows = i->second.m_llSize / 8 - 1;
-
-      stringstream buf;
-      buf << file << " " << s->second.m_llSize << " " << rows;
-
-      for (set<Address, AddrComp>::iterator j = s->second.m_sLocation.begin(); j != s->second.m_sLocation.end(); ++ j)
-         buf << " " << j->m_strIP << " " << j->m_iPort;
-
-      result.push_back(buf.str());
-   }
-
-   return collectDataInfo(file, *currdir, result);
+   return collectDataInfo(path, parent, tree, result);
 }
 
 int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over)
@@ -684,22 +369,11 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
 
    RWGuard mg(m_MetaLock, RW_READ);
 
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
-      return SectorError::E_INVALID;
+   STree* tree = lookup(path);
+   if (tree == NULL)
+      return -1;
 
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return -1;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   return checkReplica(path, *currdir, under, over);
+   return checkReplica(path, *tree, under, over);
 }
 
 int Index::getSlaveMeta(Metadata* branch, const Address& addr)
@@ -707,32 +381,100 @@ int Index::getSlaveMeta(Metadata* branch, const Address& addr)
    RWGuard mg(m_MetaLock, RW_READ);
 
    vector<string> path;
-   return getSlaveMeta(m_mDirectory, path, ((Index*)branch)->m_mDirectory, addr);
+   return getSlaveMeta(m_MetaTree, path, &((Index*)branch)->m_MetaTree, addr);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////
+// Private functions.
 
-int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
+Index::STree* Index::lookup(const vector<string>& dir_vec)
 {
-   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   STree* tree = &m_MetaTree;
+   map<string, STree>::iterator s;
+   for (vector<string>::const_iterator d = dir_vec.begin(); d != dir_vec.end(); ++ d)
+   {
+      s = tree->m_mDirectory.find(*d);
+      if (s == tree->m_mDirectory.end())
+         return NULL;
+
+      tree = &(s->second);
+   }
+
+   return tree;
+}
+
+Index::STree* Index::lookup(const string& path)
+{
+   vector<string> dir;
+   if (parsePath(path, dir) < 0)
+      return NULL;
+   return lookup(dir);
+}
+
+Index::STree* Index::lookupParent(const string& path)
+{
+   vector<string> dir;
+   if (parsePath(path, dir) < 1)
+      return NULL;
+   dir.pop_back();
+   return lookup(dir);
+}
+
+Index::STree* Index::create(const string& path)
+{
+   vector<string> dir;
+   if (parsePath(path.c_str(), dir) < 0)
+      return NULL;
+
+   STree* tree = &m_MetaTree;
+   map<string, STree>::iterator s;
+   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
+   {
+      s = tree->m_mDirectory.find(*d);
+      if (s == tree->m_mDirectory.end())
+      {
+         STree t;
+         t.m_Node.m_strName = *d;
+         t.m_Node.m_bIsDir = true;
+         t.m_Node.m_llTimeStamp = time(NULL);
+         t.m_Node.m_llSize = 0;
+         tree->m_mDirectory[*d] = t;
+         s = tree->m_mDirectory.find(*d);
+      }
+      tree = &(s->second);
+   }
+
+   return tree;
+}
+
+int Index::serialize(ofstream& ofs, STree* tree, int level)
+{
+   /*
+   DIR_LEVEL FILE_INFO
+   1 xxx
+   1 xxx
+   2 yyy
+   2 zzz
+   3 ppp
+   */
+
+   for (map<string, STree>::iterator i = tree->m_mDirectory.begin(); i != tree->m_mDirectory.end(); ++ i)
    {
       char* buf = NULL;
-      if (i->second.serialize(buf) >= 0)
+      if (i->second.m_Node.serialize(buf) >= 0)
          ofs << level << " " << buf << endl;
       delete [] buf;
-
-      if (i->second.m_bIsDir)
-         serialize(ofs, i->second.m_mDirectory, level + 1);
+      serialize(ofs, &i->second, level + 1);
    }
 
    return 0;
 }
 
-int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Address* addr)
+int Index::deserialize(ifstream& ifs, STree* tree, const Address* addr)
 {
    vector<string> dirs;
    dirs.resize(1024);
-   map<string, SNode>* currdir = &metadata;
+   STree* currdir = tree;
    int currlevel = 1;
 
    while (!ifs.eof())
@@ -754,7 +496,6 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
             break;
          }
       }
-
       int level = atoi(buf);
 
       SNode sn;
@@ -767,30 +508,29 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
 
       if (level == currlevel)
       {
-         (*currdir)[sn.m_strName] = sn;
+         currdir->m_mDirectory[sn.m_strName].m_Node = sn;
          dirs[level] = sn.m_strName;
       }
       else if (level == currlevel + 1)
       {
-         map<string, SNode>::iterator s = currdir->find(dirs[currlevel]);
-         currdir = &(s->second.m_mDirectory);
+         map<string, STree>::iterator s = currdir->m_mDirectory.find(dirs[currlevel]);
+         currdir = &(s->second);
          currlevel = level;
 
-         (*currdir)[sn.m_strName] = sn;
+         currdir->m_mDirectory[sn.m_strName].m_Node = sn;
          dirs[level] = sn.m_strName;
       }
       else if (level < currlevel)
       {
-         currdir = &metadata;
-
+         currdir = tree;
          for (int i = 1; i < level; ++ i)
          {
-            map<string, SNode>::iterator s = currdir->find(dirs[i]);
-            currdir = &(s->second.m_mDirectory);
+            map<string, STree>::iterator s = currdir->m_mDirectory.find(dirs[i]);
+            currdir = &(s->second);
          }
          currlevel = level;
 
-         (*currdir)[sn.m_strName] = sn;
+         currdir->m_mDirectory[sn.m_strName].m_Node = sn;
          dirs[level] = sn.m_strName;
       }
    }
@@ -798,13 +538,14 @@ int Index::deserialize(ifstream& ifs, map<string, SNode>& metadata, const Addres
    return 0;
 }
 
-int Index::scan(const string& currdir, map<string, SNode>& metadata)
+// Scan a local FS directory and load the information to the Index structure.
+int Index::scan(const string& currdir, STree* tree)
 {
    vector<SNode> filelist;
    if (LocalFS::list_dir(currdir, filelist) < 0)
       return -1;
 
-   metadata.clear();
+   tree->clear();
 
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
@@ -816,7 +557,7 @@ int Index::scan(const string& currdir, map<string, SNode>& metadata)
       bool bad = false;
       for (char *p = (char*)i->m_strName.c_str(), *q = p + i->m_strName.length(); p != q; ++ p)
       {
-         if ((*p == 10) || (*p == 13))
+         if (!m_pbLegalChar[int(*p)])
          {
             bad = true;
             break;
@@ -826,332 +567,309 @@ int Index::scan(const string& currdir, map<string, SNode>& metadata)
          continue;
 
       // skip system file and directory
+      // TODO: this should be allowed. put all user data in a special director, and system data to another.
       if (i->m_bIsDir && (i->m_strName.c_str()[0] == '.'))
          continue;
 
-      metadata[i->m_strName] = *i;
-      map<string, SNode>::iterator mi = metadata.find(i->m_strName);
+      tree->m_mDirectory[i->m_strName].m_Node = *i;
+      map<string, STree>::iterator mi = tree->m_mDirectory.find(i->m_strName);
 
-      if (mi->second.m_bIsDir)
-         scan(currdir + mi->first + "/", mi->second.m_mDirectory);
+      if (mi->second.m_Node.m_bIsDir)
+         scan(currdir + "/" + mi->first, &mi->second);
    }
 
-   return metadata.size();
+   return 0;
 }
 
-int Index::merge(map<string, SNode>& currdir, map<string, SNode>& branch, const unsigned int& replica)
+int Index::merge(STree* currdir, STree* branch, const unsigned int& replica)
 {
    vector<string> tbd;
 
-   for (map<string, SNode>::iterator i = branch.begin(); i != branch.end(); ++ i)
+   for (map<string, STree>::iterator i = branch->m_mDirectory.begin(); i != branch->m_mDirectory.end(); ++ i)
    {
-      map<string, SNode>::iterator s = currdir.find(i->first);
+      map<string, STree>::iterator s = currdir->m_mDirectory.find(i->first);
 
-      if (s == currdir.end())
+      if (s == currdir->m_mDirectory.end())
       {
-         currdir[i->first] = i->second;
+         currdir->m_mDirectory[i->first] = i->second;
          tbd.push_back(i->first);
       }
       else
       {
-         if (i->second.m_bIsDir && s->second.m_bIsDir)
+         SNode& inode = i->second.m_Node;
+         SNode& snode = s->second.m_Node;
+         if (inode.m_bIsDir && snode.m_bIsDir)
          {
             // directories with same name
-
-            merge(s->second.m_mDirectory, i->second.m_mDirectory, replica);
+            merge(&s->second, &i->second, replica);
 
             // if all files have been successfully merged, remove the directory name
             if (i->second.m_mDirectory.empty())
                tbd.push_back(i->first);
          }
-         else if (!(i->second.m_bIsDir) && !(s->second.m_bIsDir) 
-                  && (i->second.m_llSize == s->second.m_llSize) 
-                  && (i->second.m_llTimeStamp == s->second.m_llTimeStamp))
-                  //&& (s->second.m_sLocation.size() < replica))
+         else if (!inode.m_bIsDir && !snode.m_bIsDir &&
+                  (inode.m_llSize == snode.m_llSize) &&
+                  (inode.m_llTimeStamp == snode.m_llTimeStamp))
+                  //&& (snode.m_sLocation.size() < replica))
          {
             // files with same name, size, timestamp
             // and the number of replicas is below the threshold
-            for (set<Address, AddrComp>::iterator a = i->second.m_sLocation.begin(); a != i->second.m_sLocation.end(); ++ a)
-               s->second.m_sLocation.insert(*a);
+            for (set<Address, AddrComp>::iterator a = inode.m_sLocation.begin(); a != inode.m_sLocation.end(); ++ a)
+               snode.m_sLocation.insert(*a);
             tbd.push_back(i->first);
          }
       }
    }
 
    for (vector<string>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
-      branch.erase(*i);
+      branch->m_mDirectory.erase(*i);
 
    return 0;
 }
 
-int Index::substract(map<string, SNode>& currdir, const Address& addr)
+int Index::substract(STree* parent, STree* tree, const Address& addr)
 {
-   vector<string> tbd;
-
-   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   if (!tree->m_Node.m_bIsDir)
    {
-      if (!i->second.m_bIsDir)
+      tree->m_Node.m_sLocation.erase(addr);
+      if (tree->m_Node.m_sLocation.empty())
+         parent->m_mDirectory.erase(tree->m_Node.m_strName);
+   }
+   else
+   {
+      vector<string> tbd;
+      for (map<string, STree>::iterator i = tree->m_mDirectory.begin(); i != tree->m_mDirectory.end(); ++ i)
       {
-         i->second.m_sLocation.erase(addr);
-         if (i->second.m_sLocation.empty())
-            tbd.insert(tbd.end(), i->first);
+         if (!i->second.m_Node.m_bIsDir)
+         {
+            i->second.m_Node.m_sLocation.erase(addr);
+            if (i->second.m_Node.m_sLocation.empty())
+               tbd.push_back(i->first);
+         }
+         else
+         {
+            substract(tree, &i->second, addr);
+         }
       }
-      else
-         substract(i->second.m_mDirectory, addr);
+      for (vector<string>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
+         tree->m_mDirectory.erase(*i);
    }
 
-   for (vector<string>::iterator i = tbd.begin(); i != tbd.end(); ++ i)
-      currdir.erase(*i);
-
    return 0;
 }
 
-int64_t Index::getTotalDataSize(const map<string, SNode>& currdir) const
+int64_t Index::getTotalDataSize(const STree& tree) const
 {
    int64_t size = 0;
-
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   if (!tree.m_Node.m_bIsDir)
    {
-      if (!i->second.m_bIsDir)
-         size += i->second.m_llSize;
-      else
-         size += getTotalDataSize(i->second.m_mDirectory);
+      size += tree.m_Node.m_llSize;
    }
-
+   else
+   {
+      for (map<string, STree>::const_iterator i = tree.m_mDirectory.begin(); i != tree.m_mDirectory.end(); ++ i)
+         size += getTotalDataSize(i->second);
+   }
    return size;
 }
 
-int64_t Index::getTotalFileNum(const map<string, SNode>& currdir) const
+int64_t Index::getTotalFileNum(const STree& tree) const
 {
    int64_t num = 0;
-
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   if (!tree.m_Node.m_bIsDir)
    {
-      if (!i->second.m_bIsDir)
-         num ++;
-      else
-         num += getTotalFileNum(i->second.m_mDirectory);
+      ++ num;
    }
-
+   else
+   {
+      for (map<string, STree>::const_iterator i = tree.m_mDirectory.begin(); i != tree.m_mDirectory.end(); ++ i)
+         num += getTotalFileNum(i->second);
+   }
    return num;
 }
 
-int Index::collectDataInfo(const string& path, const map<string, SNode>& currdir, vector<string>& result) const
+int Index::collectDataInfo(const string& path, const STree* parent, const STree* tree, vector<string>& result) const
 {
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   const string& filename = tree->m_Node.m_strName;
+
+   if (!tree->m_Node.m_bIsDir)
    {
-      if (!i->second.m_bIsDir)
-      {
-         // skip system files
-         if (i->first.c_str()[0] == '.')
-           continue;
+      // skip system files
+      if (filename.c_str()[0] == '.')
+         return 0;
 
-         // ignore index file
-         int t = i->first.length();
-         if ((t > 4) && (i->first.substr(t - 4, t) == ".idx"))
-            continue;
+      // ignore index file
+      int t = filename.length();
+      if ((t > 4) && (filename.substr(t - 4, t) == ".idx"))
+         return 0;
 
-         string idx = i->first + ".idx";
-         int64_t rows = -1;
-         map<string, SNode>::const_iterator j = currdir.find(idx);
-         if (j != currdir.end())
-            rows = j->second.m_llSize / 8 - 1;
+      string idx = filename + ".idx";
+      int64_t rows = -1;
+      map<string, STree>::const_iterator s = parent->m_mDirectory.find(idx);
+      if (s != parent->m_mDirectory.end())
+         rows = s->second.m_Node.m_llSize / 8 - 1;
 
-         stringstream buf;
-         buf << path + "/" + i->first << " " << i->second.m_llSize << " " << rows;
+      stringstream buf;
+      buf << path + "/" + filename << " " << tree->m_Node.m_llSize << " " << rows;
 
-         for (set<Address, AddrComp>::iterator k = i->second.m_sLocation.begin(); k != i->second.m_sLocation.end(); ++ k)
-            buf << " " << k->m_strIP << " " << k->m_iPort;
+      for (set<Address, AddrComp>::iterator i = tree->m_Node.m_sLocation.begin(); i != tree->m_Node.m_sLocation.end(); ++ i)
+         buf << " " << i->m_strIP << " " << i->m_iPort;
 
-         result.push_back(buf.str());
-      }
-      else
-         collectDataInfo((path + "/" + i->first).c_str(), i->second.m_mDirectory, result);
+      result.push_back(buf.str());
+   }
+   else
+   {
+      for (map<string, STree>::const_iterator i = tree->m_mDirectory.begin(); i != tree->m_mDirectory.end(); ++ i)
+         collectDataInfo(path + "/" + filename, tree, &i->second, result);
    }
 
    return result.size();
 }
 
-int Index::checkReplica(const string& path, const map<string, SNode>& currdir, vector<string>& under, vector<string>& over) const
+int Index::checkReplica(const string& path, const STree& tree, vector<string>& under, vector<string>& over) const
 {
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   string abs_path = path;
+   if (path == "/")
+      abs_path += tree.m_Node.m_strName;
+   else
+      abs_path += "/" + tree.m_Node.m_strName;
+
+   if ((!tree.m_Node.m_bIsDir) || (tree.m_mDirectory.find(NOSPLIT) != tree.m_mDirectory.end()))
    {
-      string abs_path = path;
-      if (path == "/")
-         abs_path += i->first;
-      else
-         abs_path += "/" + i->first;
+      // replicate a file according to the number of specified replicas
+      // or if this is a directory and it contains a file called NOSPLIT,
+      // the whole directory will be replicated together.
 
-      if ((!i->second.m_bIsDir) || (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end()))
+      unsigned int curr_rep_num = 0;
+      unsigned int target_rep_num = 0;
+      map<string, STree>::const_iterator ns = tree.m_mDirectory.find(NOSPLIT);
+      if (ns != tree.m_mDirectory.end())
       {
-         // replicate a file according to the number of specified replicas
-         // or if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
-
-         unsigned int curr_rep_num = 0;
-         unsigned int target_rep_num = 0;
-         map<string, SNode>::const_iterator ns = i->second.m_mDirectory.find(".nosplit");
-         if (ns != i->second.m_mDirectory.end())
-         {
-            curr_rep_num = ns->second.m_sLocation.size();
-            target_rep_num = ns->second.m_iReplicaNum;
-         }
-         else
-         {
-            curr_rep_num = i->second.m_sLocation.size();
-            target_rep_num = i->second.m_iReplicaNum;
-         }
-
-         if (curr_rep_num < target_rep_num)
-            under.push_back(abs_path);
-         else if (curr_rep_num > target_rep_num)
-            over.push_back(abs_path);
+         curr_rep_num = ns->second.m_Node.m_sLocation.size();
+         target_rep_num = ns->second.m_Node.m_iReplicaNum;
       }
       else
-         checkReplica(abs_path, i->second.m_mDirectory, under, over);
+      {
+         curr_rep_num = tree.m_Node.m_sLocation.size();
+         target_rep_num = tree.m_Node.m_iReplicaNum;
+      }
+
+      if (curr_rep_num < target_rep_num)
+         under.push_back(abs_path);
+      else if (curr_rep_num > target_rep_num)
+         over.push_back(abs_path);
+
+      return 0;
    }
+
+   for (map<string, STree>::const_iterator i = tree.m_mDirectory.begin(); i != tree.m_mDirectory.end(); ++ i)
+      checkReplica(abs_path, i->second, under, over);
 
    return 0;
 }
 
-int Index::list_r(const map<string, SNode>& currdir, const string& path, vector<string>& filelist) const
+int Index::list_r(const STree& tree, const string& path, vector<string>& filelist) const
 {
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   if (!tree.m_Node.m_bIsDir ||
+       (tree.m_mDirectory.find(NOSPLIT) != tree.m_mDirectory.end())) 
    {
-      if (i->second.m_bIsDir)
-      {
-         // nosplit dir return name only
-         if (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end())
-         {
-            filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
-         }
-         else if (i->second.m_mDirectory.empty())
-         {
-            filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
-         }
-         else
-         {
-            list_r(i->second.m_mDirectory, path + "/" + i->second.m_strName, filelist);
-         }
-      }
-      else
-      {
-         filelist.insert(filelist.end(), path + "/" + i->second.m_strName);
-      }
+      filelist.push_back(path);
+      return filelist.size();
+   }
+
+   for (map<string, STree>::const_iterator i = tree.m_mDirectory.begin(); i != tree.m_mDirectory.end(); ++ i)
+   {
+      list_r(i->second, path + "/" + i->first, filelist);
    }
 
    return filelist.size();
 }
 
-int Index::getSlaveMeta(const map<string, SNode>& currdir, const vector<string>& path, map<string, SNode>& target, const Address& addr) const
+int Index::getSlaveMeta(const STree& tree, const vector<string>& path, STree* target, const Address& addr) const
 {
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   if (tree.m_Node.m_sLocation.find(addr) != tree.m_Node.m_sLocation.end())
    {
-      if (!i->second.m_bIsDir)
+      STree* sub_target = target;
+      for (vector<string>::const_iterator d = path.begin(); d != path.end(); ++ d)
       {
-         if (i->second.m_sLocation.find(addr) != i->second.m_sLocation.end())
+         if (sub_target->m_mDirectory.find(*d) == sub_target->m_mDirectory.end())
          {
-            map<string, SNode>* currdir = &target;
-            for (vector<string>::const_iterator d = path.begin(); d != path.end(); ++ d)
-            {
-               map<string, SNode>::iterator s = currdir->find(*d);
-               if (s == currdir->end())
-               {
-                  SNode n;
-                  n.m_strName = *d;
-                  n.m_bIsDir = true;
-                  n.m_llTimeStamp = time(NULL);
-                  n.m_llSize = 0;
-                  (*currdir)[*d] = n;
-                  s = currdir->find(*d);
-               }
-
-               currdir = &(s->second.m_mDirectory);
-            }
-
-            (*currdir)[i->first] = i->second;
+            STree t;
+            t.m_Node.m_strName = *d;
+            t.m_Node.m_bIsDir = true;
+            t.m_Node.m_llTimeStamp = time(NULL);
+            t.m_Node.m_llSize = 0;
+            sub_target->m_mDirectory[*d] = t;
+            sub_target = &(sub_target->m_mDirectory.find(*d)->second);
          }
       }
-      else
-      {
-         vector<string> new_path = path;
-         new_path.push_back(i->first);
-         getSlaveMeta(i->second.m_mDirectory, new_path, target, addr);
-      }
    }
+
+   vector<string> new_path = path;
+   new_path.push_back(tree.m_Node.m_strName);
+   for (map<string, STree>::const_iterator i = tree.m_mDirectory.begin(); i != tree.m_mDirectory.end(); ++ i)
+      getSlaveMeta(i->second, new_path, target, addr);
 
    return 0;
 }
 
-void Index::refreshRepSetting(const string& path, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
+void Index::refreshRepSetting(const string& path, int default_num, int default_dist,
+                              map<string, int>& rep_num, map<string, int>& rep_dist,
+                              map<string, vector<int> >& restrict_loc)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
-
-   vector<string> dir;
-   if (parsePath(path, dir) < 0)
+   STree* tree = lookup(path);
+   if (tree == NULL)
       return;
-
-   map<string, SNode>* currdir = &m_mDirectory;
-   map<string, SNode>::iterator s;
-   for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
-   {
-      s = currdir->find(*d);
-      if (s == currdir->end())
-         return;
-
-      currdir = &(s->second.m_mDirectory);
-   }
-
-   refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
+   refreshRepSetting(path, tree, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 }
 
-int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
+int Index::refreshRepSetting(const string& path, STree* tree, int default_num, int default_dist,
+                             map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
 {
    //TODO: use wildcard match each level of dir, instead of contain()
 
-   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   string abs_path = path;
+   if (path == "/")
+      abs_path += tree->m_Node.m_strName;
+   else
+      abs_path += "/" + tree->m_Node.m_strName;
+
+   // set replication factor
+   tree->m_Node.m_iReplicaNum = default_num;
+   for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
    {
-      string abs_path = path;
-      if (path == "/")
-         abs_path += i->first;
-      else
-         abs_path += "/" + i->first;
-
-      // set replication factor
-      i->second.m_iReplicaNum = default_num;
-      for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
+      if (WildCard::contain(rn->first, abs_path))
       {
-         if (WildCard::contain(rn->first, abs_path))
-         {
-            i->second.m_iReplicaNum = rn->second;
-            break;
-         }
+         tree->m_Node.m_iReplicaNum = rn->second;
+         break;
       }
-
-      // set replication distance
-      i->second.m_iReplicaDist = default_dist;
-      for (map<string, int>::const_iterator rd = rep_dist.begin(); rd != rep_dist.end(); ++ rd)
-      {
-         if (WildCard::contain(rd->first, abs_path))
-         {
-            i->second.m_iReplicaDist = rd->second;
-            break;
-         }
-      }
-
-      // set restricted location
-      i->second.m_viRestrictedLoc.clear();
-      for (map<string, vector<int> >::const_iterator rl = restrict_loc.begin(); rl != restrict_loc.end(); ++ rl)
-      {
-         if (WildCard::contain(rl->first, abs_path))
-         {
-            i->second.m_viRestrictedLoc = rl->second;
-            break;
-         }
-      }
-
-      if (i->second.m_bIsDir)
-         refreshRepSetting(abs_path, i->second.m_mDirectory, default_num, default_dist, rep_num, rep_dist, restrict_loc);
    }
+
+   // set replication distance
+   tree->m_Node.m_iReplicaDist = default_dist;
+   for (map<string, int>::const_iterator rd = rep_dist.begin(); rd != rep_dist.end(); ++ rd)
+   {
+      if (WildCard::contain(rd->first, abs_path))
+      {
+         tree->m_Node.m_iReplicaDist = rd->second;
+         break;
+       }
+   }
+
+   // set restricted location
+   tree->m_Node.m_viRestrictedLoc.clear();
+   for (map<string, vector<int> >::const_iterator rl = restrict_loc.begin(); rl != restrict_loc.end(); ++ rl)
+   {
+      if (WildCard::contain(rl->first, abs_path))
+      {
+         tree->m_Node.m_viRestrictedLoc = rl->second;
+         break;
+      }
+   }
+
+   for (map<string, STree>::iterator i = tree->m_mDirectory.begin(); i != tree->m_mDirectory.end(); ++i)
+      refreshRepSetting(abs_path, &i->second, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 
    return 0;
 }

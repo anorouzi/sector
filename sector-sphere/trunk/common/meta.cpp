@@ -91,6 +91,7 @@ int Metadata::unlock(const string& path, int user, int mode)
    return 0;
 }
 
+// Convert a path into vector: "a/b/c/d" -> [a, b, c, d]
 int Metadata::parsePath(const string& path, vector<string>& result)
 {
    result.clear();
@@ -145,6 +146,7 @@ int Metadata::parsePath(const string& path, vector<string>& result)
    return result.size();
 }
 
+// Remove extra "/" in the path.
 string Metadata::revisePath(const string& path)
 {
    // empty path is regarded as "/"
@@ -209,4 +211,24 @@ bool Metadata::initLC()
    m_pbLegalChar[126] = true; // ~
 
    return true;
+}
+
+string Metadata::getPathName(const std::string& path)
+{
+   vector<string> dir;
+   if (parsePath(path, dir) < 0)
+      return "";
+   dir.pop_back();
+   string result;
+   for (vector<string>::iterator i = dir.begin(); i != dir.end(); ++ i)
+      result = result + *i + "/";
+   return result;
+}
+
+string Metadata::getNodeName(const std::string& path)
+{
+   vector<string> dir;
+   if (parsePath(path, dir) < 0)
+      return "";
+   return dir.back();
 }

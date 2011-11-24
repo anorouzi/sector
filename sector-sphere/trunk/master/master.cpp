@@ -802,7 +802,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       m_SlaveManager.updateClusterStat();
 
       // merge slave metadata with system metadata
-      m_pMetadata->merge("/", branch, m_SysConfig.m_iReplicaNum);
+      m_pMetadata->merge(branch, m_SysConfig.m_iReplicaNum);
 
       if (id < 0)
       {
@@ -1736,12 +1736,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
    {
       string src = msg->getData() + 4;
       string dst = msg->getData() + 4 + src.length() + 1 + 4;
-
       src = Metadata::revisePath(src);
       dst = Metadata::revisePath(dst);
-
-      string uplevel = dst.substr(0, dst.rfind('/') + 1);
-      string sublevel = dst + src.substr(src.rfind('/'), src.length());
 
       if (!m_Routing.match(src.c_str(), m_iRouterKey))
       {
@@ -1749,24 +1745,17 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          logUserActivity(user, "move", src.c_str(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          break;
       }
-
-      SNode tmp;
-      if ((uplevel.length() > 0) && (m_pMetadata->lookup(uplevel.c_str(), tmp) < 0))
+      SNode s;
+      if (m_pMetadata->lookup(src, s) < 0)
       {
          reject(ip, port, id, SectorError::E_NOEXIST);
-         logUserActivity(user, "move", dst.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
-         break;
-      }
-      if (m_pMetadata->lookup(sublevel.c_str(), tmp) >= 0)
-      {
-         reject(ip, port, id, SectorError::E_EXIST);
-         logUserActivity(user, "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, "move", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
-      // check user io permission, cannot move "/"
+      // check user io permission on "src".
       int rwx = SF_MODE::READ | SF_MODE::WRITE;
-      if ((src == "/") || (!user->match(src.c_str(), rwx)))
+      if (!user->match(src.c_str(), rwx))
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "move", src.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
@@ -1777,25 +1766,6 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
          reject(ip, port, id, SectorError::E_PERMISSION);
          logUserActivity(user, "move", dst.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
-         break;
-      }
-
-      SNode as, at;
-      int rs = m_pMetadata->lookup(src.c_str(), as);
-      int rt = m_pMetadata->lookup(dst.c_str(), at);
-      set<Address, AddrComp> addrlist;
-      m_pMetadata->lookup(src.c_str(), addrlist);
-
-      if (rs < 0)
-      {
-         reject(ip, port, id, SectorError::E_NOEXIST);
-         logUserActivity(user, "move", src.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
-         break;
-      }
-      if ((rt >= 0) && (!at.m_bIsDir))
-      {
-         reject(ip, port, id, SectorError::E_EXIST);
-         logUserActivity(user, "move", dst.c_str(), SectorError::E_EXIST, NULL, LogLevel::LEVEL_8);
          break;
       }
 
@@ -1810,26 +1780,18 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       m_pMetadata->unlock(src.c_str(), key, rwx);
 
-      string newname = dst.substr(dst.rfind('/') + 1, dst.length());
+      m_pMetadata->rename(src, dst);
+      m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
+                                     m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, 
+                                     m_ReplicaConf.m_mRestrictedLoc);
 
-      // move metadata and refresh the replica settings of the new file/dir
-      if (rt < 0)
-      {
-         m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
-         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
-                                        m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
-      }
-      else
-      {
-         m_pMetadata->move(src.c_str(), dst.c_str());
-         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist,
-                                        m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
-      }
-
+      // Send the physical rename command to all slaves.
+      // We have to do so because currently we cannot locate empty directories.
+      // Also if a node contains dst only we have to delete it.
       msg->setData(0, src.c_str(), src.length() + 1);
-      msg->setData(src.length() + 1, uplevel.c_str(), uplevel.length() + 1);
-      msg->setData(src.length() + 1 + uplevel.length() + 1, newname.c_str(), newname.length() + 1);
-      for (set<Address, AddrComp>::iterator i = addrlist.begin(); i != addrlist.end(); ++ i)
+      msg->setData(src.length() + 1, dst.c_str(), dst.length() + 1);
+      m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
+      for (vector<Address>::const_iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)      
       {
          int msgid = 0;
          m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
@@ -1839,17 +1801,8 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (m_Routing.getNumOfMasters() > 1)
       {
          SectorMsg newmsg;
-         newmsg.setData(0, (char*)&rt, 4);
-         newmsg.setData(4, src.c_str(), src.length() + 1);
-         int pos = 4 + src.length() + 1;
-         if (rt < 0)
-         {
-            newmsg.setData(pos, uplevel.c_str(), uplevel.length() + 1);
-            pos += uplevel.length() + 1;
-            newmsg.setData(pos, newname.c_str(), newname.length() + 1);
-         }
-         else
-            newmsg.setData(pos, dst.c_str(), dst.length() + 1);
+         newmsg.setData(0, src.c_str(), src.length() + 1);
+         newmsg.setData(src.length() + 1, dst.c_str(), dst.length() + 1);
          sync(newmsg.getData(), newmsg.m_iDataLength, 1104);
       }
 
@@ -2772,20 +2725,9 @@ int Master::processSyncCmd(const string& ip, const int port,  const User* /*user
 
    case 1104: // mv
    {
-      int rt = *(int32_t*)msg->getData();
-      string src = msg->getData() + 4;
-
-      if (rt < 0)
-      {
-         string uplevel = msg->getData() + 4 + src.length() + 1;
-         string newname = msg->getData() + 4 + src.length() + 1 + uplevel.length() + 1;
-         m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
-      }
-      else
-      {
-         string dst = msg->getData() + 4 + src.length() + 1;
-         m_pMetadata->move(src.c_str(), dst.c_str());
-      }
+      string src = msg->getData();
+      string dst = msg->getData() + src.length() + 1;
+      m_pMetadata->rename(src, dst);
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
       m_GMP.sendto(ip, port, id, msg);
