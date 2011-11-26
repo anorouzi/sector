@@ -549,11 +549,14 @@ int Master::stop()
       pthread_t t;
       pthread_create(&t, NULL, serviceEx, self);
       pthread_detach(t);
+      self->m_ServiceJobQueue.registerThread(t);
 #else
       DWORD ThreadID;
       HANDLE hThread = CreateThread(NULL, 0, serviceEx, self, NULL, &ThreadID);
       if (hThread)
          CloseHandle(hThread);
+      else
+         self->m_ServiceJobQueue.registerThread(ThreadID);
 #endif
    }
 
@@ -579,7 +582,9 @@ int Master::stop()
       p->port = port;
       p->ssl = s;
 
-      self->m_ServiceJobQueue.push(p);
+      // We use port as the seed of a random value to the job queue.
+      // Ideally this should also include ip.
+      self->m_ServiceJobQueue.push(p, port);
    }
 
    return NULL;
@@ -600,9 +605,12 @@ int Master::stop()
       return NULL;
    }
 
+   int queue_id = pthread_self();
+   self->m_ServiceJobQueue.registerThread(queue_id);
+
    while (self->m_Status == RUNNING)
    {
-      ServiceJobParam* p = (ServiceJobParam*)self->m_ServiceJobQueue.pop();
+      ServiceJobParam* p = (ServiceJobParam*)self->m_ServiceJobQueue.pop(queue_id);
       if (NULL == p)
          break;
 
@@ -1078,9 +1086,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 {
    Master* self = (Master*)s;
 
-   //TODO: A given user must always be sent to the same thread.
-   //Implement multi-queue for this.
-   const int ProcessWorker = 1;
+   const int ProcessWorker = 16;
    for (int i = 0; i < ProcessWorker; ++ i)
    {
 #ifndef WIN32
@@ -1161,7 +1167,9 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       p->id = id;
       p->msg = msg;
 
-      self->m_ProcessJobQueue.push(p);
+      // Request from each user session must be sent to the same thread for processing.
+      // Otherwise they could go out of order and cause all kinds of problems.
+      self->m_ProcessJobQueue.push(p, key);
    }
 
    return NULL;
@@ -1174,10 +1182,12 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 #endif
 {
    Master* self = (Master*)param;
+   int queue_id = pthread_self();
+   self->m_ProcessJobQueue.registerThread(queue_id);
 
    while (self->m_Status == RUNNING)
    {
-      ProcessJobParam* p = (ProcessJobParam*)self->m_ProcessJobQueue.pop();
+      ProcessJobParam* p = (ProcessJobParam*)self->m_ProcessJobQueue.pop(queue_id);
       if (NULL == p)
          break;
 
