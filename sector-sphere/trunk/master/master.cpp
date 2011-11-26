@@ -549,14 +549,11 @@ int Master::stop()
       pthread_t t;
       pthread_create(&t, NULL, serviceEx, self);
       pthread_detach(t);
-      self->m_ServiceJobQueue.registerThread(t);
 #else
       DWORD ThreadID;
       HANDLE hThread = CreateThread(NULL, 0, serviceEx, self, NULL, &ThreadID);
       if (hThread)
          CloseHandle(hThread);
-      else
-         self->m_ServiceJobQueue.registerThread(ThreadID);
 #endif
    }
 
