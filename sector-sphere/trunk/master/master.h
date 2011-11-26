@@ -37,11 +37,10 @@ written by
 #include "transaction.h"
 #include "user.h"
 
-class SectorMsg;
-
 namespace sector
 {
 
+class SectorMsg;
 class SSLTransport;
 class Topology;
 
@@ -198,7 +197,8 @@ private:
    int removeSlave(const int& id, const Address& addr);
 
 private:
-   inline void reject(const std::string& ip, const int port, int id, int32_t code);
+   inline void reject(const std::string& ip, const int port, int id, int32_t code,
+                      const User* user = NULL, const char* cmd = NULL, const char* path = NULL);
    inline void logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level);
 
 private: // replication
@@ -263,11 +263,13 @@ private:
    int serializeSysStat(char*& buf, int& size);
 
    #ifdef DEBUG
-   int processDebugCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
+   int processDebugCmd(const std::string& ip, const int port,
+                       const User* user, const int32_t key, int id, SectorMsg* msg);
    #endif
 
 public:
-   static void startSlave(const std::string& addr, const std::string& base, const std::string& option, const std::string& log = "");
+   static void startSlave(const std::string& addr, const std::string& base,
+                          const std::string& option, const std::string& log = "");
 
 private:
    // TODO: catch SEG_FAULT/SEG_ABORT and save current command and state.
