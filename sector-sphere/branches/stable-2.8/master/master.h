@@ -81,8 +81,10 @@ public:
    int m_iReplicationStartDelay;        // Delay in sec of replcation thread start on master start
    unsigned m_iReplicationFullScanDelay;    // Min time in sec between full scans by replica thread
    int m_iReplicationMaxTrans;               // Max no of concurrent replications
+   int m_iDiskBalanceAggressiveness;  // Percent of full slave files from average free space on all slaves 
+                                      // to be moved out
+   bool m_bReplicateOnTransactionClose; // Submit file into replciation queue on non-read transaction close 
 
-public:
    int getReplicaNum(const std::string& path, int default_val);
    int getReplicaDist(const std::string& path, int default_val);
    void getRestrictedLoc(const std::string& path, std::vector<int>& loc);

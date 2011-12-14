@@ -19,6 +19,8 @@ written by
    Yunhong Gu, last updated 03/30/2011
 *****************************************************************************/
 
+#include <algorithm>
+#include <deque>
 #include <iostream>
 #include <signal.h>
 #include <sstream>
@@ -1253,7 +1255,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          string fileinfo = msg->getData() + pos + 4;
          pos += size + 4;
 
-         m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File update " << change << " " << fileinfo << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File update from " << ip << ":" << port << " " << FileChangeType::toString(change)  << " " << fileinfo << LogEnd();
 
          // restore file information
          SNode sn;
@@ -1283,6 +1285,12 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
             m_SectorLog << LogStart(9) << "New replica is created " << sn.m_strName << " " << addr.m_strIP 
              << ":" << addr.m_iPort << LogEnd();
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
+            m_ReplicaLock.acquire();
+            m_sstrOnReplicate.erase(Metadata::revisePath(sn.m_strName));
+            m_ReplicaLock.release();
+         }
+         else if (change == FileChangeType::FILE_UPDATE_REPLICA_FAILED)
+         {
             m_ReplicaLock.acquire();
             m_sstrOnReplicate.erase(Metadata::revisePath(sn.m_strName));
             m_ReplicaLock.release();
@@ -1330,10 +1338,18 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       //if (r < 0)
       //   msg->setType(-msg->getType());
       m_GMP.sendto(ip, port, id, msg);
+ 
       m_ReplicaLock.acquire();
-      if (m_ReplicaMgmt.getTotalNum() > 0) 
+      if (m_ReplicaConf.m_bReplicateOnTransactionClose && (change == FileChangeType::FILE_UPDATE_WRITE ||
+           change == FileChangeType::FILE_UPDATE_NEW || change == FileChangeType::FILE_UPDATE_REPLICA))
       {
-         
+         ReplicaJob job;
+         job.m_strSource = job.m_strDest = t.m_strFile;
+         job.m_iPriority = BACKGROUND;
+         m_ReplicaMgmt.insert(job);
+      }
+      if (m_ReplicaMgmt.getTotalNum() > 0) 
+      {         
          m_ReplicaCond.signal();
       }
       m_ReplicaLock.release();
@@ -2806,6 +2822,12 @@ int Master::processSyncCmd(const string& ip, const int port,  const User* /*user
             m_sstrOnReplicate.erase(sn.m_strName);
             m_ReplicaLock.release();
          }
+         else if (change == FileChangeType::FILE_UPDATE_REPLICA_FAILED)
+         {
+            m_ReplicaLock.acquire();
+            m_sstrOnReplicate.erase(sn.m_strName);
+            m_ReplicaLock.release();
+         }
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize + 4;
@@ -2947,7 +2969,6 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          } else
          {  // there is a space in running replication transactions, we can do full scan
            // TODO:: optimize this process: if there are too many files, this scan may kill the master
-           under_replicated.clear();
            over_replicated.clear();
            self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
 
@@ -3006,11 +3027,11 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
            // create replicas for files on slaves without enough disk space
            // so that some files can be removed from these nodes
            map<int64_t, Address> lowdisk;
-           self->m_SlaveManager.checkStorageBalance(lowdisk);
+           self->m_SlaveManager.checkStorageBalance(lowdisk, self->m_ReplicaMgmt.getTotalNum() == 0);
            for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
            {
               vector<string> path;
-              self->chooseDataToMove(path, i->second, i->first);
+              self->chooseDataToMove(path, i->second, i->first * self->m_ReplicaConf.m_iDiskBalanceAggressiveness / 100);
               self->m_SectorLog << LogStart(1) << "Replica found slave " << i->second.m_strIP << ":" <<
                  i->second.m_iPort << " with space deficit of " << i->first << " bytes. Will be moving out  " << path.size() << " files - Printing first 100." 
                  << LogEnd();
@@ -3024,13 +3045,6 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                    self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File " << *j << 
                      " will be replicated to move out of full slave" 
                         << i->second.m_strIP << ":" << i->second.m_iPort << LogEnd();
-                 if (cnt > 20)
-                 {
-                   self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << 
-                   "Debug - no more than 20 files to be moved out of full slave " << 
-                    i->second.m_strIP << ":" << i->second.m_iPort << LogEnd();
-                    break;
-                 }
                  ReplicaJob job;
                  job.m_strSource = job.m_strDest = *j;
                  job.m_bForceReplicate = true;
@@ -3383,23 +3397,26 @@ int Master::chooseDataToMove(vector<string>& path, const Address& addr, const in
    m_pMetadata->getSlaveMeta(branch, addr);
 
    int64_t total_size = 0;
-   queue<SNode> dataqueue;
+   deque<SNode> dataqueue;
 
    vector<string> datalist;
    branch->list("/", datalist);
+
    for (vector<string>::iterator i = datalist.begin(); i != datalist.end(); ++ i)
    {
       SNode sn;
       sn.deserialize(i->c_str());
       sn.m_strName = "/" + sn.m_strName;
-      dataqueue.push(sn);
+      dataqueue.push_back(sn);
    }
+
+   random_shuffle( dataqueue.begin(), dataqueue.end() );
 
    // add files to move until the total size reaches target_size
    while (!dataqueue.empty())
    {
       SNode node = dataqueue.front();
-      dataqueue.pop();
+      dataqueue.pop_front();
 
       if (node.m_bIsDir)
       {
@@ -3409,7 +3426,7 @@ int Master::chooseDataToMove(vector<string>& path, const Address& addr, const in
             SNode s;
             s.deserialize(i->c_str());
             s.m_strName = node.m_strName + "/" + s.m_strName;
-            dataqueue.push(s);
+            dataqueue.push_back(s);
          }
       }
       else

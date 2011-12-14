@@ -604,7 +604,7 @@ int Client::debuginfo(string& dbg)
    if (msg.getType() < 0)
       return *(int32_t*)(msg.getData());
 
-   dbg = std::string( msg.getData(), msg.m_iDataLength );
+   dbg = msg.getData();
    return 0;
 }
 

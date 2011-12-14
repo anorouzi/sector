@@ -609,12 +609,12 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    if (success)
    {
-      DBG_MSG("Updating client with success");
+      DBG_MSG("Updating master with success");
       self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
    }
    else
    {
-      ERR_MSG("Updating client with error status");
+      ERR_MSG("Updating master with error status");
       self->m_DataChn.sendError(client_ip, client_port, transid);
    }
 
@@ -753,7 +753,7 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {
-            DBG_REP("Error 1");
+            DBG_REP("Error opening file in master");
             success = false;
             break;
          }
@@ -771,7 +771,7 @@ DWORD WINAPI Slave::copy(LPVOID p)
             DBG_REP("Not connected to slave - connect " << addr.m_strIP << ":" << addr.m_iPort);
             if (self->m_DataChn.connect(ip, port) < 0)
             {
-               DBG_REP("Error 2");
+               DBG_REP("Failed to connect to slave " << addr.m_strIP << ":" << addr.m_iPort);
                success = false;
                break;
             }
@@ -784,12 +784,12 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          int64_t offset = 0;
          rc = self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
-         if (rc < 0) DBG_REP("Error receiving download confirmation");
+         if (rc < 0) DBG_REP("Error sending download command offset");
 
          int response = -1;
          if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
          {
-            DBG_REP("Error 3");
+            DBG_REP("Error receiving download response");
             success = false;
             break;
          }
@@ -867,7 +867,7 @@ DWORD WINAPI Slave::copy(LPVOID p)
       // failed, remove all temporary files
       rc = LocalFS::erase(self->m_strHomeDir + ".tmp" + dst);
       if (rc < 0) DBG_REP ("Error deleting temp file");
-      rc = self->report(master_ip, master_port, transid, "", +FileChangeType::FILE_UPDATE_NO);
+      rc = self->report(master_ip, master_port, transid, std::vector<std::string>(1, dst), (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA_FAILED : +FileChangeType::FILE_UPDATE_NEW_FAILED);
       if (rc < 0) DBG_REP ("Error reporting to master");
    }
 

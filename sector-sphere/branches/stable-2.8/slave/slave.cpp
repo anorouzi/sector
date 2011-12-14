@@ -823,7 +823,7 @@ int Slave::getFileList(const string& path, vector<string>& filelist)
 int Slave::report(const string& master_ip, const int& master_port, const int32_t& transid, const vector<string>& filelist, const int32_t& change)
 {
    vector<string> serlist;
-   if (change != FileChangeType::FILE_UPDATE_NO)
+   if( change != FileChangeType::FILE_UPDATE_NO && change != FileChangeType::FILE_UPDATE_NEW_FAILED && change != FileChangeType::FILE_UPDATE_WRITE_FAILED && change != FileChangeType::FILE_UPDATE_REPLICA_FAILED )
    {
       for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
       {
@@ -844,6 +844,26 @@ int Slave::report(const string& master_ip, const int& master_port, const int32_t
             m_pLocalFile->create(sn);
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
             m_pLocalFile->create(sn);
+
+         char* buf = NULL;
+         sn.serialize(buf);
+         serlist.push_back(buf);
+         delete [] buf;
+      }
+   }
+   else if( change == FileChangeType::FILE_UPDATE_REPLICA_FAILED )
+   {
+      for (vector<string>::const_iterator i = filelist.begin(); i != filelist.end(); ++ i)
+      {
+         SNode sn;
+
+         // IMPORTANT: this name must be full path so that both local index and master index can be updated properly
+         sn.m_strName = *i;
+         sn.m_bIsDir = false;
+         sn.m_llTimeStamp = 0;
+         sn.m_llSize = 0;
+         sn.m_iReplicaNum = 0;
+         sn.m_iReplicaDist = 0;
 
          char* buf = NULL;
          sn.serialize(buf);

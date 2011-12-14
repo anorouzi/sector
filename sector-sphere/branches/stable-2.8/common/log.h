@@ -26,6 +26,8 @@ written by
 #include <fstream>
 #include <map>
 #include <string>
+#include <boost/noncopyable.hpp>
+#include <iosfwd>
 
 #include "osportable.h"
 #include "udt.h"
@@ -103,22 +105,55 @@ public:
    static SectorLog& endl(SectorLog& log);
 
 private:
-   void insert_(const char* text, const int level = 1);
-   void checkLogFile();
-   void getTodayLog(int& day, std::string& file);
-
-private:
    int m_iLevel;
-   int m_iDay;
-   bool m_bCopyToScreen;
-
-   std::string m_strLogPath;
-   std::ofstream m_LogFile;
 
    CMutex m_LogLock;
 
    typedef std::map<pthread_t, LogString> ThreadIdStringMap;
    ThreadIdStringMap m_mStoredString;
 };
+
+namespace logger {
+
+  // These are highest to lowest 'severity'.  Note: these values are used as indices into a boost::tuple; do not change!
+  enum LogLevel {
+    Screen  = 0,
+    Error   = 1,
+    Warning = 2,
+    Info    = 3,
+    Trace   = 4,
+    Debug   = 5
+  };
+
+
+  struct LogAggregate : private boost::noncopyable {
+    public:
+      typedef std::basic_ostream<char> stream_type;
+
+    public:
+      inline LogAggregate( const std::string& loggerName, stream_type& screen, stream_type& error, stream_type& warning,
+        stream_type& info, stream_type& trace, stream_type& debug ) : loggerName( loggerName ), screen( screen ),
+        error( error ), warning( warning ), info( info ), trace( trace ), debug( debug ) {}
+
+      void setLogLevel( LogLevel lvl );
+
+    private:
+      std::string  loggerName;
+
+    public:
+      stream_type& screen;
+      stream_type& error;
+      stream_type& warning;
+      stream_type& info;
+      stream_type& trace;
+      stream_type& debug;
+  };
+
+
+  void          config( const std::string& outputDir, const std::string& fileNamePrefix );
+  LogAggregate& getLogger( const char* name = 0 );
+  LogAggregate& getLogger( const std::string& name );
+  void          setThreadName( const std::string& name );
+}
 
 #endif

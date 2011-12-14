@@ -67,7 +67,7 @@ public:
    int serializeClusterInfo(char*& buf, int& size);
    int serializeSlaveInfo(char*& buf, int& size);
    int getSlaveListByRack(std::map<int, Address>& sl, const std::string& topopath);
-   int checkStorageBalance(std::map<int64_t, Address>& lowdisk);
+   int checkStorageBalance(std::map<int64_t, Address>& lowdisk, bool force);
    void incActTrans(const int& slaveid);
    void decActTrans(const int& slaveid);
 

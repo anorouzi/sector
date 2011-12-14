@@ -596,6 +596,12 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
       }
    }
 
+   if( torecv == 0 && ofs.tellp() < m_llSize )
+   {
+       ofs.close();
+       return SectorError::E_LOCALFILE;
+   }
+
    ofs.close();
 
    if (torecv > 0)

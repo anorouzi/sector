@@ -23,6 +23,7 @@ written by
 #ifndef __SECTOR_TRANS_H__
 #define __SECTOR_TRANS_H__
 
+#include <boost/lexical_cast.hpp>
 #include <set>
 #include <vector>
 #include <map>
@@ -45,6 +46,22 @@ struct FileChangeType
    static const int32_t FILE_UPDATE_NEW = 1;
    static const int32_t FILE_UPDATE_WRITE = 2;
    static const int32_t FILE_UPDATE_REPLICA = 3;
+   static const int32_t FILE_UPDATE_NEW_FAILED = 4;
+   static const int32_t FILE_UPDATE_WRITE_FAILED = 5;
+   static const int32_t FILE_UPDATE_REPLICA_FAILED = 6;
+ 
+   inline static std::string toString( int x ) {
+      switch( x ) {
+         case FILE_UPDATE_NO:              return "FILE_UPDATE_NO"; break;
+         case FILE_UPDATE_NEW:             return "FILE_UPDATE_NEW"; break;
+         case FILE_UPDATE_WRITE:           return "FILE_UPDATE_WRITE"; break;
+         case FILE_UPDATE_REPLICA:         return "FILE_UPDATE_REPLICA"; break;
+         case FILE_UPDATE_NEW_FAILED:      return "FILE_UPDATE_NEW_FAILED"; break;
+         case FILE_UPDATE_WRITE_FAILED:    return "FILE_UPDATE_WRITE_FAILED"; break;
+         case FILE_UPDATE_REPLICA_FAILED:  return "FILE_UPDATE_REPLICA_FAILED"; break;
+         default:                          return boost::lexical_cast<std::string>( x );
+      }
+   }
 };
 
 struct Transaction

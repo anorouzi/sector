@@ -204,7 +204,10 @@ int main(int argc, char** argv)
    // login to SectorFS
    Sector client;
    if (Utility::login(client) < 0)
-      return 0;
+   {
+      cerr << "ERROR: failed to log in to sector\n";
+      return -1;
+   }
 
    // start downloading all files
    for (vector<string>::iterator i = clp.m_vParams.begin(); i != clp.m_vParams.end(); ++ i)
@@ -333,8 +336,8 @@ int main(int argc, char** argv)
                // if no disk space svailable, no need to try any more
                cerr << "insufficient local disk space. quit.\n";
                Utility::logout(client);
-               return -1;
             }
+            return -1;
          }
       }
    }

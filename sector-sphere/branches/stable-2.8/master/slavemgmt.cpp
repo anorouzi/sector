@@ -1051,7 +1051,7 @@ int SlaveManager::getSlaveListByRack(map<int, Address>& sl, const string& topopa
    return sl.size();
 }
 
-int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
+int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool forceclear)
 {
    CGuardEx sg(m_SlaveLock);
 
@@ -1063,6 +1063,12 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk)
    int64_t size = 0;
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
+      if( forceclear )
+      {
+         i->second.m_iStatus = SlaveStatus::NORMAL;
+         i->second.m_bDiskLowWarning = false;
+      }
+
       if (i->second.m_iStatus == SlaveStatus::NORMAL)
          size += i->second.m_llAvailDiskSpace;      
    }
