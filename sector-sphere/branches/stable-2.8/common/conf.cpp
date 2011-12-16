@@ -91,8 +91,12 @@ int ConfParser::init(const string& path)
          continue;
 
       //TODO: skip lines with all blanks and tabs
-
-      m_vstrLines.insert(m_vstrLines.end(), buf);
+      std::string::size_type pos = buf.find_last_not_of( ' ' );
+      if( pos != std::string::npos )
+      {
+          buf.resize( pos + 1 );
+          m_vstrLines.insert(m_vstrLines.end(), buf);
+      }
    }
 
    m_ConfFile.close();

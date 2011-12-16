@@ -113,7 +113,7 @@ namespace {
       case logger::Error:   return "ERR";
       case logger::Warning: return "WRN";
       case logger::Info:    return "INF";
-      case logger::Trace:   return "TRA";
+      case logger::Trace:   return "TRC";
       case logger::Debug:   return "DBG";
     }
 

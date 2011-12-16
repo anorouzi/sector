@@ -154,9 +154,9 @@ ReplicaConf::ReplicaConf():
 m_iReplicationStartDelay(10*60),    // 10 min
 m_iReplicationFullScanDelay(10*60), // 10 min
 m_iReplicationMaxTrans(0),          // 0 - no of slaves
-m_llTimeStamp(0),
 m_iDiskBalanceAggressiveness(25),    // percent
-m_bReplicateOnTransactionClose(false)
+m_bReplicateOnTransactionClose(false),
+m_llTimeStamp(0)
 {
 }
 
@@ -168,7 +168,7 @@ std::string ReplicaConf::toString() const
    buf << "REPLICATION_MAX_TRANS " << m_iReplicationMaxTrans << std::endl;
    buf << "REPLICATION_START_DELAY " << m_iReplicationStartDelay << std::endl;
    buf << "REPLICATION_FULL_SCAN_DELAY " << m_iReplicationFullScanDelay << std::endl;
-   buf << "DISK_BALANCE_AGGRESIVENESS " << m_iDiskBalanceAggressiveness << std::endl;
+   buf << "DISK_BALANCE_AGGRESSIVENESS " << m_iDiskBalanceAggressiveness << std::endl;
    buf << "REPLICATE_ON_TRANSACTION_CLOSE " <<  m_bReplicateOnTransactionClose << std::endl;
    buf << "Number of replicas:\n"; 
    for( std::map<std::string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++i )
@@ -294,7 +294,7 @@ bool ReplicaConf::refresh(const string& path)
       {
          if( !param.m_vstrValue.empty() )
              m_bReplicateOnTransactionClose = (param.m_vstrValue[0] == "TRUE");
-         else
+         else 
              cerr << "no value specified for REPLICATE_ON_TRANSACTION_CLOSE" << endl;
       }
       else

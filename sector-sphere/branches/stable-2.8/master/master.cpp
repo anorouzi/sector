@@ -1234,7 +1234,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
    {
       int transid = *(int32_t*)msg->getData();
       int slaveid = *(int32_t*)(msg->getData() + 4);
-
+      int32_t filesize = 0;
       Transaction t;
       if (m_TransManager.retrieve(transid, t) < 0)
       {
@@ -1262,7 +1262,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          sn.deserialize(fileinfo.c_str());
          sn.m_sLocation.clear();
          sn.m_sLocation.insert(addr);
-
+         filesize = sn.m_llSize;
          //TODO: add log here
 
          if (change == FileChangeType::FILE_UPDATE_WRITE)
@@ -1340,8 +1340,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       m_GMP.sendto(ip, port, id, msg);
  
       m_ReplicaLock.acquire();
-      if (m_ReplicaConf.m_bReplicateOnTransactionClose && (change == FileChangeType::FILE_UPDATE_WRITE ||
-           change == FileChangeType::FILE_UPDATE_NEW || change == FileChangeType::FILE_UPDATE_REPLICA))
+      if (m_ReplicaConf.m_bReplicateOnTransactionClose && ( ( change == FileChangeType::FILE_UPDATE_WRITE && filesize ) ||
+           change == FileChangeType::FILE_UPDATE_NEW || change == FileChangeType::FILE_UPDATE_REPLICA) ) 
       {
          ReplicaJob job;
          job.m_strSource = job.m_strDest = t.m_strFile;
