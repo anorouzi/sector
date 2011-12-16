@@ -84,6 +84,8 @@ public:
    int m_iDiskBalanceAggressiveness;  // Percent of full slave files from average free space on all slaves 
                                       // to be moved out
    bool m_bReplicateOnTransactionClose; // Submit file into replciation queue on non-read transaction close 
+   bool m_bCheckReplicaOnSameIp; // Check if replica on slaves on same ip
+   int m_iPctSlavesToConsider;   // Pct of slaves to consider as replica destination 
 
    int getReplicaNum(const std::string& path, int default_val);
    int getReplicaDist(const std::string& path, int default_val);

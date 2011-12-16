@@ -129,9 +129,12 @@ int Master::init()
    m_pMetadata->init(m_strHomeDir + ".metadata");
 
    // set and configure replication strategies
-   m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist);
+   m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, true, 50);
    if (m_ReplicaConf.refresh(m_strSectorHome + "/conf/replica.conf"))
+   {
+      m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_bCheckReplicaOnSameIp, m_ReplicaConf.m_iPctSlavesToConsider);
       m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+   }
 
    // load slave list and addresses
    loadSlaveStartInfo(m_strSectorHome + "/conf/slaves.list", m_sSlaveStartInfo);
@@ -2945,6 +2948,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
          {
             self->m_SectorLog << LogStart(9) << "Replica New settings detected and read\n" << self->m_ReplicaConf.toString() << LogEnd();            
+            self->m_pMetadata->setDefault(self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_bCheckReplicaOnSameIp, self->m_ReplicaConf.m_iPctSlavesToConsider);
             self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
          }
          // The number of concurrent replication in the system must be limited.	
@@ -3124,25 +3128,27 @@ int Master::createReplica(const ReplicaJob& job)
          else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
             m_SectorLog << LogStart(9) << "Replica create: replicas no correct " << job.m_strSource << LogEnd();
-            return 0;
-// Code below will check if replica created on slaves inside same ip (several slaves per node)
-// to reenable, change should be done here and in index.cpp
-//            std::string cur_ip;
-//            std::set<Address, AddrComp>::const_iterator cur = attr.m_sLocation.begin();
-//            std::set<Address, AddrComp>::const_iterator last = attr.m_sLocation.end();
-//            bool has_same_ip = false;
-//            for( ; cur != last; ++cur )
-//                if( cur->m_strIP == cur_ip ) {
-//                   has_same_ip = true;
-//                   break;
-//                } else
-//                   cur_ip = cur->m_strIP;
-//
-//            if( !has_same_ip )
-//            {
-//               m_SectorLog << LogStart(9) << "Create replica: replication correct" << LogEnd();
-//               return 0;
-//            }
+            if( m_ReplicaConf.m_bCheckReplicaOnSameIp )
+            {     
+               std::string cur_ip;
+               std::set<Address, AddrComp>::const_iterator cur = attr.m_sLocation.begin();
+               std::set<Address, AddrComp>::const_iterator last = attr.m_sLocation.end();
+               bool has_same_ip = false;
+               for( ; cur != last; ++cur )
+                   if( cur->m_strIP == cur_ip ) {
+                      has_same_ip = true;
+                      break;
+                   } else
+                      cur_ip = cur->m_strIP;
+
+               if( !has_same_ip )
+               {
+                  m_SectorLog << LogStart(9) << "Create replica: replication correct" << LogEnd();
+                  return 0;
+               }
+            }
+            else
+               return 0;
          }
 
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)

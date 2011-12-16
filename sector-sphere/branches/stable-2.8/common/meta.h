@@ -43,7 +43,7 @@ public:
    virtual void init(const std::string& path) = 0;
    virtual void clear() = 0;
 
-   void setDefault(const int rep_num, const int rep_dist);
+   void setDefault(const int rep_num, const int rep_dist, bool allow_same_ip_replica, int pct_of_slaves_to_consider);
 
 public:	// list and lookup operations
    virtual int list(const std::string& path, std::vector<std::string>& filelist) = 0;
@@ -157,6 +157,8 @@ private:
 protected:
    static int m_iDefaultRepNum;
    static int m_iDefaultRepDist;
+   static bool m_bCheckReplicaOnSameIp;
+   static int m_iPctSlavesToConsider;
 };
 
 #endif

@@ -1017,9 +1017,7 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
          else if (curr_rep_num > target_rep_num)
             over.push_back(abs_path);
          // Sergey check if replcas on same node for node with several slaves (volumes)
-         // commented out because no longer a problem, but present performance hit
-#if 0
-         else if( i->second.m_sLocation.size() > 1 )
+         else if( m_bCheckReplicaOnSameIp && i->second.m_sLocation.size() > 1 )
          { 
             std::string cur_ip;
             std::set<Address, AddrComp>::const_iterator cur = i->second.m_sLocation.begin();
@@ -1032,7 +1030,6 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
                 } else
                     cur_ip = cur->m_strIP;
          }
-#endif
       }
       else
          checkReplica(abs_path, i->second.m_mDirectory, under, over);

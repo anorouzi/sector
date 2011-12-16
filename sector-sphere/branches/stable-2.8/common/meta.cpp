@@ -29,6 +29,8 @@ bool Metadata::m_pbLegalChar[256];
 bool Metadata::m_bInit = Metadata::initLC();
 int Metadata::m_iDefaultRepNum = 1;
 int Metadata::m_iDefaultRepDist = 65536;
+bool Metadata::m_bCheckReplicaOnSameIp = false;
+int Metadata::m_iPctSlavesToConsider = 50;
 
 Metadata::Metadata()
 {
@@ -40,10 +42,12 @@ Metadata::~Metadata()
    CGuard::releaseMutex(m_FileLockProtection);
 }
 
-void Metadata::setDefault(const int rep_num, const int rep_dist)
+void Metadata::setDefault(const int rep_num, const int rep_dist, bool allow_same_ip_replica, int pct_of_slaves_to_consider)
 {
    m_iDefaultRepNum = rep_num;
    m_iDefaultRepDist = rep_dist;
+   m_bCheckReplicaOnSameIp = allow_same_ip_replica;
+   m_iPctSlavesToConsider = pct_of_slaves_to_consider;
 }
 
 int Metadata::lock(const string& path, int user, int mode)

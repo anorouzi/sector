@@ -156,6 +156,8 @@ m_iReplicationFullScanDelay(10*60), // 10 min
 m_iReplicationMaxTrans(0),          // 0 - no of slaves
 m_iDiskBalanceAggressiveness(25),    // percent
 m_bReplicateOnTransactionClose(false),
+m_bCheckReplicaOnSameIp(false),
+m_iPctSlavesToConsider(50),
 m_llTimeStamp(0)
 {
 }
@@ -170,6 +172,8 @@ std::string ReplicaConf::toString() const
    buf << "REPLICATION_FULL_SCAN_DELAY " << m_iReplicationFullScanDelay << std::endl;
    buf << "DISK_BALANCE_AGGRESSIVENESS " << m_iDiskBalanceAggressiveness << std::endl;
    buf << "REPLICATE_ON_TRANSACTION_CLOSE " <<  m_bReplicateOnTransactionClose << std::endl;
+   buf << "CHECK_REPLICA_ON_SAME_IP " << m_bCheckReplicaOnSameIp << std::endl;
+   buf << "PCT_SLAVES_TO_CONSIDER " << m_iPctSlavesToConsider << std::endl;
    buf << "Number of replicas:\n"; 
    for( std::map<std::string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++i )
       buf << i->first << " => " << i->second << '\n';
@@ -262,6 +266,20 @@ bool ReplicaConf::refresh(const string& path)
       {
          if( !param.m_vstrValue.empty() )
              m_iReplicationMaxTrans = atoi(param.m_vstrValue[0].c_str());
+         else
+             cerr << "no value specified for REPLICATION_MAX_TRANS" << endl;
+      }
+      else if ("CHECK_REPLICA_ON_SAME_IP" == param.m_strName)
+      {
+         if( !param.m_vstrValue.empty() )
+             m_bCheckReplicaOnSameIp = (param.m_vstrValue[0] == "TRUE" );
+         else
+             cerr << "no value specified for CHECK_REPLICA_ON_SAME_IP" << endl;
+      }
+      else if ("PCT_SLAVES_TO_CONSIDER" == param.m_strName)
+      {
+         if( !param.m_vstrValue.empty() )
+             m_iPctSlavesToConsider = atoi(param.m_vstrValue[0].c_str());
          else
              cerr << "no value specified for REPLICATION_MAX_TRANS" << endl;
       }
