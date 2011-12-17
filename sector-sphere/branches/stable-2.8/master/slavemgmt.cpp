@@ -581,17 +581,20 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
       // TODO: optimize this by using ID instead of address.
       set<Address, AddrComp> tmp = loclist;
       tmp.erase(*i);
+      int slave_id = m_mAddrList[*i];
+      SlaveNode sn = m_mSlaveList[slave_id];
+      int64_t availDiskSpace = sn.m_llAvailDiskSpace;
+
       int dist = m_pTopology->min_distance(*i, tmp);
       if (dist < min_dist)
       {
          addr = *i;
          min_dist = dist;
+         min_avail_space = availDiskSpace;
       }
       else if (dist == min_dist)
       {
-         int slave_id = m_mAddrList[*i];
-         SlaveNode sn = m_mSlaveList[slave_id];
-         if ((sn.m_llAvailDiskSpace < min_avail_space) || (min_avail_space < 0))
+         if (availDiskSpace < min_avail_space)
          {
             addr = *i;
             min_avail_space = sn.m_llAvailDiskSpace;
