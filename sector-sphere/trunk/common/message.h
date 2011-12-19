@@ -22,21 +22,28 @@ written by
 #ifndef __SECTOR_MESSAGE_H__
 #define __SECTOR_MESSAGE_H__
 
+#include <vector>
+
 #include "gmp.h"
+#include "sector.h"
+#include "topology.h"
 
-// All Sector transactions should inherit from this class
-// define its specific message structure, and implement
-// serialization. GMP will call serilazation methods when
-// transfering the message.
+namespace sector
+{
 
-// TYPE: Type of control information carried by the message
-// KEY: A token to identify the message sender
-// SIGNATURE: A digest of the message using the sender's secret key
+/* 
+   Sector Msg Format:
+   Request Type
+   User Key
+   User Token
+   Type-Specific Data
+*/
 
 class SectorMsg: public CUserMessage
 {
 public:
    SectorMsg() {m_iDataLength = m_iHdrSize;}
+   virtual ~SectorMsg() {}
 
    int32_t getType() const;
    void setType(const int32_t& type);
@@ -45,8 +52,66 @@ public:
    char* getData() const;
    void setData(const int& offset, const char* data, const int& len);
 
+   virtual int serialize() { return 0; }
+   virtual int deserialize() { return 0; }
+
+   void serializeHdr();
+   void deserializeHdr();
+
 public:
    static const int m_iHdrSize = 8;
+   int m_iKey;
+   int m_iToken;
+   int m_iType;
 };
+
+struct CliLoginReq: public SectorMsg
+{
+   int32_t m_iCmd;
+   std::string m_strUser;
+   std::string m_strPasswd;
+   int32_t m_iKey;
+   int32_t m_iGMPPort;
+   int32_t m_iDataPort;
+   char m_pcCryptoKey[16];
+   char m_pcCryptoIV[8];
+
+   virtual int serialize();
+   virtual int deserialize();
+};
+
+struct CliLoginRes: public SectorMsg
+{
+   int32_t m_iKey;
+   int32_t m_iToken;
+   Topology m_Topology;
+   std::vector<Address> m_Masters;
+
+   virtual int serialize();
+   virtual int deserialize();
+};
+
+/*
+struct FSCmd
+{
+   string m_strPath1;			// File/Dir to be processed
+   string m_strPath2;			// Destination file/Dir for "rename" etc.
+   std::vector<int32_t> m_vOptions;	// Options such as file open mode, time stamp, etc.
+
+   virtual int serialize();
+   virtual int deserialize();
+};
+
+struct FSResponse
+{
+   int32_t m_iCode;
+   vector<SNode> m_vFileList;
+
+   virtual int serialize();
+   virtual int deserialize();
+};
+*/
+
+}  // namespace sector
 
 #endif
