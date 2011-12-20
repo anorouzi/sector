@@ -433,6 +433,7 @@ void SectorLog::setLevel(const int level)
 {
    if (level >= 0) 
    {
+      CGuardEx lg(m_LogLock);
       m_iLevel = level;
       log_.setLogLevel( static_cast<logger::LogLevel>( std::min( level, 5 ) ) );
    }
@@ -459,7 +460,7 @@ SectorLog& SectorLog::operator<<(const LogStringTag& tag)
       ThreadIdStringMap::iterator i = m_mStoredString.find(key);
       if (i != m_mStoredString.end())
       {
-         insert(i->second.m_strLog.c_str(), i->second.m_iLevel);
+         insert_(i->second.m_strLog.c_str(), i->second.m_iLevel);
          m_mStoredString.erase(i);
       }
    }
@@ -512,7 +513,7 @@ SectorLog& SectorLog::endl(SectorLog& log)
    ThreadIdStringMap::iterator i = log.m_mStoredString.find(key);
    if (i != log.m_mStoredString.end())
    {
-      log.insert(i->second.m_strLog.c_str(), i->second.m_iLevel);
+      log.insert_(i->second.m_strLog.c_str(), i->second.m_iLevel);
       log.m_mStoredString.erase(i);
    }
 
@@ -520,6 +521,13 @@ SectorLog& SectorLog::endl(SectorLog& log)
 }
 
 void SectorLog::insert(const char* text, const int level)
+{
+   CGuardEx lg(m_LogLock);
+   insert_( text, level );
+}
+
+
+void SectorLog::insert_(const char* text, const int level)
 {
    switch( level ) {
        case 0:   log_.screen << text; break;

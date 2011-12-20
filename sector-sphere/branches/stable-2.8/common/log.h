@@ -105,6 +105,8 @@ public:
    static SectorLog& endl(SectorLog& log);
 
 private:
+   void insert_(const char* text, const int level = 1);
+
    int m_iLevel;
 
    CMutex m_LogLock;

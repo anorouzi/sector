@@ -63,7 +63,7 @@ int main(int argc, char** argv)
    {
       Utility::print_error(result);
       Utility::logout(client);
-      return -1;
+      return 1;
    }
 
    vector<SNode> filelist;
