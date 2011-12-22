@@ -2963,7 +2963,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             maxTran = self->m_SlaveManager.getNumberOfSlaves()*2;
          if (self->m_ReplicaConf.m_iReplicationMaxTrans < 0) maxTran = 0;
          if (prevMaxTran != maxTran) 
-            self->m_SectorLog << LogStart(9) << "Replica Max parallel replication changed from  " << 
+            self->m_SectorLog << LogStart(9) << "Replica REPLICATION_MAX_TRAN changed from  " << 
              prevMaxTran << " to " << maxTran << LogEnd();
          if (self->m_ReplicaMgmt.getTotalNum() >= maxTran) 
          {
@@ -3023,7 +3023,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                 if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
                   continue;
 
-                self->m_SectorLog << LogStart(9) << "Replica " << *i << " will be removed from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
+                self->m_SectorLog << LogStart(9) << "Replica removing " << *i << " from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
                 self->removeReplica(*i, addr);
              }
            }
@@ -3143,12 +3143,15 @@ int Master::createReplica(const ReplicaJob& job)
 
                if( !has_same_ip )
                {
-                  m_SectorLog << LogStart(9) << "Create replica: replication correct" << LogEnd();
+                  m_SectorLog << LogStart(9) << "Replica create: replication correct" << LogEnd();
                   return 0;
                }
             }
             else
+            {
+               m_SectorLog << LogStart(9) << "Replica create: found replicas on same IP, proceed with replication" << job.m_strSource << LogEnd();
                return 0;
+            }
          }
 
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
