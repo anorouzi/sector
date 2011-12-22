@@ -156,7 +156,7 @@ int ConfParser::getNextParam(Param& param)
       {
          strncpy(buf, m_ptrLine->c_str(), 1024);
 
-         if (('\0' == *buf) || ('\t' != *buf))
+         if (('\0' == *buf) || ('\t' != *buf && ' ' != *buf))
             break;
 
          str = buf;
