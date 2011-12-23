@@ -95,7 +95,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 //    log << "get " << path << " dirpath " << dirpath << " filename " << filename << std::endl;
 
     CacheList::iterator end;
-    std::vector<SNode>* pfilelist = NULL;
+    std::vector<SNode> pfilelist;
     {
         Lock lock(mutex);
         end = cache.end();
@@ -106,13 +106,12 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
                 break;
             } else if (it->path == dirpath) {
 //               log << "get " << path << " dir cache hit " << it->path << std::endl;
-               pfilelist = &(it->filelist);
+               pfilelist = it->filelist;
             }
         }
     }
 
-    std::vector<SNode> filelist;
-    if (  pfilelist == NULL ) {
+    if (  pfilelist.empty() ) {
 //      log << "get " << path << " miss" << std::endl;
 //      log << "lastUnresolvedStatPath " << lastUnresolvedStatPath << " lastUnresolvedStatPathTs "
 //          << lastUnresolvedStatPathTs << " tsNow " << tsNow << std::endl;
@@ -120,11 +119,10 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 // we will do extra ls instead of stat
       if (lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath) {
 //        log << "get " << path << " repeated miss - get dir" << std::endl;
-        int r = sectorClient.list(dirpath, filelist);
+        int r = sectorClient.list(dirpath, pfilelist);
         if (r < 0) return r;
 
-        pfilelist = &filelist;
-        add(dirpath, filelist);
+        add(dirpath, pfilelist);
       } else {
 //        log << "get " << path << " first miss - return miss" << std::endl;
         {
@@ -135,8 +133,9 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
         return 1;
       } 
     }
+
 //    log << "get " << path << " looking through cache" << std::endl;
-    for (std::vector<SNode>::iterator i = pfilelist->begin(); i != pfilelist->end(); ++ i)
+    for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)
     {
 //      log << "checking cache entry " << i->m_strName << std::endl;
       if (i->m_strName == filename)
