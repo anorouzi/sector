@@ -30,7 +30,11 @@ written by
 #endif
 #include <sector.h>
 #include <iostream>
+#include <sstream>
+#include <iomanip>
 #include <cstring>
+#include <boost/lexical_cast.hpp>
+#include <cstdlib>
 
 using namespace std;
 
@@ -166,11 +170,14 @@ string getDNSName(const string& ip)
    return clienthost;
 }
 
+
 // TODO: create a new util class that provides the format routines above
 // move the print function as a member function of sysstat
 
 void print(const SysStat& s, bool address = false)
 {
+   std::map<std::string, std::string> slaveInfo;
+
    cout << "Sector System Information:" << endl;
    time_t st = s.m_llStartTime;
    cout << "Running since:               " << ctime(&st);
@@ -239,25 +246,43 @@ void print(const SysStat& s, bool address = false)
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
-      cout << format(i->m_iID, 11)
-           << format(i->m_strIP + ":" + toString(i->m_iPort) , 24)
-           << format(i->m_iClusterID, 8)
-           << formatStatus(i->m_iStatus, 10)
-           << format(formatSize(i->m_llAvailDiskSpace), 12)
-           << format(formatSize(i->m_llTotalFileSize), 12)
-           << format(formatSize(i->m_llCurrMemUsed), 12)
-           << format(i->m_llCurrCPUUsed, 14)
-           << format(formatSize(i->m_llTotalInputData), 12)
-           << format(formatSize(i->m_llTotalOutputData), 12)
-           << endl;
+      std::stringstream buf;
 
-      if (!address)
-         continue;
+      buf << format(i->m_iID, 11)
+          << format(i->m_strIP + ":" + toString(i->m_iPort) , 24)
+          << format(i->m_iClusterID, 8)
+          << formatStatus(i->m_iStatus, 10)
+          << format(formatSize(i->m_llAvailDiskSpace), 12)
+          << format(formatSize(i->m_llTotalFileSize), 12)
+          << format(formatSize(i->m_llCurrMemUsed), 12)
+          << format(i->m_llCurrCPUUsed, 14)
+          << format(formatSize(i->m_llTotalInputData), 12)
+          << format(formatSize(i->m_llTotalOutputData), 12);
 
-      cout << format("", 10)
-           << getDNSName(i->m_strIP) << ":"
-           << i->m_strDataDir << endl;
+      if (!address) 
+      {
+         std::stringstream slaveId;
+
+         buf << endl;
+         slaveId << std::setw( 11 ) << std::setfill( '0' ) << i->m_iID;
+         slaveInfo[ slaveId.str() ] = buf.str();
+      }
+      else
+      {
+        std::string dns_name = getDNSName( i->m_strIP );
+
+        buf << format("", 2)
+            << dns_name << ":"
+            << i->m_strDataDir << endl;
+
+        // In the event DNS returns same name for two different IPs (why?????), ensure uniquess by
+ 	// attaching random number at end
+        slaveInfo[ dns_name + i->m_strDataDir + boost::lexical_cast<std::string>( rand() ) ] = buf.str();
+      }
    }
+
+   for( std::map<std::string,std::string>::iterator i = slaveInfo.begin(); i != slaveInfo.end(); ++i )
+      std::cout << i->second;
 }
 
 void help()
