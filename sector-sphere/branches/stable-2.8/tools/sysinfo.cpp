@@ -238,11 +238,13 @@ void print(const SysStat& s, bool address = false)
         << format("STATUS", 10)
         << format("AvailDisk", 12)
         << format("TotalFile", 12)
-        << format("Memory", 12)
-        << format("CPU(us)", 14)
+//        << format("Memory", 12)
+//        << format("CPU(us)", 14)
         << format("NetIn", 12)
-        << format("NetOut", 12)
-        << endl;
+        << format("NetOut", 12);
+        if (address)
+          cout << "  Host:Directory";
+        cout << endl;
 
    for (vector<SysStat::SlaveStat>::const_iterator i = s.m_vSlaveList.begin(); i != s.m_vSlaveList.end(); ++ i)
    {
@@ -254,8 +256,8 @@ void print(const SysStat& s, bool address = false)
           << formatStatus(i->m_iStatus, 10)
           << format(formatSize(i->m_llAvailDiskSpace), 12)
           << format(formatSize(i->m_llTotalFileSize), 12)
-          << format(formatSize(i->m_llCurrMemUsed), 12)
-          << format(i->m_llCurrCPUUsed, 14)
+//          << format(formatSize(i->m_llCurrMemUsed), 12)
+//          << format(i->m_llCurrCPUUsed, 14)
           << format(formatSize(i->m_llTotalInputData), 12)
           << format(formatSize(i->m_llTotalOutputData), 12);
 
