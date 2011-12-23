@@ -34,6 +34,7 @@ map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
 
+#if 0
 #define CONN_CHECK( fn ) \
 {\
    if (!g_bConnected) {\
@@ -57,6 +58,20 @@ bool SectorFS::g_bConnected = false;
       std::string asStr = ctime(&t);\
       std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << ' ' << msg << std::endl; \
 }
+#endif
+
+#define CONN_CHECK( fn ) \
+{\
+   if (!g_bConnected) {\
+      restart();\
+   }\
+   if (!g_bConnected) \
+   {\
+      return -1;\
+   } \
+}
+
+#define ERR_MSG( msg ) 
 
 
 void* SectorFS::init(struct fuse_conn_info * /*conn*/)
