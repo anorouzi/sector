@@ -107,44 +107,54 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
             } else if (it->path == dirpath) {
 //               log << "get " << path << " dir cache hit " << it->path << std::endl;
                pfilelist = it->filelist;
+//             log << "get " << path << " looking through cache" << std::endl;
+               for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)
+               {
+//                log << "checking cache entry " << i->m_strName << std::endl;
+                  if (i->m_strName == filename)
+                  {
+//                   log << "get " << path << " return hit, file size " << i->m_llSize << std::endl;
+                     node = *i;
+                     return 0;
+                  }
+               }
+               break;
             }
         }
     }
 
-    if (  pfilelist.empty() ) {
 //      log << "get " << path << " miss" << std::endl;
 //      log << "lastUnresolvedStatPath " << lastUnresolvedStatPath << " lastUnresolvedStatPathTs "
 //          << lastUnresolvedStatPathTs << " tsNow " << tsNow << std::endl;
 // No need to have lock around timeout comparison, as worse that can happen - 
 // we will do extra ls instead of stat
-      if (lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath) {
+    if (lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath) {
 //        log << "get " << path << " repeated miss - get dir" << std::endl;
-        int r = sectorClient.list(dirpath, pfilelist);
-        if (r < 0) return r;
-
-        add(dirpath, pfilelist);
-      } else {
-//        log << "get " << path << " first miss - return miss" << std::endl;
-        {
-          Lock lock (mutex);
-          lastUnresolvedStatPath = dirpath;
-          lastUnresolvedStatPathTs = tsNow;
-        }
-        return 1;
-      } 
-    }
-
-//    log << "get " << path << " looking through cache" << std::endl;
-    for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)
-    {
-//      log << "checking cache entry " << i->m_strName << std::endl;
-      if (i->m_strName == filename)
+      int r = sectorClient.list(dirpath, pfilelist);
+      if (r < 0) return r;
+      for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)
       {
-//       log << "get " << path << " return hit, file size " << i->m_llSize << std::endl;
-       node = *i;
-       return 0;
+//                log << "checking cache entry " << i->m_strName << std::endl;
+          if (i->m_strName == filename)
+          {
+//                   log << "get " << path << " return hit, file size " << i->m_llSize << std::endl;
+              node = *i;
+              add(dirpath, pfilelist);
+              return 0;
+          }
+          break;
       }
-    }
+
+      add(dirpath, pfilelist);
+    } else {
+//        log << "get " << path << " first miss - return miss" << std::endl;
+      {
+        Lock lock (mutex);
+        lastUnresolvedStatPath = dirpath;
+        lastUnresolvedStatPathTs = tsNow;
+      }
+      return 1;
+    } 
 
 //    log << "get " << path << " return miss after dir hit" << std::endl;
 
