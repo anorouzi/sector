@@ -112,6 +112,7 @@ public:	// medadata and file system operations
 
    virtual int substract(const std::string& path, const Address& addr) = 0;
    virtual int64_t getTotalDataSize(const std::string& path) = 0;
+   virtual int64_t getTotalDataSizeRootCached() = 0;
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
    virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over) = 0;
@@ -159,6 +160,9 @@ protected:
    static int m_iDefaultRepDist;
    static bool m_bCheckReplicaOnSameIp;
    static int m_iPctSlavesToConsider;
+   static int64_t m_iLastTotalDiskSpace;
+   static time_t m_iLastTotalDiskSpaceTs;
+   static int const m_iLastTotalDiskSpaceTimeout = 3;
 };
 
 #endif

@@ -31,6 +31,8 @@ int Metadata::m_iDefaultRepNum = 1;
 int Metadata::m_iDefaultRepDist = 65536;
 bool Metadata::m_bCheckReplicaOnSameIp = false;
 int Metadata::m_iPctSlavesToConsider = 50;
+int64_t Metadata::m_iLastTotalDiskSpace = 0;
+time_t Metadata:: m_iLastTotalDiskSpaceTs = 0;
 
 Metadata::Metadata()
 {

@@ -1637,6 +1637,24 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       break;
 
    }
+   case 12: // df - Sector disk usage - for use by df command on fuse mounts, more effective than sysinfo that require locks
+   {
+
+      m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " " << ip << " df " << LogEnd();
+      if (!m_Routing.match(key, m_iRouterKey))
+      {
+         reject(ip, port, id, SectorError::E_ROUTING);
+         break;
+      }
+
+      char* buf = NULL;
+      int size = 0;
+      serializeDf(buf, size);
+      msg->setData(0, buf, size);
+      delete [] buf;
+      m_GMP.sendto(ip, port, id, msg);
+      break;
+   }
    default:
       reject(ip, port, id, SectorError::E_UNKNOWN);
       return -1;
@@ -3294,6 +3312,15 @@ int Master::serializeSysStat(char*& buf, int& size)
    delete [] slave_info;
 
    return size;
+}
+
+int Master::serializeDf(char*& buf, int& size)
+{
+  size = 16;
+  buf = new char[size];
+  *(int64_t*)buf = m_SlaveManager.getTotalDiskSpace();
+  *(int64_t*)(buf + 8) = m_pMetadata->getTotalDataSizeRootCached();
+  return size;
 }
 
 int Master::removeSlave(const int& id, const Address& addr)

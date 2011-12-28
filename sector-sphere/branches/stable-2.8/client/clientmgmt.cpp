@@ -248,6 +248,12 @@ int Sector::debuginfo(std::string& dbg)
    return c->debuginfo(dbg);
 }
 
+int Sector::df(int64_t& availableSize, int64_t& totalSize)
+{
+   FIND_CLIENT_OR_ERROR(c)
+   return c->df(availableSize, totalSize);
+}
+
 int Sector::shutdown(const int& type, const string& param)
 {
    FIND_CLIENT_OR_ERROR(c)

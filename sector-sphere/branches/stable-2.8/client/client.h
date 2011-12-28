@@ -77,6 +77,7 @@ public:
 public:
    int sysinfo(SysStat& sys);
    int debuginfo(std::string& dbg);
+   int df(int64_t& availableSize, int64_t& totalSize);
    int shutdown(const int& type, const std::string& param = "");
    int fsck(const std::string& path);
 
@@ -101,6 +102,7 @@ protected:
    int lookup(const std::string& path, Address& serv_addr);
    int lookup(const int32_t& key, Address& serv_addr);
    int deserializeSysStat(SysStat& sys, char* buf, int size);
+   int deserializeDf(int64_t& availableSize, int64_t& totalSize,  char* buf, int size);
    int retrieveMasterInfo(std::string& certfile);
 
 protected:

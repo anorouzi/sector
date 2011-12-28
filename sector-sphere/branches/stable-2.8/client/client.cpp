@@ -608,6 +608,23 @@ int Client::debuginfo(string& dbg)
    return 0;
 }
 
+int Client::df(int64_t& availableSize, int64_t& totalSize){
+   SectorMsg msg;
+   msg.setKey(m_iKey);
+   msg.setType(12);
+   msg.m_iDataLength = SectorMsg::m_iHdrSize;
+   Address serv;
+   if (lookup(m_iKey, serv) < 0)
+      return SectorError::E_MASTER;
+
+   if (m_GMP.rpc(serv.m_strIP.c_str(), serv.m_iPort, &msg, &msg) < 0)
+      return SectorError::E_MASTER;
+
+   if (msg.getType() < 0)
+      return *(int32_t*)(msg.getData());
+   return deserializeDf(availableSize, totalSize, msg.getData(), msg.m_iDataLength);
+}
+
 int Client::shutdown(const int& type, const string& param)
 {
    SectorMsg msg;
@@ -853,6 +870,15 @@ int Client::deserializeSysStat(SysStat& sys, char* buf, int size)
       p += 92 + i->m_strDataDir.length() + 1;
    }
 
+   return 0;
+}
+
+int Client::deserializeDf(int64_t& availableSize, int64_t& totalSize,  char* buf, int size)
+{
+   if (size < 16)
+      return SectorError::E_INVALID;
+   availableSize = *(int64_t*)buf;
+   totalSize = *(int64_t*)(buf + 8);
    return 0;
 }
 

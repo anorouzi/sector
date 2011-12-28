@@ -243,8 +243,8 @@ int SectorFS::rename(const char* src, const char* dst)
    return 0;
 }
 
-int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
-{
+//int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
+/*{
    CONN_CHECK( "sysinfo" );
 
    SysStat s;
@@ -262,6 +262,32 @@ int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
    buf->f_blocks = (s.m_llAvailDiskSpace + s.m_llTotalFileSize) / buf->f_bsize;
    buf->f_bfree = buf->f_bavail = s.m_llAvailDiskSpace / buf->f_bsize;
    buf->f_files = s.m_llTotalFileNum;
+   buf->f_ffree = 0xFFFFFFFFULL;
+
+   return 0;
+}
+*/
+int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
+{
+   CONN_CHECK( "df" );
+
+   int64_t availableSize;
+   int64_t totalSize;
+   int r = g_SectorClient.df(availableSize, totalSize);
+  // ERR_MSG( "df return " << r << " avail " << availableSize << " total " << totalSize ); 
+   if (r < 0)
+   {
+      ERR_MSG( "df" );
+      checkConnection(r);
+      return translateErr(r);
+   }
+
+   buf->f_namemax = 256;
+   buf->f_bsize = g_iBlockSize;
+   buf->f_frsize = buf->f_bsize;
+   buf->f_blocks = (availableSize + totalSize) / buf->f_bsize;
+   buf->f_bfree = buf->f_bavail = availableSize / buf->f_bsize;
+   buf->f_files = 0;
    buf->f_ffree = 0xFFFFFFFFULL;
 
    return 0;

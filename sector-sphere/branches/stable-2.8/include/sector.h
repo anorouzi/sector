@@ -48,7 +48,7 @@ written by
 // Sector version. The digit version is for compatibility check, so it is the earliest compatible version number
 // FORMAT 3-digit Major 3-digit Minor 3-digit revision
 const int32_t SectorVersion = 2006031;
-const std::string SectorVersionString = "Sector SVN version 795 build Fri Nov  4 12:38:14 CDT 2011";
+const std::string SectorVersionString = "Sector SVN version 828 build Fri Dec 23 13:41:49 CST 2011";
 
 
 struct Address
@@ -166,6 +166,7 @@ public:
 
    int sysinfo(SysStat& sys);
    int debuginfo(std::string& dbg);
+   int df(int64_t& availableSize, int64_t& totalSize);
    int shutdown(const int& type, const std::string& param = "");
    int fsck(const std::string& path);
 
