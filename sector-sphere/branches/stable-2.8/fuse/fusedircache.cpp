@@ -35,26 +35,34 @@ void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) 
 //    log << "cache add " << path <<  " start ======================= " << std::endl;
 
     Lock l(mutex);
-//    log << "cache add " << path <<  " got lock" << std::endl;
-    time_t tsNow = time(NULL);
-    CacheList::iterator it = cache.begin(), end = cache.end();
+    time_t tsNow = time(0);
+//    log << "Removing timed out entries with ts " << tsNow << " TIME_OUT " << TIME_OUT << std::endl;
+    CacheMap::iterator nit = cache.begin();
 //    log << "got iterator" << std::endl;
-    while( it != end ) {
-//        log << "in iterator" << std::endl;
-        if (it->ts + TIME_OUT < tsNow) {
-//            log << "cache erase timeout " << it->path << std::endl;
-            cache.erase(it, end);
-            break;
+    while( nit != cache.end() ) {
+//        log << "in iterator " << nit->second.path << std::endl;
+        if (nit->second.ts + TIME_OUT < tsNow) {
+//            log << "cache erase timeout " << nit->second.path << std::endl;
+            cache.erase(nit++);
+        } else
+        {
+          ++nit;
         }
-        else if (it->path == path) {
-//            log << "cache erase replace " << it->path << std::endl;
-            it = cache.erase(it);
-        }
-        ++it;
+    }
+//    log << "Adding new entry ts " << tsNow << std::endl;
+    CacheRec& rec = cache[path];
+    rec.path = path;
+    rec.ts = tsNow;
+// clear map if record already present
+    rec.filemap.clear();
+    
+    std::vector<SNode>::const_iterator fit = filelist.begin(), fend = filelist.end();
+    while (fit != fend)
+    {
+      rec.filemap[fit->m_strName] = *fit;
+      ++fit;
     }
 
-    CacheRec rec = { path, tsNow, filelist };
-    cache.push_front(rec);
 //    log << "cache add complete " << path << std::endl;
 }
 
@@ -71,6 +79,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
         if (r < 0) return r;
       }
       node = rootNode;
+//      log << "root node" << std::endl;
       return 0;
     }
     time_t tsNow = time(0);
@@ -94,34 +103,27 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 
 //    log << "get " << path << " dirpath " << dirpath << " filename " << filename << std::endl;
 
-    CacheList::iterator end;
-    std::vector<SNode> pfilelist;
     {
         Lock lock(mutex);
-        end = cache.end();
-        for (CacheList::iterator it = cache.begin(); it != end; ++it) {
-            if (it->ts + TIME_OUT < tsNow) {
-//                log << "get " << path << " cache erase to end " << it->path << std::endl;
-                cache.erase(it, end);
-                break;
-            } else if (it->path == dirpath) {
-//               log << "get " << path << " dir cache hit " << it->path << std::endl;
-               pfilelist = it->filelist;
-//             log << "get " << path << " looking through cache" << std::endl;
-               for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)
-               {
-//                log << "checking cache entry " << i->m_strName << std::endl;
-                  if (i->m_strName == filename)
-                  {
-//                   log << "get " << path << " return hit, file size " << i->m_llSize << std::endl;
-                     node = *i;
-                     return 0;
-                  }
-               }
-               break;
-            }
+      
+        CacheMap::iterator it = cache.find(dirpath);
+        if (it != cache.end())
+        {
+//          log << "get " << path << " cache hit for " << it->first << std::endl;
+          if (it->second.ts + TIME_OUT < tsNow)
+          {
+//           log << "get " << path << " cache hit but timeout ts " << it->second.ts << " tsNow " << tsNow << " TIME_OUT " << TIME_OUT << " - erasing " << it->second.path << std::endl;
+            cache.erase(it);
+          }
+          FileMap::iterator fit = it->second.filemap.find(filename);
+          if (fit != it->second.filemap.end())
+          {
+            node = fit->second;
+//           log << "get " << path << " return hit, file size " << node.m_llSize << std::endl;
+            return 0;
+          }
         }
-    }
+     }
 
 //      log << "get " << path << " miss" << std::endl;
 //      log << "lastUnresolvedStatPath " << lastUnresolvedStatPath << " lastUnresolvedStatPathTs "
@@ -129,23 +131,24 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 // No need to have lock around timeout comparison, as worse that can happen - 
 // we will do extra ls instead of stat
     if (lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath) {
-//        log << "get " << path << " repeated miss - get dir" << std::endl;
+//        log << "get " << path << " repeated miss - get dir " << dirpath << std::endl;
+      std::vector<SNode> pfilelist;
       int r = sectorClient.list(dirpath, pfilelist);
+//      log << "get " << path << " dir done " << std::endl;
       if (r < 0) return r;
       for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)
       {
-//                log << "checking cache entry " << i->m_strName << std::endl;
+//                log << "checking cache entry " << i->m_strName << " against " << filename << std::endl;
           if (i->m_strName == filename)
           {
-//                   log << "get " << path << " return hit, file size " << i->m_llSize << std::endl;
+//                   log << "get " << path << " return hit after dir read, file size " << i->m_llSize << std::endl;
               node = *i;
               add(dirpath, pfilelist);
               return 0;
           }
-          break;
       }
-
-      add(dirpath, pfilelist);
+// It was questionable add -  if file not there, most probably it is check before creating new
+//      add(dirpath, pfilelist);
     } else {
 //        log << "get " << path << " first miss - return miss" << std::endl;
       {
