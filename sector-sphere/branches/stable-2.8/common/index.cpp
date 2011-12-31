@@ -45,7 +45,7 @@ Index::~Index()
 {
 }
 
-int Index::list(const string& path, vector<string>& filelist)
+int Index::list(const string& path, vector<string>& filelist, const bool includeReplica)
 {
    RWGuard mg(m_MetaLock, RW_READ);
 
@@ -66,8 +66,8 @@ int Index::list(const string& path, vector<string>& filelist)
          if (depth != dir.size())
             return SectorError::E_NOEXIST;
 
-         char* buf = NULL;
-         if (s->second.serialize(buf) >= 0)
+         char* buf = NULL;       
+         if (s->second.serialize(buf, includeReplica) >= 0)
             filelist.insert(filelist.end(), buf);
          delete [] buf;
          return 1;
@@ -81,12 +81,16 @@ int Index::list(const string& path, vector<string>& filelist)
    for (map<string, SNode>::const_iterator i = currdir->begin(); i != currdir->end(); ++ i)
    {
       char* buf = NULL;
-      if (i->second.serialize(buf) >= 0)
+      if (i->second.serialize(buf, includeReplica) >= 0)
          filelist.insert(filelist.end(), buf);
       delete [] buf;
    }
 
    return filelist.size();
+}
+
+int Index::list(const string& path, vector<string>& filelist){
+  return list(path, filelist, true);
 }
 
 int Index::list_r(const string& path, vector<string>& filelist)

@@ -52,12 +52,21 @@ bool SectorFS::g_bConnected = false;
    } \
 }
 
+
+suseconds_t SectorFS::ts_pr = 0;
+
 #define ERR_MSG( msg ) \
 {\
-      time_t t = time(0); \
-      std::string asStr = ctime(&t);\
-      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << ' ' << msg << std::endl; \
+      timeval t_val; \
+      gettimeofday (&t_val,NULL);\
+      std::string asStr = ctime(&t_val.tv_sec);\
+      char rembuf [10];\
+      int tmp = t_val.tv_usec;\
+      sprintf(rembuf,"%06d",tmp);\
+      std::cout << asStr.substr( 4, asStr.length() - 10 ) << '.' << rembuf << ' ' << t_val.tv_usec -SectorFS::ts_pr << ' ' << __PRETTY_FUNCTION__ << ' ' << msg << std::endl; \
+      SectorFS::ts_pr = t_val.tv_usec;\
 }
+
 #endif
 
 #define CONN_CHECK( fn ) \
@@ -73,13 +82,11 @@ bool SectorFS::g_bConnected = false;
 
 #define ERR_MSG( msg ) 
 
-
 void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 {
    const ClientConf& conf = g_SectorConfig.m_ClientConf;
 
    ERR_MSG("Starting sector-fuse");
-
    g_SectorClient.init();
    g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
    g_SectorClient.setMaxCacheSize(conf.m_llMaxCacheSize);
@@ -115,8 +122,9 @@ int SectorFS::getattr(const char* path, struct stat* st)
    CONN_CHECK( path );
 
    SNode s;
-
+//   ERR_MSG(path);
    int rv = DirCache::instance().get(path, g_SectorClient, s);
+//   ERR_MSG("After cache");
    if( rv < 0 )
    {
       ERR_MSG( path << ' ' << rv );
@@ -153,6 +161,7 @@ int SectorFS::getattr(const char* path, struct stat* st)
    st->st_atime = st->st_mtime = st->st_ctime = s.m_llTimeStamp;
 
    if (st->st_size == 0) DirCache::clearLastUnresolvedStat();
+   //ERR_MSG("End");
 
    return 0;
 }
@@ -243,30 +252,6 @@ int SectorFS::rename(const char* src, const char* dst)
    return 0;
 }
 
-//int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
-/*{
-   CONN_CHECK( "sysinfo" );
-
-   SysStat s;
-   int r = g_SectorClient.sysinfo(s);
-   if (r < 0)
-   {
-      ERR_MSG( "sysinfo" );
-      checkConnection(r);
-      return translateErr(r);
-   }
-
-   buf->f_namemax = 256;
-   buf->f_bsize = g_iBlockSize;
-   buf->f_frsize = buf->f_bsize;
-   buf->f_blocks = (s.m_llAvailDiskSpace + s.m_llTotalFileSize) / buf->f_bsize;
-   buf->f_bfree = buf->f_bavail = s.m_llAvailDiskSpace / buf->f_bsize;
-   buf->f_files = s.m_llTotalFileNum;
-   buf->f_ffree = 0xFFFFFFFFULL;
-
-   return 0;
-}
-*/
 int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
 {
    CONN_CHECK( "df" );
@@ -274,7 +259,6 @@ int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
    int64_t availableSize;
    int64_t totalSize;
    int r = g_SectorClient.df(availableSize, totalSize);
-  // ERR_MSG( "df return " << r << " avail " << availableSize << " total " << totalSize ); 
    if (r < 0)
    {
       ERR_MSG( "df" );
@@ -331,18 +315,17 @@ int SectorFS::opendir(const char *, struct fuse_file_info *)
 int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t /*offset*/, struct fuse_file_info* /*info*/)
 {
    CONN_CHECK( path );
-
+   ERR_MSG(path);
    vector<SNode> filelist;
-   int r = g_SectorClient.list(path, filelist);
+   int r = g_SectorClient.list(path, filelist,false);
+   ERR_MSG("Round time from master");
    if (r < 0)
    {
       ERR_MSG( path << ' ' << r );
       checkConnection(r);
       return translateErr(r);
    }
-
    DirCache::instance().add(path, filelist);
-
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       struct stat st;

@@ -194,6 +194,12 @@ int Sector::list(const string& path, vector<SNode>& attr)
    return c->list(path, attr);
 }
 
+int Sector::list(const string& path, vector<SNode>& attr, bool includeReplica)
+{
+   FIND_CLIENT_OR_ERROR(c)
+   return c->list(path, attr, includeReplica);
+}
+
 int Sector::stat(const string& path, SNode& attr)
 {
    FIND_CLIENT_OR_ERROR(c)

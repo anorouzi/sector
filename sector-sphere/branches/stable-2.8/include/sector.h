@@ -88,6 +88,8 @@ public:
 public:
    int serialize(char*& buf) const;
    int deserialize(const char* buf);
+   int serialize(char*& buf, const bool includeReplica) const;
+
 };
 
 class SECTOR_API SysStat
@@ -156,6 +158,7 @@ public:
    int close();
 
    int list(const std::string& path, std::vector<SNode>& attr);
+   int list(const std::string& path, std::vector<SNode>& attr, const bool includeReplica);
    int stat(const std::string& path, SNode& attr);
    int mkdir(const std::string& path);
    int move(const std::string& oldpath, const std::string& newpath);

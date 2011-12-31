@@ -1669,11 +1669,17 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
    switch (msg->getType())
    {
+   case 114: // ls but without replicas
    case 101: // ls
    {
+      string ls_cmd = "ls";
+      if (msg->getType()==114)
+      {
+         ls_cmd = "ls_n";
+      }
       if (!m_Routing.match(msg->getData(), m_iRouterKey))
       {
-         logUserActivity(user, "ls", msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, ls_cmd.c_str(), msg->getData(), SectorError::E_ROUTING, NULL, LogLevel::LEVEL_8);
          reject(ip, port, id, SectorError::E_ROUTING);
          break;
       }
@@ -1682,7 +1688,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       string dir = Metadata::revisePath(msg->getData());
       if (!user->match(dir, rwx))
       {
-         logUserActivity(user, "ls", dir.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, ls_cmd.c_str(), dir.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          reject(ip, port, id, SectorError::E_PERMISSION);
          break;
       }
@@ -1691,7 +1697,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       int r = m_pMetadata->lookup(dir, attr);
       if (r < 0)
       {
-         logUserActivity(user, "ls", dir.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, ls_cmd.c_str(), dir.c_str(), SectorError::E_NOEXIST, NULL, LogLevel::LEVEL_8);
          reject(ip, port, id, SectorError::E_NOEXIST);
          break;
       }
@@ -1699,13 +1705,15 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       // !!list directory content only!!
       if (!attr.m_bIsDir)
       {
-         logUserActivity(user, "ls", dir.c_str(), SectorError::E_NOTDIR, NULL, LogLevel::LEVEL_8);
+         logUserActivity(user, ls_cmd.c_str(), dir.c_str(), SectorError::E_NOTDIR, NULL, LogLevel::LEVEL_8);
          reject(ip, port, id, SectorError::E_NOTDIR);
          break;
       }
 
       vector<string> filelist;
-      m_pMetadata->list(dir.c_str(), filelist);
+      m_pMetadata->list(dir.c_str(), filelist, msg->getType()==101);
+
+      logUserActivity(user, ls_cmd.c_str(), dir.c_str(), 0, NULL, LogLevel::LEVEL_8);
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
       int size = 0;
@@ -1718,8 +1726,14 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       msg->setData(size, "\0", 1);
 
-      logUserActivity(user, "ls", dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      char bf [50];
+      sprintf(bf, "ls send size %d", size);
+      logUserActivity(user, bf, dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
+
       m_GMP.sendto(ip, port, id, msg);
+
+      string res = "ls message sent";
+      m_SectorLog.insert(res.c_str(), LogLevel::LEVEL_9);
 
       break;
    }

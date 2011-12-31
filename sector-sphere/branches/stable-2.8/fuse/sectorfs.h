@@ -35,6 +35,7 @@ written by
 #include <string>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "sector.h"
 
@@ -98,6 +99,9 @@ public:
 public:
    static Sector g_SectorClient;
    static Session g_SectorConfig;
+
+// debug variable for duration calculation
+//   static suseconds_t ts_pr;
 
 private:
    static std::map<std::string, FileTracker*> m_mOpenFileList;

@@ -37,6 +37,7 @@ public:
 
 public:
    virtual int list(const std::string& path, std::vector<std::string>& filelist);
+   virtual int list(const std::string& path, std::vector<std::string>& filelist, bool includeReplica);
    virtual int list_r(const std::string& path, std::vector<std::string>& filelist);
    virtual int lookup(const std::string& path, SNode& attr);
    virtual int lookup(const std::string& path, std::set<Address, AddrComp>& addr);

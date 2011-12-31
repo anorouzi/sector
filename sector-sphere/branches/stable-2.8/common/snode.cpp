@@ -51,10 +51,12 @@ SNode::~SNode()
 {
 }
 
-int SNode::serialize(char*& buf) const
+int SNode::serialize(char*& buf, bool includeReplica) const
 {
    int namelen = m_strName.length();
-   int size = namelen + 256 + m_sLocation.size() * 256;
+   int size = namelen + 128;
+   if (includeReplica)
+      size = size + m_sLocation.size() * 64;
    try
    {
       buf = new char[size];
@@ -63,18 +65,25 @@ int SNode::serialize(char*& buf) const
    {
       return -1;
    }
-
    snprintf(buf, size, "%d,%s,%d,%lld,%lld,%d,%d", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize, m_iReplicaNum, m_iReplicaDist);
-   char* p = buf + strlen(buf);
-   size -= strlen(buf);
-   for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+   if (includeReplica)
    {
-      snprintf(p, size, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
-      int len = strlen(p);
-      p = p + len;
-      size -= len;
+     char* p = buf + strlen(buf);
+     size -= strlen(buf);
+     for (set<Address, AddrComp>::const_iterator i = m_sLocation.begin(); i != m_sLocation.end(); ++ i)
+     {
+        snprintf(p, size, ",%s,%d", i->m_strIP.c_str(), i->m_iPort);
+        int len = strlen(p);
+        p = p + len;
+        size -= len;
+     }
    }
    return 0;
+}
+
+int SNode::serialize(char*& buf) const
+{
+  return serialize(buf, true);
 }
 
 int SNode::deserialize(const char* buf)

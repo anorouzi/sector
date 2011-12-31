@@ -133,7 +133,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
     if (lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath) {
 //        log << "get " << path << " repeated miss - get dir " << dirpath << std::endl;
       std::vector<SNode> pfilelist;
-      int r = sectorClient.list(dirpath, pfilelist);
+      int r = sectorClient.list(dirpath, pfilelist,false);
 //      log << "get " << path << " dir done " << std::endl;
       if (r < 0) return r;
       for (std::vector<SNode>::iterator i = pfilelist.begin(); i != pfilelist.end(); ++ i)

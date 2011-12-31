@@ -27,6 +27,8 @@ written by
    #include <pthread.h>
 #endif
 
+#include <time.h>
+
 #include "datachn.h"
 #include "fscache.h"
 #include "gmp.h"
@@ -61,6 +63,7 @@ public:
    int close();
 
    int list(const std::string& path, std::vector<SNode>& attr);
+   int list(const std::string& path, std::vector<SNode>& attr, const bool includeReplica);
    int stat(const std::string& path, SNode& attr);
    int mkdir(const std::string& path);
    int move(const std::string& oldpath, const std::string& newpath);

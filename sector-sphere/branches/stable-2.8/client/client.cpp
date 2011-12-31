@@ -344,11 +344,22 @@ int Client::close()
 
 int Client::list(const string& path, vector<SNode>& attr)
 {
-   string revised_path = Metadata::revisePath(path);
+  return Client::list(path, attr, true);
+}
 
+int Client::list(const string& path, vector<SNode>& attr, const bool includeReplica)
+{
+   string revised_path = Metadata::revisePath(path);
    SectorMsg msg;
    msg.resize(65536);
-   msg.setType(101);
+   if (includeReplica)
+   {
+     msg.setType(101);
+   }
+   else
+   {
+     msg.setType(114);
+   }
    msg.setKey(m_iKey);
    msg.setData(0, revised_path.c_str(), revised_path.length() + 1);
 
@@ -375,7 +386,6 @@ int Client::list(const string& path, vector<SNode>& attr)
       attr.insert(attr.end(), sn);
       s = t + 1;
    }
-
    return attr.size();
 }
 

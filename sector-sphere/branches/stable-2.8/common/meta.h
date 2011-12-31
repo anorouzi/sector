@@ -47,6 +47,8 @@ public:
 
 public:	// list and lookup operations
    virtual int list(const std::string& path, std::vector<std::string>& filelist) = 0;
+     // like previous but with flag to serialize replicas
+   virtual int list(const std::string& path, std::vector<std::string>& filelist, const bool includeReplica) = 0;
 
       // Functionality:
       //    list all files in a directory recursively. used for sector_copy ONLY. ".nosplit" dirs only list its name, not content
