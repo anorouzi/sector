@@ -27,22 +27,48 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-   if (argc != 2)
+   if (argc < 2 || argc > 3)
    {
-      cerr << "USAGE: ls <dir>\n";
+      cerr << "USAGE: ls [-r|-a] <dir>\n";
       return -1;
    }
 
    Sector client;
    if (Utility::login(client) < 0)
-      return -1;
+      return -2;
 
    //TODO: check original name first, continue to test wildcard if failed
    //file name may contain real * and ?
 
    //TODO: parse multiple level of wild card directories, such as */*.cpp
 
-   string path = argv[1];
+   string path;
+   int r_level = 0;
+   if (argc == 2) 
+   {
+     path = argv[1];
+   }
+      else
+   {
+     path = argv[2];
+     string par = argv[1];
+     if (par == "-r")
+     {
+       r_level=1;
+     }
+     else
+     {
+       if (par == "-a")
+       {
+         r_level=2;
+       }
+       else
+       {
+         cerr << "USAGE: ls [-r|-a] <dir>\n";
+         return -1;
+       }
+     }
+   }
    string orig = path;
    bool wc = WildCard::isWildCard(path);
    if (wc)
@@ -74,7 +100,7 @@ int main(int argc, char** argv)
       {
          Utility::print_error(result);
          Utility::logout(client);
-         return -1;
+         return -3;
       }
    }
    else
@@ -101,7 +127,8 @@ int main(int argc, char** argv)
       #endif
       for (char* p = buf; *p != '\n'; ++ p)
          cout << *p;
-
+      if (r_level > 0)
+         cout << "        ";
       cout << setiosflags(ios::right) << setw(16) << "<dir>" << "          ";
 
       setiosflags(ios::left);
@@ -109,6 +136,9 @@ int main(int argc, char** argv)
    }
 
    // then show regular files
+   int fileCnt = 0;
+   int totalSize = 0;
+   int totalReplicaSize = 0;
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       if (wc && !WildCard::match(orig, i->m_strName))
@@ -116,7 +146,9 @@ int main(int argc, char** argv)
 
       if (i->m_bIsDir)
          continue;
-
+      fileCnt++;
+      totalSize = totalSize + i->m_llSize;
+      totalReplicaSize = totalReplicaSize + i->m_llSize * i->m_sLocation.size();
       time_t t = i->m_llTimeStamp;
       char buf[64];
       #ifndef WIN32
@@ -126,13 +158,29 @@ int main(int argc, char** argv)
       #endif
       for (char* p = buf; *p != '\n'; ++ p)
          cout << *p;
+      if (r_level > 0) 
+        cout << setiosflags(ios::right) << setw(4) << i->m_sLocation.size() << setw(4) << i->m_iReplicaNum;
 
       cout << setiosflags(ios::right) << setw(16) << i->m_llSize << " bytes    ";
 
       setiosflags(ios::left);
-      cout << i->m_strName << endl;
+      cout << i->m_strName;
+      if (r_level == 2)
+      {
+        cout << "  {";
+        int first=0;
+        for (set<Address, AddrComp>::iterator it = i->m_sLocation.begin(); it != i->m_sLocation.end(); ++it)
+        {
+          if (first++) cout << ",";
+          cout << it->m_strIP<<':'<< it->m_iPort;
+        }
+        cout<<"}";
+      } 
+      cout << endl;
    }
-
+   if (r_level > 0)
+    cout << "Total Files: " << fileCnt << " Size: " << totalSize << " bytes, Replica size: " <<
+      totalReplicaSize << " bytes" << endl;
    Utility::logout(client);
 
    return 0;
