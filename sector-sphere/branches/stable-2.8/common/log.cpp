@@ -57,6 +57,24 @@ written by
 
 namespace {
 
+#ifdef MULTITHREADED_LOGGER
+  class Locker {
+    public:
+      Locker( pthread_mutex_t& lock ) : lock( lock ), held( true )
+        { pthread_mutex_lock( &lock ); }
+
+      ~Locker()
+        { release(); }
+
+      void release()
+        { if( held ) pthread_mutex_unlock( &lock ); held = false; }
+
+    private:
+      pthread_mutex_t& lock;
+      bool             held;
+  };
+#endif
+
   class RW_Read_Locker {
     public:
       RW_Read_Locker( pthread_rwlock_t& lock ) : lock( lock ), held( true )
@@ -132,17 +150,26 @@ namespace logger {
       typedef traits_type::off_type    off_type;
 
     public:
-      logbuf( const char* name, LogLevel level ) : name( name ), level( level ), currentLine()
-        {}
+      logbuf( const char* name, LogLevel level ) : name( name ), level( level )
+        {
+#ifdef MULTITHREADED_LOGGER
+        pthread_mutex_init( &currentLinesLock, 0 );
+#endif
+        }
 
     protected:
-      virtual std::streamsize xsgetn( char_type* __s, std::streamsize __n );
-      virtual int_type overflow( int_type /* __c */ = traits_type::eof() );
+      virtual int_type overflow( int_type __c = traits_type::eof() );
+      virtual std::streamsize xsputn( const char_type* __s, std::streamsize __n );
 
     private:
-      std::string name;
-      LogLevel    level;
-      std::string currentLine;
+      std::string                        name;
+      LogLevel                           level;
+#ifdef MULTITHREADED_LOGGER
+      pthread_mutex_t                    currentLinesLock;
+      std::map< pid_t, std::string >     currentLines;
+#else
+      std::string                        currentLine;
+#endif
   };
 
 
@@ -156,6 +183,7 @@ namespace logger {
 
     protected:
       virtual std::streamsize xsgetn( char_type*, std::streamsize ) { return 0; }
+      virtual std::streamsize xsputn( const char_type*, std::streamsize s ) { return s; }
       virtual int_type overflow( int_type c = traits_type::eof() ) { return c; }
   };
 
@@ -254,22 +282,65 @@ namespace logger {
   }
 
 
-  std::streamsize logbuf::xsgetn( char_type*, std::streamsize )
-    { return 0; }
+  std::streamsize logbuf::xsputn( const char_type* __s, std::streamsize __n ) {
+    if( !__s || !__n )
+      return 0;
+
+#ifdef MULTITHREADED_LOGGER
+    Locker       critSec( currentLinesLock );
+    std::string& currentLine( currentLines[ syscall( SYS_gettid ) ] );
+#endif
+
+    for( std::streamsize i = 0; i < __n; ++i ) {
+      if( currentLine.empty() ) {
+        currentLine.reserve( 100 );
+        if( level == Screen )
+          concatenate( currentLine, dateAndTime(), ' ', getThreadName(), ' ', name, " - " );
+        else 
+          concatenate( currentLine, levelToName( level ), ' ', dateAndTime(), ' ', getThreadName(), ' ', name, " - " );
+      }
+
+      currentLine += __s[ i ];
+  
+      if( __s[ i ] == '\n' ) {
+        if( level == Screen ) 
+          std::cerr << currentLine;
+        else
+        { // Begin critical section
+          RW_Write_Locker critSec( configurationLock );
+          if( dayHasChanged() ) {
+            reopenLogFile();
+            updateCurrentDate();
+          }
+          write( fd, &currentLine[0], currentLine.size() );
+        } // End critical section
+  
+        currentLine.clear();
+      }
+    }
+
+    return __n;
+  }
 
 
   logbuf::int_type logbuf::overflow( int_type c ) {
+#ifdef MULTITHREADED_LOGGER
+    Locker       critSec( currentLinesLock );
+    std::string& currentLine( currentLines[ syscall( SYS_gettid ) ] );
+#endif
+
     if( currentLine.empty() && c != '\n' ) {
+      currentLine.reserve( 100 );
       if( level == Screen )
         concatenate( currentLine, dateAndTime(), ' ', getThreadName(), ' ', name, " - " );
-      else
+      else 
         concatenate( currentLine, levelToName( level ), ' ', dateAndTime(), ' ', getThreadName(), ' ', name, " - " );
     }
 
     currentLine += (char)c;
 
     if( c == '\n' ) {
-      if( level == Screen )
+      if( level == Screen ) 
         std::cerr << currentLine;
       else
       { // Begin critical section

@@ -59,9 +59,10 @@ namespace
 {\
    if (!g_bConnected) \
       restart();\
-   if (!g_bConnected) \
+   if (!g_bConnected) {\
       log().error << __PRETTY_FUNCTION__ << " exited, rc = -1, due to failure to connect to master!" << std::endl; \
       return -1;\
+   }\
 }
 
 
