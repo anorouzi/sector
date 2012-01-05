@@ -20,6 +20,7 @@ OBJS = osportable.o \
        tcptransport.o \
        datachn.o \
        threadpool.o \
+       replica_conf.o \
        writelog.o
 
 all: libcommon.so libcommon.a
