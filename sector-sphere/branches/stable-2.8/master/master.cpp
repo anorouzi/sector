@@ -28,6 +28,7 @@ written by
 
 #include "common.h"
 #include "master.h"
+#include "replica_conf.h"
 #include "ssltransport.h"
 #include "tcptransport.h"
 #include "topology.h"
@@ -130,10 +131,11 @@ int Master::init()
 
    // set and configure replication strategies
    m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, true, 50);
-   if (m_ReplicaConf.refresh(m_strSectorHome + "/conf/replica.conf"))
+   ReplicaConfig::setPath( m_strSectorHome + "/conf/replica.conf" );
+   if (ReplicaConfig::readConfigFile())
    {
-      m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_bCheckReplicaOnSameIp, m_ReplicaConf.m_iPctSlavesToConsider);
-      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+      m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider);
+      m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
    }
 
    // load slave list and addresses
@@ -770,7 +772,7 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       branch = new Index;
       branch->init(tmp_meta_file.str());
       branch->deserialize("/", tmp_meta_file.str(), &addr);
-      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+      branch->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
       LocalFS::erase(tmp_meta_file.str());
 
       sn.m_llTotalFileSize = branch->getTotalDataSize("/");
@@ -1278,9 +1280,9 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
          else if (change == FileChangeType::FILE_UPDATE_NEW)
          {
-            sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(sn.m_strName, m_SysConfig.m_iReplicaNum);
-            sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(sn.m_strName, m_SysConfig.m_iReplicaDist);
-            m_ReplicaConf.getRestrictedLoc(sn.m_strName, sn.m_viRestrictedLoc);
+            sn.m_iReplicaNum = ReplicaConfig::getCached().getReplicaNum(sn.m_strName, m_SysConfig.m_iReplicaNum);
+            sn.m_iReplicaDist = ReplicaConfig::getCached().getReplicaDist(sn.m_strName, m_SysConfig.m_iReplicaDist);
+            ReplicaConfig::getCached().getRestrictedLoc(sn.m_strName, sn.m_viRestrictedLoc);
             m_pMetadata->create(sn);
          }
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
@@ -1343,7 +1345,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       m_GMP.sendto(ip, port, id, msg);
  
       m_ReplicaLock.acquire();
-      if (m_ReplicaConf.m_bReplicateOnTransactionClose && ( ( change == FileChangeType::FILE_UPDATE_WRITE && filesize ) ||
+      if (ReplicaConfig::getCached().m_bReplicateOnTransactionClose && ( ( change == FileChangeType::FILE_UPDATE_WRITE && filesize ) ||
            change == FileChangeType::FILE_UPDATE_NEW || change == FileChangeType::FILE_UPDATE_REPLICA) ) 
       {
          ReplicaJob job;
@@ -1919,12 +1921,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (rt < 0)
       {
          m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
-         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
       }
       else
       {
          m_pMetadata->move(src.c_str(), dst.c_str());
-         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, m_ReplicaConf.m_mReplicaNum, m_ReplicaConf.m_mReplicaDist, m_ReplicaConf.m_mRestrictedLoc);
+         m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
       }
 
       msg->setData(0, src.c_str(), src.length() + 1);
@@ -2203,8 +2205,11 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          sync(newmsg.getData(), newmsg.m_iDataLength, 1107);
       }
 
+      stringstream buf;
+      buf << path << " ts " << newts;
+
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
-      logUserActivity(user, "utime", path.c_str(), 0, NULL, LogLevel::LEVEL_9);
+      logUserActivity(user, "utime", buf.str().c_str(), 0, NULL, LogLevel::LEVEL_9);
       m_GMP.sendto(ip, port, id, msg);
 
       break;
@@ -2283,9 +2288,9 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          SNode sn;
          sn.m_strName = path;
          sn.m_bIsDir = false;
-         sn.m_iReplicaNum = m_ReplicaConf.getReplicaNum(path, m_SysConfig.m_iReplicaNum);
-         sn.m_iReplicaDist = m_ReplicaConf.getReplicaDist(path, m_SysConfig.m_iReplicaDist);
-         m_ReplicaConf.getRestrictedLoc(path, sn.m_viRestrictedLoc);
+         sn.m_iReplicaNum = ReplicaConfig::getCached().getReplicaNum(path, m_SysConfig.m_iReplicaNum);
+         sn.m_iReplicaDist = ReplicaConfig::getCached().getReplicaDist(path, m_SysConfig.m_iReplicaDist);
+         ReplicaConfig::getCached().getRestrictedLoc(path, sn.m_viRestrictedLoc);
 
          // client may choose to write to different number of replicas between 1 and max
          if (option.m_iReplicaNum > sn.m_iReplicaNum)
@@ -2949,18 +2954,18 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
    // initially the master should wait for a while, because before all slaves join,
    // many files could be treated as undereplicated incorrectly.
    // we will wait for 10 minutes before the first check.
-   sleep(self->m_ReplicaConf.m_iReplicationStartDelay);
+   sleep(ReplicaConfig::getCached().m_iReplicationStartDelay);
 
    uint64_t last_full_rescan_time =  0; // wants to do first time immediately
    vector<string> under_replicated;
    vector<string> over_replicated;
    self->m_SectorLog << LogStart(9) << "Replica thread start - configuration settings:\n" << 
-      self->m_ReplicaConf.toString() << LogEnd();
-   int64_t maxTran = self->m_ReplicaConf.m_iReplicationMaxTrans;
+      ReplicaConfig::getCached().toString() << LogEnd();
+   int64_t maxTran = ReplicaConfig::getCached().m_iReplicationMaxTrans;
    while (self->m_Status == RUNNING)
    {  // do more complex caclulation of waitTime, to ensure we do full scan at regular intervals
       self->m_ReplicaLock.acquire();         
-      self->m_ReplicaCond.wait(self->m_ReplicaLock, self->m_ReplicaConf.m_iReplicationFullScanDelay*1000); // Time in msec
+      self->m_ReplicaCond.wait(self->m_ReplicaLock, ReplicaConfig::getCached().m_iReplicationFullScanDelay*1000); // Time in msec
       size_t replSize =  self->m_sstrOnReplicate.size();
       self->m_ReplicaLock.release();
       self->m_SectorLog << LogStart(9) << "Replica thread awaken - replication queue size is " << 
@@ -2969,7 +2974,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
         << LogEnd();
 
       // check replica, create or remove replicas if necessary
-      if ((CTimer::getTime() - last_full_rescan_time >= self->m_ReplicaConf.m_iReplicationFullScanDelay*1000000 -1)) 
+      if ((CTimer::getTime() - last_full_rescan_time >= ReplicaConfig::getCached().m_iReplicationFullScanDelay*1000000 -1)) 
       {
          // only the first master is responsible for replica checking
          if (self->m_Routing.getRouterID(self->m_iRouterKey) != 0)
@@ -2977,23 +2982,24 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          last_full_rescan_time = CTimer::getTime();
          self->m_SectorLog << LogStart(4) << "Replica full rescan" << LogEnd();
          // refresh special replication settings
-         if (self->m_ReplicaConf.refresh(self->m_strSectorHome + "/conf/replica.conf"))
+         ReplicaConfig::setPath( self->m_strSectorHome + "/conf/replica.conf" );
+         if (ReplicaConfig::readConfigFile())
          {
-            self->m_SectorLog << LogStart(9) << "Replica New settings detected and read\n" << self->m_ReplicaConf.toString() << LogEnd();            
-            self->m_pMetadata->setDefault(self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_bCheckReplicaOnSameIp, self->m_ReplicaConf.m_iPctSlavesToConsider);
-            self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, self->m_ReplicaConf.m_mReplicaNum, self->m_ReplicaConf.m_mReplicaDist, self->m_ReplicaConf.m_mRestrictedLoc);
+            self->m_SectorLog << LogStart(9) << "Replica New settings detected and read\n" << ReplicaConfig::getCached().toString() << LogEnd();            
+            self->m_pMetadata->setDefault(self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider);
+            self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
          }
          // The number of concurrent replication in the system must be limited.	
          // if REPLICATION_MAX_TRAN parameter is not specified or 0, it will be number of slaves
          // if REPLICATION_MAX_TRAN parameter is < 0, it will disable replication
          // if REPLICATION_MAX_TRAN parameter is > 2x no_of_slaves,  it will be 2x no_of_slaves
          int64_t prevMaxTran = maxTran;
-         maxTran = self->m_ReplicaConf.m_iReplicationMaxTrans;
+         maxTran = ReplicaConfig::getCached().m_iReplicationMaxTrans;
          // dynamically set max replicas to number of slaves each time in full scan
-         if (self->m_ReplicaConf.m_iReplicationMaxTrans == 0) maxTran = self->m_SlaveManager.getNumberOfSlaves();
-         if (self->m_ReplicaConf.m_iReplicationMaxTrans > (int)(self->m_SlaveManager.getNumberOfSlaves() * 2))
+         if (ReplicaConfig::getCached().m_iReplicationMaxTrans == 0) maxTran = self->m_SlaveManager.getNumberOfSlaves();
+         if (ReplicaConfig::getCached().m_iReplicationMaxTrans > (int)(self->m_SlaveManager.getNumberOfSlaves() * 2))
             maxTran = self->m_SlaveManager.getNumberOfSlaves()*2;
-         if (self->m_ReplicaConf.m_iReplicationMaxTrans < 0) maxTran = 0;
+         if (ReplicaConfig::getCached().m_iReplicationMaxTrans < 0) maxTran = 0;
          if (prevMaxTran != maxTran) 
             self->m_SectorLog << LogStart(9) << "Replica REPLICATION_MAX_TRAN changed from  " << 
              prevMaxTran << " to " << maxTran << LogEnd();
@@ -3067,7 +3073,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
            for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
            {
               vector<string> path;
-              self->chooseDataToMove(path, i->second, i->first * self->m_ReplicaConf.m_iDiskBalanceAggressiveness / 100);
+              self->chooseDataToMove(path, i->second, i->first * ReplicaConfig::getCached().m_iDiskBalanceAggressiveness / 100);
               self->m_SectorLog << LogStart(1) << "Replica found slave " << i->second.m_strIP << ":" <<
                  i->second.m_iPort << " with space deficit of " << i->first << " bytes. Will be moving out  " << path.size() << " files - Printing first 100." 
                  << LogEnd();
@@ -3160,7 +3166,7 @@ int Master::createReplica(const ReplicaJob& job)
          else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
             m_SectorLog << LogStart(9) << "Replica create: replicas no correct " << job.m_strSource << LogEnd();
-            if( m_ReplicaConf.m_bCheckReplicaOnSameIp )
+            if( ReplicaConfig::getCached().m_bCheckReplicaOnSameIp )
             {     
                std::string cur_ip;
                std::set<Address, AddrComp>::const_iterator cur = attr.m_sLocation.begin();
@@ -3210,9 +3216,9 @@ int Master::createReplica(const ReplicaJob& job)
    else
    {
       set<Address, AddrComp> empty;
-      int rd = m_ReplicaConf.getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
+      int rd = ReplicaConfig::getCached().getReplicaDist(job.m_strDest, m_SysConfig.m_iReplicaDist);
       vector<int> rl;
-      m_ReplicaConf.getRestrictedLoc(job.m_strDest, rl);
+      ReplicaConfig::getCached().getRestrictedLoc(job.m_strDest, rl);
       if (m_SlaveManager.chooseReplicaNode(empty, sn, attr.m_llSize, rd, &rl) < 0){
          m_SectorLog << LogStart(9) << "Replica create: choose replica node 3 " << job.m_strSource << LogEnd();
          return -1;
@@ -3508,11 +3514,10 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
    system(cmd.c_str());
 }
 
-
 // WARNING!!!!
 //Concurrency issue!!!!
 // Alsays call logUserActivity before last send/reject, or you are risk that user* will point to
-//freed by other thread memory
+// freed by other thread memory, causing segfault
 void Master::logUserActivity(const User* user, const char* cmd, const char* file, const int res, const char* info, const int level)
 {
    stringstream buf;

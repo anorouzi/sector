@@ -1129,7 +1129,7 @@ int Index::getSlaveMeta(const map<string, SNode>& currdir, const vector<string>&
    return 0;
 }
 
-void Index::refreshRepSetting(const string& path, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
+void Index::refreshRepSetting(const string& path, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
 
@@ -1151,7 +1151,7 @@ void Index::refreshRepSetting(const string& path, int default_num, int default_d
    refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 }
 
-int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, map<string, int>& rep_num, map<string, int>& rep_dist, map<string, vector<int> >& restrict_loc)
+int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    //TODO: use wildcard match each level of dir, instead of contain()
 

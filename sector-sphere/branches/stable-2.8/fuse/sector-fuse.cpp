@@ -20,6 +20,7 @@ written by
 *****************************************************************************/
 
 #include "sectorfs.h"
+#include "../common/log.h"
 
 struct fuse_operations sector_ops;
 
@@ -93,6 +94,8 @@ int main(int argc, char *argv[])
    sector_ops.access = SectorFS::access;
 
    SectorFS::g_SectorConfig.loadInfo("../conf/client.conf");
+
+   logger::config( "/tmp", "sector-fuse" );
 
    // FUSE uses 131072 bytes IO block. We set the look ahead prefetch buffer to 
    // be an integer time of this IO block size, for optimal performance.

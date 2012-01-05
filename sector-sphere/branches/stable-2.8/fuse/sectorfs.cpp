@@ -26,6 +26,8 @@ written by
 #include "common.h"
 #include "sectorfs.h"
 #include "fusedircache.h"
+#include "../common/log.h"
+
 using namespace std;
 
 Sector SectorFS::g_SectorClient;
@@ -34,59 +36,43 @@ map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
 
-#if 0
-#define CONN_CHECK( fn ) \
-{\
-   if (!g_bConnected) {\
-      time_t t = time(0); \
-      std::string asStr = ctime(&t);\
-      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << " Not connected - restarting " << fn << std::endl; \
-      restart();\
-   }\
-   if (!g_bConnected) \
-   {\
-      time_t t = time(0); \
-      std::string asStr = ctime(&t);\
-      std::cout << asStr.substr( 0, asStr.length() - 1 ) << ' ' << __PRETTY_FUNCTION__ << " connection restart failed " << fn << std::endl; \
-      return -1;\
-   } \
+
+namespace
+{
+   inline logger::LogAggregate& log()
+   {
+      static logger::LogAggregate& myLogger = logger::getLogger( "SectorFS" );
+      static bool                  setLogLevelYet = false;
+
+      if( !setLogLevelYet )
+      {
+         setLogLevelYet = true;
+         myLogger.setLogLevel( logger::Debug );
+      }
+
+      return myLogger;
+   }
 }
 
-
-suseconds_t SectorFS::ts_pr = 0;
-
-#define ERR_MSG( msg ) \
-{\
-      timeval t_val; \
-      gettimeofday (&t_val,NULL);\
-      std::string asStr = ctime(&t_val.tv_sec);\
-      char rembuf [10];\
-      int tmp = t_val.tv_usec;\
-      sprintf(rembuf,"%06d",tmp);\
-      std::cout << asStr.substr( 4, asStr.length() - 10 ) << '.' << rembuf << ' ' << t_val.tv_usec -SectorFS::ts_pr << ' ' << __PRETTY_FUNCTION__ << ' ' << msg << std::endl; \
-      SectorFS::ts_pr = t_val.tv_usec;\
-}
-
-#endif
 
 #define CONN_CHECK( fn ) \
 {\
-   if (!g_bConnected) {\
-      restart();\
-   }\
    if (!g_bConnected) \
-   {\
+      restart();\
+   if (!g_bConnected) \
+      log().error << __PRETTY_FUNCTION__ << " exited, rc = -1, due to failure to connect to master!" << std::endl; \
       return -1;\
-   } \
 }
 
-#define ERR_MSG( msg ) 
 
 void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 {
    const ClientConf& conf = g_SectorConfig.m_ClientConf;
 
-   ERR_MSG("Starting sector-fuse");
+   logger::config( "/tmp", "sector-fuse" );
+   log().setLogLevel( logger::Debug );
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+
    g_SectorClient.init();
    g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
    g_SectorClient.setMaxCacheSize(conf.m_llMaxCacheSize);
@@ -95,40 +81,54 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    bool master_conn = false;
    for (set<Address, AddrComp>::const_iterator i = conf.m_sMasterAddr.begin(); i != conf.m_sMasterAddr.end(); ++ i)
    {
+      log().debug << "Logging into master at " << i->m_strIP << ':' << i->m_iPort
+        << ", user=" << conf.m_strUserName << ", password=" << conf.m_strPassword << ", cert=" << conf.m_strCertificate
+        << std::endl;
+
       if (g_SectorClient.login(i->m_strIP, i->m_iPort, conf.m_strUserName,
                                conf.m_strPassword, conf.m_strCertificate.c_str()) >= 0)
       {
+         log().debug << "Login to master successful!" << std::endl;
          master_conn = true;
          break;
       }
    }
+
    if (!master_conn)
+   {
+      log().debug << "Failed to login to any master!" << std::endl;
+      log().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
       return NULL;
+   }
 
    g_bConnected = true;
+   log().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
    return NULL;
 }
 
 void SectorFS::destroy(void *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
    g_SectorClient.logout();
    g_SectorClient.close();
    DirCache::destroy();
-   ERR_MSG("End sector-fuse");
+   log().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
 }
 
 int SectorFS::getattr(const char* path, struct stat* st)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+     << " Path = " << path << std::endl;
+
    CONN_CHECK( path );
 
    SNode s;
-//   ERR_MSG(path);
    int rv = DirCache::instance().get(path, g_SectorClient, s);
-//   ERR_MSG("After cache");
    if( rv < 0 )
    {
-      ERR_MSG( path << ' ' << rv );
       checkConnection(rv);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << rv
+         << ", rc = " << translateErr(rv) << ')' << std::endl;
       return translateErr(rv);
    }
 
@@ -137,11 +137,10 @@ int SectorFS::getattr(const char* path, struct stat* st)
       int r = g_SectorClient.stat(path, s);
       if (r < 0)
       {        
-         if ( r!= -1003 )  { // file/dir not found - skipping
-            ERR_MSG( path << ' ' << r );
-         }
          DirCache::clearLastUnresolvedStat();
-         checkConnection(r);
+         checkConnection(r);         
+         log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+            << ", rc = " << translateErr(r) << ')' << std::endl;
          return translateErr(r);
       }
    }
@@ -161,23 +160,34 @@ int SectorFS::getattr(const char* path, struct stat* st)
    st->st_atime = st->st_mtime = st->st_ctime = s.m_llTimeStamp;
 
    if (st->st_size == 0) DirCache::clearLastUnresolvedStat();
-   //ERR_MSG("End");
-
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::fgetattr(const char* path, struct stat* st , struct fuse_file_info *)
 {
-   return getattr(path, st);
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << std::endl;
+   int rc = getattr(path, st);
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << rc << std::endl;
+   return rc;
 }
 
 int SectorFS::mknod(const char *, mode_t, dev_t)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
-int SectorFS::mkdir(const char* path, mode_t /*mode*/)
+int SectorFS::mkdir(const char* path, mode_t mode )
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << ", mode = " << std::oct << mode << std::dec << std::endl;
+
+   log().warning << "mode parameter is ignored" << std::endl;
+
    CONN_CHECK( path );
 
    DirCache::clear();
@@ -185,16 +195,21 @@ int SectorFS::mkdir(const char* path, mode_t /*mode*/)
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
    {
-      ERR_MSG(path << ' ' << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::unlink(const char* path)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << std::endl;
+
    CONN_CHECK( path );
 
    DirCache::clear();
@@ -206,16 +221,21 @@ int SectorFS::unlink(const char* path)
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
-      ERR_MSG( path << ' ' << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=-1)" << std::endl;
       return -1;
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::rmdir(const char* path)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << std::endl;
+
    CONN_CHECK( path );
 
    DirCache::clear();
@@ -223,16 +243,21 @@ int SectorFS::rmdir(const char* path)
    int r = g_SectorClient.remove(path);
    if (r < 0)
    {
-      ERR_MSG( path << ' ' << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=-1)" << std::endl;
       return -1;
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::rename(const char* src, const char* dst)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " from = " << src << ", to = " << dst << std::endl;
+
    CONN_CHECK( src << ' ' << dst );
 
    DirCache::clear();
@@ -244,16 +269,23 @@ int SectorFS::rename(const char* src, const char* dst)
    int r = g_SectorClient.move(src, dst);
    if (r < 0)
    {
-      ERR_MSG( "source " << src << " dest " << dst << " error code " << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
-int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
+int SectorFS::statfs(const char* path, struct statvfs* buf)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << "path = " << path << std::endl;
+
+   log().warning << "path parameter is ignored" << std::endl;
+
    CONN_CHECK( "df" );
 
    int64_t availableSize;
@@ -261,8 +293,9 @@ int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
    int r = g_SectorClient.df(availableSize, totalSize);
    if (r < 0)
    {
-      ERR_MSG( "df" );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
 
@@ -274,57 +307,77 @@ int SectorFS::statfs(const char* /*path*/, struct statvfs* buf)
    buf->f_files = 0;
    buf->f_ffree = 0xFFFFFFFFULL;
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " path = " << path << ", actime = " << ubuf->actime << ", modtime = " << ubuf->modtime << std::endl;
+
    CONN_CHECK( path );
 
    int r = g_SectorClient.utime(path, ubuf->modtime);
    if (r < 0)
    {
-      ERR_MSG( path << ' ' << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::utimens(const char* path, const struct timespec tv[2])
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " path = " << path << std::endl;
+
    CONN_CHECK( path );
 
    int r = g_SectorClient.utime(path, tv[1].tv_sec);
    if (r < 0)
    {
-      ERR_MSG( path << ' ' << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
-int SectorFS::opendir(const char *, struct fuse_file_info *)
+int SectorFS::opendir(const char * path, struct fuse_file_info *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " path = " << path << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
-int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t /*offset*/, struct fuse_file_info* /*info*/)
+int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* /*info*/)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " path = " << path << ", offset = " << offset << std::endl;  
+
+   log().warning << "offset parameter is ignored" << std::endl;
+
    CONN_CHECK( path );
-   ERR_MSG(path);
    vector<SNode> filelist;
    int r = g_SectorClient.list(path, filelist,false);
-   ERR_MSG("Round time from master");
    if (r < 0)
    {
-      ERR_MSG( path << ' ' << r );
       checkConnection(r);
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
+
    DirCache::instance().add(path, filelist);
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
@@ -360,31 +413,49 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
    filler(buf, ".", &st, 0);
    filler(buf, "..", &st, 0);
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::fsyncdir(const char *, int, struct fuse_file_info *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::releasedir(const char *, struct fuse_file_info *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::chmod(const char *, mode_t)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::chown(const char *, uid_t, gid_t)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
-int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
+int SectorFS::create(const char* path, mode_t mode, struct fuse_file_info* info)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << ", mode = " << std::oct << mode << std::dec << std::endl;
+
+   log().warning << "mode parameter is ignored" << std::endl;
+
    CONN_CHECK( path );
 
    DirCache::clear();
@@ -399,15 +470,22 @@ int SectorFS::create(const char* path, mode_t, struct fuse_file_info* info)
    }
 
    int r = open(path, info);
-   if (r < 0) {
-      ERR_MSG( path );
+   if (r < 0)
+   {
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=-1)" << std::endl;
       return -1;
    }
+
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
    return r;
 }
 
-int SectorFS::truncate(const char* path, off_t /*size*/)
+int SectorFS::truncate(const char* path, off_t size )
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << ", size = " << size << std::endl;
+
    // If the file is already openned, call the truncate() API of the SectorFiel handle.
    SectorFile* h = lookup(path);
    if (NULL != h)
@@ -425,16 +503,24 @@ int SectorFS::truncate(const char* path, off_t /*size*/)
    open(path, &option);
    release(path, &option);
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::ftruncate(const char* path, off_t offset, struct fuse_file_info *)
 {
-   return truncate(path, offset);
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << ", offset = " << offset << std::endl;
+   int rc = truncate(path, offset);
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << rc << std::endl;
+   return rc;
 }
 
 int SectorFS::open(const char* path, struct fuse_file_info* fi)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << std::endl;
+
    CONN_CHECK( path );
 
    DirCache::clear();
@@ -453,6 +539,7 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       if (FileTracker::OPEN == state)
       {
          pthread_mutex_unlock(&m_OpenFileLock);
+         log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
          return 0;
       }
       else
@@ -484,7 +571,10 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
             {
                // Another thread has opened the file, no need to open again.
                if (FileTracker::OPEN == ft->m_State)
+               {
+                  log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
                   return 0;
+               }
 
                if (FileTracker::CLOSED == ft->m_State)
                   ft->m_State = FileTracker::OPENING;
@@ -525,7 +615,8 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       }
       pthread_mutex_unlock(&m_OpenFileLock);
 
-      ERR_MSG( path << ' ' << r );
+      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+        << ", rc=-1)" << std::endl;
       return -1;
    }
 
@@ -533,71 +624,84 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    ft->m_pHandle = f;
    ft->m_State = FileTracker::OPEN;
    pthread_mutex_unlock(&m_OpenFileLock);
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << ", size = " << size << ", offset = " << offset << std::endl;
+
    CONN_CHECK( path );
 
    SectorFile* h = lookup(path);
    if (NULL == h) {
-      ERR_MSG( "Attempt to read unopened file " << path );
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << -EBADF << std::endl;
       return -EBADF;
    }
 
    // FUSE read buffer is too small; we use prefetch buffer to improve read performance
    int r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
    if (r < 0) {
-     ERR_MSG("Read fail with code " << r << " file " << path <<
-           " size " << size << " offset " << offset );
+     log().trace << __PRETTY_FUNCTION__ << " exited, (err=" << r << ", rc=-1)" << std::endl;
      return -1;
    }
    if (r == 0) {
       r = h->read(buf, offset, size, g_SectorConfig.m_ClientConf.m_iFuseReadAheadBlock);
       if (r < 0) {
-          ERR_MSG( "Reread fail with error code " << r << " file " << path <<
-           " size " << size << " offset " << offset );
-          return -1;
+         log().trace << __PRETTY_FUNCTION__ << " exited, (err=" << r << ", rc=-1)" << std::endl;
+         return -1;
       } 
    }
+
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
    return r;
 }
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << ", size = " << size << ", offset = " << offset << std::endl;
+
    CONN_CHECK( path );
 
    SectorFile* h = lookup(path);
    if (NULL == h) {
-      ERR_MSG("Attempt to write to not opened file " << path <<
-        " size " << size << " offset " << offset);
-      return -EBADF;     
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << -EBADF << std::endl;
+      return -EBADF;
    }
 
    int r = h->write(buf, offset, size);
    if (r < 0) {
-      ERR_MSG("Write give an error " << r << " file " << path <<
-        " size " << size << " offset " << offset);
+      log().trace << __PRETTY_FUNCTION__ << " exited, (err=" << r << ", rc=-1)" << std::endl;
       return -1;
    }
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
    return r;
 }
 
 int SectorFS::flush (const char *, struct fuse_file_info *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::fsync(const char *, int, struct fuse_file_info *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
 {
-   CONN_CHECK( __PRETTY_FUNCTION__ << " " <<  path   );
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+      << " Path = " << path << std::endl;
 
    DirCache::clear();
 
@@ -606,7 +710,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    if ((t == m_mOpenFileList.end()) || (FileTracker::OPEN != t->second->m_State))
    {
       pthread_mutex_unlock(&m_OpenFileLock);
-      ERR_MSG("Error in release " << path );
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << -EBADF << std::endl;
       return -EBADF;
    }
    if (t->second->m_iCount > 1)
@@ -614,6 +718,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
       t->second->m_iCount --;
       pthread_mutex_unlock(&m_OpenFileLock);
       DirCache::clear();
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
       return 0;
    }
    FileTracker* ft = t->second;
@@ -636,22 +741,29 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
 
    DirCache::clear();
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
-int SectorFS::access(const char *, int)
+int SectorFS::access(const char * path, int mode)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+    << " path = " << path << ", mode = " << std::oct << mode << std::dec << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::lock(const char *, struct fuse_file_info *, int, struct flock *)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::translateErr(int err)
 {
-//   ERR_MSG("Error in SectorFS " << err);
    switch (err)
    {
    case SectorError::E_PERMISSION:
@@ -678,9 +790,11 @@ int SectorFS::translateErr(int err)
 
 int SectorFS::restart()
 {
-   ERR_MSG( "Restart" );
-   if (g_bConnected) {
-      ERR_MSG("Not restarted as connection is OK")
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+
+   if (g_bConnected)
+   {
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
       return 0;
    }
 
@@ -689,26 +803,36 @@ int SectorFS::restart()
    g_SectorClient.logout();
    g_SectorClient.close();
    init(NULL);
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 void SectorFS::checkConnection(int res)
 {
    if ((res == SectorError::E_MASTER) || (res == SectorError::E_EXPIRED))
+   {
+      log().debug << __PRETTY_FUNCTION__ << " err code " << res
+        << " indicates no longer connected to master!" << std::endl;
       g_bConnected = false;
+   }
 }
 
 SectorFile* SectorFS::lookup(const string& path)
 {
+   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+    << " path = " << path << std::endl;
+
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if (t == m_mOpenFileList.end())
    {
       pthread_mutex_unlock(&m_OpenFileLock);
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = NULL" << std::endl;
       return NULL;
    }
    SectorFile* h = t->second->m_pHandle;
    pthread_mutex_unlock(&m_OpenFileLock);
 
+   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << std::hex << h << std::dec << std::endl;
    return h;
 }

@@ -67,37 +67,6 @@ public:
    int m_iProcessThreads;               // Number of processing threads.
 };
 
-class ReplicaConf
-{
-public:
-   ReplicaConf();
-   bool refresh(const std::string& path);
-   std::string toString() const;
-
-public:
-   std::map<std::string, int> m_mReplicaNum;	// number of replicas
-   std::map<std::string, int> m_mReplicaDist;	// distance of replicas
-   std::map<std::string, std::vector<int> > m_mRestrictedLoc;	// restricted locations for certain files
-   int m_iReplicationStartDelay;        // Delay in sec of replcation thread start on master start
-   unsigned m_iReplicationFullScanDelay;    // Min time in sec between full scans by replica thread
-   int m_iReplicationMaxTrans;               // Max no of concurrent replications
-   int m_iDiskBalanceAggressiveness;  // Percent of full slave files from average free space on all slaves 
-                                      // to be moved out
-   bool m_bReplicateOnTransactionClose; // Submit file into replciation queue on non-read transaction close 
-   bool m_bCheckReplicaOnSameIp; // Check if replica on slaves on same ip
-   int m_iPctSlavesToConsider;   // Pct of slaves to consider as replica destination 
-
-   int getReplicaNum(const std::string& path, int default_val);
-   int getReplicaDist(const std::string& path, int default_val);
-   void getRestrictedLoc(const std::string& path, std::vector<int>& loc);
-
-private:
-   int parseItem(const std::string& input, std::string& path, int& val);
-   int parseItem(const std::string& input, std::string& path, std::string& val);
-
-private:
-   int64_t m_llTimeStamp;
-};
 
 class SlaveStartInfo
 {
@@ -221,8 +190,6 @@ private: // replication
 
    ReplicaMgmt m_ReplicaMgmt;				// list of files to be replicated
    std::set<std::string> m_sstrOnReplicate;		// list of files currently being replicated
-
-   ReplicaConf m_ReplicaConf;				// special replications
 
    int createReplica(const ReplicaJob& job);
    int removeReplica(const std::string& filename, const Address& addr);
