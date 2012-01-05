@@ -1,9 +1,9 @@
 C++ = g++
 
 DEBUG = 1
-STATIC = 0
+STATIC = 1
 
-CCFLAGS = -I. -I../include -I../udt
+CCFLAGS = -DMULTITHREADED_LOGGER -I. -I../include -I../udt
 LDFLAGS = -lstdc++ -lpthread -lssl -lcrypto -L. -L../lib
 
 ifeq ($(OSX), 1)
