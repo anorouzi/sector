@@ -1728,14 +1728,11 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       }
       msg->setData(size, "\0", 1);
 
-      char bf [50];
-      sprintf(bf, "ls send size %d", size);
-      logUserActivity(user, bf, dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
+//      char bf [50];
+//      sprintf(bf, "%s message size %d", ls_cmd.c_str(), size);
+//      logUserActivity(user, bf, dir.c_str(), 0, NULL, LogLevel::LEVEL_9);
 
       m_GMP.sendto(ip, port, id, msg);
-
-      string res = "ls message sent";
-      m_SectorLog.insert(res.c_str(), LogLevel::LEVEL_9);
 
       break;
    }

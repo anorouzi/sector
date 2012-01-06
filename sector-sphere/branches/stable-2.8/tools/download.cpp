@@ -37,8 +37,26 @@ written by
 #include <errno.h>
 #include <iostream>
 #include <sector.h>
+#include "../common/log.h"
 
 using namespace std;
+
+namespace
+{
+   inline logger::LogAggregate& log()
+   {
+      static logger::LogAggregate& myLogger = logger::getLogger( "Sector-Download" );
+      static bool                  once     = false;
+
+      if( !once )
+      {
+          once = true;
+          myLogger.setLogLevel( logger::Debug );
+      }
+
+      return myLogger;
+   }
+}
 
 void help(const char* argv0)
 {
@@ -60,20 +78,35 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
    #endif
 
    SNode attr;
-   if (client.stat(file, attr) < 0)
+   int rc;
+   if ((rc = client.stat(file, attr)) < 0)
    {
       cerr << "ERROR: cannot locate file " << file << endl;
+      log().error << "stat of source file " << file << " failed with rc = " << rc << std::endl;
       return -1;
    }
 
    if (attr.m_bIsDir)
    {
-      ::mkdir((string(dest) + "/" + file).c_str(), S_IRWXU);
-      return 1;
+      rc = ::mkdir((string(dest) + "/" + file).c_str(), S_IRWXU);
+      if( rc < 0 && errno == EEXIST )
+      {
+          log().debug << "directory " << dest << '/' << file << " already exists" << std::endl;
+          return 1;
+      }
+      else if( rc < 0 )
+      {
+          int errno_save = errno;
+          log().error << "Failed to create directory " << dest << '/' << file << ", errno = " << errno_save <<  std::endl;
+          return -1;
+      }
+      else
+          return 1;
    }
 
    const long long int size = attr.m_llSize;
    cout << "downloading " << file << " of " << size << " bytes" << endl;
+   log().debug << "Downloading " << file << " of " << size << " bytes" << std::endl;
 
    SectorFile* f = client.createSectorFile();
 
@@ -81,9 +114,10 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
    if (encryption)
       mode |= SF_MODE::SECURE;
 
-   if (f->open(file, mode) < 0)
+   if ((rc = f->open(file, mode)) < 0)
    {
       cerr << "unable to locate file " << file << endl;
+      log().error << "Failed to open sector file " << file << " with err = " << rc << std::endl;
       return -1;
    }
 
@@ -99,6 +133,7 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
    else
       localpath = string(dest) + string(file + sn + 1);
 
+   log().debug << "Downloading " << file << " to " << localpath << std::endl;
    int64_t result = f->download(localpath.c_str(), true);
 
    f->close();
@@ -117,13 +152,13 @@ int download(const char* file, const char* dest, Sector& client, bool encryption
          throughput = result * 8.0 / 1000000.0 / span;
 
       cout << "Downloading accomplished! " << "AVG speed " << throughput << " Mb/s." << endl << endl ;
-
+      log().debug << "Download of file successful!" << std::endl;
       return 0;
    }
 
    cerr << "error happened during downloading " << file << endl;
+   log().debug << "Failed to download file, res = " << result << std::endl;
    Utility::print_error(result);
-
    return -1;
 }
 
@@ -154,9 +189,16 @@ int getFileList(const string& path, vector<string>& fl, Sector& client)
 
 int main(int argc, char** argv)
 {
+   logger::config( "/tmp", "sector-download" );
+
+   for( int arg = 0; arg < argc; ++arg )
+      log().debug << argv[ arg ] << ' ';
+   log().debug << std::endl;
+
    if (argc < 3)
    {
       help(argv[0]);
+      log().error << "Invalid command-line syntax, exiting with rc = -1" << std::endl;
       return -1;
    }
 
@@ -164,12 +206,14 @@ int main(int argc, char** argv)
    if (clp.parse(argc, argv) < 0)
    {
       help(argv[0]);
+      log().error << "Invalid command-line syntax, exiting with rc = -1" << std::endl;
       return -1;
    }
 
    if (clp.m_vParams.size() < 2)
    {
       help(argv[0]);
+      log().error << "Invalid command-line syntax, exiting with rc = -1" << std::endl;
       return -1;
    }
 
@@ -185,6 +229,7 @@ int main(int argc, char** argv)
       else
       {
          help(argv[0]);
+         log().error << "Invalid command-line syntax, exiting with rc = -1" << std::endl;
          return -1;
       }
    }
@@ -198,14 +243,17 @@ int main(int argc, char** argv)
    if ((r < 0) || !s.m_bIsDir)
    {
       cerr << "ERROR: destination directory does not exist.\n";
+      log().error << "stat failed on destination directory, err = " << r << ", exiting with rc = -1" << std::endl;
       return -1;
    }
 
    // login to SectorFS
    Sector client;
-   if (Utility::login(client) < 0)
+   int rc = Utility::login(client);
+   if (rc < 0)
    {
       cerr << "ERROR: failed to log in to sector\n";
+      log().error << "Client login to master failed with err = " << rc << ", exiting with rc = -1" << std::endl;
       return -1;
    }
 
@@ -217,9 +265,10 @@ int main(int argc, char** argv)
       if (!wc)
       {
          SNode attr;
-         if (client.stat(*i, attr) < 0)
+         if ((rc = client.stat(*i, attr)) < 0)
          {
             cerr << "ERROR: source file does not exist.\n";
+            log().error << "Failed to stat sector file " << *i << ", err = " << rc << std::endl;
             return -1;
          }
          getFileList(*i, fl, client);
@@ -285,7 +334,9 @@ int main(int argc, char** argv)
 
                   if ((-1 == ::mkdir(substr.c_str(), S_IRWXU)) && (errno != EEXIST))
                   {
+                     int errno_save = errno;
                      cerr << "ERROR: unable to create local directory " << substr << endl;
+                     log().error << "Failed to create local directory " << substr << ", errno = " << errno_save << std::endl;
                      return -1;
                   }
                }
@@ -293,7 +344,9 @@ int main(int argc, char** argv)
 
             if ((-1 == ::mkdir(localdir.c_str(), S_IRWXU)) && (errno != EEXIST))
             {
+               int errno_save = errno;
                cerr << "ERROR: unable to create local directory " << localdir << endl;
+               log().error << "Failed to create local directory " << localdir << ", errno = " << errno_save << std::endl;
                break;
             }
          }
@@ -307,11 +360,13 @@ int main(int argc, char** argv)
             if( LocalFS::stat( destFile, s ) >= 0 )
             {
                 cout << "Destination directory already contains file '" << fileName << "', removing." << endl;
+                log().debug << "Destination directory already contains file " << fileName << " and smart not specified, removing file" << std::endl;
                 if( LocalFS::erase( destFile ) < 0 )
                 {
                    int save_errno = errno;
                    cerr << "ERROR: could not remove destination file: " << strerror( save_errno ) << endl
                        << "NOT downloading file!" << endl;
+                   log().error << "Failed to remove destination file " << fileName << ", aborting this file" << std::endl;
                    return -1;
                 }
             }
@@ -323,7 +378,10 @@ int main(int argc, char** argv)
                 fileName = fileName.substr( fileName.rfind( '/' ) + 1 );
             string destFile = localdir + '/' + fileName;
             if( LocalFS::stat( destFile, s ) >= 0 )
+            {
                 cout << "Destination directory already contains file '" << fileName << "', resuming partial download." << endl;
+		log().debug << "Destination file already exists with size " << s.m_llSize << ", resuming partial download" << std::endl;
+            }
          }
 
          if (download(i->c_str(), localdir.c_str(), client, encryption) < 0)
@@ -335,6 +393,7 @@ int main(int argc, char** argv)
             {
                // if no disk space svailable, no need to try any more
                cerr << "insufficient local disk space. quit.\n";
+               log().error << "Insufficient disk space" << std::endl;
                Utility::logout(client);
             }
             return -1;
@@ -343,6 +402,6 @@ int main(int argc, char** argv)
    }
 
    Utility::logout(client);
-
+   log().debug << "Download completed successfully" << std::endl;
    return 0;
 }

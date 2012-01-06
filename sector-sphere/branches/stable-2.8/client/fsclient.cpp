@@ -26,6 +26,7 @@ written by
 
 #include "common.h"
 #include "fsclient.h"
+#include "../common/log.h"
 
 #define ERR_MSG( msg ) \
 {\
@@ -36,6 +37,24 @@ written by
 
 using namespace std;
 using namespace sector;
+
+namespace
+{
+   inline logger::LogAggregate& log()
+   {
+      static logger::LogAggregate& myLogger = logger::getLogger( "FSClient" );
+      static bool                  once     = false;
+
+      if( !once )
+      {
+          once = true;
+          myLogger.setLogLevel( logger::Debug );
+      }
+
+      return myLogger;
+   }
+}
+
 
 FSClient* Client::createFSClient()
 {
@@ -525,6 +544,9 @@ int64_t FSClient::write(const char* buf, const int64_t& size)
 
 int64_t FSClient::download(const char* localpath, const bool& cont)
 {
+   log().debug << __PRETTY_FUNCTION__ << ": downloading to file " << localpath << ", cont = "
+	<< std::boolalpha << cont << std::endl;
+
    if (!m_bOpened)
       return SectorError::E_FILENOTOPEN;
 
@@ -538,11 +560,16 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
       ofs.open(localpath, ios::out | ios::binary | ios::app);
       ofs.seekp(0, ios::end);
       offset = ofs.tellp();
+
+      if( offset )
+         log().debug << "continuing download at offset " << offset << std::endl;
    }
    else
    {
       ofs.open(localpath, ios::out | ios::binary | ios::trunc);
       offset = 0LL;
+
+      log().debug << "starting download..." << std::endl;
    }
 
    if (ofs.bad() || ofs.fail())
@@ -559,6 +586,7 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
       return SectorError::E_CONNECTION;
 
    int64_t realsize = m_llSize - offset;
+   log().debug << "source file size " << m_llSize << ", offset " << offset << ", bytes to download " << realsize << std::endl;
 
    int64_t unit = 64000000; //send 64MB each time
    int64_t torecv = realsize;
@@ -573,18 +601,21 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
 
    if (torecv > 0)
    {
+      log().error << "download failed with " << torecv << " bytes left to download, retrying..." << std::endl;
       // retry once with another copy
       if (reopen() >= 0)
       {
          cmd = 3;
          m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&cmd, 4);
          offset = ofs.tellp();
+         log().debug << "current destination file offset " << offset << std::endl;
          m_pClient->m_DataChn.send(m_strSlaveIP, m_iSlaveDataPort, m_iSession, (char*)&offset, 8);
          response = -1;
          if ((m_pClient->m_DataChn.recv4(m_strSlaveIP, m_iSlaveDataPort, m_iSession, response) < 0) || (-1 == response))
             return SectorError::E_CONNECTION;
 
          torecv = m_llSize - offset;
+         log().debug << "source file size " << m_llSize << ", offset " << offset << ", bytes to download " << torecv << std::endl;
          while (torecv > 0)
          {
             int64_t block = (torecv < unit) ? torecv : unit;
@@ -599,6 +630,7 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
    if( torecv == 0 && ofs.tellp() < m_llSize )
    {
        ofs.close();
+       log().error << "failed to download file; file pointer is less than file size " << ofs.tellp() << " < " << m_llSize << std::endl;
        return SectorError::E_LOCALFILE;
    }
 
@@ -607,9 +639,11 @@ int64_t FSClient::download(const char* localpath, const bool& cont)
    if (torecv > 0)
    {
       // TODO: check other errors
+      log().error << "failed to download file, bytes left to receive " << torecv << std::endl;
       return SectorError::E_CONNECTION;
    }
 
+   log().debug << "download of " << realsize << " bytes successful" << std::endl;
    return realsize;
 }
 

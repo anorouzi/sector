@@ -137,8 +137,8 @@ int main(int argc, char** argv)
 
    // then show regular files
    int fileCnt = 0;
-   int totalSize = 0;
-   int totalReplicaSize = 0;
+   int64_t totalSize = 0;
+   int64_t totalReplicaSize = 0;
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       if (wc && !WildCard::match(orig, i->m_strName))
