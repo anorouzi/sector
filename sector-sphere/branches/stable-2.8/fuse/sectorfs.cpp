@@ -118,8 +118,8 @@ void SectorFS::destroy(void *)
 
 int SectorFS::getattr(const char* path, struct stat* st)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-     << " Path = " << path << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//     << " Path = " << path << std::endl;
 
    CONN_CHECK( path );
 
@@ -161,16 +161,16 @@ int SectorFS::getattr(const char* path, struct stat* st)
    st->st_atime = st->st_mtime = st->st_ctime = s.m_llTimeStamp;
 
    if (st->st_size == 0) DirCache::clearLastUnresolvedStat();
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::fgetattr(const char* path, struct stat* st , struct fuse_file_info *)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-      << " Path = " << path << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//      << " Path = " << path << std::endl;
    int rc = getattr(path, st);
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << rc << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << rc << std::endl;
    return rc;
 }
 
@@ -366,7 +366,7 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
    log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
       << " path = " << path << ", offset = " << offset << std::endl;  
 
-   log().warning << "offset parameter is ignored" << std::endl;
+//   log().warning << "offset parameter is ignored" << std::endl;
 
    CONN_CHECK( path );
    vector<SNode> filelist;
@@ -414,7 +414,7 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
    filler(buf, ".", &st, 0);
    filler(buf, "..", &st, 0);
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
@@ -631,8 +631,8 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
 
 int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-      << " Path = " << path << ", size = " << size << ", offset = " << offset << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//      << " Path = " << path << ", size = " << size << ", offset = " << offset << std::endl;
 
    CONN_CHECK( path );
 
@@ -656,14 +656,14 @@ int SectorFS::read(const char* path, char* buf, size_t size, off_t offset, struc
       } 
    }
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
    return r;
 }
 
 int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset, struct fuse_file_info* /*info*/)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-      << " Path = " << path << ", size = " << size << ", offset = " << offset << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//      << " Path = " << path << ", size = " << size << ", offset = " << offset << std::endl;
 
    CONN_CHECK( path );
 
@@ -679,15 +679,15 @@ int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset
       return -1;
    }
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
    return r;
 }
 
 int SectorFS::flush (const char *, struct fuse_file_info *)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
-   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
+//   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
@@ -742,16 +742,16 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
 
    DirCache::clear();
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::access(const char * path, int mode)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-    << " path = " << path << ", mode = " << std::oct << mode << std::dec << std::endl;
-   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//    << " path = " << path << ", mode = " << std::oct << mode << std::dec << std::endl;
+//   log().warning << "STUB FUNCTION " << __PRETTY_FUNCTION__ << " CALLED" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
@@ -820,8 +820,8 @@ void SectorFS::checkConnection(int res)
 
 SectorFile* SectorFS::lookup(const string& path)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-    << " path = " << path << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//    << " path = " << path << std::endl;
 
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
@@ -834,6 +834,6 @@ SectorFile* SectorFS::lookup(const string& path)
    SectorFile* h = t->second->m_pHandle;
    pthread_mutex_unlock(&m_OpenFileLock);
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << std::hex << h << std::dec << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << std::hex << h << std::dec << std::endl;
    return h;
 }
