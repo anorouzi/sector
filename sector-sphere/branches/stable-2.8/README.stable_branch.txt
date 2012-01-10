@@ -64,7 +64,7 @@ Due to new commands, client part of Sector stable branch is not compatible with 
 
 Logging
 There is significant change of logging. Logging is done on 5 levels -
-screen,error,info,trace,debug. Logs format changed, now also showing thread.
+screen,error,info,warning,trace,debug. Logs format changed, now also showing thread.
 Thread showed in square brackets (TID means Thread ID, unfortunatley same as
 TID for Transaction ID).
 Rather extensive logging for client tools and fuse added. Logs on client side
@@ -83,7 +83,6 @@ For example, create 10000 files with replication=3. After replication process wi
 Recent version of UDT (UDT 4.10) is not stable with Sector. Sector uses UDT library form April 2011 with 2 bugfixes, not coinciding with any versions of UDT from UDT project on sourceforge.
 PCT_SLAVES_TO_CONSIDER does not appear to be working as expected - need to check how it is actually working
 Migration to GMP2 is desired but not tested.
-
-
-
+Logging level still set in numbers 0-9 in .conf files. Need to migrate to
+"screen,error,info,warning,trace,debug). Currenlty numbers mapped to those levels.
 
