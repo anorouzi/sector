@@ -1,9 +1,12 @@
 Written by Sergey 01/10/2012
-This document show differences in stable branch to documentation. It is recommended to read this file before using Sector from Stable branch.
+This document show differences in stable branch to documentation. It is recommended to read this file before using Sector from Stable branch. It include information specific to stable branch and not reflected in documention.
 
 Goal of Stable branch is to get stable and bug-free implementation of Sector, with reliability and help of Sector administration in mind.
 
 Stable branch fixes set of bugs. It also introduced some additional functionality, as well as change to configuration parameters.
+
+Stable branch work exclusively around linux, most probably changes will needed
+to port to oter platforms.
 
 Changes to tools parameters
 
@@ -59,12 +62,26 @@ df - returns information needed for fuse df command to work, only total size fo 
 
 Due to new commands, client part of Sector stable branch is not compatible with older versions. Forward compatibility (older client to new master from stable branch) is working. I.e. it is forward compatible but not backward.
 
+Logging
+There is significant change of logging. Logging is done on 5 levels -
+screen,error,info,trace,debug. Logs format changed, now also showing thread.
+Thread showed in square brackets (TID means Thread ID, unfortunatley same as
+TID for Transaction ID).
+Rather extensive logging for client tools and fuse added. Logs on client side
+will be created in /tmp.
+Slaves also have rather extensive logs. Location of slave logs - .log in slave
+data directory.
+Security server throw logs on stdout, usually supressed at start. To see logs
+from security server, save stdout.
+Master have a lot of information in logs. Location of master logs -
+/tmp/sector/master/.log.
+
 Known issues and todos in stable branch
-PCT_SLAVES_TO_CONSIDER does not appear to be working as expected - need to check how it is actually working
 Fuse occasionally failing (very rare, once in month under very specific loads). At same time for majority of application it stays up forever without problems.
 It is possible to crash master with massive replication change (decrease of number of replicas).
 For example, create 10000 files with replication=3. After replication process will create 3 replicas of each file, change replication to 1. In several minutes master will hang.
-Recent version of UDT (UDT 4.10) is not stable with Sector. Sector uses UDT library form April 2011 with 2 bugfixes.
+Recent version of UDT (UDT 4.10) is not stable with Sector. Sector uses UDT library form April 2011 with 2 bugfixes, not coinciding with any versions of UDT from UDT project on sourceforge.
+PCT_SLAVES_TO_CONSIDER does not appear to be working as expected - need to check how it is actually working
 Migration to GMP2 is desired but not tested.
 
 
