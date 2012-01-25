@@ -3162,7 +3162,7 @@ int Master::createReplica(const ReplicaJob& job)
          }
          else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
-            m_SectorLog << LogStart(9) << "Replica create: replicas no correct " << job.m_strSource << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: number of replicas correct " << job.m_strSource << LogEnd();
             if( ReplicaConfig::getCached().m_bCheckReplicaOnSameIp )
             {     
                std::string cur_ip;
@@ -3181,10 +3181,13 @@ int Master::createReplica(const ReplicaJob& job)
                   m_SectorLog << LogStart(9) << "Replica create: replication correct" << LogEnd();
                   return 0;
                }
+               else
+               {
+                  m_SectorLog << LogStart(9) << "Replica create: found replicas on same IP, proceed with replication" << job.m_strSource << LogEnd();
+               }
             }
             else
             {
-               m_SectorLog << LogStart(9) << "Replica create: found replicas on same IP, proceed with replication" << job.m_strSource << LogEnd();
                return 0;
             }
          }

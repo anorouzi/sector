@@ -746,7 +746,7 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    return 0;
 }
 
-int SectorFS::access(const char * path, int mode)
+int SectorFS::access(const char * /*path*/, int /*mode*/)
 {
 //   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
 //    << " path = " << path << ", mode = " << std::oct << mode << std::dec << std::endl;
