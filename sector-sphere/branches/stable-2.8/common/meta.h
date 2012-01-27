@@ -92,6 +92,7 @@ public:	// update operations
 public:	// lock/unlock
    virtual int lock(const std::string& path, int user, int mode);
    virtual int unlock(const std::string& path, int user, int mode);
+   bool isWriteLocked( const std::string& path );
 
 public:	// serialization
    // TODO: use memory buffer to store the serialized metadata instead of a file
@@ -145,11 +146,16 @@ protected:
 
    pthread_mutex_t m_FileLockProtection;
 
+public:
    struct LockSet
    {
       std::set<int> m_sReadLock;
       std::set<int> m_sWriteLock;
    };
+
+   std::map<std::string, LockSet> getLockList();
+
+protected:
    std::map<std::string, LockSet> m_mLock;
 
 private:

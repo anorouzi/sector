@@ -97,6 +97,23 @@ int Metadata::unlock(const string& path, int user, int mode)
    return 0;
 }
 
+std::map<std::string, Metadata::LockSet> Metadata::getLockList() 
+{ 
+   CGuard mg( m_FileLockProtection );
+   return m_mLock; 
+}
+
+bool Metadata::isWriteLocked( const std::string& path )
+{
+   CGuard mg( m_FileLockProtection );
+   map<string, LockSet>::const_iterator file = m_mLock.find( path );
+   if( file == m_mLock.end() )
+      return false;
+
+   return !file->second.m_sWriteLock.empty();
+}
+
+
 int Metadata::parsePath(const string& path, vector<string>& result)
 {
    result.clear();

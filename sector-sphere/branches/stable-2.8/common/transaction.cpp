@@ -133,3 +133,19 @@ int TransManager::addWriteResult(int transid, int slaveid, const std::string& re
 
    return 0;
 }
+
+int TransManager::getFileTrans(const std::string& fileName, std::vector<int>& trans)
+{
+   CGuard tl(m_TLLock);
+
+   for (map<int, Transaction>::iterator i = m_mTransList.begin(); i != m_mTransList.end(); ++ i)
+   {
+      if (fileName == i->second.m_strFile)
+      {
+         trans.push_back(i->first);
+      }
+   }
+
+   return trans.size();
+}
+

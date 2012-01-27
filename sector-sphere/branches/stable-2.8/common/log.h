@@ -26,7 +26,6 @@ written by
 #include <fstream>
 #include <map>
 #include <string>
-#include <boost/noncopyable.hpp>
 #include <iosfwd>
 
 #include "osportable.h"
@@ -117,7 +116,7 @@ private:
 
 namespace logger {
 
-  // These are highest to lowest 'severity'.  Note: these values are used as indices into a boost::tuple; do not change!
+  // These are highest to lowest 'severity'.  Note: these values are used as indices into a tuple; do not change!
   enum LogLevel {
     Screen  = 0,
     Error   = 1,
@@ -128,7 +127,7 @@ namespace logger {
   };
 
 
-  struct LogAggregate : private boost::noncopyable {
+  struct LogAggregate {
     public:
       typedef std::basic_ostream<char> stream_type;
 
@@ -138,6 +137,10 @@ namespace logger {
         error( error ), warning( warning ), info( info ), trace( trace ), debug( debug ) {}
 
       void setLogLevel( LogLevel lvl );
+
+    private: // noncopyable
+      LogAggregate( const LogAggregate& );
+      LogAggregate& operator=( const LogAggregate& );
 
     private:
       std::string  loggerName;

@@ -70,6 +70,7 @@ public:
    int checkStorageBalance(std::map<int64_t, Address>& lowdisk, bool force);
    void incActTrans(const int& slaveid);
    void decActTrans(const int& slaveid);
+   void getListActTrans( std::map<int, int>& lats );
 
 public:
    uint64_t getTotalDiskSpace();

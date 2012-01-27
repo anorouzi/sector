@@ -33,10 +33,22 @@ written by
 #include <sstream>
 #include <iomanip>
 #include <cstring>
-#include <boost/lexical_cast.hpp>
 #include <cstdlib>
 
 using namespace std;
+
+namespace
+{
+  template< typename ResultType, typename InputType >
+  ResultType lexical_cast( const InputType& in ) {
+    std::stringstream os;
+    ResultType        out;
+
+    os << in;
+    os >> out;
+    return out;
+  }
+}
 
 string format(const int64_t& val)
 {
@@ -279,7 +291,7 @@ void print(const SysStat& s, bool address = false)
 
         // In the event DNS returns same name for two different IPs (why?????), ensure uniquess by
  	// attaching random number at end
-        slaveInfo[ dns_name + i->m_strDataDir + boost::lexical_cast<std::string>( rand() ) ] = buf.str();
+        slaveInfo[ dns_name + i->m_strDataDir + lexical_cast<std::string>( rand() ) ] = buf.str();
       }
    }
 

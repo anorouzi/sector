@@ -23,8 +23,8 @@ written by
 #ifndef __SECTOR_TRANS_H__
 #define __SECTOR_TRANS_H__
 
-#include <boost/lexical_cast.hpp>
 #include <set>
+#include <sstream>
 #include <vector>
 #include <map>
 #include <string>
@@ -39,6 +39,19 @@ struct TransType
    static const int DB = 3;
    static const int REPLICA = 4;
 };
+
+namespace 
+{
+  template< typename ResultType, typename InputType >
+  ResultType lexical_cast( const InputType& in ) {
+    std::stringstream os;
+    ResultType        out;
+
+    os << in;
+    os >> out;
+    return out;
+  }
+}
 
 struct FileChangeType
 {
@@ -59,7 +72,7 @@ struct FileChangeType
          case FILE_UPDATE_NEW_FAILED:      return "FILE_UPDATE_NEW_FAILED"; break;
          case FILE_UPDATE_WRITE_FAILED:    return "FILE_UPDATE_WRITE_FAILED"; break;
          case FILE_UPDATE_REPLICA_FAILED:  return "FILE_UPDATE_REPLICA_FAILED"; break;
-         default:                          return boost::lexical_cast<std::string>( x );
+         default:                          return lexical_cast<std::string>( x );
       }
    }
 };
@@ -92,6 +105,7 @@ public:
    int updateSlave(int transid, int slaveid);
    int getUserTrans(int key, std::vector<int>& trans);
    int addWriteResult(int transid, int slaveid, const std::string& result);
+   int getFileTrans(const std::string& fileName, std::vector<int>& trans);
 
 public:
    unsigned int getTotalTrans();

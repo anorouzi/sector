@@ -223,6 +223,8 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
    return m_iKey;
 }
 
+
+// This is reconnect with existing session id, username and password
 int Client::login(const string& serv_ip, const int& serv_port)
 {
    Address addr;

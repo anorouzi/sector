@@ -36,9 +36,6 @@ written by
 #endif
 
 #include <bits/char_traits.h>
-#include <boost/lexical_cast.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/tuple/tuple.hpp>
 #include <ctime>
 #include <fcntl.h>
 #include <iomanip>
@@ -137,6 +134,26 @@ namespace {
 
     return 0;
   }
+
+  template< typename ResultType, typename InputType >
+  ResultType lexical_cast( const InputType& in ) {
+    std::stringstream os;
+    ResultType        out;
+
+    os << in;
+    os >> out;
+    return out;
+  }
+
+  template< typename T >
+  struct unowned_ptr {
+      unowned_ptr() : ptr() {}
+      explicit unowned_ptr( T* t ) : ptr( t ) {}
+      T& operator*() { return *ptr; }
+      
+    private:
+      T* ptr;
+  };
 }
 
 namespace logger {
@@ -191,9 +208,34 @@ namespace logger {
   typedef std::string                                                 log_key_t;
   typedef LogAggregate*                                               log_mapped_value_t;
   typedef std::map< log_key_t, log_mapped_value_t >                   loggers_t;
-  typedef boost::shared_ptr< std::basic_ostream<char> >               shp_stream_t;
-  typedef boost::tuple< shp_stream_t, shp_stream_t, shp_stream_t,
-                        shp_stream_t, shp_stream_t, shp_stream_t >    stream_instance_t;
+  typedef unowned_ptr< std::basic_ostream<char> >                     shp_stream_t;
+
+
+  struct log_tuple {
+    log_tuple( const shp_stream_t& screen, const shp_stream_t& error, const shp_stream_t& warning, const shp_stream_t& info, const shp_stream_t& trace, const shp_stream_t& debug ) :
+      screen( screen ), error( error ), warning( warning ), info( info ), trace( trace ), debug( debug )  {}
+
+   shp_stream_t get( size_t n ) {
+      switch( n ) {
+        case 0: return screen;
+        case 1: return error;
+        case 2: return warning;
+        case 3: return info;
+        case 4: return trace;
+        case 5: return debug;
+        default: return shp_stream_t();
+     }
+   }
+
+   shp_stream_t screen;
+   shp_stream_t error;
+   shp_stream_t warning;
+   shp_stream_t info;
+   shp_stream_t trace;
+   shp_stream_t debug;
+  };
+
+  typedef log_tuple                                                   stream_instance_t;
   typedef std::map< log_key_t, stream_instance_t >                    stream_instance_map_t;
   typedef std::map< pid_t, std::string >                              thread_names_t;
 
@@ -275,7 +317,7 @@ namespace logger {
     { // Begin critical section
       RW_Read_Locker critSec( threadNamesLock );
       thread_names_t::const_iterator iter = threadNames.find( syscall( SYS_gettid ) );
-      name = iter == threadNames.end() ? "TID-" + boost::lexical_cast<std::string>( syscall( SYS_gettid ) ) : iter->second;
+      name = iter == threadNames.end() ? "TID-" + lexical_cast<std::string>( syscall( SYS_gettid ) ) : iter->second;
     } // End critical section
 
     return '[' + name + ']';
@@ -374,12 +416,12 @@ namespace logger {
       // those references remain valid, even though we are constructing a new LogAggregate here.  Thus, we
       // must use placement new.
       switch( lvl ) {
-        case Screen:  newLogger = new (iter->second) LogAggregate( myName, *instance.get<Screen>(), bitBucket, bitBucket, bitBucket, bitBucket, bitBucket ); break;
-        case Error:   newLogger = new (iter->second) LogAggregate( myName, *instance.get<Screen>(), *instance.get<Error>(), bitBucket, bitBucket, bitBucket, bitBucket ); break;
-        case Warning: newLogger = new (iter->second) LogAggregate( myName, *instance.get<Screen>(), *instance.get<Error>(), *instance.get<Warning>(), bitBucket, bitBucket, bitBucket ); break;
-        case Info:    newLogger = new (iter->second) LogAggregate( myName, *instance.get<Screen>(), *instance.get<Error>(), *instance.get<Warning>(), *instance.get<Info>(), bitBucket, bitBucket ); break;
-        case Trace:   newLogger = new (iter->second) LogAggregate( myName, *instance.get<Screen>(), *instance.get<Error>(), *instance.get<Warning>(), *instance.get<Info>(), *instance.get<Trace>(), bitBucket ); break;
-        case Debug:   newLogger = new (iter->second) LogAggregate( myName, *instance.get<Screen>(), *instance.get<Error>(), *instance.get<Warning>(), *instance.get<Info>(), *instance.get<Trace>(), *instance.get<Debug>() ); break;
+        case Screen:  newLogger = new (iter->second) LogAggregate( myName, *instance.get(Screen), bitBucket, bitBucket, bitBucket, bitBucket, bitBucket ); break;
+        case Error:   newLogger = new (iter->second) LogAggregate( myName, *instance.get(Screen), *instance.get(Error), bitBucket, bitBucket, bitBucket, bitBucket ); break;
+        case Warning: newLogger = new (iter->second) LogAggregate( myName, *instance.get(Screen), *instance.get(Error), *instance.get(Warning), bitBucket, bitBucket, bitBucket ); break;
+        case Info:    newLogger = new (iter->second) LogAggregate( myName, *instance.get(Screen), *instance.get(Error), *instance.get(Warning), *instance.get(Info), bitBucket, bitBucket ); break;
+        case Trace:   newLogger = new (iter->second) LogAggregate( myName, *instance.get(Screen), *instance.get(Error), *instance.get(Warning), *instance.get(Info), *instance.get(Trace), bitBucket ); break;
+        case Debug:   newLogger = new (iter->second) LogAggregate( myName, *instance.get(Screen), *instance.get(Error), *instance.get(Warning), *instance.get(Info), *instance.get(Trace), *instance.get(Debug) ); break;
       }
     } // End Critical section
   }
@@ -393,14 +435,13 @@ namespace logger {
     std::auto_ptr<logbuf> traceBuf( new logbuf( name, Trace ) );
     std::auto_ptr<logbuf> debugBuf( new logbuf( name, Debug ) );
 
-    stream_instance_t instance( boost::make_tuple(
-        boost::shared_ptr< std::basic_ostream<char> >( new std::basic_ostream<char>( screenBuf.release() ) ),
-        boost::shared_ptr< std::basic_ostream<char> >( new std::basic_ostream<char>( errorBuf.release() ) ),
-        boost::shared_ptr< std::basic_ostream<char> >( new std::basic_ostream<char>( warningBuf.release() ) ),
-        boost::shared_ptr< std::basic_ostream<char> >( new std::basic_ostream<char>( infoBuf.release() ) ),
-        boost::shared_ptr< std::basic_ostream<char> >( new std::basic_ostream<char>( traceBuf.release() ) ),
-        boost::shared_ptr< std::basic_ostream<char> >( new std::basic_ostream<char>( debugBuf.release() ) )
-      )
+    stream_instance_t instance(
+        shp_stream_t( new std::basic_ostream<char>( screenBuf.release() ) ),
+        shp_stream_t( new std::basic_ostream<char>( errorBuf.release() ) ),
+        shp_stream_t( new std::basic_ostream<char>( warningBuf.release() ) ),
+        shp_stream_t( new std::basic_ostream<char>( infoBuf.release() ) ),
+        shp_stream_t( new std::basic_ostream<char>( traceBuf.release() ) ),
+        shp_stream_t( new std::basic_ostream<char>( debugBuf.release() ) )
     );
 
     { // Begin critical section
@@ -413,10 +454,10 @@ namespace logger {
     // the map will only be emptied when the process exits anyway.
     log_mapped_value_t actualLog( new LogAggregate(
         name,
-        *instance.get<Screen>(),
-        *instance.get<Error>(),
-        *instance.get<Warning>(),
-        *instance.get<Info>(),
+        *instance.get(Screen),
+        *instance.get(Error),
+        *instance.get(Warning),
+        *instance.get(Info),
         bitBucket,
         bitBucket
       )

@@ -888,6 +888,8 @@ int Master::processUserJoin(SSLTransport& cliconn,
       m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " login from " << ip << " replacing UID "
         << key << " with ID from prev session " << ukey << LogEnd();
       key = ukey;
+//      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " login from " << ip << " with old UID " <<
+//         ukey << " new UID " << key << LogEnd();
    }
 
    /* forward sec key to client */
@@ -1260,7 +1262,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          string fileinfo = msg->getData() + pos + 4;
          pos += size + 4;
 
-         m_SectorLog << LogStart(LogLevel::LEVEL_9) << "File update from " << ip << ":" << port << " " << FileChangeType::toString(change)  << " " << fileinfo << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_9) << "TID " << transid << ":" << t.m_iType << " File update from " << ip << ":" << port << " " << FileChangeType::toString(change)  << " " << fileinfo << LogEnd();
 
          // restore file information
          SNode sn;
@@ -1287,7 +1289,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          }
          else if (change == FileChangeType::FILE_UPDATE_REPLICA)
          {
-            m_SectorLog << LogStart(9) << "New replica is created " << sn.m_strName << " " << addr.m_strIP 
+            m_SectorLog << LogStart(9) << "New replica created " << sn.m_strName << " " << addr.m_strIP 
              << ":" << addr.m_iPort << LogEnd();
             m_pMetadata->addReplica(sn.m_strName, sn.m_llTimeStamp, sn.m_llSize, addr);
             m_ReplicaLock.acquire();
@@ -1321,7 +1323,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          //TODO: slave should send another trans status report
          //leave this report dedicated to file status only
 
-         // remove this slave from the transaction
+         m_SectorLog << LogStart(9) << "TID " << transid << ":" << t.m_iType << " Remove slave " << slaveid << " from the transaction" << LogEnd();
          int r = m_TransManager.updateSlave(transid, slaveid);
          m_SlaveManager.decActTrans(slaveid);
 //         m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey << " slave " 
@@ -1333,7 +1335,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          {
             processWriteResults(t.m_strFile, t.m_mResults);
             m_pMetadata->unlock(t.m_strFile.c_str(), t.m_iUserKey, t.m_iMode);
-            m_SectorLog << LogStart(9) << "TID " << transid << " UID " << t.m_iUserKey <<" Transaction Close "
+            m_SectorLog << LogStart(9) << "TID " << transid << ":" << t.m_iType << " UID " << t.m_iUserKey <<" Transaction Close "
               << t.m_strFile << LogEnd();
          }
       }
@@ -1358,7 +1360,6 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          m_ReplicaCond.signal();
       }
       m_ReplicaLock.release();
-
       break;
    }
 
@@ -1592,28 +1593,61 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
    {
       m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " debuginfo " << ip << LogEnd();
 
+      map<string, Metadata::LockSet> allLocks = m_pMetadata->getLockList();
+      int readLocks = 0;
+      int writeLocks = 0;
+      int lockedFiles = 0;
+      for (map<string, Metadata::LockSet>::iterator l = allLocks.begin(); l != allLocks.end(); l ++)
+      {
+        lockedFiles++;
+        writeLocks = writeLocks + l->second.m_sWriteLock.size();
+        readLocks = readLocks + l->second.m_sReadLock.size();
+      }
       stringstream sbuf;
-      sbuf << "Size of queues: service = " << m_ServiceJobQueue.size()
-                << " process = " << m_ProcessJobQueue.size() << std::endl;
-      sbuf << "Replication queue size " << m_ReplicaMgmt.getTotalNum() << std::endl;
-      sbuf << "Current total number of active transactions " << m_TransManager.getTotalTrans() << std::endl;
+      m_ReplicaLock.acquire();
+      int repInFlight = m_sstrOnReplicate.size();
+      int reqQueueSize =  m_ReplicaMgmt.getTotalNum();
+      m_ReplicaLock.release();
+      m_UserManager.m_Lock.acquire();
+      int sesCount = m_UserManager.m_mActiveUsers.size();
+      m_UserManager.m_Lock.release();
+
+      sbuf << "Size of service queue  \t" << m_ServiceJobQueue.size() << std::endl;
+      sbuf << "Size of process queue  \t" << m_ProcessJobQueue.size() << std::endl;
+      sbuf << "Active replications    \t" << repInFlight << std::endl;
+      sbuf << "Replication queue size \t" << reqQueueSize << std::endl;
+      sbuf << "Active transactions    \t" << m_TransManager.getTotalTrans() << std::endl;
+      sbuf << "Locked files           \t" << lockedFiles << std::endl;
+      sbuf << "Write locks            \t" << writeLocks << std::endl;
+      sbuf << "Read locks             \t" << readLocks << std::endl;
+      sbuf << "User sessions          \t" << sesCount << std::endl;
+
+      if (user->m_strName != "root")
+      {
+        sbuf << "Detailed information not present as user is not root" << std::endl;
+
+      } else {
+
+      sbuf << std::endl;
+      sbuf << "List of active transactions:" << std::endl;
       CGuard::enterCS(m_TransManager.m_TLLock);
 
       for (map<int, Transaction>::iterator t = m_TransManager.m_mTransList.begin(); t != m_TransManager.m_mTransList.end(); ++ t) {
-          sbuf << "TID " << t->second.m_iTransID << " UID " << t->second.m_iUserKey <<
+          sbuf << "TID " << t->second.m_iTransID << ":" << t->second.m_iType << " UID " << t->second.m_iUserKey <<
              " SLAVE ";
           for (set<int>::iterator slaves = t->second.m_siSlaveID.begin(); slaves != t->second.m_siSlaveID.end(); ++ slaves)
           {
             sbuf << " " << *slaves;
 	}
-          sbuf << " MODE " << t->second.m_iMode   
+          sbuf << " MODE " << t->second.m_iMode  
              << " DURATION " << (CTimer::getTime() - t->second.m_llStartTime) / 1000000 << " " 
              << t->second.m_strFile << std::endl;
       }
       CGuard::leaveCS(m_TransManager.m_TLLock);
 
+      sbuf << std::endl;
       m_UserManager.m_Lock.acquire();
-      sbuf << "List of active users" << std::endl;
+      sbuf << "List of users sessions:" << std::endl;
       for (map<int, User*>::const_iterator u = m_UserManager.m_mActiveUsers.begin(); u !=  m_UserManager.m_mActiveUsers.end(); ++ u)
       {
          sbuf << "User " << u->second->m_strName << " UID " << u->second->m_iKey << " "
@@ -1623,15 +1657,46 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       }
       m_UserManager.m_Lock.release();
 
+      sbuf << std::endl;
+
       m_ReplicaLock.acquire();
-      sbuf << "Total " << m_sstrOnReplicate.size() << " replication in process:" << std::endl;
+      sbuf << "List of active replications:" << std::endl;
       for (std::set<std::string>::iterator i = m_sstrOnReplicate.begin(); i != m_sstrOnReplicate.end(); ++i)
       {
          sbuf << *i << std::endl;
       }
       m_ReplicaLock.release();
- 
 
+      sbuf << std::endl;
+      sbuf << "List of write file locks (session, file name):" << std::endl;
+      for (map<string, Metadata::LockSet>::iterator wl = allLocks.begin(); wl != allLocks.end(); wl ++)
+      {
+        for (set<int>::iterator wls = wl->second.m_sWriteLock.begin(); wls != wl->second.m_sWriteLock.end(); wls++)
+        {
+          sbuf << *wls << "\t" << wl->first << std::endl;
+        }
+      }      
+
+      sbuf << std::endl;
+      sbuf << "List of read file locks (session, file name):" << std::endl;
+      for (map<string, Metadata::LockSet>::iterator rl = allLocks.begin(); rl != allLocks.end(); rl ++)
+      {
+        for (set<int>::iterator rls = rl->second.m_sReadLock.begin(); rls != rl->second.m_sReadLock.end(); rls++)
+        {
+          sbuf << *rls << "\t" << rl->first << std::endl;
+        }
+      }
+
+      sbuf << std::endl;
+      sbuf << "Slave transactions:" << std::endl;
+      map<int, int> lats;
+      m_SlaveManager.getListActTrans(lats);
+      for (map<int, int>::const_iterator sl = lats.begin(); sl != lats.end(); ++sl)
+      {
+        sbuf << "Slave " << sl->first << " transactions " << sl->second << std::endl; 
+      }
+
+      }
       string data = sbuf.str();
       msg->setData(0, data.c_str(), data.length()+1);
       m_GMP.sendto(ip, port, id, msg);
@@ -3208,7 +3273,7 @@ int Master::createReplica(const ReplicaJob& job)
          }
          if (m_SlaveManager.chooseReplicaNode(sub_attr.m_sLocation, sn, attr.m_llSize, sub_attr.m_iReplicaDist, &sub_attr.m_viRestrictedLoc) < 0)
          {
-            m_SectorLog << LogStart(9) << "Replica create: choose replica node 2 " << job.m_strSource << LogEnd();
+            m_SectorLog << LogStart(9) << "Replica create: error choosing replica node 2 " << job.m_strSource << LogEnd();
             return -1;
          }
       }
@@ -3225,7 +3290,17 @@ int Master::createReplica(const ReplicaJob& job)
 	}
    }
 
+   // Preliminary trasnaction lock check. More exact check later in slave.
+
+   if (m_pMetadata->isWriteLocked(job.m_strDest)) 
+   {
+       m_SectorLog << LogStart(9) << "Replica create: " << job.m_strDest << " have write lock" << LogEnd();
+       return 0;
+   }
+
    int transid = m_TransManager.create(TransType::REPLICA, 0, 111, job.m_strDest, 0);
+   m_SectorLog << LogStart(9) << "Replica create: Trasnaction open " << transid << " " << job.m_strDest << LogEnd();
+ 
    if (job.m_strSource == job.m_strDest)
       m_sstrOnReplicate.insert(job.m_strSource);
 

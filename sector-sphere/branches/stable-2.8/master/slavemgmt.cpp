@@ -1170,3 +1170,12 @@ void SlaveManager::decActTrans(const int& slaveid)
    if ((i != m_mSlaveList.end()) && (i->second.m_iActiveTrans > 0))
       -- i->second.m_iActiveTrans;
 }
+
+void SlaveManager::getListActTrans( map<int, int>& lats )
+{
+   lats.clear();
+   CGuardEx sg(m_SlaveLock);
+   for( map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++i )
+      lats.insert( std::make_pair( i->second.m_iNodeID, i->second.m_iActiveTrans ) );
+}
+
