@@ -24,8 +24,10 @@ written by
 #include <iostream>
 #include "common.h"
 #include "fscache.h"
+#include <unistd.h>
 
 using namespace std;
+
 
 int64_t CacheBlock::s_llBlockIDSeed = 0;
 
@@ -121,21 +123,20 @@ void Cache::update(const string& path, const int64_t& ts, const int64_t& size, b
 // Note: must be called with m_Lock held.
 void Cache::evict(const string& path)
 {
-   FileCacheMap::iterator c = m_mFileCache.find(path);
-   if (c == m_mFileCache.end())
-      return;
+   m_mFileCache.erase( path );
 
-   for( BlockIndexMap::iterator bi = c->second.begin(); bi != c->second.end(); ++bi )
-      for( BlockIndex::iterator block = bi->second.begin(); block != bi->second.end(); ++block )
+   for( CacheBlockIter blk = m_lCacheBlocks.begin(); blk != m_lCacheBlocks.end(); )
+   {
+      if( (*blk)->m_strFile == path )
       {
-          m_llCacheSize -= (**block)->m_llSize;
-          --m_iBlockNum;
-          delete [] (**block)->m_pcBlock;
-          delete (**block);
-          m_lCacheBlocks.erase(*block);
+         CacheBlockIter tmp = blk++;
+         m_llCacheSize -= (*tmp)->m_llSize;
+         --m_iBlockNum;
+         m_lCacheBlocks.erase( tmp );
       }
-
-   m_mFileCache.erase(c);
+      else
+         ++blk;
+   }
 }
 
 void Cache::remove(const string& path)

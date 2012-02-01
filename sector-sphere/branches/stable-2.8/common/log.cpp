@@ -265,10 +265,8 @@ namespace logger {
     concatenate( fileToOpen, outputDir, '/', fileNamePrefix, '-', numericalDate(), ".log" );
 
     fd = open( fileToOpen.c_str(), O_CREAT | O_WRONLY, 0666 );
-    if( fd < 0 )
-      throw std::runtime_error( "Failed to open log file '" + fileToOpen );
-
-    lseek( fd, 0, SEEK_END );
+    if( fd >= 0 )
+      lseek( fd, 0, SEEK_END );
   }
 
 
