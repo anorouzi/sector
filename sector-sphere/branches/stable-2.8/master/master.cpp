@@ -2427,7 +2427,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
                //TODO: roll back 
                m_SectorLog << LogStart(LogLevel::LEVEL_1) << "TID " << transid << " UID " << user->m_iKey << " " <<
                    user->m_strIP << " open PATH " << path << " failed response from slave " <<
-                   i->m_strIP << ':' << i->m_iPort << LogEnd();
+                   i->m_strIP << ":" << i->m_iPort << LogEnd();
             }
          }
          else 
@@ -2435,7 +2435,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
             //TODO: remove this slave
             m_SectorLog << LogStart(LogLevel::LEVEL_1) << "TID " << transid << " UID " << user->m_iKey << " " <<
                user->m_strIP << " open PATH " << path << " failed communication with slave " <<
-               i->m_strIP << ':' << i->m_iPort << LogEnd();
+               i->m_strIP << ":" << i->m_iPort << LogEnd();
          }
       }
 

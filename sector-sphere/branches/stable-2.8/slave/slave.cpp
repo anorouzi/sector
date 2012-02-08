@@ -351,6 +351,13 @@ void Slave::run()
    HANDLE worker_thread = CreateThread(NULL, 0, worker, this, 0, &ThreadID);
 #endif
 
+#ifndef WIN32
+   pthread_t delete_worker_thread;
+   pthread_create(&delete_worker_thread, NULL, deleteWorker, this);
+#else
+   DWORD ThreadID;
+   HANDLE delete_worker_thread = CreateThread(NULL, 0, deleteWorker, this, 0, &ThreadID);
+#endif
    while (m_bRunning)
    {
       if (m_GMP.recvfrom(ip, port, id, msg) < 0)
@@ -488,13 +495,11 @@ int Slave::processFSCmd(const string& ip, const int port, int id, SectorMsg* msg
       string path = Metadata::revisePath(msg->getData());
       m_pLocalFile->remove(path, true);
 
-      //TODO: removed files may be moved to .attic instead of removing immediately, thus users may be able to restore them
-      int r = LocalFS::rmdir(m_strHomeDir + path);
-
-      if (r < 0 )
-          ERR_MSG("Error removing directory " << m_strHomeDir + path);
-
-      DBG_MSG( "Dir/file " << path << " is deleted");
+      DBG_MSG( "Delete enqueued - " << path);
+      m_deleteLock.acquire();
+      m_deleteQueue.push_back( m_strHomeDir + path );
+      m_deleteCond.signal();
+      m_deleteLock.release();
 
       break;
    }
@@ -1309,3 +1314,37 @@ DWORD WINAPI Slave::worker(LPVOID param)
 
    return NULL;
 }
+
+
+#ifndef WIN32
+void* Slave::deleteWorker(void* param)
+#else
+DWORD WINAPI Slave::deleteWorker(LPVOID param)
+#endif
+{
+   Slave* self = (Slave*)param;
+
+   while (self->m_bRunning)
+   {   
+      self->m_deleteLock.acquire();
+      self->m_deleteCond.wait( self->m_deleteLock, 1000 ); 
+
+      if( !self->m_deleteQueue.empty() )
+      {
+        std::string path = self->m_deleteQueue.front();
+        self->m_deleteQueue.pop_front();
+        self->m_deleteLock.release();
+        self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Delete dequeued - " << path << LogEnd();
+        int rc = LocalFS::rmdir( path );
+        if( rc < 0 )
+          self->m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Delete complete FAIL - " << path << ", rc = " << rc << LogEnd();
+        else
+          self->m_SectorLog << LogStart(LogLevel::LEVEL_9) << "Delete complete  - " << path << LogEnd();
+      }
+      else
+        self->m_deleteLock.release();
+   }
+
+   return NULL;
+}
+

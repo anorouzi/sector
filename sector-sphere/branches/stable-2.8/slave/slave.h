@@ -162,6 +162,7 @@ public:
    bool m_bVerbose;		// copy logs to screen output
 };
 
+
 class Slave
 {
 public:
@@ -333,8 +334,10 @@ private: // local FS status
 private: // worker thread, report status, garbage collection, etc.
 #ifndef WIN32
    static void* worker(void* param);
+   static void* deleteWorker(void* param);
 #else
    static DWORD WINAPI worker(LPVOID param);
+   static DWORD WINAPI deleteWorker(LPVOID param);
 #endif
 
 private:
@@ -375,6 +378,10 @@ private: //slave status
    //TODO: use a single 64-bit flag to represent all states, 0 means OK
    bool m_bDiskHealth;                  // disk health
    bool m_bNetworkHealth;               // network health
+
+   std::deque<std::string> m_deleteQueue;
+   CMutex                  m_deleteLock;
+   CCond                   m_deleteCond;
 };
 
 }  // namespace sector
