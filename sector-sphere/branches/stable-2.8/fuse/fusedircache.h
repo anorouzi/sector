@@ -45,6 +45,7 @@ public:
 
     int get(const std::string& path, Sector& sectorClient, SNode& node);
 
+    int init_root( Sector& sectorClient );
     void clear_cache();
 
     void clearLastUnresolvedStatLocal();
