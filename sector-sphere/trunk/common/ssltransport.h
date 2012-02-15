@@ -34,6 +34,8 @@ written by
 namespace sector
 {
 
+class SectorMsg;
+
 class SSLTransport //: public Transport
 {
 public:
@@ -63,6 +65,9 @@ public:
 
    int64_t sendfile(const char* file, const int64_t& offset, const int64_t& size);
    int64_t recvfile(const char* file, const int64_t& offset, const int64_t& size);
+
+   int sendmsg(const SectorMsg& msg);
+   int recvmsg(SectorMsg& msg);
 
    int getLocalIP(std::string& ip);
 

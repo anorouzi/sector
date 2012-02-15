@@ -160,6 +160,16 @@ int Slave::connect()
    masters.insert(m);
    bool first = true;
 
+   SlvLoginReq request;
+   // request.m_iType = 1;
+   request.m_strHomeDir = m_strHomeDir;
+   request.m_strBase = m_strBase;
+   request.m_iPort = m_iLocalPort;
+   //request.m_iDataPort = m_iDataPort;
+   request.m_llAvailDisk = availdisk;
+   request.m_iSlaveID = m_iSlaveID;
+   request.serialize();
+
    while (!masters.empty())
    {
       string mip = masters.begin()->m_strIP;
@@ -178,7 +188,6 @@ int Slave::connect()
       if (first)
       {
          secconn.getLocalIP(m_strLocalIP);
-
          // init data exchange channel
          m_iDataPort = 0;
          if (m_DataChn.init(m_strLocalIP, m_iDataPort) < 0)
@@ -187,46 +196,42 @@ int Slave::connect()
             secconn.close();
             return -1;
          }
+         request.m_iDataPort = m_iDataPort;
       }
 
-      // send in the version first
-      secconn.send((char*)&SectorVersion, 4);
+      // send in slave join request
+      secconn.sendmsg(request);
 
-      // slave join command type = 1
-      int32_t cmd = 1;
-      secconn.send((char*)&cmd, 4);
+      SlvLoginRes response;
+      secconn.recvmsg(response);
+      response.deserialize();
 
-      //send information about home dir to the master, storage path is to differentiate multiple slaves on the same node
-      int32_t size = m_strHomeDir.length() + 1;
-      secconn.send((char*)&size, 4);
-      secconn.send(m_strHomeDir.c_str(), size);
-
-      int32_t res = -1;
-      secconn.recv((char*)&res, 4);
-      if (res < 0)
+      if (response.m_iSlaveID < 0)
       {
-         cerr << "slave join rejected. code: " << res << endl;
-         return res;
+         cerr << "slave join rejected. code: " << response.m_iSlaveID  << endl;
+         return response.m_iSlaveID;
       }
-
-      // send base dir, so that master can automatically restart this slave
-      size = m_strBase.length() + 1;
-      secconn.send((char*)&size, 4);
-      secconn.send(m_strBase.c_str(), size);
-
-      //send slave node information to the master
-      secconn.send((char*)&m_iLocalPort, 4);
-      secconn.send((char*)&m_iDataPort, 4);
-      secconn.send((char*)&(availdisk), 8);
-      secconn.send((char*)&(m_iSlaveID), 4);
 
       if (first)
-         m_iSlaveID = res;
+         m_iSlaveID = response.m_iSlaveID;
+
+      Address addr;
+      addr.m_strIP = mip;
+      addr.m_iPort = mport;
+      m_Routing.insert(response.m_iRouterKey, addr);
+
+      for (vector<Address>::const_iterator i = response.m_vMasters.begin();
+           i != response.m_vMasters.end(); ++ i)
+      {
+         // The connected master itself is also on the list, with an empty IP.
+         if (!i->m_strIP.empty())
+            masters.insert(*i);
+      }
 
       //send local metadata
       SNode s;
       LocalFS::stat(metafile, s);
-      size = s.m_llSize;
+      int size = int(s.m_llSize);
       secconn.send((char*)&size, 4);
       secconn.sendfile(metafile.c_str(), 0, size);
 
@@ -239,14 +244,13 @@ int Slave::connect()
       // move out-of-date files to the ".attic" directory
       size = 0;
       secconn.recv((char*)&size, 4);
-
       if (size > 0)
       {
          string leftfile = m_strHomeDir + ".tmp/metadata.left.dat";
          secconn.recvfile(leftfile.c_str(), 0, size);
 
-         Metadata* attic = NULL;
-         attic = new Index;
+         // TODO: create a new function for below:
+         Metadata* attic = new Index;
          attic->init(leftfile);
          attic->deserialize("/", leftfile, NULL);
          LocalFS::erase(leftfile);
@@ -277,30 +281,6 @@ int Slave::connect()
          m_SectorLog.insert("WARNING: certain files have been moved to ./attic due to conflicts.");
       }
 
-      int id = 0;
-      secconn.recv((char*)&id, 4);
-      Address addr;
-      addr.m_strIP = mip;
-      addr.m_iPort = mport;
-      m_Routing.insert(id, addr);
-
-      int num;
-      secconn.recv((char*)&num, 4);
-      for (int i = 0; i < num; ++ i)
-      {
-         char ip[64];
-         size = 0;
-         secconn.recv((char*)&id, 4);
-         secconn.recv((char*)&size, 4);
-         secconn.recv(ip, size);
-         addr.m_strIP = ip;
-         secconn.recv((char*)&addr.m_iPort, 4);
-
-         m_Routing.insert(id, addr);
-
-         masters.insert(addr);
-      }
-
       first = false;
       secconn.close();
    }
@@ -314,7 +294,7 @@ int Slave::connect()
 
    cout << "This Sector slave is successfully initialized and running now.\n";
 
-   return 1;
+   return 0;
 }
 
 void Slave::run()
@@ -336,6 +316,10 @@ void Slave::run()
    DWORD ThreadID;
    HANDLE worker_thread = CreateThread(NULL, 0, worker, this, 0, &ThreadID);
 #endif
+
+
+   // TODO: use thread pool.
+
 
    while (m_bRunning)
    {

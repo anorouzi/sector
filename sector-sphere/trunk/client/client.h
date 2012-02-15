@@ -107,27 +107,23 @@ protected:
    std::string m_strPassword;           	// user password
    std::string m_strCert;               	// master certificate
 
-   std::set<Address, AddrComp> m_sMasters;      // list of masters that the client already log in
-   pthread_mutex_t m_MasterSetLock;
-
-   Routing m_Routing;                  	 	// master routing module
-
    std::string m_strServerIP;			// original master server IP address
    int m_iServerPort;				// original master server port
 
 protected:
    CGMP m_GMP;				// GMP
    DataChn m_DataChn;			// data channel
-   int32_t m_iKey;			// user key
+   int32_t m_iKey;			// user key, unique
+   int32_t m_iToken;			// user token, random
 
-   // this is the global key/iv for this client. do not share this for all connections; a new connection should duplicate this
+   // this is the global key/iv for this client. do not share this for all connections;
+   // a new connection should duplicate this.
    unsigned char m_pcCryptoKey[16];
    unsigned char m_pcCryptoIV[8];
 
+   Routing m_Routing;                   // master routing module
    Topology m_Topology;			// slave system topology
-
    SectorError m_ErrorInfo;		// error description
-
    Cache m_Cache;			// file client cache
 
 protected: // Logging and debug output

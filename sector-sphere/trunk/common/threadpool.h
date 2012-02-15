@@ -47,9 +47,15 @@ struct Job
 
 struct JobQueue
 {
+   JobQueue(): m_iLimit(1024) {}
+
    std::queue<Job> m_qJobs;
    CMutex m_QueueLock;
    CCond m_QueueCond;
+
+   // We enforce a threshold for max in-flight jobs in each queue.
+   // TODO: In a more advanced version, we should enforce this at per-client level.
+   int m_iLimit;
 };
 
 class ThreadJobQueue
@@ -64,17 +70,19 @@ public:
 
    // A thread should register a unique ID, usually its own thread ID.
    // Thus it will be assigned its own job queue.
-   int registerThread(int key);
+   int registerThread(int key, int limit = 1024);
    void release();
 
    int getNumOfJob() { return m_iTotalJob; }
 
 private:
-   std::vector<int> m_vKeyMap;
-   std::map<int, JobQueue> m_mJobs;
+   std::map<int, JobQueue*> m_mJobs;	// Each thread is associated with a job queue.
+   std::vector<int> m_vKeyMap;		// A list of thread IDs.
 
-   int m_iTotalJob;
-   int m_iRRSeed;	// Used to send jobs to queues in a round-robin fashion.
+   int m_iTotalJob;			// Total number of jobs in queue.
+   int m_iRRSeed;			// Used to send jobs to queues in a round-robin fashion.
+
+   CMutex m_Lock;
 };
 
 }  // namespace sector

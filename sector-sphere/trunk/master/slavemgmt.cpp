@@ -300,18 +300,9 @@ int SlaveManager::chooseReplicaNode(set<int>& loclist, SlaveNode& sn, const int6
 int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int64_t& filesize, const int rep_dist, const vector<int>* restrict_loc)
 {
    // If all source nodes are busy, we should skip the replica.
-   bool idle = false;
-   for (set<int>::const_iterator i = loclist.begin(); i != loclist.end(); ++ i)
-   {
-      // TODO: each slave may set a capacity limit, which could be more than 2 active trasactions.
-      if (m_mSlaveList[*i].m_iActiveTrans <= 1)
-      {
-         idle = true;
-         break;
-      }
-   }
-   if (!idle)
-      return -1;
+
+   // TODO: check CPU/network utilization on each slave.
+   // TODO: If the replica is to be created as requested by a client, then resource check should be ignored.
 
    vector< set<int> > avail;
    avail.resize(m_pTopology->m_uiLevel + 2);

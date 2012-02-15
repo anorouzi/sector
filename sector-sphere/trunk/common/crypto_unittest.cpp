@@ -26,6 +26,7 @@ written by
 #include "crypto.h"
 
 using namespace std;
+using namespace sector;
 
 int test1()
 {

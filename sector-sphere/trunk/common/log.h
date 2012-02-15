@@ -30,6 +30,19 @@ written by
 #include "osportable.h"
 #include "udt.h"
 
+// TODO: use this formated LOG, so that every line read from the log file
+// can be easily parsed.
+struct LogData
+{
+   int64_t m_llTimeStamp;
+   std::string m_strClientIP;
+   int m_iOperation;
+   int m_iResult;
+
+   void serialize(std::string& str);
+   void deserialize(const std::string& std);
+};
+
 struct LogLevel
 {
    static const int LEVEL_0 = 0;

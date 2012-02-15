@@ -48,10 +48,12 @@ int Routing::insert(const uint32_t& key, const Address& node)
 {
    CGuard rg(m_Lock);
 
+   // A node with conflict key is not allowed.
    if (m_mAddressList.find(key) != m_mAddressList.end())
       return -1;
 
    m_mAddressList[key] = node;
+   m_mStates[key].m_bConnected = true;
 
    bool found = false;
    for (vector<uint32_t>::iterator i = m_vFingerTable.begin(); i != m_vFingerTable.end(); ++ i)
@@ -64,9 +66,11 @@ int Routing::insert(const uint32_t& key, const Address& node)
       }
    }
    if (!found)
-      m_vFingerTable.insert(m_vFingerTable.end(), key);
+   {
+      m_vFingerTable.push_back(key);
+   }
 
-   return 1;
+   return 0;
 }
 
 int Routing::remove(const uint32_t& key)
@@ -78,6 +82,7 @@ int Routing::remove(const uint32_t& key)
       return -1;
 
    m_mAddressList.erase(k);
+   m_mStates.erase(key);
 
    for (vector<uint32_t>::iterator i = m_vFingerTable.begin(); i != m_vFingerTable.end(); ++ i)
    {
@@ -88,7 +93,7 @@ int Routing::remove(const uint32_t& key)
       }
    }
 
-   return 1;
+   return 0;
 }
 
 int Routing::lookup(const uint32_t& key, Address& node)
@@ -102,7 +107,7 @@ int Routing::lookup(const uint32_t& key, Address& node)
    int r = m_vFingerTable[f];
    node = m_mAddressList[r];
 
-   return 1;
+   return 0;
 }
 
 int Routing::lookup(const string& path, Address& node)
@@ -148,6 +153,26 @@ int Routing::getRouterID(const Address& node)
    }
 
    return -1;
+}
+
+int Routing::setState(const uint32_t& id, const RouterState& state)
+{
+   CGuard rg(m_Lock);
+   map<uint32_t, RouterState>::iterator i = m_mStates.find(id);
+   if (i == m_mStates.end())
+      return -1;
+   i->second = state;
+   return 0;
+}
+
+int Routing::getState(const uint32_t& id, RouterState& state)
+{
+   CGuard rg(m_Lock);
+   map<uint32_t, RouterState>::iterator i = m_mStates.find(id);
+   if (i == m_mStates.end())
+      return -1;
+   state = i->second;
+   return 0;
 }
 
 bool Routing::match(const uint32_t& cid, const uint32_t& key)

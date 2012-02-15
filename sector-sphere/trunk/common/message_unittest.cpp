@@ -33,9 +33,8 @@ int test1()
    CliLoginReq req;
    CliLoginReq restored_req;
 
-   req.m_iCmd = 1;
-   req.m_strUser = "2";
-   req.m_strPasswd = "3";
+   req.m_strUser = "11111111";
+   req.m_strPasswd = "22222222";
    for (int i = 0; i < 8; ++ i)
       req.m_pcCryptoIV[i] = static_cast<char>(i);
 
@@ -43,7 +42,6 @@ int test1()
    restored_req.setData(0, req.getData(), req.m_iDataLength);
    restored_req.deserialize();
 
-   assert(restored_req.m_iCmd == req.m_iCmd);
    assert(restored_req.m_strUser == req.m_strUser);
    assert(restored_req.m_strPasswd == req.m_strPasswd);
    for (int i = 0; i < 8; ++ i)
@@ -57,20 +55,20 @@ int test2()
    CliLoginRes res;
    CliLoginRes restored_res;
 
-   res.m_iKey = 1;
-   res.m_iToken = 2;
+   res.m_iCliKey = 1;
+   res.m_iCliToken = 2;
    Address m;
    m.m_strIP = "10.0.0.1";
    m.m_iPort = 5000;
-   res.m_Masters.push_back(m);
+   res.m_mMasters[1] = m;
 
    res.serialize();
    restored_res.setData(0, res.getData(), res.m_iDataLength);
    restored_res.deserialize();
 
-   assert(restored_res.m_iKey == res.m_iKey);
-   assert(restored_res.m_Masters.size() == 1);
-   const Address& restored_m = restored_res.m_Masters.front();
+   assert(restored_res.m_iCliKey == res.m_iCliKey);
+   assert(restored_res.m_mMasters.size() == 1);
+   const Address& restored_m = restored_res.m_mMasters.begin()->second;
    assert(m.m_strIP == restored_m.m_strIP);
    assert(m.m_iPort == restored_m.m_iPort);
 

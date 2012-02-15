@@ -200,31 +200,6 @@ int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
    return iu.size();
 }
 
-int UserManager::serializeUsers(int& num, vector<char*>& buf, vector<int>& size)
-{
-   CGuardEx ug(m_Lock);
-
-   buf.clear();
-   size.clear();
-
-   for (map<int, User*>::iterator i = m_mActiveUsers.begin(); i != m_mActiveUsers.end(); ++ i)
-   {
-      if (0 == i->first)
-         continue;
-
-      char* ubuf = NULL;
-      int usize = 0;
-      i->second->serialize(ubuf, usize);
-
-      buf.push_back(ubuf);
-      size.push_back(usize);
-   }
-
-   num = m_mActiveUsers.size() - 1;
-
-   return num;
-}
-
 User* UserManager::lookup(int key)
 {
    CGuardEx ug(m_Lock);
@@ -248,3 +223,56 @@ int UserManager::remove(int key)
    m_mActiveUsers.erase(i);
    return 0;
 } 
+
+int UserManager::serializeUserList(char*& buf, int& size)
+{
+   CGuardEx ug(m_Lock);
+
+   vector<char*> vbuf;
+   vector<int> vsize;
+   size = 0;
+
+   for (map<int, User*>::iterator i = m_mActiveUsers.begin(); i != m_mActiveUsers.end(); ++ i)
+   {
+      if (0 == i->first)
+         continue;
+
+      char* ubuf = NULL;
+      int usize = 0;
+      i->second->serialize(ubuf, usize);
+
+      vbuf.push_back(ubuf);
+      vsize.push_back(usize);
+      size += usize;
+   }
+
+   const int num = m_mActiveUsers.size() - 1;
+   size += num * 4;
+   buf = new char[size];
+   char* p = buf;
+   for (int i = 0; i < num; ++ i)
+   {
+      *(int32_t*)p = vsize[i];
+      p += 4;
+      memcpy(p, vbuf[i], vsize[i]);
+      p += vsize[i];
+   }
+
+   return num;
+}
+
+int UserManager::deserializeUserList(int num, const char* buf, int size)
+{
+   char* p = const_cast<char*>(buf);
+   for (int i  = 0; i < num; ++ i)
+   {
+      int size = *(int32_t*)p;
+      p += 4;
+      User* u = new User;
+      u->deserialize(p, size);
+      p += size;
+      insert(u);
+   }
+
+   return num;
+}

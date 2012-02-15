@@ -362,7 +362,6 @@ RWGuard::~RWGuard()
 };
 
 
-
 int LocalFS::mkdir(const string& path)
 {
 #ifndef WIN32
@@ -571,6 +570,26 @@ int LocalFS::copy(const std::string& src, const std::string& dst)
 
    ifs.close();
    ofs.close();
+
+   return 0;
+}
+
+int LocalFS::create(const std::string& path, const SNode& s)
+{
+   // Path must exist.
+   fstream new_file((path + "/" + s.m_strName).c_str(), ios::binary | ios::out | ios::trunc);
+   if (new_file.bad())
+      return -1;
+
+   // this is also for small file. Actually this is function is used for unittest.
+   char* buf = new char[s.m_llSize];
+   new_file.write(buf, s.m_llSize);
+   delete [] buf;
+   new_file.close();
+
+   timeval t[2];
+   t[1].tv_sec = t[0].tv_sec = s.m_llTimeStamp;
+   utimes((path + "/" + s.m_strName).c_str(), t);
 
    return 0;
 }

@@ -50,7 +50,7 @@ const std::string SectorVersionString = "Sector version 2.7 build 04/24/2011.";
 struct Address
 {
    std::string m_strIP;
-   unsigned short int m_iPort;
+   int m_iPort;
 };
 
 struct AddrComp
@@ -63,6 +63,8 @@ struct AddrComp
    }
 };
 
+typedef std::set<Address, AddrComp> AddressSet;
+
 class SECTOR_API SNode
 {
 public:
@@ -73,7 +75,6 @@ public:
    std::string m_strName;
    bool m_bIsDir;
    std::set<Address, AddrComp> m_sLocation;
-   std::map<std::string, SNode> m_mDirectory;
    int64_t m_llTimeStamp;
    int64_t m_llSize;
    std::string m_strChecksum;

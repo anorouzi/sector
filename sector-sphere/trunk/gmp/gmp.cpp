@@ -48,6 +48,7 @@ written by
    #include <winsock2.h>
    #include <ws2tcpip.h>
 #endif
+#include <cmath>
 #include <queue>
 #include <sstream>
 
@@ -62,9 +63,9 @@ CUserMessage::CUserMessage(const int len):
 m_iDataLength(0),
 m_iBufLength(len)
 {
-   if (m_iBufLength < 8)
-      m_iBufLength = 8;
-
+   const int min_size = sizeof(uint64_t);
+   if (m_iBufLength < min_size)
+      m_iBufLength = min_size;
    m_pcBuffer = reinterpret_cast< char * >( new uint64_t[ ( m_iBufLength + 7 ) / 8 ] );
 }
 
@@ -73,7 +74,7 @@ m_iDataLength(msg.m_iDataLength),
 m_iBufLength(msg.m_iBufLength)
 {
    m_pcBuffer = reinterpret_cast< char * >( new uint64_t[ ( m_iBufLength + 7 ) / 8 ] );
-   memcpy(m_pcBuffer, msg.m_pcBuffer, m_iDataLength + 4);
+   memcpy(m_pcBuffer, msg.m_pcBuffer, m_iDataLength );
 }
 
 CUserMessage::~CUserMessage()
@@ -83,8 +84,13 @@ CUserMessage::~CUserMessage()
 
 int CUserMessage::resize(const int& len)
 {
-   m_iBufLength = len;
+   if (len < m_iBufLength)
+      return m_iBufLength;
 
+   // Increase to 2^n.
+   m_iBufLength = static_cast<int>(ceil(pow(2.0, len)));
+
+   // Buffer cannot be reduced to be so small that it cannot hold current data.
    if (m_iBufLength < m_iDataLength)
       m_iBufLength = m_iDataLength;
 
@@ -107,7 +113,9 @@ public:
    m_iSrcChn(m_piHeader[2]),
    m_iDstChn(m_piHeader[3]),
    m_iID(m_piHeader[4]),
-   m_iInfo(m_piHeader[5]),
+   m_iTimeStamp(m_piHeader[5]),
+   m_iTTL(m_piHeader[6]),
+   m_iInfo(m_piHeader[7]),
    m_pcData(NULL),
    m_iLength(0)
    {
@@ -128,7 +136,9 @@ public:
    m_iSrcChn(m_piHeader[2]),
    m_iDstChn(m_piHeader[3]),
    m_iID(m_piHeader[4]),
-   m_iInfo(m_piHeader[5]),
+   m_iTimeStamp(m_piHeader[5]),
+   m_iTTL(m_piHeader[6]),
+   m_iInfo(m_piHeader[7]),
    m_pcData(NULL),
    m_iLength(0)
    {
@@ -185,12 +195,14 @@ public:
    }
 
 public: // Message header and data
-   int32_t m_piHeader[6];
+   int32_t m_piHeader[8];
    int32_t& m_iType;            // 0 Data; 1 ACK; 2 RTT; 3 UDT Rendezvous connection
    int32_t& m_iSession;         // Used to differentiate GMP instances on the same address
    int32_t& m_iSrcChn;          // source channel, multiple channels for the same GMP instance
    int32_t& m_iDstChn;          // destination channel
    int32_t& m_iID;              // message ID
+   int32_t& m_iTimeStamp;       // Message creation time
+   int32_t& m_iTTL;             // TTL, expired msg will be discarded
    int32_t& m_iInfo;            // additional information, depending on type
 
    char* m_pcData;

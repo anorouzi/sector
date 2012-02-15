@@ -1,4 +1,4 @@
-C++ = g++
+C++ = clang++ #g++
 
 DEBUG = 1
 STATIC = 0

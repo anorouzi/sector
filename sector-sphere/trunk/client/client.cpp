@@ -56,13 +56,11 @@ m_iCount(0),
 m_bActive(false),
 m_iID(0)
 {
-   CGuard::createMutex(m_MasterSetLock);
    CGuard::createMutex(m_IDLock);
 }
 
 Client::~Client()
 {
-   CGuard::releaseMutex(m_MasterSetLock);
    CGuard::releaseMutex(m_IDLock);
 }
 
@@ -72,16 +70,10 @@ int Client::init()
       return 0;
 
    UDTTransport::initialize();
-
    m_ErrorInfo.init();
-
-   m_sMasters.clear();
-
    Crypto::generateKey(m_pcCryptoKey, m_pcCryptoIV);
-
    if (m_GMP.init(0) < 0)
       return SectorError::E_GMP;
-
    int dataport = 0;
    if (m_DataChn.init("", dataport) < 0)
       return SectorError::E_DATACHN;
@@ -134,78 +126,50 @@ int Client::login(const std::string& serv_ip, const int& serv_port,
       return result;
    }
 
-   // TODO: pack all these info into one message and send out, wait for a single response
-   // compete this after GMP message is done.
+   CliLoginReq login_req;
+   login_req.m_iType = 2;
+   login_req.m_iVersion = SectorVersion;
+   login_req.m_strUser = username;
+   login_req.m_strPasswd = password;
+   login_req.m_iKey = m_iKey;
+   login_req.m_iPort = m_GMP.getPort();
+   login_req.m_iDataPort = m_DataChn.getPort();
+   memcpy(login_req.m_pcCryptoKey, m_pcCryptoKey, 16);
+   memcpy(login_req.m_pcCryptoIV, m_pcCryptoIV, 8);
 
-   // send in the client version first
-   secconn.send((char*)&SectorVersion, 4);
+   login_req.serialize();
+   secconn.sendmsg(login_req);
 
-   // client login type = 2
-   int cmd = 2;
-   secconn.send((char*)&cmd, 4);
+   CliLoginRes login_res;
+   if (secconn.recvmsg(login_res) < 0)
+   {
+      return -1;
+   }
+   login_res.deserialize();
 
-   // send username and password
-   char buf[128];
-   strncpy(buf, username.c_str(), 64);
-   secconn.send(buf, 64);
-   strncpy(buf, password.c_str(), 128);
-   secconn.send(buf, 128);
-
-   secconn.send((char*)&m_iKey, 4);
-
-   m_iKey = -1;
-   secconn.recv((char*)&m_iKey, 4);
-
-   // Login error
+   m_iKey = login_res.m_iCliKey;
+   // Login error.
    if (m_iKey < 0)
       return m_iKey;
 
-   int32_t port = m_GMP.getPort();
-   secconn.send((char*)&port, 4);
-   port = m_DataChn.getPort();
-   secconn.send((char*)&port, 4);
-
-   // send encryption key/iv
-   secconn.send((char*)m_pcCryptoKey, 16);
-   secconn.send((char*)m_pcCryptoIV, 8);
-
-   int size = 0;
-   secconn.recv((char*)&size, 4);
-   if (size > 0)
-   {
-      char* tmp = new char[size];
-      secconn.recv(tmp, size);
-      m_Topology.deserialize(tmp, size);
-      delete [] tmp;
-   }
+   m_Topology = login_res.m_Topology;
 
    Address addr;
-   int key = 0;
-   secconn.recv((char*)&key, 4);
    addr.m_strIP = m_strServerIP;
    addr.m_iPort = m_iServerPort;
-   m_Routing.insert(key, addr);
+   m_Routing.insert(login_res.m_iRouterKey, addr);
 
-   CGuard::enterCS(m_MasterSetLock);
-   m_sMasters.insert(addr);
-   CGuard::leaveCS(m_MasterSetLock);
-
-   int num;
-   secconn.recv((char*)&num, 4);
-   for (int i = 0; i < num; ++ i)
+   for (map<uint32_t, Address>::const_iterator i = login_res.m_mMasters.begin();
+        i != login_res.m_mMasters.end(); ++ i)
    {
-      char ip[64];
-      int size = 0;
-      secconn.recv((char*)&key, 4);
-      secconn.recv((char*)&size, 4);
-      secconn.recv(ip, size);
-      addr.m_strIP = ip;
-      secconn.recv((char*)&addr.m_iPort, 4);
-      m_Routing.insert(key, addr);
+      if (m_Routing.insert(i->first, i->second) > 0)
+      {
+         // These masters have not been connected yet.
+         RouterState state;
+         state.m_bConnected = false;
+         m_Routing.setState(i->first, state);
+      }
    }
-
-   int32_t tmp;
-   secconn.recv((char*)&tmp, 4);
 
    secconn.close();
    SSLTransport::destroy();
@@ -229,84 +193,75 @@ int Client::login(const string& serv_ip, const int& serv_port)
    addr.m_strIP = serv_ip;
    addr.m_iPort = serv_port;
 
-   CGuard::enterCS(m_MasterSetLock);
-   if (m_sMasters.find(addr) != m_sMasters.end())
-   {
-      CGuard::leaveCS(m_MasterSetLock);
+   // Check if the master exists.
+   int rid = m_Routing.getRouterID(addr);
+   if (rid < 0)
       return 0;
-   }
-   CGuard::leaveCS(m_MasterSetLock);
+   RouterState state;
+   m_Routing.getState(rid, state);
+   if (state.m_bConnected)
+      return 0;
 
+   // Cannot re-connect if the client has not connected to a master before.
    if (m_iKey < 0)
       return -1;
 
    SSLTransport::init();
 
-   int result;
+   int result = -1;
    SSLTransport secconn;
    if ((result = secconn.initClientCTX(m_strCert.c_str())) < 0)
       return result;
    if ((result = secconn.open(NULL, 0)) < 0)
       return result;
-
    if ((result = secconn.connect(serv_ip.c_str(), serv_port)) < 0)
       return result;
 
-   // send in the client version first
-   secconn.send((char*)&SectorVersion, 4);
+   CliLoginReq login_req;
+   login_req.m_iType = 2;
+   login_req.m_iVersion = SectorVersion;
+   login_req.m_strUser = m_strUsername;
+   login_req.m_strPasswd = m_strPassword;
+   login_req.m_iKey = m_iKey;
+   login_req.m_iPort = m_GMP.getPort();
+   login_req.m_iDataPort = m_DataChn.getPort();
+   memcpy(login_req.m_pcCryptoKey, m_pcCryptoKey, 16);
+   memcpy(login_req.m_pcCryptoIV, m_pcCryptoIV, 8);
 
-   // client connect type = 2
-   int cmd = 2;
-   secconn.send((char*)&cmd, 4);
+   login_req.serialize();
+   secconn.sendmsg(login_req);
 
-   // send username and password
-   char buf[128];
-   strncpy(buf, m_strUsername.c_str(), 64);
-   secconn.send(buf, 64);
-   strncpy(buf, m_strPassword.c_str(), 128);
-   secconn.send(buf, 128);
+   CliLoginRes login_res;
+   if (secconn.recvmsg(login_res) < 0)
+   {
+      return -1;
+   }
+   login_res.deserialize();   
 
-   secconn.send((char*)&m_iKey, 4);
-   int32_t key = -1;
-   secconn.recv((char*)&key, 4);
-   if (key < 0)
-      return SectorError::E_SECURITY;
-
-   int32_t port = m_GMP.getPort();
-   secconn.send((char*)&port, 4);
-   port = m_DataChn.getPort();
-   secconn.send((char*)&port, 4);
-
-   // send encryption key/iv
-   secconn.send((char*)m_pcCryptoKey, 16);
-   secconn.send((char*)m_pcCryptoIV, 8);
-
-   int32_t tmp;
-   secconn.recv((char*)&tmp, 4);
+   if (login_res.m_iKey < 0)
+   {
+      return -1;
+   }
 
    secconn.close();
    SSLTransport::destroy();
-
-   CGuard::enterCS(m_MasterSetLock);
-   m_sMasters.insert(addr);
-   CGuard::leaveCS(m_MasterSetLock);
 
    return 0;
 }
 
 int Client::logout()
 {
-   CGuard::enterCS(m_MasterSetLock);
-   for (set<Address, AddrComp>::iterator i = m_sMasters.begin(); i != m_sMasters.end(); ++ i)
+   map<uint32_t, Address> masters;
+   m_Routing.getListOfMasters(masters);
+
+   for (map<uint32_t, Address>::iterator i = masters.begin(); i != masters.end(); ++ i)
    {
       SectorMsg msg;
       msg.setKey(m_iKey);
       msg.setType(2);
       msg.m_iDataLength = SectorMsg::m_iHdrSize;
-      m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg);
+      m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
    }
-   m_sMasters.clear();
-   CGuard::leaveCS(m_MasterSetLock);
 
    m_iKey = 0;
    return 0;
@@ -329,7 +284,6 @@ int Client::close()
 
       m_strServerIP = "";
       m_iServerPort = 0;
-      m_sMasters.clear();
       m_iKey = 0;
       m_GMP.close();
       UDTTransport::release();
@@ -730,26 +684,22 @@ DWORD WINAPI Client::keepAlive(LPVOID param)
          continue;
 
       // make a copy of the master addresses because the RPC can take some time to complete and block other calls
-      vector<Address> ml;
-      CGuard::enterCS(self->m_MasterSetLock);
-      for (set<Address, AddrComp>::iterator i = self->m_sMasters.begin(); i != self->m_sMasters.end(); ++ i)
-         ml.push_back(*i);
-      CGuard::leaveCS(self->m_MasterSetLock);
+      map<uint32_t, Address> masters;
+      self->m_Routing.getListOfMasters(masters);
 
       // TODO: optimize with multi_rpc
-      for (vector<Address>::iterator i = ml.begin(); i != ml.end(); ++ i)
+      for (map<uint32_t, Address>::iterator i = masters.begin(); i != masters.end(); ++ i)
       {
          // send keep-alive msg to each logged in master
          SectorMsg msg;
          msg.setKey(self->m_iKey);
          msg.setType(6);
          msg.m_iDataLength = SectorMsg::m_iHdrSize;
-         if ((self->m_GMP.rpc(i->m_strIP.c_str(), i->m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
+         if ((self->m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0) ||
+             (msg.getType() < 0))
          {
             // if the master is down or restarted, remove it from the client
-            CGuard::enterCS(self->m_MasterSetLock);
-            self->m_sMasters.erase(*i);
-            CGuard::leaveCS(self->m_MasterSetLock);
+            self->m_Routing.remove(i->first);
          }
       }
 

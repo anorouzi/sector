@@ -106,6 +106,7 @@ private:
       void clear() {m_mDirectory.clear();}
    } m_MetaTree;
 
+   // TODO: we should local different part of the tree to increase concurrency.
    RWLock m_MetaLock;
 };
 

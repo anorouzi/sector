@@ -294,10 +294,10 @@ int Topology::getTopoDataSize()
 
 int Topology::serialize(char* buf, int& size)
 {
-   if (size < int(8 + m_vTopoMap.size() * (4 + 4 + m_uiLevel * 4)))
+   if (size < getTopoDataSize())
       return -1;
 
-   size = 8 + m_vTopoMap.size() * (4 + 4 + m_uiLevel * 4);
+   size = getTopoDataSize();
    int* p = (int*)buf;
    p[0] = m_vTopoMap.size();
    p[1] = m_uiLevel;

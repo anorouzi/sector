@@ -50,7 +50,8 @@ public:
    int m_iPort;					// client port (GMP)
    int m_iDataPort;				// data channel port
 
-   int32_t m_iKey;				// client key
+   int32_t m_iKey;				// client key, a unique ID that identify the client
+   int32_t m_iToken;				// token is a random number for security verfication
 
    unsigned char m_pcKey[16];			// client crypto key
    unsigned char m_pcIV[8];			// client crypto iv
@@ -70,9 +71,10 @@ public:
 public:
    int insert(User* u);
    int checkInactiveUsers(std::vector<User*>& iu, int timeout);
-   int serializeUsers(int& num, std::vector<char*>& buf, std::vector<int>& size);
    User* lookup(int key);
    int remove(int key);
+   int serializeUserList(char*& buf, int& size);
+   int deserializeUserList(int num, const char* buf, int size);
 
    // TODO: A reference count should be used for the User structure,
    // so that it will not be deleted when its pointer is used.

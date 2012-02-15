@@ -184,6 +184,7 @@ public:
    static int rename(const std::string& src, const std::string& dst);
    static int copy(const std::string& src, const std::string& dst);
    static int get_dir_space(const std::string& path, int64_t& avail);
+   static int create(const std::string& path, const SNode& s);
 };
 
 // TODO: wrap some common threading utility, create, join, etc.

@@ -247,76 +247,42 @@ int Master::join(const char* ip, const int& port)
       return -1;
    }
 
-   // send version number first
-   s.send((char*)&SectorVersion, 4);
+   MstLoginReq request;
+   MstLoginRes response;
+   request.m_iServerPort = m_SysConfig.m_iServerPort;
+   request.m_iRouterKey = m_iRouterKey;
+   request.serialize();
+   s.sendmsg(request);
+   s.recvmsg(response);
+   response.deserialize();
 
-   // master join command type = 3;
-   int cmd = 3;
-   s.send((char*)&cmd, 4);
-   int32_t key = -1;
-   s.recv((char*)&key, 4);
-   if (key < 0)
+   if (response.m_iKey < 0)
    {
-      cerr << "security check failed. code: " << key << endl;
+      cerr << "security check failed. code: " << response.m_iKey << endl;
       return -1;
    }
 
    Address addr;
    addr.m_strIP = ip;
    addr.m_iPort = port;
-   m_Routing.insert(key, addr);
+   m_Routing.insert(response.m_iKey, addr);
 
-   s.send((char*)&m_SysConfig.m_iServerPort, 4);
-   s.send((char*)&m_iRouterKey, 4);
-
-   // recv master list
-   int num = 0;
-   if (s.recv((char*)&num, 4) < 0)
-      return -1;
-   for (int i = 0; i < num; ++ i)
+   for (map<uint32_t, Address>::iterator i = response.m_mMasters.begin();
+        i != response.m_mMasters.end(); ++i)
    {
-      char ip[64];
-      int port = 0;
-      int id = 0;
-      int size = 0;
-      s.recv((char*)&id, 4);
-      s.recv((char*)&size, 4);
-      s.recv(ip, size);
-      s.recv((char*)&port, 4);
-      Address saddr;
-      saddr.m_strIP = ip;
-      saddr.m_iPort = port;
-      m_Routing.insert(id, addr);
+      if (i->second.m_strIP.empty())
+         continue;
+      m_Routing.insert(i->first, i->second);
    }
 
    // recv slave list
-   if (s.recv((char*)&num, 4) < 0)
-      return -1;
-   int size = 0;
-   if (s.recv((char*)&size, 4) < 0)
-      return -1;
-   char* buf = new char [size];
-   s.recv(buf, size);
-   m_SlaveManager.deserializeSlaveList(num, buf, size);
-   delete [] buf;
+   m_SlaveManager.deserializeSlaveList(response.m_iSlaveNum, response.m_pcSlaveBuf, response.m_iSlaveBufSize);
 
    // recv user list
-   if (s.recv((char*)&num, 4) < 0)
-      return -1;
-   for (int i = 0; i < num; ++ i)
-   {
-      size = 0;
-      s.recv((char*)&size, 4);
-      char* ubuf = new char[size];
-      s.recv(ubuf, size);
-      User* u = new User;
-      u->deserialize(ubuf, size);
-      delete [] ubuf;
-      m_UserManager.insert(u);
-   }
+   m_UserManager.deserializeUserList(response.m_iUserNum, response.m_pcUserBuf, response.m_iUserBufSize);
 
    // recv metadata
-   size = 0;
+   int size = 0;
    s.recv((char*)&size, 4);
    string metafile = m_strHomeDir + ".tmp/master_meta.dat";
    s.recvfile(metafile.c_str(), 0, size);
@@ -351,7 +317,8 @@ int Master::run()
          SectorMsg msg;
          msg.setKey(0);
          msg.setType(1005); //master node probe msg
-         msg.setData(0, (char*)&i->first, 4); // ask the other master to check its router ID, in case more than one are started on the same address
+         // ask the other master to check its router ID, in case more than one are started on the same address
+         msg.setData(0, (char*)&i->first, 4);
          if ((m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {
             m_SectorLog.insert(("Master lost " + i->second.m_strIP + ".").c_str());
@@ -397,7 +364,7 @@ int Master::run()
             }
          }
 
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << " timeout. Kicked out." << LogEnd();
+         m_SectorLog << LogStart(1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << " timeout. Kicked out." << LogEnd();
          delete *i;
       }
       iu.clear();
@@ -459,7 +426,8 @@ int Master::run()
 
       for (map<int, SlaveNode>::iterator i = dead.begin(); i != dead.end(); ++ i)
       {
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << i->second.m_strIP << " ID " << i->first << " has been failed for a long time; Give it up now." << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << i->second.m_strIP << " ID " << i->first
+                     << " has been failed for a long time; Give it up now." << LogEnd();
          m_SlaveManager.remove(i->first);
       }
 
@@ -542,7 +510,7 @@ int Master::stop()
    pthread_sigmask(SIG_BLOCK, &ps, NULL);
 #endif
 
-   const int ServiceWorker = 4;
+   const int ServiceWorker = 1;
    for (int i = 0; i < ServiceWorker; ++ i)
    {
 #ifndef WIN32
@@ -605,44 +573,39 @@ int Master::stop()
    int queue_id = pthread_self();
    self->m_ServiceJobQueue.registerThread(queue_id);
 
+   SSLTransport* s = NULL;
+
    while (self->m_Status == RUNNING)
    {
       ServiceJobParam* p = (ServiceJobParam*)self->m_ServiceJobQueue.pop(queue_id);
       if (NULL == p)
          break;
 
-      SSLTransport* s = p->ssl;
-      string ip = p->ip;
-      //int port = p->port;
+      delete s;
+      s = p->ssl;
+
+      SectorMsg request;
+      request.m_strSourceIP = p->ip;
+      request.m_iSourcePort = p->port;
+
       delete p;
 
-      int32_t version;
-      if (s->recv((char*)&version, 4) < 0)
-      {
-         s->close();
-         delete s;
+      // Receive a request and deserialize its header information.
+      if (s->recvmsg(request) < 0)
          continue;
-      }
+      request.deserializeHdr();
 
-      if (version != SectorVersion)
+      if (request.m_iVersion != SectorVersion)
       {
+         // TODO: pass error code to process... and send back a response msg.
          // TODO: more advanced version check, currently they must be the same
          int32_t res = SectorError::E_VERSION;
          s->send((char*)&res, 4);
-         s->close();
-         delete s;
          continue;
       }
 
-      int32_t cmd;
-      if (s->recv((char*)&cmd, 4) < 0)
-      {
-         s->close();
-         delete s;
-         continue;
-      }
-
-      if (secconn.send((char*)&cmd, 4) < 0)
+      // TODO: Forward whole request to the security server.
+      if (secconn.send((char*)&request.m_iType, 4) < 0)
       {
          //if the permanent connection to the security server is broken, re-connect
          secconn.close();
@@ -651,73 +614,69 @@ int Master::stop()
          {
             int32_t res = SectorError::E_NOSECSERV;
             s->send((char*)&res, 4);
-            s->close();
-            delete s;
             continue;
          }
 
-         secconn.send((char*)&cmd, 4);
+         secconn.send((char*)&request.m_iType, 4);
       }
 
-      switch (cmd)
+      switch (request.m_iType)
       {
       case 1: // slave node join
-         self->processSlaveJoin(*s, secconn, ip);
-         break;
-
+         {
+            SlvLoginReq req;
+            req.replicate(request);
+            self->processSlaveJoin(*s, secconn, req);
+            break;
+         }
       case 2: // user login
-         self->processUserJoin(*s, secconn, ip);
-         break;
-
+         {
+            CliLoginReq req;
+            req.replicate(request);
+            self->processUserJoin(*s, secconn, req);
+            break;
+         }
       case 3: // master join
-         self->processMasterJoin(*s, secconn, ip);
-        break;
+         {
+            MstLoginReq req;
+            req.replicate(request);
+            self->processMasterJoin(*s, secconn, req);
+            break;
+         }
       }
-
-      s->close();
-      delete s;
    }
 
+   delete s;
    secconn.close();
 
    return NULL;
 }
 
 int Master::processSlaveJoin(SSLTransport& slvconn,
-                             SSLTransport& secconn, const string& ip)
+                             SSLTransport& secconn, const SlvLoginReq& request)
 {
-   // recv local storage path, avoid same slave joining more than once
-   int32_t size = 0;
-   slvconn.recv((char*)&size, 4);
-   string lspath = "";
-   if (size > 0)
-   {
-      char* tmp = new char[size];
-      slvconn.recv(tmp, size);
-      lspath = Metadata::revisePath(tmp);
-      delete [] tmp;
-   }
+   SlvLoginRes response;
+   response.m_iSlaveID = 0;
 
-   int32_t res = SectorError::E_SECURITY;
-   char slaveIP[64];
-   strcpy(slaveIP, ip.c_str());
-   secconn.send(slaveIP, 64);
-   secconn.recv((char*)&res, 4);
+   // recv local storage path, avoid same slave joining more than once
+   string lspath = Metadata::revisePath(request.m_strHomeDir);
 
    if (lspath == "")
-      res = SectorError::E_INVPARAM;
+   {
+      response.m_iSlaveID = SectorError::E_INVPARAM;
+   }
    else
    {
       int32_t id;
       Address addr;
-      if (m_SlaveManager.checkDuplicateSlave(ip, lspath, id, addr))
+      if (m_SlaveManager.checkDuplicateSlave(request.m_strSourceIP, lspath, id, addr))
       {
          // another slave is already using the storage
          // check if the current slave is still alive
          SectorMsg msg;
          msg.setType(1);
          if (m_GMP.rpc(addr.m_strIP, addr.m_iPort, &msg, &msg) >= 0)
-            res = SectorError::E_REPSLAVE;
+            response.m_iSlaveID = SectorError::E_REPSLAVE;
          else
          {
             removeSlave(id, addr);
@@ -726,46 +685,52 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       }
    }
 
-   slvconn.send((char*)&res, 4);
-
-   if (res > 0)
+   // Passed local check, request a new slave ID from the security server.
+   if (response.m_iSlaveID == 0)
    {
-      SlaveNode sn;
+      char slaveIP[64];
+      strcpy(slaveIP, request.m_strSourceIP.c_str());
+      secconn.send(slaveIP, 64);
+      secconn.recv((char*)&response.m_iSlaveID, 4);
+   }
 
-      size = 0;
-      slvconn.recv((char*)&size, 4);
-      if (size > 0)
+   response.m_iRouterKey = m_iRouterKey;
+   if ((response.m_iSlaveID > 0) && (request.m_iSlaveID < 0))
+   {
+      map<uint32_t, Address> al;
+      m_Routing.getListOfMasters(al);
+      for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
       {
-         char* tmp = new char[size];
-         slvconn.recv(tmp, size);
-         sn.m_strBase = Metadata::revisePath(tmp);
-         delete [] tmp;
+         response.m_vMasters.push_back(i->second);
       }
+   }
+   response.serialize();
+   slvconn.sendmsg(response);
 
-      sn.m_iNodeID = res;
-      sn.m_strIP = ip;
-      slvconn.recv((char*)&sn.m_iPort, 4);
-      slvconn.recv((char*)&sn.m_iDataPort, 4);
+   if (response.m_iSlaveID > 0)
+   {
+      // Slave join approved.
+      SlaveNode sn;
+      sn.m_iNodeID = response.m_iSlaveID;
+      if (request.m_iSlaveID > 0)
+         sn.m_iNodeID = request.m_iSlaveID;
       sn.m_strStoragePath = lspath;
+      sn.m_strBase = Metadata::revisePath(request.m_strBase);
+      sn.m_strIP = request.m_strSourceIP;
+      sn.m_iPort = request.m_iPort;
+      sn.m_iDataPort = request.m_iDataPort;
+      sn.m_llAvailDiskSpace = request.m_llAvailDisk;
       sn.m_llLastUpdateTime = CTimer::getTime();
       sn.m_llLastVoteTime = CTimer::getTime();
 
-      slvconn.recv((char*)&(sn.m_llAvailDiskSpace), 8);
-
-      int id;
-      slvconn.recv((char*)&id, 4);
-      if (id > 0)
-         sn.m_iNodeID = id;
-
       stringstream tmp_meta_file;
       tmp_meta_file << m_strHomeDir << ".tmp/" << sn.m_iNodeID << ".dat";
-
-      size = 0;
+      int32_t size = 0;
       slvconn.recv((char*)&size, 4);
       slvconn.recvfile(tmp_meta_file.str().c_str(), 0, size);
 
       Address addr;
-      addr.m_strIP = ip;
+      addr.m_strIP = sn.m_strIP;
       addr.m_iPort = sn.m_iPort;
 
       // accept existing data on the new slave and merge it with the master metadata
@@ -800,19 +765,17 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
       {
          branch->clear();
          delete branch;
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogEnd();
+         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << request.m_strSourceIP << " join rejected." << LogEnd();
          return -1;
       }
 
       m_SlaveManager.updateClusterStat();
-
       // merge slave metadata with system metadata
       m_pMetadata->merge(branch, m_SysConfig.m_iReplicaNum);
 
-      if (id < 0)
+      if (request.m_iSlaveID < 0)
       {
-         //this is the first master that the slave connect to; send these information to the slave
-
+         // this is the first master that the slave connect to.
          // check number of files only, directories need not to be removed.
          size = branch->getTotalFileNum("/");
          if (size <= 0)
@@ -829,86 +792,63 @@ int Master::processSlaveJoin(SSLTransport& slvconn,
                slvconn.sendfile(left_file.c_str(), 0, size);
             LocalFS::erase(left_file);
 
-            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << ip
+            m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave " << request.m_strSourceIP
                         << " contains some files that are conflict with existing files." << LogEnd();
-         }
-
-         // send the list of masters to the new slave
-         slvconn.send((char*)&m_iRouterKey, 4);
-         int num = m_Routing.getNumOfMasters() - 1;
-         slvconn.send((char*)&num, 4);
-         map<uint32_t, Address> al;
-         m_Routing.getListOfMasters(al);
-         for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
-         {
-            if (i->first == m_iRouterKey)
-               continue;
-
-            slvconn.send((char*)&i->first, 4);
-            size = i->second.m_strIP.length() + 1;
-            slvconn.send((char*)&size, 4);
-            slvconn.send(i->second.m_strIP.c_str(), size);
-            slvconn.send((char*)&i->second.m_iPort, 4);
          }
       }
 
       branch->clear();
       delete branch;
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << ":" << sn.m_iPort << " joined." << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << sn.m_strIP << ":" << sn.m_iPort << " joined." << LogEnd();
    }
    else
    {
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << ip << " join rejected." << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Slave node " << request.m_strSourceIP << " join rejected." << LogEnd();
    }
 
    return 0;
 }
 
 int Master::processUserJoin(SSLTransport& cliconn,
-                            SSLTransport& secconn, const string& ip)
+                            SSLTransport& secconn, const CliLoginReq& request)
 {
-   /* client uname, passwd and key */
-   char user[64];
-   cliconn.recv(user, 64);
-   char password[128];
-   cliconn.recv(password, 128);
-   int32_t ukey;
-   cliconn.recv((char*)&ukey, 4);
-
    /* forward to sec-server and get key from sec-server */
+   char user[64];
+   strncpy(user, request.m_strUser.c_str(), 63);
    secconn.send(user, 64);
-   secconn.send(password, 128);
+   char passwd[128];
+   strncpy(passwd, request.m_strPasswd.c_str(), 127);
+   secconn.send(passwd, 128);
    char clientIP[64];
-   strcpy(clientIP, ip.c_str());
+   strncpy(clientIP, request.m_strSourceIP.c_str(), 63);
    secconn.send(clientIP, 64);
+
+   CliLoginRes response;
 
    int32_t key = SectorError::E_SECURITY;
    secconn.recv((char*)&key, 4);
-
-   if ((key > 0) && (ukey > 0))
-      key = ukey;
-
-   /* forward sec key to client */
-   cliconn.send((char*)&key, 4);
+   // Reuse client's current key, if it re-connects.
+   if ((key > 0) && (request.m_iKey > 0))
+      key = request.m_iKey;
 
    if (key > 0)
    {
       User* au = new User;
       au->m_strName = user;
-      au->m_strIP = ip;
+      au->m_strIP = request.m_strSourceIP;
       au->m_iKey = key;
       au->m_llLastRefreshTime = CTimer::getTime();
+      //TODO: the master should also generate a token
+      //which is a random number based on user ID, name, address, timestamp,
+      //and a local random seed.
+      au->m_iToken = 0;
+      au->m_iPort = request.m_iPort;
+      au->m_iDataPort = request.m_iDataPort;
+      memcpy(au->m_pcKey, request.m_pcCryptoKey, 16);
+      memcpy(au->m_pcIV, request.m_pcCryptoIV, 8);
 
-      cliconn.recv((char*)&au->m_iPort, 4);
-      cliconn.recv((char*)&au->m_iDataPort, 4);
-      cliconn.recv((char*)au->m_pcKey, 16);
-      cliconn.recv((char*)au->m_pcIV, 8);
-
-      cliconn.send((char*)&m_iTopoDataSize, 4);
-      if (m_iTopoDataSize > 0)
-         cliconn.send(m_pcTopoData, m_iTopoDataSize);
-
+      // Receive user permissions.
       int32_t size = 0;
       secconn.recv((char*)&size, 4);
       if (size > 0)
@@ -926,105 +866,63 @@ int Master::processUserJoin(SSLTransport& cliconn,
          au->deserialize(au->m_vstrWriteList, buf);
          delete [] buf;
       }
-
       int32_t exec;
       secconn.recv((char*)&exec, 4);
       au->m_bExec = exec;
 
+      // A new user.
       m_UserManager.insert(au);
 
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " ID " << key << " login from " << ip << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " ID " << key
+                  << " login from " << request.m_strSourceIP << LogEnd();
 
-      if (ukey <= 0)
+      response.m_iCliKey = au->m_iKey;
+      response.m_iCliToken = au->m_iToken;
+      // TODO: topology
+      if (request.m_iKey <= 0)
       {
          // send the list of masters to the new users
-         cliconn.send((char*)&m_iRouterKey, 4);
-         int num = m_Routing.getNumOfMasters() - 1;
-         cliconn.send((char*)&num, 4);
-         map<uint32_t, Address> al;
-         m_Routing.getListOfMasters(al);
-         for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
-         {
-            if (i->first == m_iRouterKey)
-               continue;
-
-            cliconn.send((char*)&i->first, 4);
-            int size = i->second.m_strIP.length() + 1;
-            cliconn.send((char*)&size, 4);
-            cliconn.send(i->second.m_strIP.c_str(), size);
-            cliconn.send((char*)&i->second.m_iPort, 4);
-         }
+         response.m_iRouterKey = m_iRouterKey;
+         m_Routing.getListOfMasters(response.m_mMasters);
       }
-
-      // for synchronization only, message content is meaningless
-      cliconn.send((char*)&key, 4);
    }
    else
    {
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user << " login rejected from " << ip << LogEnd();
+      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user
+                  << " login rejected from " << request.m_strSourceIP << LogEnd();
    }
+
+   response.serialize();
+   cliconn.sendmsg(response);
 
    return 0;
 }
 
 int Master::processMasterJoin(SSLTransport& mstconn,
-                              SSLTransport& secconn, const string& ip)
+                              SSLTransport& secconn, const MstLoginReq& request)
 {
+   MstLoginRes response;
+
    char masterIP[64];
-   strcpy(masterIP, ip.c_str());
+   strncpy(masterIP, request.m_strSourceIP.c_str(), 64);
    secconn.send(masterIP, 64);
-   int32_t res = SectorError::E_SECURITY;
-   secconn.recv((char*)&res, 4);
+   response.m_iResponse = SectorError::E_SECURITY;
+   secconn.recv((char*)&response.m_iResponse, 4);
 
-   if (res > 0)
-      res = m_iRouterKey;
-   mstconn.send((char*)&res, 4);
-
-   if (res > 0)
+   if (response.m_iResponse > 0)
    {
-      int masterPort;
-      int32_t key;
-      mstconn.recv((char*)&masterPort, 4);
-      mstconn.recv((char*)&key, 4);
-
-      // send master list
-      int num = m_Routing.getNumOfMasters() - 1;
-      mstconn.send((char*)&num, 4);
-      map<uint32_t, Address> al;
-      m_Routing.getListOfMasters(al);
-      for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
-      {
-         if (i->first == m_iRouterKey)
-            continue;
-
-         mstconn.send((char*)&i->first, 4);
-         int size = i->second.m_strIP.length() + 1;
-         mstconn.send((char*)&size, 4);
-         mstconn.send(i->second.m_strIP.c_str(), size);
-         mstconn.send((char*)&i->second.m_iPort, 4);
-      }
+      response.m_iResponse = m_iRouterKey;
+      m_Routing.getListOfMasters(response.m_mMasters);
 
       // send slave list
-      char* buf = NULL;
-      int32_t size = 0;
-      num = m_SlaveManager.serializeSlaveList(buf, size);
-      mstconn.send((char*)&num, 4);
-      mstconn.send((char*)&size, 4);
-      mstconn.send(buf, size);
-      delete [] buf;
+      response.m_pcSlaveBuf = NULL;
+      response.m_iSlaveBufSize = 0;
+      response.m_iSlaveNum = m_SlaveManager.serializeSlaveList(response.m_pcSlaveBuf, response.m_iSlaveBufSize);
 
       // send user list
-      num = 0;
-      vector<char*> bufs;
-      vector<int> sizes;
-      m_UserManager.serializeUsers(num, bufs, sizes);
-      mstconn.send((char*)&num, 4);
-      for (int i = 0; i < num; ++ i)
-      {
-         mstconn.send((char*)&sizes[i], 4);
-         mstconn.send(bufs[i], sizes[i]);
-         delete [] bufs[i];
-      }
+      response.m_pcUserBuf = NULL;
+      response.m_iUserBufSize = 0;
+      response.m_iUserNum = m_UserManager.serializeUserList(response.m_pcUserBuf, response.m_iUserBufSize);
 
       // send metadata
       string metafile = m_strHomeDir + ".tmp/master_meta.dat";
@@ -1032,44 +930,52 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 
       SNode s;
       LocalFS::stat(metafile, s);
-      size = s.m_llSize;
+      int32_t size = s.m_llSize;
       mstconn.send((char*)&size, 4);
       mstconn.sendfile(metafile.c_str(), 0, size);
       LocalFS::erase(metafile);
 
+      // Send back the response.
+      response.serialize();
+      mstconn.sendmsg(response);
+
       // send new master info to all existing masters
-      for (map<uint32_t, Address>::iterator i = al.begin(); i != al.end(); ++ i)
+      for (map<uint32_t, Address>::iterator i = response.m_mMasters.begin(); i != response.m_mMasters.end(); ++ i)
       {
          SectorMsg msg;
          msg.setKey(0);
          msg.setType(1001);
-         msg.setData(0, (char*)&key, 4);
-         msg.setData(4, masterIP, strlen(masterIP) + 1);
-         msg.setData(68, (char*)&masterPort, 4);
+         msg.setData(0, (char*)&request.m_iKey, 4);
+         msg.setData(4, request.m_strSourceIP.c_str(), request.m_strSourceIP.size() + 1);
+         msg.setData(68, (char*)&request.m_iSourcePort, 4);
          m_GMP.rpc(i->second.m_strIP.c_str(), i->second.m_iPort, &msg, &msg);
       }
 
       Address addr;
-      addr.m_strIP = masterIP;
-      addr.m_iPort = masterPort;
-      m_Routing.insert(key, addr);
+      addr.m_strIP = request.m_strSourceIP;
+      addr.m_iPort = request.m_iSourcePort;
+      m_Routing.insert(request.m_iKey, addr);
 
       // send new master info to all slaves
       SectorMsg msg;
       msg.setKey(0);
       msg.setType(1001);
-      msg.setData(0, (char*)&key, 4);
-      msg.setData(4, masterIP, strlen(masterIP) + 1);
-      msg.setData(68, (char*)&masterPort, 4);
+      msg.setData(0, (char*)&request.m_iKey, 4);
+      msg.setData(4, request.m_strSourceIP.c_str(), request.m_strSourceIP.size() + 1);
+      msg.setData(68, (char*)&request.m_iSourcePort, 4);
       m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
       vector<string> ips;
       vector<int> ports;
       for (vector<Address>::const_iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
       {
          ips.push_back(i->m_strIP);
-          ports.push_back(i->m_iPort);
+         ports.push_back(i->m_iPort);
       }
       m_GMP.multi_rpc(ips, ports, &msg);
+   }
+   else
+   {
+      mstconn.sendmsg(response);
    }
 
    return 0;
@@ -1083,7 +989,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 {
    Master* self = (Master*)s;
 
-   const int ProcessWorker = 16;
+   const int ProcessWorker = 1;
    for (int i = 0; i < ProcessWorker; ++ i)
    {
 #ifndef WIN32
@@ -1108,8 +1014,8 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 
       if (self->m_GMP.recvfrom(ip, port, id, msg) < 0)
          continue;
-
       int32_t key = msg->getKey();
+
       User* user = self->m_UserManager.lookup(key);
       if (NULL == user)
       {
@@ -1121,6 +1027,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 
       if (key > 0)
       {
+         // TODO: check unique token here.
          if ((user->m_strIP == ip) && (user->m_iPort == port))
          {
             secure = true;
@@ -1159,6 +1066,13 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       p->key = key;
       p->id = id;
       p->msg = msg;
+
+
+      // TODO: add the request to another queue, and only returns client
+      // when the master receives a response from the client.
+      // The registration can happen before the request is sent to the slave.
+      // If no slave response is necessary, send response directly.
+
 
       // Request from each user session must be sent to the same thread for processing.
       // Otherwise they could go out of order and cause all kinds of problems.
@@ -1344,7 +1258,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 
    case 2: // client logout
    {
-      m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " ID " << user->m_iKey << " logout from " << ip << LogEnd();
+      m_SectorLog << LogStart(1) << "User " << user->m_strName << " ID " << user->m_iKey << " logout from " << ip << LogEnd();
 
       m_UserManager.remove(key);
 
@@ -1520,7 +1434,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          removeSlave(i->first, i->second);
          m_SlaveManager.remove(i->first);
 
-         m_SectorLog << LogStart(LogLevel::LEVEL_1) << "Shutdown Slave " <<i->second.m_strIP << " " << i->second.m_iPort << " by request from " << ip << LogEnd();
+         m_SectorLog << LogStart(1) << "Shutdown Slave " <<i->second.m_strIP << " " << i->second.m_iPort << " by request from " << ip << LogEnd();
       }
 
       msg->m_iDataLength = SectorMsg::m_iHdrSize;
@@ -1582,6 +1496,11 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
 int Master::processFSCmd(const string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg)
 {
    // 100+ storage system
+
+   // TODO: create new message to send to slave, rather than reuse client message, which may contain malicious data.
+
+   //const FSCmd& command = static_const<FSCmd&>(*msg);
+   //command->deserialize();
 
    switch (msg->getType())
    {
@@ -3185,9 +3104,9 @@ void Master::startSlave(const std::string& addr, const std::string& base, const 
 
    #ifndef WIN32
       string start_slave = base + "/slave/start_slave";
-      string cmd = (string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + start_slave + " " + base + " " + option + " &> " + slave_screen_log + "&\" &");
+      string cmd = string("ssh -o StrictHostKeychecking=no ") + addr + " \"" + start_slave + " " + base + " " + option + " &> " + slave_screen_log + "&\" &";
    #else
-      string cmd = (string("ssh ") + addr + " \"" + "/bin/start_slave " + base + " " + option + " &> NULL &\"");
+      string cmd = string("ssh ") + addr + " \"" + "/bin/start_slave " + base + " " + option + " &> NULL &\"";
    #endif
    system(cmd.c_str());
 }
@@ -3210,4 +3129,3 @@ void Master::logUserActivity(const User* user, const char* cmd, const char* file
 
    m_SectorLog.insert(buf.str().c_str(), level);
 }
-

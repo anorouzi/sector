@@ -1,3 +1,7 @@
+version 3.0
+
+new GMP2
+
 version 2.7
 
 various bug fixes and code improvement

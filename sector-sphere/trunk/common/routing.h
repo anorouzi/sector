@@ -32,6 +32,13 @@ written by
    #include <pthread.h>
 #endif
 
+struct RouterState
+{
+   bool m_bConnected;
+};
+
+// TODO: differentiate "id" and "key".
+
 class Routing
 {
 public:
@@ -52,13 +59,14 @@ public:
    int getRouterID(const uint32_t& key);
    int getRouterID(const Address& node);
 
+   int setState(const uint32_t& id, const RouterState& state);
+   int getState(const uint32_t& id, RouterState& state);
+
    bool match(const uint32_t& cid, const uint32_t& key);
    bool match(const char* path, const uint32_t& key);
 
    int getPrimaryMaster(Address& node);
-
    int getNumOfMasters();
-
    void getListOfMasters(std::map<uint32_t, Address>& al);
 
    int serializeMasterInfo(char*& buf, int& size);
@@ -67,6 +75,7 @@ private:
    std::vector<uint32_t> m_vFingerTable;
    std::map<uint32_t, Address> m_mAddressList;
    std::map<Address, uint32_t, AddrComp> m_mKeyList;
+   std::map<uint32_t, RouterState> m_mStates;
 
    int m_iKeySpace;
 

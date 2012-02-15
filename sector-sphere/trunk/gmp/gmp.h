@@ -76,6 +76,8 @@ public:
    CUserMessage(const CUserMessage& msg);
    virtual ~CUserMessage();
 
+   int size() { return m_iDataLength; }
+
 //TODO: change the following to protected, and upper level should not call these directly
 public:
    int resize(const int& len);

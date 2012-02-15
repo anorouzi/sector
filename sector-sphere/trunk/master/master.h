@@ -27,6 +27,7 @@ written by
 #include "gmp.h"
 #include "index.h"
 #include "log.h"
+#include "message.h"
 #include "osportable.h"
 #include "replica.h"
 #include "routing.h"
@@ -40,7 +41,6 @@ written by
 namespace sector
 {
 
-class SectorMsg;
 class SSLTransport;
 class Topology;
 
@@ -164,9 +164,9 @@ private:
    static DWORD WINAPI service(void* s);
    static DWORD WINAPI serviceEx(void* p);
 #endif
-   int processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const std::string& ip);
-   int processUserJoin(SSLTransport& s, SSLTransport& secconn, const std::string& ip);
-   int processMasterJoin(SSLTransport& s, SSLTransport& secconn, const std::string& ip);
+   int processSlaveJoin(SSLTransport& s, SSLTransport& secconn, const SlvLoginReq& request);
+   int processUserJoin(SSLTransport& s, SSLTransport& secconn, const CliLoginReq& request);
+   int processMasterJoin(SSLTransport& s, SSLTransport& secconn, const MstLoginReq& request);
 
    ThreadJobQueue m_ProcessJobQueue;
    struct ProcessJobParam

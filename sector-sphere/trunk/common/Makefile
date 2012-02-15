@@ -23,7 +23,7 @@ OBJS = osportable.o \
        message.o
 
 all: libcommon.so libcommon.a
-test: crypto_unittest index_unittest
+test: crypto_unittest index_unittest message_unittest
 
 %.o: %.cpp
 	$(C++) -fPIC $(CCFLAGS) $< -c
@@ -35,10 +35,13 @@ libcommon.a: $(OBJS)
 	ar -rcs $@ $^
 
 crypto_unittest: crypto.h crypto.cpp all
-	$(C++) $(CCFLAGS) crypto_unittest.cpp -lcommon -lrpc -ludt -o $@ $(LDFLAGS)
+	$(C++) $(CCFLAGS) crypto_unittest.cpp -lcommon -lrpc -o $@ $(LDFLAGS)
 
 index_unittest: meta.h index.h index.cpp all
-	$(C++) $(CCFLAGS) index_unittest.cpp -lcommon -lrpc -ludt -o $@ $(LDFLAGS)
+	$(C++) $(CCFLAGS) index_unittest.cpp -lcommon -lrpc -o $@ $(LDFLAGS)
+
+message_unittest: message.h message.cpp all
+	$(C++) $(CCFLAGS) message_unittest.cpp -lcommon -lrpc -o $@ $(LDFLAGS)
 
 clean:
 	rm -f *.o *.so *.a

@@ -36,6 +36,7 @@ written by
 #include <sstream>
 #include <string.h>
 
+#include "message.h"
 #include "sector.h"
 #include "ssltransport.h"
 
@@ -149,6 +150,10 @@ int SSLTransport::open(const char* ip, const int& port)
 
    int reuse = 1;
    ::setsockopt(m_iSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
+   struct linger so_linger;
+   so_linger.l_onoff = true;
+   so_linger.l_linger = 180;
+   ::setsockopt(m_iSocket, SOL_SOCKET, SO_LINGER, &so_linger, sizeof so_linger);
 
    if (::bind(m_iSocket, local->ai_addr, local->ai_addrlen) < 0)
    {
@@ -265,7 +270,9 @@ int SSLTransport::close()
       return 0;
    m_bConnected = false;
    // SSL shutdown requires up to 4 rounds of attempts.
-   for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
+   // But on some versions this cause deadlock.
+   // for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
+   SSL_shutdown(m_pSSL);
 #ifndef WIN32
    return ::close(m_iSocket);
 #else
@@ -371,4 +378,25 @@ int SSLTransport::getLocalIP(string& ip)
    ip = inet_ntop(AF_INET, &(addr.sin_addr), tmp, 64);
 
    return 0;
+}
+
+int SSLTransport::sendmsg(const SectorMsg& msg)
+{
+   if (send((char*)&msg.m_iDataLength, 4) < 0)
+      return -1;
+cout << "send " << msg.m_iDataLength << endl;
+   if (send(msg.m_pcBuffer, msg.m_iDataLength) < 0)
+      return -1;
+   return msg.m_iDataLength;
+}
+
+int SSLTransport::recvmsg(SectorMsg& msg)
+{
+   if (recv((char*)&msg.m_iDataLength, 4) < 0)
+      return -1;
+cout << "recv " <<  msg.m_iDataLength << endl;
+   msg.resize(msg.m_iDataLength);
+   if (recv(msg.m_pcBuffer, msg.m_iDataLength) < 0)
+      return -1;
+   return msg.m_iDataLength;
 }

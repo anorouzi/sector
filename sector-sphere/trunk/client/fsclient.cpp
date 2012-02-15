@@ -858,10 +858,11 @@ int FSClient::organizeChainOfWrite()
          dst_port = -1;
       }
 
+      // TODO: fix this.
       char buf[136];
-      strcpy(buf, src_ip.c_str());
+      strncpy(buf, src_ip.c_str(), 64);
       *(int32_t*)(buf + 64) = src_port;
-      strcpy(buf + 68, dst_ip.c_str());
+      strncpy(buf + 68, dst_ip.c_str(), 64);
       *(int32_t*)(buf + 132) = dst_port;
 
       int32_t cmd = 8;
