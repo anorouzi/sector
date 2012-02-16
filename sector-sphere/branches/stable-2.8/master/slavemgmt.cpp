@@ -29,11 +29,30 @@ written by
 #include <cstring>
 
 #include "common.h"
+#include "../common/log.h"
 #include "meta.h"
 #include "slavemgmt.h"
 #include "topology.h"
 
 using namespace std;
+
+namespace
+{
+   inline logger::LogAggregate& log()
+   {
+      static logger::LogAggregate& myLogger = logger::getLogger( "SlaveMgr" );
+      static bool                  setLogLevelYet = false;
+
+      if( !setLogLevelYet )
+      {
+         setLogLevelYet = true;
+         myLogger.setLogLevel( logger::Debug );
+      }
+
+      return myLogger;
+   }
+}
+
 
 SlaveManager::SlaveManager():
 m_pTopology(NULL),
@@ -130,6 +149,10 @@ int SlaveManager::insert(SlaveNode& sn)
    else
       sn.m_iStatus = SlaveStatus::DISKFULL;
    m_pTopology->lookup(sn.m_strIP.c_str(), sn.m_viPath);
+
+   if( m_mSlaveList.find( sn.m_iNodeID ) == m_mSlaveList.end() )
+      log().error << __PRETTY_FUNCTION__ << ": about to add new slave to list " << sn.m_iNodeID << std::endl;
+
    m_mSlaveList[sn.m_iNodeID] = sn;
 
    addr.m_strIP = sn.m_strIP;
@@ -401,6 +424,9 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       n ++;
 
    // If there is no other active transaction on this node, return.
+   if( m_mSlaveList.find( *n ) == m_mSlaveList.end() )
+      log().error << __PRETTY_FUNCTION__ << ": (1) about to add new slave to list " << *n << std::endl;
+
    sn = m_mSlaveList[*n];
    if (sn.m_iActiveTrans == 0)
       return 1;
@@ -411,6 +437,8 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    {
       if (++s == candidate->end())
          s = candidate->begin();
+      if( m_mSlaveList.find( *s ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": (2) about to add new slave to list " << *s << std::endl;
       if (m_mSlaveList[*s].m_iActiveTrans < sn.m_iActiveTrans)
       {
          sn = m_mSlaveList[*s];
@@ -454,6 +482,8 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
          if (*i == sn.m_iNodeID)
             continue;
 
+      if( m_mSlaveList.find( *i ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ":  about to add new slave to list " << *i << std::endl;
          sl.push_back(m_mSlaveList[*i]);
       }
    }
@@ -583,6 +613,8 @@ int SlaveManager::chooseLessReplicaNode(std::set<Address, AddrComp>& loclist, Ad
       tmp.erase(*i);
       int slave_id = m_mAddrList[*i];
       SlaveNode sn = m_mSlaveList[slave_id];
+      if( m_mSlaveList.find( slave_id ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": about to add new slave to list " << slave_id << std::endl;
       int64_t availDiskSpace = sn.m_llAvailDiskSpace;
 
       int dist = m_pTopology->min_distance(*i, tmp);
@@ -840,6 +872,8 @@ int SlaveManager::voteBadSlaves(const Address& voter, int num, const char* buf)
       addr.m_iPort = *(int*)(buf + i * 68 + 64);
 
       int slave = m_mAddrList[addr];
+      if( m_mSlaveList.find( slave ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": about to add new slave to list " << slave << std::endl;
       m_mSlaveList[slave].m_sBadVote.insert(vid);
    }
 
@@ -964,6 +998,8 @@ void SlaveManager::updateclusterstat_(Cluster& c)
 
       for (set<int>::iterator i = c.m_sNodes.begin(); i != c.m_sNodes.end(); ++ i)
       {
+      if( m_mSlaveList.find( *i ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": about to add new slave to list " << *i << std::endl;
          SlaveNode* s = &m_mSlaveList[*i];
 
          if (s->m_iStatus == SlaveStatus::DOWN)
@@ -1114,6 +1150,8 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    map<int, vector<int> > dist_vec;
    for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
+      if( m_mSlaveList.find( *i ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": (1) about to add new slave to list " << *i << std::endl;
       int d = m_pTopology->distance(ip.c_str(), m_mSlaveList[*i].m_strIP.c_str());
       dist_vec[d].push_back(*i);
       if ((d < dist) || (dist < 0))
@@ -1130,6 +1168,8 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    int r = int(dist_vec[dist].size() * (double(rand()) / RAND_MAX));
    int n = dist_vec[dist][r];
 
+      if( m_mSlaveList.find( n ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": (2) about to add new slave to list " << n << std::endl;
    sn = m_mSlaveList[n];
 
    // choose node with least active transactions; disabled as this is dangerous to get certan nodes starved
@@ -1142,6 +1182,8 @@ int SlaveManager::findNearestNode(std::set<int>& loclist, const std::string& ip,
    {
       int index = i % dist_vec[dist].size();
 
+      if( m_mSlaveList.find( dist_vec[dist][index] ) == m_mSlaveList.end() )
+         log().error << __PRETTY_FUNCTION__ << ": about to add new slave to list " << dist_vec[dist][index] << std::endl;
       if (m_mSlaveList[dist_vec[dist][index]].m_iActiveTrans < sn.m_iActiveTrans)
       {
          sn = m_mSlaveList[dist_vec[dist][index]];
