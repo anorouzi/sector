@@ -77,7 +77,6 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    g_SectorClient.init();
    g_SectorClient.configLog(conf.m_strLog.c_str(), false, conf.m_iLogLevel);
    g_SectorClient.setMaxCacheSize(conf.m_llMaxCacheSize);
-   DirCache::instance().init_root( g_SectorClient );
 
    bool master_conn = false;
    for (set<Address, AddrComp>::const_iterator i = conf.m_sMasterAddr.begin(); i != conf.m_sMasterAddr.end(); ++ i)
@@ -103,6 +102,7 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    }
 
    g_bConnected = true;
+   DirCache::instance().init_root( g_SectorClient );
    log().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
    return NULL;
 }
