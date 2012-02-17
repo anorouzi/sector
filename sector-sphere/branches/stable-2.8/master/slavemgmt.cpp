@@ -1101,7 +1101,10 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
 
    lowdisk.clear();
 
-   int64_t size = 0;
+   std::map<int, int64_t> totalAvailableDiskSpacePerCluster;
+   std::map<int, int>     numSlavesPerCluster;
+   std::map<int, int64_t> avgAvailableDiskSpacePerCluster;
+
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
       if( forceclear )
@@ -1111,11 +1114,15 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
       }
 
       if (i->second.m_iStatus == SlaveStatus::NORMAL)
-         size += i->second.m_llAvailDiskSpace;      
+      {
+         totalAvailableDiskSpacePerCluster[ i->second.m_viPath.back() ] += i->second.m_llAvailDiskSpace;
+         ++numSlavesPerCluster[ i->second.m_viPath.back() ];
+      }
+
    }
 
-   if (!m_mSlaveList.empty())
-      size /= m_mSlaveList.size();
+   for( std::map<int, int64_t>::iterator i = totalAvailableDiskSpacePerCluster.begin(); i != totalAvailableDiskSpacePerCluster.end(); ++i )
+      avgAvailableDiskSpacePerCluster[ i->first ] = i->second / numSlavesPerCluster[ i->first ];
 
    //TODO: using "target" value as key may cause certain low disk node to be ignored.
    // such node may be included again in the next round of check.
@@ -1126,6 +1133,8 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
       if ((i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace) && (!i->second.m_bDiskLowWarning))
       {
          int64_t target;
+         int64_t size = avgAvailableDiskSpacePerCluster[ i->first ];
+
          if (size > m_llSlaveMinDiskSpace)
             target = size - i->second.m_llAvailDiskSpace;
          else
