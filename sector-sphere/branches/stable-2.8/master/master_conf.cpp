@@ -33,6 +33,7 @@ written by
 
 #include "conf.h"
 #include "master.h"
+#include "meta.h"
 
 using namespace std;
 using namespace sector;
@@ -53,6 +54,31 @@ m_iClientTimeOut(600),
 m_iLogLevel(1),
 m_iProcessThreads(1)              // 1 thread
 {
+}
+
+std::string MasterConf::toString()
+{
+  std::stringstream buf;
+
+  buf << "Master configuration:" << std::endl;
+  buf << "SECTOR_PORT: " << m_iServerPort << std::endl;
+  buf << "SECURITY_SERVER: " << m_strSecServIP << ":" << m_iSecServPort << std::endl;
+  buf << "MAX_ACTIVE_USER: " << m_iMaxActiveUser << std::endl;
+  buf << "DATA_DIRECTORY: " << m_strHomeDir << std::endl;
+  buf << "REPLICA_NUM: " << m_iReplicaNum << std::endl;
+  buf << "REPLICA_DIST: " << m_iReplicaDist << std::endl;
+  buf << "SLAVE_TIMEOUT: " << m_iSlaveTimeOut << std::endl;
+  buf << "LOST_SLAVE_RETRY_TIME: " << m_iSlaveRetryTime << std::endl;
+  buf << "SLAVE_MIN_DISK_SPACE: " << m_llSlaveMinDiskSpace << std::endl;
+  buf << "CLIENT_TIMEOUT: " << m_iClientTimeOut << std::endl;
+  buf << "LOG_LEVEL: " << m_iLogLevel << std::endl;
+  buf << "PROCESS_THREADS: " << m_iProcessThreads << std::endl;
+  buf << "WRITE_ONCE_PROTECTION:" << std::endl;
+  for (std::vector<string>::const_iterator i = m_vWriteOncePath.begin(); i != m_vWriteOncePath.end(); i++)
+  {
+    buf << "  " << *i << std::endl;
+  }
+  return buf.str();
 }
 
 int MasterConf::init(const string& path)
@@ -138,6 +164,14 @@ int MasterConf::init(const string& path)
       else if ("PROCESS_THREADS" == param.m_strName)
       {
          m_iProcessThreads = atoi(param.m_vstrValue[0].c_str());
+      }
+      else if ("WRITE_ONCE_PROTECTION" == param.m_strName)
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string rp = Metadata::revisePath(*i);
+            m_vWriteOncePath.push_back(rp);
+         }
       }
       else
       {

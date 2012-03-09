@@ -43,7 +43,7 @@ public:
    virtual void init(const std::string& path) = 0;
    virtual void clear() = 0;
 
-   void setDefault(const int rep_num, const int rep_dist, bool allow_same_ip_replica, int pct_of_slaves_to_consider);
+   void setDefault(const int rep_num, const int rep_dist, bool allow_same_ip_replica, int pct_of_slaves_to_consider, bool check_replica_cluster);
 
 public:	// list and lookup operations
    virtual int list(const std::string& path, std::vector<std::string>& filelist) = 0;
@@ -118,7 +118,8 @@ public:	// medadata and file system operations
    virtual int64_t getTotalDataSizeRootCached() = 0;
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
-   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over) = 0;
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster,
+                     const std::map<std::string, std::vector<int> >& restrictedLoc) = 0;
 
    virtual int getSlaveMeta(Metadata* branch, const Address& addr) = 0;
 
@@ -171,6 +172,7 @@ protected:
    static int64_t m_iLastTotalDiskSpace;
    static time_t m_iLastTotalDiskSpaceTs;
    static int const m_iLastTotalDiskSpaceTimeout = 3;
+   static bool m_bCheckReplicaCluster;
 };
 
 #endif

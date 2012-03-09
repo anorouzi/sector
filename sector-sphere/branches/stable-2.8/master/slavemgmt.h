@@ -71,6 +71,7 @@ public:
    void incActTrans(const int& slaveid);
    void decActTrans(const int& slaveid);
    void getListActTrans( std::map<int, int>& lats );
+   void getSlaveIPToClusterMap ( std::map<std::string, int>& );
 
 public:
    uint64_t getTotalDiskSpace();

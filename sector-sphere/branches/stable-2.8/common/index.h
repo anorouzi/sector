@@ -63,7 +63,8 @@ public:
    virtual int64_t getTotalDataSizeRootCached();
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
-   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over);
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster,
+                     const std::map<std::string, std::vector<int> >& restrictedLoc);
    virtual int getSlaveMeta(Metadata* branch, const Address& addr);
 
 public:
@@ -79,7 +80,8 @@ private:
    int64_t getTotalDataSize(const std::map<std::string, SNode>& currdir) const;
    int64_t getTotalFileNum(const std::map<std::string, SNode>& currdir) const;
    int collectDataInfo(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& result) const;
-   int checkReplica(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over) const;
+   int checkReplica(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over, const std::map< std::string, int> & IPToCluster,
+                     const std::map<std::string, std::vector<int> >& restrictedLoc) const;
    int list_r(const std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist) const;
    int getSlaveMeta(const std::map<std::string, SNode>& currdir, const std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr) const;
 

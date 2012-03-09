@@ -515,9 +515,9 @@ int Index::serialize(const string& path, const string& dstfile)
       return -1;
 
    serialize(ofs, *currdir, 1);
-
+   bool rc = ofs.bad() || ofs.fail();
    ofs.close();
-   return 0;
+   return rc;
 }
 
 int Index::deserialize(const string& path, const string& srcfile,  const Address* addr)
@@ -709,7 +709,9 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
    return collectDataInfo(file, *currdir, result);
 }
 
-int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over)
+int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over,
+        const std::map< std::string, int> & IPToCluster,
+                     const std::map<std::string, std::vector<int> >& restrictedLoc)
 {
    under.clear();
    over.clear();
@@ -731,7 +733,7 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
       currdir = &(s->second.m_mDirectory);
    }
 
-   return checkReplica(path, *currdir, under, over);
+   return checkReplica(path, *currdir, under, over, IPToCluster, restrictedLoc );
 }
 
 int Index::getSlaveMeta(Metadata* branch, const Address& addr)
@@ -1004,8 +1006,22 @@ int Index::collectDataInfo(const string& path, const map<string, SNode>& currdir
    return result.size();
 }
 
-int Index::checkReplica(const string& path, const map<string, SNode>& currdir, vector<string>& under, vector<string>& over) const
+
+set<int> getClustersForPath( const std::string& path, const std::map<std::string, std::vector<int> >& restrictedLoc  )
 {
+   for (map<string, vector<int> >::const_iterator i = restrictedLoc.begin(); i != restrictedLoc.end(); ++ i)
+      if (WildCard::contain(i->first, path))
+         return set<int>( i->second.begin(), i->second.end() );
+
+  return set<int>();
+}
+
+int Index::checkReplica(const string& path, const map<string, SNode>& currdir, vector<string>& under, 
+                     vector<string>& over, const std::map< std::string, int> & IPToCluster,
+                     const std::map<std::string, std::vector<int> >& restrictedLoc) const
+{
+   set<int> clustersOfPath = m_bCheckReplicaCluster ? getClustersForPath( path, restrictedLoc ) : set<int>();
+
    for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
       string abs_path = path;
@@ -1020,41 +1036,54 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
          // or if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
 
          unsigned int curr_rep_num = 0;
+         unsigned int total_rep_num = 0;
          unsigned int target_rep_num = 0;
          map<string, SNode>::const_iterator ns = i->second.m_mDirectory.find(".nosplit");
          if (ns != i->second.m_mDirectory.end())
          {
-            curr_rep_num = ns->second.m_sLocation.size();
+            total_rep_num = curr_rep_num = ns->second.m_sLocation.size();
             target_rep_num = ns->second.m_iReplicaNum;
          }
          else
          {
-            curr_rep_num = i->second.m_sLocation.size();
+            if( !clustersOfPath.empty() )
+            {
+              curr_rep_num = 0;
+              for( set<Address, AddrComp>::const_iterator loc = i->second.m_sLocation.begin(); 
+                                                            loc != i->second.m_sLocation.end(); ++loc )
+                 curr_rep_num += clustersOfPath.find ( IPToCluster.find( loc->m_strIP )->second ) != clustersOfPath.end();
+            }
+            else
+              curr_rep_num = i->second.m_sLocation.size();
             target_rep_num = i->second.m_iReplicaNum;
+            total_rep_num = i->second.m_sLocation.size();
          }
 
          if (curr_rep_num < target_rep_num)
             under.push_back(abs_path);
 
-         else if (curr_rep_num > target_rep_num)
+         // Sergey check if replicas on same node for node with several slaves (volumes)
+         else if (total_rep_num > target_rep_num)
             over.push_back(abs_path);
-         // Sergey check if replcas on same node for node with several slaves (volumes)
-         else if( m_bCheckReplicaOnSameIp && i->second.m_sLocation.size() > 1 )
-         { 
-            std::string cur_ip;
-            std::set<Address, AddrComp>::const_iterator cur = i->second.m_sLocation.begin();
-            std::set<Address, AddrComp>::const_iterator last = i->second.m_sLocation.end();
-            for( ; cur != last; ++cur )
-                if( cur->m_strIP == cur_ip )
-                {
-                    under.push_back(abs_path);
-                    break;
-                } else
-                    cur_ip = cur->m_strIP;
+         else // target == current
+         {
+           if( m_bCheckReplicaOnSameIp && i->second.m_sLocation.size() > 1 )
+           { 
+              std::string cur_ip;
+              std::set<Address, AddrComp>::const_iterator cur = i->second.m_sLocation.begin();
+              std::set<Address, AddrComp>::const_iterator last = i->second.m_sLocation.end();
+              for( ; cur != last; ++cur )
+                  if( cur->m_strIP == cur_ip )
+                  {
+                      under.push_back(abs_path);
+                      break;
+                  } else
+                      cur_ip = cur->m_strIP;
+           }
          }
       }
       else
-         checkReplica(abs_path, i->second.m_mDirectory, under, over);
+         checkReplica(abs_path, i->second.m_mDirectory, under, over, IPToCluster, restrictedLoc);
    }
 
    return 0;

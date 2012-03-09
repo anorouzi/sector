@@ -163,9 +163,15 @@ int Slave::connect()
 
    m_iSlaveID = -1;
 
-   string metafile = m_strHomeDir + ".tmp/metadata.dat";
-   m_pLocalFile->serialize("/", metafile);
-
+//   string metafile = m_strHomeDir + ".tmp/metadata.dat";
+   string metafile =  tmpnam(0) + string("metadata.dat");
+   int ret = m_pLocalFile->serialize("/", metafile);
+   if (ret) 
+   {
+     ERR_MSG( "Error writing metadata to a file " + metafile);
+     return -1;
+   }
+   
    set<Address, AddrComp> masters;
    Address m;
    m.m_strIP = m_strMasterIP;
@@ -255,8 +261,14 @@ int Slave::connect()
 
       if (size > 0)
       {
-         string leftfile = m_strHomeDir + ".tmp/metadata.left.dat";
-         secconn.recvfile(leftfile.c_str(), 0, size);
+         string leftfile = tmpnam(0) + string(".metadata.left.dat");
+         //string leftfile = m_strHomeDir + ".tmp/metadata.left.dat";
+         int ret = secconn.recvfile(leftfile.c_str(), 0, size);
+         if (ret < 0) 
+         {
+            ERR_MSG("Error receiving metadata file from master");
+            return -1;
+         }
 
          Metadata* attic = NULL;
          attic = new Index;
@@ -1058,6 +1070,8 @@ int Slave::createSysDir()
       return -1;
    //TODO: check slave.conf option to decide if to clean .attic
    //LocalFS::clean_dir(m_strHomeDir + ".attic");
+   if (LocalFS::mkdir(m_strHomeDir + ".recylcebin") < 0)
+      return -1;
 
    return 0;
 }

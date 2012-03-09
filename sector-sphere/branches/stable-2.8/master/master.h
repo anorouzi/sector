@@ -49,6 +49,7 @@ class MasterConf
 public:
    MasterConf();
    int init(const std::string& path);
+   std::string toString();
 
 public:
    int m_iServerPort;                   // server port
@@ -65,6 +66,7 @@ public:
    int m_iClientTimeOut;                // client timeout threshold
    int m_iLogLevel;                     // level of logs, higher = more verbose, 0 = no log
    int m_iProcessThreads;               // Number of processing threads.
+   std::vector<std::string> m_vWriteOncePath; // WriteOnce protected pathes
 };
 
 

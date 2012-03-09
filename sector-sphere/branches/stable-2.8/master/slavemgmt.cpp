@@ -1120,9 +1120,14 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
       }
 
    }
-
+   log().trace << "Slave space deficit caclulation - minimum disk space set to " << m_llSlaveMinDiskSpace << std::endl;
    for( std::map<int, int64_t>::iterator i = totalAvailableDiskSpacePerCluster.begin(); i != totalAvailableDiskSpacePerCluster.end(); ++i )
+   {
       avgAvailableDiskSpacePerCluster[ i->first ] = i->second / numSlavesPerCluster[ i->first ];
+      log().trace << "Cluster " << i->first << " total available " << i->second << " no of slaves " <<
+         numSlavesPerCluster[ i->first ] << " avg available per cluster " 
+         << avgAvailableDiskSpacePerCluster[ i->first ] << std::endl;
+   }
 
    //TODO: using "target" value as key may cause certain low disk node to be ignored.
    // such node may be included again in the next round of check.
@@ -1130,21 +1135,34 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
 
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
+      log().trace << "Slave " << i->first << " " << i->second.m_strIP << ":" << i->second.m_iPort 
+      << " status " << i->second.m_iStatus << " Space available " << i->second.m_llAvailDiskSpace 
+      << " space used " << i->second.m_llTotalFileSize
+      << " DiskLowWarning " << i->second.m_bDiskLowWarning   
+      << " cluster " << i->second.m_viPath.back() << std::endl;
       if ((i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace) && (!i->second.m_bDiskLowWarning))
       {
-         int64_t target;
-         int64_t size = avgAvailableDiskSpacePerCluster[ i->first ];
 
-         if (size > m_llSlaveMinDiskSpace)
-            target = size - i->second.m_llAvailDiskSpace;
-         else
-            target = m_llSlaveMinDiskSpace - i->second.m_llAvailDiskSpace;
+         int64_t target =  avgAvailableDiskSpacePerCluster[ i->second.m_viPath.back() ] - i->second.m_llAvailDiskSpace;
+         if (target <= 0)
+         {
+           log().trace << "Average space on cluster below min disk space on slave - no space rebalancing " << std::endl;
+         } else 
+         {
+         
+           lowdisk[target].m_strIP = i->second.m_strIP;
+           lowdisk[target].m_iPort = i->second.m_iPort;
 
-         lowdisk[target].m_strIP = i->second.m_strIP;
-         lowdisk[target].m_iPort = i->second.m_iPort;
+           i->second.m_iStatus = SlaveStatus::DISKFULL;
+           i->second.m_bDiskLowWarning = true;
 
-         i->second.m_iStatus = SlaveStatus::DISKFULL;
-         i->second.m_bDiskLowWarning = true;
+           log().trace << "Storage balance for " << i->second.m_strIP << ":" << i->second.m_iPort 
+             << " avgAvailableCluster: " << avgAvailableDiskSpacePerCluster[ i->second.m_viPath.back() ] 
+             << " m_llSlaveMinDiskSpace: " << m_llSlaveMinDiskSpace
+             << " m_llAvailDiskSpace: " << i->second.m_llAvailDiskSpace
+             << " m_llTotalFileSize: " << i->second.m_llTotalFileSize
+             << " target available space: " << target << std::endl;
+         }
       }
    }
 
@@ -1232,3 +1250,12 @@ void SlaveManager::getListActTrans( map<int, int>& lats )
       lats.insert( std::make_pair( i->second.m_iNodeID, i->second.m_iActiveTrans ) );
 }
 
+void SlaveManager::getSlaveIPToClusterMap ( std::map<string, int>& IPToSlave )
+{
+  CGuardEx sg(m_SlaveLock);
+  for ( std::map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++i )
+  {
+      // need only unique IP 
+      IPToSlave.insert( std::make_pair( i->second.m_strIP, i->second.m_viPath.back() ) );
+  }
+}

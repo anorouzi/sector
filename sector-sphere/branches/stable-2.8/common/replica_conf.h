@@ -27,6 +27,7 @@ struct ReplicaConfData
     bool                                     m_bReplicateOnTransactionClose; // Submit file into replciation queue on non-read transaction close 
     bool                                     m_bCheckReplicaOnSameIp;        // Check if replica on slaves on same ip
     int                                      m_iPctSlavesToConsider;         // Pct of slaves to consider as replica destination 
+    bool				     m_bCheckReplicaCluster;         // check if replica on correct cluster
 };
 
 

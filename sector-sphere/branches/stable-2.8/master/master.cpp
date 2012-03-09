@@ -130,11 +130,11 @@ int Master::init()
    m_pMetadata->init(m_strHomeDir + ".metadata");
 
    // set and configure replication strategies
-   m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, true, 50);
+   m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, true, 50, true);
    ReplicaConfig::setPath( m_strSectorHome + "/conf/replica.conf" );
    if (ReplicaConfig::readConfigFile())
    {
-      m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider);
+      m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider, ReplicaConfig::getCached().m_bCheckReplicaCluster);
       m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
    }
 
@@ -1697,6 +1697,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       }
 
       }
+      sbuf << std::endl;
+      sbuf << m_SysConfig.toString();
       string data = sbuf.str();
       msg->setData(0, data.c_str(), data.length()+1);
       m_GMP.sendto(ip, port, id, msg);
@@ -2036,7 +2038,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
       int rwx = SF_MODE::WRITE;
       string path = Metadata::revisePath(msg->getData());
-      if ((path == "/") || !user->match(path, rwx))
+      if ((path == "/") || !user->match(path, rwx)|| (path.substr(0,path.find_first_of('/',1)) == "/.recyclebin"))
       {
          logUserActivity(user, "delete", path.c_str(), SectorError::E_PERMISSION, NULL, LogLevel::LEVEL_8);
          reject(ip, port, id, SectorError::E_PERMISSION);
@@ -3048,7 +3050,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          if (ReplicaConfig::readConfigFile())
          {
             self->m_SectorLog << LogStart(9) << "Replica New settings detected and read\n" << ReplicaConfig::getCached().toString() << LogEnd();            
-            self->m_pMetadata->setDefault(self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider);
+            self->m_pMetadata->setDefault(self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider, ReplicaConfig::getCached().m_bCheckReplicaCluster);
             self->m_pMetadata->refreshRepSetting("/", self->m_SysConfig.m_iReplicaNum, self->m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
          }
          // The number of concurrent replication in the system must be limited.	
@@ -3074,7 +3076,9 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
          {  // there is a space in running replication transactions, we can do full scan
            // TODO:: optimize this process: if there are too many files, this scan may kill the master
            over_replicated.clear();
-           self->m_pMetadata->checkReplica("/", under_replicated, over_replicated);
+           std::map<std::string, int> IPToCluster;
+           self->m_SlaveManager.getSlaveIPToClusterMap ( IPToCluster );
+           self->m_pMetadata->checkReplica("/", under_replicated, over_replicated, IPToCluster, ReplicaConfig::getCached().m_mRestrictedLoc);
 
            if (!under_replicated.empty())
            {
@@ -3135,9 +3139,13 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
            for (map<int64_t, Address>::iterator i = lowdisk.begin(); i != lowdisk.end(); ++ i)
            {
               vector<string> path;
-              self->chooseDataToMove(path, i->second, i->first * ReplicaConfig::getCached().m_iDiskBalanceAggressiveness / 100);
+              int64_t bytesToMove = i->first * ReplicaConfig::getCached().m_iDiskBalanceAggressiveness / 100;
+              self->chooseDataToMove(path, i->second, bytesToMove);
               self->m_SectorLog << LogStart(1) << "Replica found slave " << i->second.m_strIP << ":" <<
-                 i->second.m_iPort << " with space deficit of " << i->first << " bytes. Will be moving out  " << path.size() << " files - Printing first 100." 
+                 i->second.m_iPort << " with space deficit of " << i->first << 
+                 " bytes. Disk rebalance aggresivenes is " << 
+                 ReplicaConfig::getCached().m_iDiskBalanceAggressiveness << "%. Will be moving out up to " <<
+                 bytesToMove << " bytes - " << path.size() << " files - Printing first 100." 
                  << LogEnd();
 
               self->m_ReplicaLock.acquire();
@@ -3164,7 +3172,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
       {
          if ((ssize_t)self->m_sstrOnReplicate.size() > maxTran)
          {
-            self->m_SectorLog << LogStart(9) << "Replica Num of running replica = " << self->m_sstrOnReplicate.size() << " greater than limit " << maxTran << LogEnd();
+            self->m_SectorLog << LogStart(9) << "Replica Num of replication in progress = " << self->m_sstrOnReplicate.size() << " greater than limit " << maxTran << LogEnd();
             break;
          }
 
@@ -3228,6 +3236,7 @@ int Master::createReplica(const ReplicaJob& job)
          else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
          {
             m_SectorLog << LogStart(9) << "Replica create: number of replicas correct " << job.m_strSource << LogEnd();
+            bool proceed = false;
             if( ReplicaConfig::getCached().m_bCheckReplicaOnSameIp )
             {     
                std::string cur_ip;
@@ -3243,18 +3252,41 @@ int Master::createReplica(const ReplicaJob& job)
 
                if( !has_same_ip )
                {
-                  m_SectorLog << LogStart(9) << "Replica create: replication correct" << LogEnd();
-                  return 0;
+                  m_SectorLog << LogStart(9) << "Replica create: no replicas on same IP" << LogEnd();
                }
                else
                {
+                  proceed = true;
                   m_SectorLog << LogStart(9) << "Replica create: found replicas on same IP, proceed with replication" << job.m_strSource << LogEnd();
                }
             }
-            else
-            {
-               return 0;
+            if( !proceed && ReplicaConfig::getCached().m_bCheckReplicaCluster )
+            { 
+              set<int> clustersOfPath;
+              for (map<string, vector<int> >::const_iterator i = ReplicaConfig::getCached().m_mRestrictedLoc.begin();
+                                                     i != ReplicaConfig::getCached().m_mRestrictedLoc.end(); ++ i)
+                if (WildCard::contain(i->first, attr.m_strName)) 
+                {
+                   clustersOfPath = set<int>( i->second.begin(), i->second.end() );
+                   break;
+                }
+              if ( clustersOfPath.empty() )
+                return 0;
+              
+              // Jason-introduced inefficiency, Sergey coding
+              std::map<std::string, int> IPToCluster;
+              m_SlaveManager.getSlaveIPToClusterMap ( IPToCluster );
+
+              int curr_rep_num = 0;
+              for( set<Address, AddrComp>::const_iterator loc = attr.m_sLocation.begin();
+                                                          loc != attr.m_sLocation.end(); ++loc )
+                 curr_rep_num += clustersOfPath.find ( IPToCluster.find( loc->m_strIP )->second ) != clustersOfPath.end();
+              if (curr_rep_num >= attr.m_iReplicaNum )
+                return 0;        
+              proceed = true;         
             }
+            if (!proceed)            
+               return 0;            
          }
 
          if (m_SlaveManager.chooseReplicaNode(attr.m_sLocation, sn, attr.m_llSize, attr.m_iReplicaDist, &attr.m_viRestrictedLoc) < 0)
@@ -3523,7 +3555,6 @@ int Master::chooseDataToMove(vector<string>& path, const Address& addr, const in
       // not supported yet
       return 0;
    }
-
    // find all files on this particular slave
    m_pMetadata->getSlaveMeta(branch, addr);
 

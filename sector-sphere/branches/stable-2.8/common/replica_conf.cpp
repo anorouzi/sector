@@ -165,6 +165,13 @@ bool ReplicaConfig::readConfigFile()
          else
              cerr << "no value specified for REPLICATE_ON_TRANSACTION_CLOSE" << endl;
       }
+      else if ("CHECK_REPLICA_CLUSTER"  == param.m_strName)
+      {
+         if( !param.m_vstrValue.empty() )
+             configData.m_bCheckReplicaCluster = (param.m_vstrValue[0] == "TRUE");
+         else
+             cerr << "no value specified for CHECK_REPLCIA_CLUSTER" << endl;
+      }
       else
       {
          cerr << "unrecognized replica.conf parameter: " << param.m_strName << endl;
@@ -183,7 +190,8 @@ ReplicaConfData::ReplicaConfData() :
    m_iDiskBalanceAggressiveness(25),       // percent
    m_bReplicateOnTransactionClose(),
    m_bCheckReplicaOnSameIp(),
-   m_iPctSlavesToConsider(50)
+   m_iPctSlavesToConsider(50),
+   m_bCheckReplicaCluster()
 {
 }
 
@@ -200,6 +208,7 @@ std::string ReplicaConfData::toString() const
    buf << "REPLICATE_ON_TRANSACTION_CLOSE " <<  m_bReplicateOnTransactionClose << std::endl;
    buf << "CHECK_REPLICA_ON_SAME_IP " << m_bCheckReplicaOnSameIp << std::endl;
    buf << "PCT_SLAVES_TO_CONSIDER " << m_iPctSlavesToConsider << std::endl;
+   buf << "CHECK_REPLICA_CLUSTER " << m_bCheckReplicaCluster << std::endl;
    buf << "Number of replicas:\n"; 
    for( std::map<std::string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++i )
       buf << i->first << " => " << i->second << '\n';
