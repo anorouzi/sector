@@ -28,9 +28,10 @@ written by
    #include <ws2tcpip.h>
    #include <time.h>
 #endif
-#include <sector.h>
-#include <iostream>
+#include <cstdio>
 #include <cstring>
+#include <iostream>
+#include <sector.h>
 
 using namespace std;
 
