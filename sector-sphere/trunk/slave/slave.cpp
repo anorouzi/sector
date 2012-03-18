@@ -151,7 +151,11 @@ int Slave::connect()
    m_iSlaveID = -1;
 
    string metafile = m_strHomeDir + ".tmp/metadata.dat";
-   m_pLocalFile->serialize("/", metafile);
+   if (m_pLocalFile->serialize("/", metafile) < 0)
+   {
+      cerr << "Cannot create metadata on disk; possily not enough disk space.\n";
+      return -1;
+   }
 
    set<Address, AddrComp> masters;
    Address m;

@@ -283,9 +283,9 @@ int Index::serialize(const string& path, const string& dstfile)
    ofstream ofs(dstfile.c_str());
    if (ofs.bad() || ofs.fail())
       return -1;
-   serialize(ofs, tree, 1);
+   int result = serialize(ofs, tree, 1);
    ofs.close();
-   return 0;
+   return result;
 }
 
 int Index::deserialize(const string& path, const string& srcfile,  const Address* addr)
@@ -467,7 +467,7 @@ int Index::serialize(ofstream& ofs, STree* tree, int level)
       serialize(ofs, &i->second, level + 1);
    }
 
-   return 0;
+   return ofs.bad() ? -1 : 0;
 }
 
 int Index::deserialize(ifstream& ifs, STree* tree, const Address* addr)
