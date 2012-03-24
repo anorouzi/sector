@@ -27,6 +27,7 @@ written by
 #endif
 
 #include <cstring>
+#include <algorithm>
 
 #include "common.h"
 #include "../common/log.h"
@@ -51,6 +52,13 @@ namespace
 
       return myLogger;
    }
+
+   struct SortByFreeSpace {
+      explicit SortByFreeSpace( const std::map<int,SlaveNode>& slaveList ) : slaveList( slaveList ) {}
+      bool operator()( int lhs, int rhs ) const { return slaveList.find( lhs )->second.m_llAvailDiskSpace > slaveList.find( rhs )->second.m_llAvailDiskSpace; }
+     private:
+      const std::map<int,SlaveNode>& slaveList;
+   };
 }
 
 
@@ -149,9 +157,6 @@ int SlaveManager::insert(SlaveNode& sn)
    else
       sn.m_iStatus = SlaveStatus::DISKFULL;
    m_pTopology->lookup(sn.m_strIP.c_str(), sn.m_viPath);
-
-   if( m_mSlaveList.find( sn.m_iNodeID ) == m_mSlaveList.end() )
-      log().error << __PRETTY_FUNCTION__ << ": about to add new slave to list " << sn.m_iNodeID << std::endl;
 
    m_mSlaveList[sn.m_iNodeID] = sn;
 
@@ -369,8 +374,20 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       // if a location restriction is applied to the file, only limited nodes can be chosen
       if ((NULL != restrict_loc) && (!restrict_loc->empty()))
       {
-         if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
+log().trace << "Restricted Loc ";
+for (vector< int >::const_iterator rl = restrict_loc->begin(); rl != restrict_loc->end(); ++rl )
+  log().trace << *rl << " ";
+log().trace << std::endl;
+
+         int clusterId = i->second.m_viPath.back();
+log().trace << "Slave " << i->first << " ClusterID " << clusterId  << std::endl;
+         if( std::find( restrict_loc->begin(), restrict_loc->end(), clusterId ) == restrict_loc->end() ) 
+         {
+log().trace << "Slave " << i->first << " not in restricted loc" << std::endl;
+//         if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
             continue;
+         }
+log().trace << "Slave " << i->first << " in restricted loc" << std::endl;
       }
 
       // Calculate the distance from this slave node to the current replicas
@@ -387,6 +404,17 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          avail[level].insert(i->first);
    }
 
+   log().trace << "Replica slave available : " << std::endl;
+   int level_cnt = 0;
+   for ( vector< set<int> >::iterator l = avail.begin(); l != avail.end(); ++l)
+   {
+      level_cnt++;
+      log().trace << " Level " << level_cnt << " slaves : " ;
+      for ( set<int>::iterator s = l->begin(); s != l->end(); ++s)
+        log().trace << *s << " ";
+      log().trace << std::endl;
+   }
+
    set<int>* candidate = NULL;
    // choose furthest node within replica distance
    for (int i = m_pTopology->m_uiLevel + 1; i > 0; -- i)
@@ -397,9 +425,16 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
          break;
       }
    }
+
+log().trace << "Replica slave candidates : ";
+   for ( set<int>::iterator l = candidate->begin(); l != candidate->end(); ++l)
+     log().trace << *l << " ";
+   log().trace << std::endl;
+
    if (NULL == candidate)
       return SectorError::E_NODISK;
 
+/*
    int64_t totalFreeSpaceOnCandidates = 0;
    for( set<int>::iterator j = candidate->begin(); j != candidate->end(); ++j )
    {
@@ -415,6 +450,19 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
        }
        else
            ++c;
+*/
+
+   std::vector<int> slavesOrderedByFreeSpace( candidate->begin(), candidate->end() );
+   std::sort( slavesOrderedByFreeSpace.begin(), slavesOrderedByFreeSpace.end(), SortByFreeSpace( m_mSlaveList ) );
+
+   slavesOrderedByFreeSpace.resize( slavesOrderedByFreeSpace.size() / 2 + slavesOrderedByFreeSpace.size() % 2 );
+   candidate->clear();
+   candidate->insert( slavesOrderedByFreeSpace.begin(), slavesOrderedByFreeSpace.end() );
+
+   log().trace << "Replica slave candidates after space consideration : ";
+   for ( set<int>::iterator l = candidate->begin(); l != candidate->end(); ++l)
+     log().trace << *l << " ";
+   log().trace << std::endl;
 
    // Choose a random node.
    timeval t;
@@ -484,8 +532,9 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
          if (*i == sn.m_iNodeID)
             continue;
 
-      if( m_mSlaveList.find( *i ) == m_mSlaveList.end() )
-         log().error << __PRETTY_FUNCTION__ << ":  about to add new slave to list " << *i << std::endl;
+         if( m_mSlaveList.find( *i ) == m_mSlaveList.end() ) 
+            log().error << __PRETTY_FUNCTION__ << ":  about to add new slave to list " << *i << std::endl;
+
          sl.push_back(m_mSlaveList[*i]);
       }
    }
@@ -506,21 +555,26 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
       for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
       {
          // skip bad & lost nodes
-         if (i->second.m_iStatus != SlaveStatus::NORMAL)
+         if (i->second.m_iStatus != SlaveStatus::NORMAL) {
             continue;
+         }
 
          // if client specifies a cluster ID, then only nodes on the cluster are chosen
          if (!path_limit.empty())
          {
-            if (Topology::match(path_limit, i->second.m_viPath) < path_limit.size())
+            int clusterId = i->second.m_viPath.back();
+            if( std::find( path_limit.begin(), path_limit.end(), clusterId ) == path_limit.end() ) {
                continue;
+            }
          }
 
          // if there is location restriction on the file, check path as well
          if ((NULL != restrict_loc) && (!restrict_loc->empty()))
          {
-            if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
+            int clusterId = i->second.m_viPath.back();
+            if( std::find( restrict_loc->begin(), restrict_loc->end(), clusterId ) == restrict_loc->end() ) {
                continue;
+            }
          }
 
          // only nodes with more than minimum available disk space are chosen
@@ -531,6 +585,7 @@ int SlaveManager::chooseIONode(set<int>& loclist, int mode, vector<SlaveNode>& s
       if (avail.empty())
          return SectorError::E_NODISK;
 
+     
       SlaveNode sn;
       findNearestNode(avail, option.m_strHintIP, sn);
 
@@ -1120,13 +1175,13 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
       }
 
    }
-   log().trace << "Slave space deficit caclulation - minimum disk space set to " << m_llSlaveMinDiskSpace << std::endl;
+//   log().trace << "Slave space deficit caclulation - minimum disk space set to " << m_llSlaveMinDiskSpace << std::endl;
    for( std::map<int, int64_t>::iterator i = totalAvailableDiskSpacePerCluster.begin(); i != totalAvailableDiskSpacePerCluster.end(); ++i )
    {
       avgAvailableDiskSpacePerCluster[ i->first ] = i->second / numSlavesPerCluster[ i->first ];
-      log().trace << "Cluster " << i->first << " total available " << i->second << " no of slaves " <<
-         numSlavesPerCluster[ i->first ] << " avg available per cluster " 
-         << avgAvailableDiskSpacePerCluster[ i->first ] << std::endl;
+//      log().trace << "Cluster " << i->first << " total available " << i->second << " no of slaves " <<
+//         numSlavesPerCluster[ i->first ] << " avg available per cluster " 
+//         << avgAvailableDiskSpacePerCluster[ i->first ] << std::endl;
    }
 
    //TODO: using "target" value as key may cause certain low disk node to be ignored.
@@ -1135,11 +1190,11 @@ int SlaveManager::checkStorageBalance(map<int64_t, Address>& lowdisk, bool force
 
    for (map<int, SlaveNode>::iterator i = m_mSlaveList.begin(); i != m_mSlaveList.end(); ++ i)
    {
-      log().trace << "Slave " << i->first << " " << i->second.m_strIP << ":" << i->second.m_iPort 
-      << " status " << i->second.m_iStatus << " Space available " << i->second.m_llAvailDiskSpace 
-      << " space used " << i->second.m_llTotalFileSize
-      << " DiskLowWarning " << i->second.m_bDiskLowWarning   
-      << " cluster " << i->second.m_viPath.back() << std::endl;
+//      log().trace << "Slave " << i->first << " " << i->second.m_strIP << ":" << i->second.m_iPort 
+//      << " status " << i->second.m_iStatus << " Space available " << i->second.m_llAvailDiskSpace 
+//      << " space used " << i->second.m_llTotalFileSize
+//      << " DiskLowWarning " << i->second.m_bDiskLowWarning   
+//      << " cluster " << i->second.m_viPath.back() << std::endl;
       if ((i->second.m_llAvailDiskSpace <= m_llSlaveMinDiskSpace) && (!i->second.m_bDiskLowWarning))
       {
 

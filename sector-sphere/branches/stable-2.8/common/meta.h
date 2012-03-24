@@ -118,8 +118,7 @@ public:	// medadata and file system operations
    virtual int64_t getTotalDataSizeRootCached() = 0;
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
-   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster,
-                     const std::map<std::string, std::vector<int> >& restrictedLoc) = 0;
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster) = 0;
 
    virtual int getSlaveMeta(Metadata* branch, const Address& addr) = 0;
 

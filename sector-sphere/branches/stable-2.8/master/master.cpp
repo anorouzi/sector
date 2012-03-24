@@ -32,9 +32,29 @@ written by
 #include "ssltransport.h"
 #include "tcptransport.h"
 #include "topology.h"
+#include "../common/log.h"
+
+
 
 using namespace std;
 using namespace sector;
+
+namespace
+{
+   inline logger::LogAggregate& log()
+   {
+      static logger::LogAggregate& myLogger = logger::getLogger( "Master" );
+      static bool                  setLogLevelYet = false;
+
+      if( !setLogLevelYet )
+      {
+         setLogLevelYet = true;
+         myLogger.setLogLevel( logger::Debug );
+      }
+
+      return myLogger;
+   }
+}
 
 Master::Master():
 m_pMetadata(NULL),
@@ -134,6 +154,7 @@ int Master::init()
    ReplicaConfig::setPath( m_strSectorHome + "/conf/replica.conf" );
    if (ReplicaConfig::readConfigFile())
    {
+      log().trace << ReplicaConfig::getCached().toString() << std::endl;
       m_pMetadata->setDefault(m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_bCheckReplicaOnSameIp, ReplicaConfig::getCached().m_iPctSlavesToConsider, ReplicaConfig::getCached().m_bCheckReplicaCluster);
       m_pMetadata->refreshRepSetting("/", m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
    }
@@ -1873,9 +1894,18 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       SF_OPT option;
       option.m_strHintIP = ip;
 
-      set<int> empty;
+      // try to limit original location of directory for restricted locations
+      // directory slave not moved during move, so it is not fully supported
+      SNode sn;
+      sn.m_strName = path;
+      sn.m_bIsDir = true;
+      sn.m_iReplicaNum = ReplicaConfig::getCached().getReplicaNum(path, m_SysConfig.m_iReplicaNum);
+      sn.m_iReplicaDist = ReplicaConfig::getCached().getReplicaDist(path, m_SysConfig.m_iReplicaDist);
+
+      ReplicaConfig::getCached().getRestrictedLoc(path, sn.m_viRestrictedLoc);
       vector<SlaveNode> addr;
-      if (m_SlaveManager.chooseIONode(empty, SF_MODE::WRITE, addr, option) <= 0)
+      set<int> empty;
+      if (m_SlaveManager.chooseIONode(empty, SF_MODE::WRITE, addr, option, sn.m_iReplicaDist, &sn.m_viRestrictedLoc) <= 0)
       {
          logUserActivity(user, "mkdir", path.c_str(), SectorError::E_RESOURCE, NULL, LogLevel::LEVEL_8);
          reject(ip, port, id, SectorError::E_RESOURCE);
@@ -1886,9 +1916,6 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       m_GMP.sendto(addr.begin()->m_strIP.c_str(), addr.begin()->m_iPort, msgid, msg);
 
       // create a new dir in metadata
-      SNode sn;
-      sn.m_strName = path;
-      sn.m_bIsDir = true;
       m_pMetadata->create(sn);
 
       // send file changes to all other masters
@@ -1985,23 +2012,49 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       if (rt < 0)
       {
          m_pMetadata->move(src.c_str(), uplevel.c_str(), newname.c_str());
-         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
+         m_pMetadata->refreshRepSetting(uplevel + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
+//         m_pMetadata->refreshRepSetting(uplevel + "/" + newname, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
       }
       else
       {
+        SNode attr;
+        m_pMetadata->lookup(dst.c_str(), attr);
+        log().trace << "Move to " << dst.c_str() << " before restricted loc {";
+        for (std::vector<int>::const_iterator rlc = attr.m_viRestrictedLoc.begin(); rlc != attr.m_viRestrictedLoc.end(); ++rlc)
+          log().trace << *rlc << ",";
+        log().trace << "}" << std::endl;
+
          m_pMetadata->move(src.c_str(), dst.c_str());
          m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
       }
-
+      SNode attr;
+      m_pMetadata->lookup(dst.c_str(), attr);
+      log().trace << "Move to " << dst.c_str() << " after restricted loc {";
+      for (std::vector<int>::const_iterator rlc = attr.m_viRestrictedLoc.begin(); rlc != attr.m_viRestrictedLoc.end(); ++rlc)
+        log().trace << *rlc <<",";
+      log().trace << "}" << std::endl;
+      
       msg->setData(0, src.c_str(), src.length() + 1);
       msg->setData(src.length() + 1, uplevel.c_str(), uplevel.length() + 1);
       msg->setData(src.length() + 1 + uplevel.length() + 1, newname.c_str(), newname.length() + 1);
-      for (set<Address, AddrComp>::iterator i = addrlist.begin(); i != addrlist.end(); ++ i)
+      // send directory move message to all slaves
+      if ( as.m_bIsDir )
       {
-         int msgid = 0;
-         m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
+         m_SlaveManager.updateSlaveList(m_vSlaveList, m_llLastUpdateTime);
+         for (vector<Address>::iterator i = m_vSlaveList.begin(); i != m_vSlaveList.end(); ++ i)
+         {
+            int msgid = 0;
+            m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
+         }
       }
-
+      else
+      {
+        for (set<Address, AddrComp>::iterator i = addrlist.begin(); i != addrlist.end(); ++ i)
+        {
+           int msgid = 0;
+           m_GMP.sendto(i->m_strIP.c_str(), i->m_iPort, msgid, msg);
+        }
+      }
       // send file changes to all other masters
       if (m_Routing.getNumOfMasters() > 1)
       {
@@ -3078,7 +3131,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
            over_replicated.clear();
            std::map<std::string, int> IPToCluster;
            self->m_SlaveManager.getSlaveIPToClusterMap ( IPToCluster );
-           self->m_pMetadata->checkReplica("/", under_replicated, over_replicated, IPToCluster, ReplicaConfig::getCached().m_mRestrictedLoc);
+           self->m_pMetadata->checkReplica("/", under_replicated, over_replicated, IPToCluster);
 
            if (!under_replicated.empty())
            {
@@ -3112,23 +3165,57 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
 
              // remove replicas from those over-replicated files
              // extra replicas can decrease write performance, and occupy disk spaces
-             for (vector<string>::iterator i = over_replicated.begin(); i != over_replicated.end(); ++ i)
+             for (vector<string>::iterator orf = over_replicated.begin(); orf != over_replicated.end(); ++ orf)
              {
                 // choose one replica and remove it
                 SNode attr;
-                if (self->m_pMetadata->lookup(*i, attr) < 0)
+                if (self->m_pMetadata->lookup(*orf, attr) < 0)
                   continue;
 
                 // remove a directory, this must be a dir with .nosplit
-                if ((attr.m_bIsDir) && (self->m_pMetadata->lookup(*i + "/.nosplit", attr) < 0))
+                if ((attr.m_bIsDir) && (self->m_pMetadata->lookup(*orf + "/.nosplit", attr) < 0))
                   continue;
 
+                if (ReplicaConfig::getCached().m_bCheckReplicaCluster)
+                {
+                  set<int> clustersOfPath;
+                  for ( map<string, vector<int> >::const_iterator i = ReplicaConfig::getCached().m_mRestrictedLoc.begin();
+                                                    i != ReplicaConfig::getCached().m_mRestrictedLoc.end(); ++ i)                               if (WildCard::contain(i->first, *orf ))
+                    {
+                      clustersOfPath = set<int>( i->second.begin(), i->second.end() );
+                      self->m_SectorLog << LogStart(9) << "Replica " <<  *orf << " Clusters Of Path :" << LogEnd();
+                      for ( set<int>::iterator cl = clustersOfPath.begin(); cl != clustersOfPath.end(); ++cl )
+                        self->m_SectorLog << LogStart(9) << "Replica " <<  *orf << " Cluster " << *cl << LogEnd();                        
+                      break;
+                    }
+                                
+                  if ( !clustersOfPath.empty() )
+                  {
+
+                    std::map<std::string, int> IPToCluster;
+                    self->m_SlaveManager.getSlaveIPToClusterMap ( IPToCluster );
+
+                    bool found = false;
+                    for( set<Address, AddrComp>::const_iterator loc = attr.m_sLocation.begin();
+                                                                loc != attr.m_sLocation.end(); ++loc )                    
+                      if (clustersOfPath.find ( IPToCluster.find( loc->m_strIP )->second ) == clustersOfPath.end())
+                      {                        
+                         self->m_SectorLog << LogStart(9) << "Replica " << *orf << " Removing from first found bad location not in restricted locations :" << loc->m_strIP << ":" << loc->m_iPort << LogEnd();
+                         found = true;
+                         self->removeReplica(*orf, *loc);
+                         break;
+                      }
+                    if ( found ) 
+                      continue;
+                  }
+//                m_SectorLog << LogStart(9) << "Replica create: IP: " << it->first << " cluster " << it->second << LogEnd()
+                }
                 Address addr;
                 if (self->m_SlaveManager.chooseLessReplicaNode(attr.m_sLocation, addr) < 0)
-                  continue;
+                    continue;                            
 
-                self->m_SectorLog << LogStart(9) << "Replica removing " << *i << " from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
-                self->removeReplica(*i, addr);
+                self->m_SectorLog << LogStart(9) << "Replica removing " << *orf << " from " << addr.m_strIP<<":" << addr.m_iPort << LogEnd();
+                self->removeReplica(*orf, addr);
              }
            }
 
@@ -3262,21 +3349,30 @@ int Master::createReplica(const ReplicaJob& job)
             }
             if( !proceed && ReplicaConfig::getCached().m_bCheckReplicaCluster )
             { 
+//              m_SectorLog << LogStart(9) << "Replica create: Check replica cluster" << LogEnd();
               set<int> clustersOfPath;
               for (map<string, vector<int> >::const_iterator i = ReplicaConfig::getCached().m_mRestrictedLoc.begin();
                                                      i != ReplicaConfig::getCached().m_mRestrictedLoc.end(); ++ i)
-                if (WildCard::contain(i->first, attr.m_strName)) 
+              {
+//                m_SectorLog << LogStart(9) << "Replica create: Check if " << i->first << " contains in " << job.m_strSource <<  LogEnd();
+                if (WildCard::contain(i->first, job.m_strSource)) 
                 {
                    clustersOfPath = set<int>( i->second.begin(), i->second.end() );
+//                   m_SectorLog << LogStart(9) << "Replica create: " << i->first << " contains in " << job.m_strSource <<  LogEnd();
                    break;
                 }
+              }
               if ( clustersOfPath.empty() )
+              {
+//                m_SectorLog << LogStart(9) << "Replica create: Cluster of Path is empty" << LogEnd();
                 return 0;
+              }
               
               // Jason-introduced inefficiency, Sergey coding
               std::map<std::string, int> IPToCluster;
               m_SlaveManager.getSlaveIPToClusterMap ( IPToCluster );
-
+              for ( std::map<std::string, int>:: iterator it = IPToCluster.begin(); it != IPToCluster.end(); ++it )
+                m_SectorLog << LogStart(9) << "Replica create: IP: " << it->first << " cluster " << it->second << LogEnd();
               int curr_rep_num = 0;
               for( set<Address, AddrComp>::const_iterator loc = attr.m_sLocation.begin();
                                                           loc != attr.m_sLocation.end(); ++loc )
@@ -3284,6 +3380,7 @@ int Master::createReplica(const ReplicaJob& job)
               if (curr_rep_num >= attr.m_iReplicaNum )
                 return 0;        
               proceed = true;         
+              m_SectorLog << LogStart(9) << "Replica create: " << job.m_strSource << " is on wrong cluster" << LogEnd();
             }
             if (!proceed)            
                return 0;            

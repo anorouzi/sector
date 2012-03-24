@@ -63,8 +63,7 @@ public:
    virtual int64_t getTotalDataSizeRootCached();
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
-   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster,
-                     const std::map<std::string, std::vector<int> >& restrictedLoc);
+   virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster);
    virtual int getSlaveMeta(Metadata* branch, const Address& addr);
 
 public:
@@ -80,12 +79,13 @@ private:
    int64_t getTotalDataSize(const std::map<std::string, SNode>& currdir) const;
    int64_t getTotalFileNum(const std::map<std::string, SNode>& currdir) const;
    int collectDataInfo(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& result) const;
-   int checkReplica(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over, const std::map< std::string, int> & IPToCluster,
-                     const std::map<std::string, std::vector<int> >& restrictedLoc) const;
+   int checkReplica(const std::string& path, const std::map<std::string, SNode>& currdir, std::vector<std::string>& under, std::vector<std::string>& over, const std::map< std::string, int> & IPToCluster) const;
    int list_r(const std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist) const;
    int getSlaveMeta(const std::map<std::string, SNode>& currdir, const std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr) const;
 
    int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, const std::map<std::string, int>& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
+
+   int refreshRepSetting(const std::string& path, SNode& curnode, int default_num, int default_dist, const std::map<std::string, int>& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
    std::map<std::string, SNode> m_mDirectory;

@@ -710,8 +710,7 @@ int Index::collectDataInfo(const string& file, vector<string>& result)
 }
 
 int Index::checkReplica(const string& path, vector<string>& under, vector<string>& over,
-        const std::map< std::string, int> & IPToCluster,
-                     const std::map<std::string, std::vector<int> >& restrictedLoc)
+        const std::map< std::string, int> & IPToCluster)
 {
    under.clear();
    over.clear();
@@ -733,7 +732,7 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
       currdir = &(s->second.m_mDirectory);
    }
 
-   return checkReplica(path, *currdir, under, over, IPToCluster, restrictedLoc );
+   return checkReplica(path, *currdir, under, over, IPToCluster );
 }
 
 int Index::getSlaveMeta(Metadata* branch, const Address& addr)
@@ -1017,11 +1016,8 @@ set<int> getClustersForPath( const std::string& path, const std::map<std::string
 }
 
 int Index::checkReplica(const string& path, const map<string, SNode>& currdir, vector<string>& under, 
-                     vector<string>& over, const std::map< std::string, int> & IPToCluster,
-                     const std::map<std::string, std::vector<int> >& restrictedLoc) const
+                     vector<string>& over, const std::map< std::string, int> & IPToCluster) const
 {
-   set<int> clustersOfPath = m_bCheckReplicaCluster ? getClustersForPath( path, restrictedLoc ) : set<int>();
-
    for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
       string abs_path = path;
@@ -1030,60 +1026,81 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
       else
          abs_path += "/" + i->first;
 
-      if ((!i->second.m_bIsDir) || (i->second.m_mDirectory.find(".nosplit") != i->second.m_mDirectory.end()))
+      if (i->second.m_bIsDir)
       {
-         // replicate a file according to the number of specified replicas
-         // or if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
-
-         unsigned int curr_rep_num = 0;
-         unsigned int total_rep_num = 0;
-         unsigned int target_rep_num = 0;
-         map<string, SNode>::const_iterator ns = i->second.m_mDirectory.find(".nosplit");
-         if (ns != i->second.m_mDirectory.end())
-         {
-            total_rep_num = curr_rep_num = ns->second.m_sLocation.size();
-            target_rep_num = ns->second.m_iReplicaNum;
-         }
-         else
-         {
-            if( !clustersOfPath.empty() )
-            {
-              curr_rep_num = 0;
-              for( set<Address, AddrComp>::const_iterator loc = i->second.m_sLocation.begin(); 
-                                                            loc != i->second.m_sLocation.end(); ++loc )
-                 curr_rep_num += clustersOfPath.find ( IPToCluster.find( loc->m_strIP )->second ) != clustersOfPath.end();
-            }
-            else
-              curr_rep_num = i->second.m_sLocation.size();
-            target_rep_num = i->second.m_iReplicaNum;
-            total_rep_num = i->second.m_sLocation.size();
-         }
-
-         if (curr_rep_num < target_rep_num)
-            under.push_back(abs_path);
-
-         // Sergey check if replicas on same node for node with several slaves (volumes)
-         else if (total_rep_num > target_rep_num)
-            over.push_back(abs_path);
-         else // target == current
-         {
-           if( m_bCheckReplicaOnSameIp && i->second.m_sLocation.size() > 1 )
-           { 
-              std::string cur_ip;
-              std::set<Address, AddrComp>::const_iterator cur = i->second.m_sLocation.begin();
-              std::set<Address, AddrComp>::const_iterator last = i->second.m_sLocation.end();
-              for( ; cur != last; ++cur )
-                  if( cur->m_strIP == cur_ip )
-                  {
-                      under.push_back(abs_path);
-                      break;
-                  } else
-                      cur_ip = cur->m_strIP;
-           }
-         }
+        checkReplica(abs_path, i->second.m_mDirectory, under, over, IPToCluster);
+        continue;
+      }
+      unsigned int target_rep_num;
+      map<string, SNode>::const_iterator ns = i->second.m_mDirectory.find(".nosplit");
+      // if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
+      if (ns != i->second.m_mDirectory.end())
+      {
+        target_rep_num = ns->second.m_iReplicaNum;
       }
       else
-         checkReplica(abs_path, i->second.m_mDirectory, under, over, IPToCluster, restrictedLoc);
+      {
+        target_rep_num = i->second.m_iReplicaNum;
+      }
+      
+      unsigned int curr_rep_num = i->second.m_sLocation.size();
+      if (curr_rep_num > target_rep_num)
+      {
+        over.push_back(abs_path);
+        continue;
+      }
+      if (curr_rep_num < target_rep_num)
+      {
+        under.push_back(abs_path);
+        continue;
+      }
+// now we left with curr_rep_num == target_rep_num, and will be checking only for underreplicated files
+      if ( m_bCheckReplicaCluster )
+      {
+        if( !i->second.m_viRestrictedLoc.empty() )
+        {
+           bool found = false;
+           for( set<Address, AddrComp>::const_iterator loc =  i->second.m_sLocation.begin(); 
+                                                       loc != i->second.m_sLocation.end(); ++loc )
+           {
+//              vector<int>const_iterator clu = IPToCluster.find( loc->m_strIP );
+              map< std::string, int>::const_iterator clu = IPToCluster.find( loc->m_strIP );
+              if ( clu == IPToCluster.end() )
+              {
+                under.push_back(abs_path);
+                found = true;
+                break;
+              }
+
+              vector< int >::const_iterator vs = find(i->second.m_viRestrictedLoc.begin(),
+                                                      i->second.m_viRestrictedLoc.end(),
+                                                      clu->second);
+       
+              if (vs ==  i->second.m_viRestrictedLoc.end())
+              {
+                under.push_back(abs_path);
+                found = true;
+                break;
+              }
+           }
+           if ( found ) 
+             continue;
+        }
+      }
+      if( m_bCheckReplicaOnSameIp && i->second.m_sLocation.size() > 1 )
+      { 
+        std::string cur_ip;
+        std::set<Address, AddrComp>::const_iterator cur  = i->second.m_sLocation.begin();
+        std::set<Address, AddrComp>::const_iterator last = i->second.m_sLocation.end();
+        for( ; cur != last; ++cur )
+          if( cur->m_strIP == cur_ip )
+          {
+            under.push_back(abs_path);
+            break;
+          } else
+            cur_ip = cur->m_strIP;
+          
+      }      
    }
 
    return 0;
@@ -1164,70 +1181,81 @@ void Index::refreshRepSetting(const string& path, int default_num, int default_d
 
    vector<string> dir;
    if (parsePath(path, dir) < 0)
-      return;
-
+     return;
+   
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
+   SNode * curnode = NULL;
    for (vector<string>::iterator d = dir.begin(); d != dir.end(); ++ d)
    {
       s = currdir->find(*d);
       if (s == currdir->end())
          return;
-
-      currdir = &(s->second.m_mDirectory);
+      curnode = &(s->second);
+      currdir = & (curnode->m_mDirectory);
+      
    }
-
-   refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
+   if ( curnode != NULL && !curnode->m_bIsDir )
+     refreshRepSetting(path, *curnode, default_num, default_dist, rep_num, rep_dist, restrict_loc);
+   else
+     refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 }
 
 int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    //TODO: use wildcard match each level of dir, instead of contain()
+   string slash = "/";
+   if ( path == "/" ) 
+     slash = "";
 
    for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
    {
-      string abs_path = path;
-      if (path == "/")
-         abs_path += i->first;
-      else
-         abs_path += "/" + i->first;
+      refreshRepSetting(path + slash + i->second.m_strName, i->second, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 
-      // set replication factor
-      i->second.m_iReplicaNum = default_num;
-      for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
-      {
-         if (WildCard::contain(rn->first, abs_path))
-         {
-            i->second.m_iReplicaNum = rn->second;
-            break;
-         }
-      }
-
-      // set replication distance
-      i->second.m_iReplicaDist = default_dist;
-      for (map<string, int>::const_iterator rd = rep_dist.begin(); rd != rep_dist.end(); ++ rd)
-      {
-         if (WildCard::contain(rd->first, abs_path))
-         {
-            i->second.m_iReplicaDist = rd->second;
-            break;
-         }
-      }
-
-      // set restricted location
-      i->second.m_viRestrictedLoc.clear();
-      for (map<string, vector<int> >::const_iterator rl = restrict_loc.begin(); rl != restrict_loc.end(); ++ rl)
-      {
-         if (WildCard::contain(rl->first, abs_path))
-         {
-            i->second.m_viRestrictedLoc = rl->second;
-            break;
-         }
-      }
-
-      if (i->second.m_bIsDir)
-         refreshRepSetting(abs_path, i->second.m_mDirectory, default_num, default_dist, rep_num, rep_dist, restrict_loc);
    }
-
    return 0;
+}
+
+int Index::refreshRepSetting(const string& path, SNode & node, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+{
+//  string abs_path = path;
+//  if (path == "/")
+//    abs_path += node.m_strName;
+//  else
+//    abs_path += "/" + node.m_strName;
+
+  // set replication factor
+  node.m_iReplicaNum = default_num;
+  for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
+  {
+     if (WildCard::contain(rn->first, path))
+     {
+        node.m_iReplicaNum = rn->second;
+        break;
+     }
+  }
+  // set replication distance
+  node.m_iReplicaDist = default_dist;
+  for (map<string, int>::const_iterator rd = rep_dist.begin(); rd != rep_dist.end(); ++ rd)
+  {
+     if (WildCard::contain(rd->first, path))
+     {
+        node.m_iReplicaDist = rd->second;
+        break;
+      }
+  }
+
+  // set restricted location
+  node.m_viRestrictedLoc.clear();
+  for (map<string, vector<int> >::const_iterator rl = restrict_loc.begin(); rl != restrict_loc.end(); ++ rl)
+  {
+     if (WildCard::contain(rl->first, path))
+     {
+        node.m_viRestrictedLoc = rl->second;
+        break;
+     }
+  }
+  if (node.m_bIsDir)
+    refreshRepSetting(path, node.m_mDirectory, default_num, default_dist, rep_num, rep_dist, restrict_loc);
+  return 0;
 }
