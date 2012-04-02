@@ -374,20 +374,12 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       // if a location restriction is applied to the file, only limited nodes can be chosen
       if ((NULL != restrict_loc) && (!restrict_loc->empty()))
       {
-log().trace << "Restricted Loc ";
-for (vector< int >::const_iterator rl = restrict_loc->begin(); rl != restrict_loc->end(); ++rl )
-  log().trace << *rl << " ";
-log().trace << std::endl;
 
          int clusterId = i->second.m_viPath.back();
-log().trace << "Slave " << i->first << " ClusterID " << clusterId  << std::endl;
          if( std::find( restrict_loc->begin(), restrict_loc->end(), clusterId ) == restrict_loc->end() ) 
          {
-log().trace << "Slave " << i->first << " not in restricted loc" << std::endl;
-//         if (Topology::match(i->second.m_viPath, *restrict_loc) < restrict_loc->size())
             continue;
          }
-log().trace << "Slave " << i->first << " in restricted loc" << std::endl;
       }
 
       // Calculate the distance from this slave node to the current replicas
@@ -404,17 +396,6 @@ log().trace << "Slave " << i->first << " in restricted loc" << std::endl;
          avail[level].insert(i->first);
    }
 
-   log().trace << "Replica slave available : " << std::endl;
-   int level_cnt = 0;
-   for ( vector< set<int> >::iterator l = avail.begin(); l != avail.end(); ++l)
-   {
-      level_cnt++;
-      log().trace << " Level " << level_cnt << " slaves : " ;
-      for ( set<int>::iterator s = l->begin(); s != l->end(); ++s)
-        log().trace << *s << " ";
-      log().trace << std::endl;
-   }
-
    set<int>* candidate = NULL;
    // choose furthest node within replica distance
    for (int i = m_pTopology->m_uiLevel + 1; i > 0; -- i)
@@ -426,13 +407,24 @@ log().trace << "Slave " << i->first << " in restricted loc" << std::endl;
       }
    }
 
-log().trace << "Replica slave candidates : ";
-   for ( set<int>::iterator l = candidate->begin(); l != candidate->end(); ++l)
-     log().trace << *l << " ";
-   log().trace << std::endl;
-
    if (NULL == candidate)
       return SectorError::E_NODISK;
+
+   int lvl = 0;
+   log().trace << "Available slaves" << std::endl;
+   for ( vector <set <int> >::const_iterator vi = avail.begin(); vi != avail.end(); ++vi)
+   {
+      log().trace << "Level " << lvl << " ";
+      for ( set< int >::const_iterator si = vi->begin(); si != vi->end(); ++si)
+        log().trace << *si << ",";
+      log().trace << std::endl;
+      lvl++;
+   }
+  
+   log().trace << "Candidate slaves ";
+   for (set<int>::const_iterator cs = candidate->begin(); cs != candidate->end(); ++ cs)
+     log().trace << *cs << ",";
+   log().trace << std::endl;
 
 /*
    int64_t totalFreeSpaceOnCandidates = 0;
@@ -459,11 +451,6 @@ log().trace << "Replica slave candidates : ";
    candidate->clear();
    candidate->insert( slavesOrderedByFreeSpace.begin(), slavesOrderedByFreeSpace.end() );
 
-   log().trace << "Replica slave candidates after space consideration : ";
-   for ( set<int>::iterator l = candidate->begin(); l != candidate->end(); ++l)
-     log().trace << *l << " ";
-   log().trace << std::endl;
-
    // Choose a random node.
    timeval t;
    gettimeofday(&t, 0);
@@ -479,7 +466,10 @@ log().trace << "Replica slave candidates : ";
 
    sn = m_mSlaveList[*n];
    if (sn.m_iActiveTrans == 0)
+   {
+      log().trace << "Choosen slave without active transactions " << sn.m_iNodeID << std::endl;
       return 1;
+   }
 
    // Choose node with lowest number of active transactions.
    set<int>::iterator s = n;
@@ -496,6 +486,8 @@ log().trace << "Replica slave candidates : ";
             break;
       }
    } while (s != n);
+
+   log().trace << "Choosen slave with lowest no of active transactions " << sn.m_iNodeID << std::endl;
 
    return 1;
 }

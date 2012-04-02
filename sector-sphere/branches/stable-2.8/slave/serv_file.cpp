@@ -757,7 +757,6 @@ DWORD WINAPI Slave::copy(LPVOID p)
             success = false;
             break;
          }
-         DBG_REP("Creating replica from " << addr.m_strIP << ":" << addr.m_iPort);
 
          int32_t session = *(int32_t*)msg.getData();
          int64_t size = *(int64_t*)(msg.getData() + 4);
@@ -766,12 +765,13 @@ DWORD WINAPI Slave::copy(LPVOID p)
          string ip = msg.getData() + 24;
          int32_t port = *(int32_t*)(msg.getData() + 64 + 24);
 
+         DBG_REP("Creating replica from " << ip << ":" << port);
          if (!self->m_DataChn.isConnected(ip, port))
          {
-            DBG_REP("Not connected to slave - connect " << addr.m_strIP << ":" << addr.m_iPort);
+            DBG_REP("Not connected to slave - connect " << ip << ":" << port);
             if (self->m_DataChn.connect(ip, port) < 0)
             {
-               DBG_REP("Failed to connect to slave " << addr.m_strIP << ":" << addr.m_iPort);
+               DBG_REP("Failed to connect to slave " << ip << ":" << port);
                success = false;
                break;
             }

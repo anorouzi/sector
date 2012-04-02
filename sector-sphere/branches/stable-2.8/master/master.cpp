@@ -2019,20 +2019,12 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       {
         SNode attr;
         m_pMetadata->lookup(dst.c_str(), attr);
-        log().trace << "Move to " << dst.c_str() << " before restricted loc {";
-        for (std::vector<int>::const_iterator rlc = attr.m_viRestrictedLoc.begin(); rlc != attr.m_viRestrictedLoc.end(); ++rlc)
-          log().trace << *rlc << ",";
-        log().trace << "}" << std::endl;
 
          m_pMetadata->move(src.c_str(), dst.c_str());
          m_pMetadata->refreshRepSetting(dst, m_SysConfig.m_iReplicaNum, m_SysConfig.m_iReplicaDist, ReplicaConfig::getCached().m_mReplicaNum, ReplicaConfig::getCached().m_mReplicaDist, ReplicaConfig::getCached().m_mRestrictedLoc);
       }
       SNode attr;
       m_pMetadata->lookup(dst.c_str(), attr);
-      log().trace << "Move to " << dst.c_str() << " after restricted loc {";
-      for (std::vector<int>::const_iterator rlc = attr.m_viRestrictedLoc.begin(); rlc != attr.m_viRestrictedLoc.end(); ++rlc)
-        log().trace << *rlc <<",";
-      log().trace << "}" << std::endl;
       
       msg->setData(0, src.c_str(), src.length() + 1);
       msg->setData(src.length() + 1, uplevel.c_str(), uplevel.length() + 1);
@@ -2513,7 +2505,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
 
 
       m_SectorLog << LogStart(LogLevel::LEVEL_3) << "TID " << transid << " UID " << key << " " <<
-         str_ip << " open PATH " << path << LogEnd();
+         str_ip << " open PATH " << path << " on " << ip << ":" << port << LogEnd();
 
       m_GMP.sendto(ip, port, id, msg);
       break;
@@ -3183,9 +3175,9 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                                                     i != ReplicaConfig::getCached().m_mRestrictedLoc.end(); ++ i)                               if (WildCard::contain(i->first, *orf ))
                     {
                       clustersOfPath = set<int>( i->second.begin(), i->second.end() );
-                      self->m_SectorLog << LogStart(9) << "Replica " <<  *orf << " Clusters Of Path :" << LogEnd();
-                      for ( set<int>::iterator cl = clustersOfPath.begin(); cl != clustersOfPath.end(); ++cl )
-                        self->m_SectorLog << LogStart(9) << "Replica " <<  *orf << " Cluster " << *cl << LogEnd();                        
+//                      self->m_SectorLog << LogStart(9) << "Replica " <<  *orf << " Clusters Of Path :" << LogEnd();
+//                      for ( set<int>::iterator cl = clustersOfPath.begin(); cl != clustersOfPath.end(); ++cl )
+//                        self->m_SectorLog << LogStart(9) << "Replica " <<  *orf << " Cluster " << *cl << LogEnd();                        
                       break;
                     }
                                 
@@ -3200,7 +3192,7 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                                                                 loc != attr.m_sLocation.end(); ++loc )                    
                       if (clustersOfPath.find ( IPToCluster.find( loc->m_strIP )->second ) == clustersOfPath.end())
                       {                        
-                         self->m_SectorLog << LogStart(9) << "Replica " << *orf << " Removing from first found bad location not in restricted locations :" << loc->m_strIP << ":" << loc->m_iPort << LogEnd();
+                         self->m_SectorLog << LogStart(9) << "Replica " << *orf << " Removing from first found slave not in restricted locations :" << loc->m_strIP << ":" << loc->m_iPort << LogEnd();
                          found = true;
                          self->removeReplica(*orf, *loc);
                          break;
@@ -3371,8 +3363,6 @@ int Master::createReplica(const ReplicaJob& job)
               // Jason-introduced inefficiency, Sergey coding
               std::map<std::string, int> IPToCluster;
               m_SlaveManager.getSlaveIPToClusterMap ( IPToCluster );
-              for ( std::map<std::string, int>:: iterator it = IPToCluster.begin(); it != IPToCluster.end(); ++it )
-                m_SectorLog << LogStart(9) << "Replica create: IP: " << it->first << " cluster " << it->second << LogEnd();
               int curr_rep_num = 0;
               for( set<Address, AddrComp>::const_iterator loc = attr.m_sLocation.begin();
                                                           loc != attr.m_sLocation.end(); ++loc )
@@ -3380,7 +3370,7 @@ int Master::createReplica(const ReplicaJob& job)
               if (curr_rep_num >= attr.m_iReplicaNum )
                 return 0;        
               proceed = true;         
-              m_SectorLog << LogStart(9) << "Replica create: " << job.m_strSource << " is on wrong cluster" << LogEnd();
+              m_SectorLog << LogStart(9) << "Replica create: " << job.m_strSource << " have at least one replica on wrong cluster" << LogEnd();
             }
             if (!proceed)            
                return 0;            
