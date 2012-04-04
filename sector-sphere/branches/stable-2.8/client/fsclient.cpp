@@ -744,9 +744,7 @@ int FSClient::close()
       }
    }
 
-   // TODO: close a file should not remove the cache.
-   // Instead, the cache's reference count should be simply updated.
-   //m_pClient->m_Cache.remove(m_strFileName);
+   m_pClient->m_Cache.remove(m_strFileName);
 
    // Reset all flags so that another file can be opened using the same handle.
    m_strSlaveIP = "";

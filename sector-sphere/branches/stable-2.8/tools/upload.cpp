@@ -38,7 +38,7 @@ using namespace std;
 
 void help()
 {
-   cerr << "usage: sector_upload <src file/dir> <dst dir> [-n num_of_replicas] [-a ip_address] [-c cluster_id] [--e(ncryption)]" << endl;
+   cerr << "usage: sector_upload <src file/dir> <dst dir> [-n num_of_replicas] [-a ip_address] [-c cluster_id] [--e(ncryption)] --smart" << endl;
 }
 
 int upload(const char* file, const char* dst, Sector& client, const int rep_num, const string& ip, const string& cid, const bool secure)
@@ -174,6 +174,7 @@ int main(int argc, char** argv)
    int parallel = 1;  // concurrent uploading multiple files
 
    bool encryption = false;
+   bool smart = false;
 
    for (map<string, string>::const_iterator i = clp.m_mDFlags.begin(); i != clp.m_mDFlags.end(); ++ i)
    {
@@ -196,6 +197,8 @@ int main(int argc, char** argv)
    {
       if (*i == "e")
          encryption = true;
+      else if (*i == "smart" )
+         smart = true;
       else
       {
          help();
@@ -306,6 +309,21 @@ int main(int argc, char** argv)
             client.mkdir(dst);
          else
          {
+            if( !smart )
+            {
+                SNode attr;
+                if (client.stat(dst, attr) >= 0)
+                {
+                   cout << "File " << dst << " already exists in sector and smart not specified, removing file from sector." << endl;
+                   int rc = client.remove( dst );
+                   if( rc ) 
+                   {
+                      cout << "Failed to remove file " << dst << " from sector, rc = " << rc << ", NOT uploading file" << endl;
+                      continue;
+                   }
+                }
+            }
+   
             int result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption);
             if ((result == SectorError::E_CONNECTION) ||
                 (result == SectorError::E_BROKENPIPE))

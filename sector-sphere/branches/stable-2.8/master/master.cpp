@@ -166,8 +166,6 @@ int Master::init()
    User* au = new User;
    au->m_strName = "system";
    au->m_iKey = 0;
-   au->m_bLoggedOut = false;
-   au->m_iUseCount = 1; // We never want to log out slaves anyway...
    au->m_vstrReadList.insert(au->m_vstrReadList.begin(), "/");
    //au->m_vstrWriteList.insert(au->m_vstrWriteList.begin(), "/");
    m_UserManager.insert(au);
@@ -336,8 +334,6 @@ int Master::join(const char* ip, const int& port)
       s.recv(ubuf, size);
       User* u = new User;
       u->deserialize(ubuf, size);
-      u->m_bLoggedOut = false;
-      u->m_iUseCount = 1; 
       delete [] ubuf;
       m_UserManager.insert(u);
    }
@@ -574,11 +570,14 @@ int Master::stop()
       pthread_t t;
       pthread_create(&t, NULL, serviceEx, self);
       pthread_detach(t);
+      self->m_ServiceJobQueue.registerThread(t);
 #else
       DWORD ThreadID;
       HANDLE hThread = CreateThread(NULL, 0, serviceEx, self, NULL, &ThreadID);
       if (hThread)
          CloseHandle(hThread);
+      else
+         self->m_ServiceJobQueue.registerThread(ThreadID);
 #endif
    }
 
@@ -604,7 +603,7 @@ int Master::stop()
       p->port = port;
       p->ssl = s;
 
-      self->m_ServiceJobQueue.push(p);
+      self->m_ServiceJobQueue.push(p,port);
    }
 
    return NULL;
@@ -625,9 +624,12 @@ int Master::stop()
       return NULL;
    }
 
+   int queue_id = pthread_self();
+   self->m_ServiceJobQueue.registerThread(queue_id);
+
    while (self->m_Status == RUNNING)
    {
-      ServiceJobParam* p = (ServiceJobParam*)self->m_ServiceJobQueue.pop();
+      ServiceJobParam* p = (ServiceJobParam*)self->m_ServiceJobQueue.pop(queue_id);
       if (NULL == p)
          break;
 
@@ -923,8 +925,6 @@ int Master::processUserJoin(SSLTransport& cliconn,
       au->m_strIP = ip;
       au->m_iKey = key;
       au->m_llLastRefreshTime = CTimer::getTime();
-      au->m_bLoggedOut = false;
-      au->m_iUseCount = 0;
 
       cliconn.recv((char*)&au->m_iPort, 4);
       cliconn.recv((char*)&au->m_iDataPort, 4);
@@ -1134,7 +1134,7 @@ int Master::processMasterJoin(SSLTransport& mstconn,
          continue;
 
       int32_t key = msg->getKey();
-      User* user = self->m_UserManager.acquire(key);
+      User* user = self->m_UserManager.lookup(key);
       if (NULL == user)
       {
          self->reject(ip, port, id, SectorError::E_EXPIRED);
@@ -1187,7 +1187,9 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       p->id = id;
       p->msg = msg;
 
-      self->m_ProcessJobQueue.push(p);
+     // Request from each user session must be sent to the same thread for processing.
+     // Otherwise they could go out of order and cause all kinds of problems.
+      self->m_ProcessJobQueue.push(p,key);
    }
 
    return NULL;
@@ -1200,10 +1202,12 @@ int Master::processMasterJoin(SSLTransport& mstconn,
 #endif
 {
    Master* self = (Master*)param;
+   int queue_id = pthread_self();
+   self->m_ProcessJobQueue.registerThread(queue_id);
 
    while (self->m_Status == RUNNING)
    {
-      ProcessJobParam* p = (ProcessJobParam*)self->m_ProcessJobQueue.pop();
+      ProcessJobParam* p = (ProcessJobParam*)self->m_ProcessJobQueue.pop(queue_id);
       if (NULL == p)
          break;
 
@@ -1242,8 +1246,6 @@ int Master::processMasterJoin(SSLTransport& mstconn,
       default:
          self->reject(p->ip, p->port, p->id, SectorError::E_UNKNOWN);
       }
-
-      self->m_UserManager.release(p->user);
 
       delete p->msg;
       delete p;
@@ -1387,7 +1389,6 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
    case 2: // client logout
    {
       m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " UID " << user->m_iKey << " logout " << ip << LogEnd();
-      const_cast<User*>(user)->setLogout(true);
       m_GMP.sendto(ip, port, id, msg);
 
       break;
@@ -1633,8 +1634,6 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       int sesCount = m_UserManager.m_mActiveUsers.size();
       m_UserManager.m_Lock.release();
 
-      sbuf << "Size of service queue  \t" << m_ServiceJobQueue.size() << std::endl;
-      sbuf << "Size of process queue  \t" << m_ProcessJobQueue.size() << std::endl;
       sbuf << "Active replications    \t" << repInFlight << std::endl;
       sbuf << "Replication queue size \t" << reqQueueSize << std::endl;
       sbuf << "Active transactions    \t" << m_TransManager.getTotalTrans() << std::endl;
@@ -1673,8 +1672,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       {
          sbuf << "User " << u->second->m_strName << " UID " << u->second->m_iKey << " "
                      << u->second->m_strIP << " Last seen " <<
-         (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago Use count " << 
-         u->second->getUseCount() << " logged out = " << std::boolalpha << u->second->hasLoggedOut() << std::endl;
+         (CTimer::getTime() - u->second->m_llLastRefreshTime) / 1000000 << " sec ago" << std::endl; 
       }
       m_UserManager.m_Lock.release();
 

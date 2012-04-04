@@ -35,7 +35,8 @@ void gen_cert(const string& name)
 
    system(("openssl genrsa 1024 > " + keyname).c_str());
    system(("chmod 400 " + keyname).c_str());
-   system(("openssl req -new -x509 -nodes -sha1 -days 365 -batch -key " + keyname + " > " + certname).c_str());
+   // 9125 days = 25 years, after Sergey retires.
+   system(("openssl req -new -x509 -nodes -sha1 -days 9125 -batch -key " + keyname + " > " + certname).c_str());
 }
 
 int main(int argc, char** argv)

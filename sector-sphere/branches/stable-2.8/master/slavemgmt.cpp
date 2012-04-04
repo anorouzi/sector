@@ -347,12 +347,14 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
 
    // find the topology of current replicas
    vector< vector<int> > locpath;
+   set<string> usedIP;
    for (set<int>::iterator i = loclist.begin(); i != loclist.end(); ++ i)
    {
       map<int, SlaveNode>::iterator p = m_mSlaveList.find(*i);
       if (p == m_mSlaveList.end())
          continue;
       locpath.push_back(p->second.m_viPath);
+      usedIP.insert(p->second.m_strIP);
    }
 
    // TODO: this should not be calcuated each time.
@@ -390,6 +392,16 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       if ((rep_dist >= 0) && (level > rep_dist))
          continue;
 
+      // if level is 1, it is possible there is a replica on slave on same node (same IP)
+      // we do not want to have more than 1 replica per node
+      // this can happen is several slaves started per node, one slave per volume
+      if ( level == 1 )
+      {
+        set<string>::iterator fs = usedIP.find(i->second.m_strIP);
+        if (fs != usedIP.end())
+          continue;
+      }
+
       // level <= m_pTopology->m_uiLevel + 1.
       // We do not want to replicate on the same node (level == 0), even if they are different slaves.
       if (level > 0)
@@ -410,6 +422,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    if (NULL == candidate)
       return SectorError::E_NODISK;
 
+/*
    int lvl = 0;
    log().trace << "Available slaves" << std::endl;
    for ( vector <set <int> >::const_iterator vi = avail.begin(); vi != avail.end(); ++vi)
@@ -425,7 +438,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    for (set<int>::const_iterator cs = candidate->begin(); cs != candidate->end(); ++ cs)
      log().trace << *cs << ",";
    log().trace << std::endl;
-
+*/
 /*
    int64_t totalFreeSpaceOnCandidates = 0;
    for( set<int>::iterator j = candidate->begin(); j != candidate->end(); ++j )
@@ -467,7 +480,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
    sn = m_mSlaveList[*n];
    if (sn.m_iActiveTrans == 0)
    {
-      log().trace << "Choosen slave without active transactions " << sn.m_iNodeID << std::endl;
+//      log().trace << "Choosen slave without active transactions " << sn.m_iNodeID << std::endl;
       return 1;
    }
 
@@ -487,7 +500,7 @@ int SlaveManager::choosereplicanode_(set<int>& loclist, SlaveNode& sn, const int
       }
    } while (s != n);
 
-   log().trace << "Choosen slave with lowest no of active transactions " << sn.m_iNodeID << std::endl;
+//   log().trace << "Choosen slave with lowest no of active transactions " << sn.m_iNodeID << std::endl;
 
    return 1;
 }

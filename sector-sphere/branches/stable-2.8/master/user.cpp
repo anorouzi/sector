@@ -75,32 +75,6 @@ bool User::match(const string& path, int32_t rwx) const
    return (rwx == 0);
 }
 
-void User::incUseCount()
-{
-   ++m_iUseCount;
-}
-
-// Returns true if user is still in use, false otherwise
-bool User::decUseCount()
-{
-   return --m_iUseCount;
-}
-
-int User::getUseCount()
-{
-   return m_iUseCount;
-}
-
-bool User::hasLoggedOut()
-{
-   return m_bLoggedOut;
-}
-
-void User::setLogout(bool logout)
-{
-   m_bLoggedOut = logout;
-}
-
 int User::serialize(char*& buf, int& size)
 {
    buf = new char[65536];
@@ -215,7 +189,7 @@ int UserManager::checkInactiveUsers(vector<User*>& iu, int timeout)
       if (0 == i->first)
          continue;
 
-      if (0 >= i->second->getUseCount() && CTimer::getTime() - i->second->m_llLastRefreshTime > timeout * 1000000ULL)
+      if (CTimer::getTime() - i->second->m_llLastRefreshTime > timeout * 1000000ULL)
          iu.push_back(i->second);
    }
 
@@ -250,7 +224,7 @@ int UserManager::serializeUsers(int& num, vector<char*>& buf, vector<int>& size)
    return num;
 }
 
-User* UserManager::acquire(int key)
+User* UserManager::lookup(int key)
 {
    CGuardEx ug(m_Lock);
 
@@ -258,21 +232,7 @@ User* UserManager::acquire(int key)
    if (i == m_mActiveUsers.end())
       return NULL;
 
-   i->second->incUseCount();
    return i->second;
-}
-
-void UserManager::release(User* user)
-{
-   CGuardEx ug(m_Lock);
-
-   if( !user->decUseCount() && user->hasLoggedOut() )
-   {
-      map<int,User*>::iterator i = m_mActiveUsers.find( user->m_iKey );
-      if( i != m_mActiveUsers.end() )
-         m_mActiveUsers.erase(i);
-      delete user;
-   }
 }
 
 int UserManager::remove(int key)
