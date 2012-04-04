@@ -23,6 +23,7 @@ written by
 #ifndef __SECTOR_THREAD_POOL_H__
 #define __SECTOR_THREAD_POOL_H__
 
+#include <assert.h>
 #include <queue>
 #include <osportable.h>
 
@@ -31,17 +32,24 @@ written by
 
 // add routine to assign meaningful names to threads, for easier debug
 
-// TODO: enable namespace
-//namespace sector
-//{
+namespace sector
+{
 
 struct Job
 {
-   Job(void* param = NULL);
+   Job(void* param = NULL): m_pParam(param), m_llTTL(-1), m_iPriority(0), m_iTag(-1) {}
 
-   void* m_pParam;	// job paramters, job specific
-   int64_t m_llTTL;	// each job may be assigned a TTL. Expired job will be discarded without further processing
-   int m_iPriority;	// the thread job queue is a priority queue, higher priority jobs will be scheduled first
+   void* m_pParam;	// job paramters, job specific.
+   int64_t m_llTTL;	// each job may be assigned a TTL. Expired job will be discarded without further processing.
+   int m_iPriority;	// the thread job queue is a priority queue, higher priority jobs will be scheduled first.
+   int m_iTag;		// app specified value used to assign this job to a queue.
+};
+
+struct JobQueue
+{
+   std::queue<Job> m_qJobs;
+   CMutex m_QueueLock;
+   CCond m_QueueCond;
 };
 
 class ThreadJobQueue
@@ -51,24 +59,25 @@ public:
    ~ThreadJobQueue();
 
 public:
-   int push(void* param);
-   void* pop();
+   int push(void* param, int tag);
+   void* pop(int key);
 
-   int release(int num);
+   // A thread should register a unique ID, usually its own thread ID.
+   // Thus it will be assigned its own job queue.
+   int registerThread(int key);
+   void release();
 
-   size_t size();
+   int getNumOfJob() { return m_iTotalJob; }
 
 private:
-   // TODO: use priority queue
-   std::queue<void*> m_qJobs;
+   std::vector<int> m_vKeyMap;
+   std::map<int, JobQueue> m_mJobs;
 
-   // TODO: set maximum queue length
-   // int getCurrQueueLen();
-
-   CMutex m_QueueLock;
-   CCond m_QueueCond;
+   int m_iTotalJob;
+   int m_iRRSeed;	// Used to send jobs to queues in a round-robin fashion.
 };
 
-//} // namespace sector
+}  // namespace sector
 
 #endif
+

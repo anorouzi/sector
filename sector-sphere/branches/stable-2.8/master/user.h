@@ -35,12 +35,6 @@ public:
    int deserialize(std::vector<std::string>& dirs, const std::string& buf);
    bool match(const std::string& path, int rwx) const;
 
-   void incUseCount();
-   bool decUseCount();
-   int getUseCount();
-   bool hasLoggedOut();
-   void setLogout(bool logout);
-
 public:
    int serialize(char*& buf, int& size);
    int deserialize(const char* buf, const int& size);
@@ -61,9 +55,6 @@ public:
    std::vector<std::string> m_vstrReadList;	// readable directories
    std::vector<std::string> m_vstrWriteList;	// writable directories
    bool m_bExec;				// permission to run Sphere application
-   
-   int m_iUseCount;
-   bool m_bLoggedOut;
 };
 
 class UserManager
@@ -76,8 +67,7 @@ public:
    int insert(User* u);
    int checkInactiveUsers(std::vector<User*>& iu, int timeout);
    int serializeUsers(int& num, std::vector<char*>& buf, std::vector<int>& size);
-   User* acquire(int key);
-   void release(User* user);
+   User* lookup(int key);
    int remove(int key);
 
 public:
