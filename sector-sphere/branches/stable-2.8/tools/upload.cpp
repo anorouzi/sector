@@ -41,7 +41,7 @@ void help()
    cerr << "usage: sector_upload <src file/dir> <dst dir> [-n num_of_replicas] [-a ip_address] [-c cluster_id] [--e(ncryption)] --smart" << endl;
 }
 
-int upload(const char* file, const char* dst, Sector& client, const int rep_num, const string& ip, const string& cid, const bool secure)
+int upload(const char* file, const char* dst, Sector& client, const int rep_num, const string& ip, const string& cid, const bool secure, const bool smart)
 {
    //check if file already exists
 
@@ -55,7 +55,7 @@ int upload(const char* file, const char* dst, Sector& client, const int rep_num,
    SNode attr;
    if (client.stat(dst, attr) >= 0)
    {
-      if (attr.m_llSize == s.m_llSize)
+      if (attr.m_llSize == s.m_llSize && smart)
       {
          cout << "destination file " << dst << " exists on Sector FS. skip.\n";
          return 0;
@@ -309,27 +309,13 @@ int main(int argc, char** argv)
             client.mkdir(dst);
          else
          {
-            if( !smart )
-            {
-                SNode attr;
-                if (client.stat(dst, attr) >= 0)
-                {
-                   cout << "File " << dst << " already exists in sector and smart not specified, removing file from sector." << endl;
-                   int rc = client.remove( dst );
-                   if( rc ) 
-                   {
-                      cout << "Failed to remove file " << dst << " from sector, rc = " << rc << ", NOT uploading file" << endl;
-                      continue;
-                   }
-                }
-            }
    
-            int result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption);
+            int result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption, smart);
             if ((result == SectorError::E_CONNECTION) ||
                 (result == SectorError::E_BROKENPIPE))
             {
                // connection fail, retry once.
-               result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption);
+               result = upload(i->c_str(), dst.c_str(), client, replica_num, ip, cluster, encryption, smart);
             }
  
             if (result < 0)
