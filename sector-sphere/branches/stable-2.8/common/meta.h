@@ -170,7 +170,7 @@ protected:
    static int m_iPctSlavesToConsider;
    static int64_t m_iLastTotalDiskSpace;
    static time_t m_iLastTotalDiskSpaceTs;
-   static int const m_iLastTotalDiskSpaceTimeout = 3;
+   static int const m_iLastTotalDiskSpaceTimeout = 10;
    static bool m_bCheckReplicaCluster;
 };
 
