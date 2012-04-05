@@ -98,6 +98,7 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
    {
       log().debug << "Failed to login to any master!" << std::endl;
       log().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
+      g_SectorClient.close();
       return NULL;
    }
 

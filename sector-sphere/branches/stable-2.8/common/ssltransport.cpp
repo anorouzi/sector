@@ -185,7 +185,8 @@ SSLTransport* SSLTransport::accept(char* ip, int& port)
    t->m_pSSL = SSL_new(m_pCTX);
    SSL_set_fd(t->m_pSSL, t->m_iSocket);
 
-   if (SSL_accept(t->m_pSSL) <= 0)
+   int rc = SSL_accept(t->m_pSSL);
+   if (rc <= 0)
    {
       delete t;
       return NULL;
@@ -260,12 +261,13 @@ int SSLTransport::connect(const char* host, const int& port)
 
 int SSLTransport::close()
 {
-   if (!m_bConnected)
-      return 0;
-   m_bConnected = false;
+   if (m_bConnected) {
+     m_bConnected = false;
    // SSL shutdown requires up to 4 rounds of attempts.
-//   for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
-   SSL_shutdown(m_pSSL);
+//     for (int i = 0; (i < 4) && (SSL_shutdown(m_pSSL) == 0); ++ i) {}
+     SSL_shutdown(m_pSSL);
+   }
+
 #ifndef WIN32
    return ::close(m_iSocket);
 #else
