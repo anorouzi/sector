@@ -1634,6 +1634,8 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       int sesCount = m_UserManager.m_mActiveUsers.size();
       m_UserManager.m_Lock.release();
 
+      sbuf << "Processing queues size \t" << m_ProcessJobQueue.getNumOfJob() << std::endl;
+      sbuf << "Service queues size    \t" << m_ServiceJobQueue.getNumOfJob() << std::endl;
       sbuf << "Active replications    \t" << repInFlight << std::endl;
       sbuf << "Replication queue size \t" << reqQueueSize << std::endl;
       sbuf << "Active transactions    \t" << m_TransManager.getTotalTrans() << std::endl;

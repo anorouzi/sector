@@ -26,8 +26,11 @@ using namespace std;
 using namespace sector;
 
 ThreadJobQueue::ThreadJobQueue():
+m_mJobs(),
+m_vKeyMap(),
 m_iTotalJob(0),
-m_iRRSeed(0)
+m_iRRSeed(0),
+m_Lock()
 {
 }
 
@@ -55,13 +58,17 @@ int ThreadJobQueue::push(void* param, int tag)
       job.m_iTag = m_iRRSeed ++;
    }
 
+   m_Lock.acquire();
    int key = m_vKeyMap[job.m_iTag % m_mJobs.size()];
-   map<int, JobQueue>::iterator ptr = m_mJobs.find(key);
+   map<int, JobQueue*>::iterator ptr = m_mJobs.find(key);
    assert(ptr != m_mJobs.end());
+   m_Lock.release();
 
-   CGuardEx tg(ptr->second.m_QueueLock);
-   ptr->second.m_qJobs.push(job);
-   ptr->second.m_QueueCond.signal();
+   CGuardEx tg(ptr->second->m_QueueLock);
+   if (static_cast<int>(ptr->second->m_qJobs.size()) >= ptr->second->m_iLimit)
+      return -1;
+   ptr->second->m_qJobs.push(job);
+   ptr->second->m_QueueCond.signal();
 
    ++ m_iTotalJob;
    return 0;
@@ -69,10 +76,12 @@ int ThreadJobQueue::push(void* param, int tag)
 
 void* ThreadJobQueue::pop(int key)
 {
-   map<int, JobQueue>::iterator ptr = m_mJobs.find(key);
+   m_Lock.acquire();
+   map<int, JobQueue*>::iterator ptr = m_mJobs.find(key);
    assert(ptr != m_mJobs.end());
+   m_Lock.release();
 
-   JobQueue& q = ptr->second;
+   JobQueue& q = *ptr->second;
    CGuardEx tg(q.m_QueueLock);
    while (q.m_qJobs.empty())
       q.m_QueueCond.wait(q.m_QueueLock);
@@ -84,25 +93,34 @@ void* ThreadJobQueue::pop(int key)
    return job.m_pParam;
 }
 
-int ThreadJobQueue::registerThread(int key)
+int ThreadJobQueue::registerThread(int key, int limit)
 {
-   for (vector<int>::const_iterator i = m_vKeyMap.begin(); i != m_vKeyMap.end(); ++ i)
-   {
-      if (*i == key)
-         return -1;
-   }
+   CGuardEx tg(m_Lock);
 
+   if (m_mJobs.find(key) != m_mJobs.end())
+      return -1;
+
+cout << "register " << key << endl;
+   JobQueue* q = new JobQueue;
+   if (limit > 0)
+      q->m_iLimit = limit;
+   m_mJobs[key] = q;
    m_vKeyMap.push_back(key);
-   m_mJobs.insert(pair<int, JobQueue>(key, JobQueue()));
+
+cout << "returned...............................\n";
    return 0;
 }
 
 void ThreadJobQueue::release()
 {
-   for (vector<int>::iterator i = m_vKeyMap.begin(); i != m_vKeyMap.end(); ++ i)
+   CGuardEx tg(m_Lock);
+
+   for (map<int, JobQueue*>::iterator i = m_mJobs.begin(); i != m_mJobs.end(); ++ i)
    {
       // If the job parameter is NULL, this is a signal for the thread to quit.
-      push(NULL, *i);
+      CGuardEx tg(i->second->m_QueueLock);
+      i->second->m_qJobs.push(NULL);
+      i->second->m_QueueCond.signal();
    }
 }
 
