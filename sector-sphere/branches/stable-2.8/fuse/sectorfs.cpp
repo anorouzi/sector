@@ -34,7 +34,6 @@ Sector SectorFS::g_SectorClient;
 Session SectorFS::g_SectorConfig;
 map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t SectorFS::m_reinitLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
 
 
@@ -794,8 +793,6 @@ int SectorFS::translateErr(int err)
 int SectorFS::restart()
 {
    log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
-
-   CGuard lock( m_reinitLock );
 
    if (g_bConnected)
    {

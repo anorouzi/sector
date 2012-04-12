@@ -106,7 +106,6 @@ public:
 private:
    static std::map<std::string, FileTracker*> m_mOpenFileList;
    static pthread_mutex_t m_OpenFileLock;
-   static pthread_mutex_t m_reinitLock;
 
 private:
    static int translateErr(int err);
