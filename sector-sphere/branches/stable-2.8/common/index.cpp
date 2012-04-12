@@ -185,6 +185,7 @@ int Index::lookup(const string& path, SNode& attr)
    attr.m_llSize = s->second.m_llSize;
    attr.m_strChecksum = s->second.m_strChecksum;
    attr.m_iReplicaNum = s->second.m_iReplicaNum;
+   attr.m_iMaxReplicaNum = s->second.m_iMaxReplicaNum;
    attr.m_iReplicaDist = s->second.m_iReplicaDist;
    attr.m_viRestrictedLoc = s->second.m_viRestrictedLoc;
 
@@ -633,7 +634,7 @@ int64_t Index::getTotalDataSizeRootCached()
   time_t tsNow = time(NULL);
   {
      RWGuard mg(m_MetaLock, RW_READ);
-     if (m_iLastTotalDiskSpaceTs + m_iLastTotalDiskSpaceTimeout > tsNow)
+     if (m_iLastTotalDiskSpaceTs + m_iLastTotalDiskSpaceTimeout < tsNow)
        return m_iLastTotalDiskSpace;
   }
   int64_t total = getTotalDataSize("/");
@@ -1032,19 +1033,22 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
         continue;
       }
       unsigned int target_rep_num;
+      unsigned int target_max_rep_num;
       map<string, SNode>::const_iterator ns = i->second.m_mDirectory.find(".nosplit");
       // if this is a directory and it contains a file called ".nosplit", the whole directory will be replicated together
       if (ns != i->second.m_mDirectory.end())
       {
         target_rep_num = ns->second.m_iReplicaNum;
+        target_max_rep_num = ns->second.m_iMaxReplicaNum;
       }
       else
       {
         target_rep_num = i->second.m_iReplicaNum;
+        target_max_rep_num = i->second.m_iMaxReplicaNum;
       }
       
       unsigned int curr_rep_num = i->second.m_sLocation.size();
-      if (curr_rep_num > target_rep_num)
+      if (curr_rep_num > target_max_rep_num)
       {
         over.push_back(abs_path);
         continue;
@@ -1054,7 +1058,8 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
         under.push_back(abs_path);
         continue;
       }
-// now we left with curr_rep_num == target_rep_num, and will be checking only for underreplicated files
+      // now we left with curr_rep_num between target_rep_num and target_max_rep_num, and will be checking only
+      //  for replicas on wrong cluster or same ip, which will be marked as underreplicated
       if ( m_bCheckReplicaCluster )
       {
         if( !i->second.m_viRestrictedLoc.empty() )
@@ -1063,7 +1068,6 @@ int Index::checkReplica(const string& path, const map<string, SNode>& currdir, v
            for( set<Address, AddrComp>::const_iterator loc =  i->second.m_sLocation.begin(); 
                                                        loc != i->second.m_sLocation.end(); ++loc )
            {
-//              vector<int>const_iterator clu = IPToCluster.find( loc->m_strIP );
               map< std::string, int>::const_iterator clu = IPToCluster.find( loc->m_strIP );
               if ( clu == IPToCluster.end() )
               {
@@ -1175,7 +1179,7 @@ int Index::getSlaveMeta(const map<string, SNode>& currdir, const vector<string>&
    return 0;
 }
 
-void Index::refreshRepSetting(const string& path, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+void Index::refreshRepSetting(const string& path, int default_num, int default_dist, const map<string, pair<int,int>>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
 
@@ -1201,7 +1205,7 @@ void Index::refreshRepSetting(const string& path, int default_num, int default_d
      refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 }
 
-int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, const map<string, pair<int,int>>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    //TODO: use wildcard match each level of dir, instead of contain()
    string slash = "/";
@@ -1216,7 +1220,7 @@ int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, in
    return 0;
 }
 
-int Index::refreshRepSetting(const string& path, SNode & node, int default_num, int default_dist, const map<string, int>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+int Index::refreshRepSetting(const string& path, SNode & node, int default_num, int default_dist, const map<string, pair<int,int>>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
 //  string abs_path = path;
 //  if (path == "/")
@@ -1230,7 +1234,8 @@ int Index::refreshRepSetting(const string& path, SNode & node, int default_num, 
   {
      if (WildCard::contain(rn->first, path))
      {
-        node.m_iReplicaNum = rn->second;
+        node.m_iReplicaNum = rn->second.first;
+        node.m_iMaxReplicaNum = rn->second.second;
         break;
      }
   }
