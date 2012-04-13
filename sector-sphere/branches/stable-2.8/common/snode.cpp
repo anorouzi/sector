@@ -65,7 +65,7 @@ int SNode::serialize(char*& buf, bool includeReplica) const
    {
       return -1;
    }
-   snprintf(buf, size, "%d,%s,%d,%lld,%lld,%d,%d", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize, m_iReplicaNum, m_iReplicaDist);
+   snprintf(buf, size, "%d,%s,%d,%lld,%lld,%d,%d,%d", namelen, m_strName.c_str(), m_bIsDir, (long long int)m_llTimeStamp, (long long int)m_llSize, m_iReplicaNum, m_iMaxReplicaNum, m_iReplicaDist);
    if (includeReplica)
    {
      char* p = buf + strlen(buf);
@@ -196,6 +196,26 @@ int SNode::deserialize(const char* buf)
       }
    }
    m_iReplicaNum = atoi(tmp);
+
+   if (stop)
+   {
+      delete [] buffer;
+      return -1;
+   }
+   stop = true;
+
+   // restore max replication number
+   tmp = tmp + strlen(tmp) + 1;
+   for (unsigned int i = 0; i < strlen(tmp); ++ i)
+   {
+      if (tmp[i] == ',')
+      {
+         stop = false;
+         tmp[i] = '\0';
+         break;
+      }
+   }
+   m_iMaxReplicaNum = atoi(tmp);
 
    if (stop)
    {

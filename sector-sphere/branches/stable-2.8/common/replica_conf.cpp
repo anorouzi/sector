@@ -27,6 +27,19 @@ namespace
     }
 
 
+    int parseItem(const string& input, string& path, int& val1, int& val2 )
+    {
+       val1 = val2 = -1;
+
+       //format: path num
+       stringstream ssinput(input);
+       ssinput >> path >> val1;
+       val2 = val1;
+       ssinput >> val2;
+       return val1;
+    }
+
+
     void parseItem(const string& input, string& path, string& val)
     {
        //format: path val
@@ -73,13 +86,13 @@ bool ReplicaConfig::readConfigFile()
          for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
          {
             string path;
-            int num;
-            if (parseItem(*i, path, num) >= 0)
+            int num1, num2;
+            if (parseItem(*i, path, num1, num2) >= 0)
             {
                string rp = Metadata::revisePath(path);
                if (rp.length() > 0)
-               {
-                  configData.m_mReplicaNum[rp] = num;
+               {                  
+                  configData.m_mReplicaNum[rp] = pair<int,int>(num1,num2);
                }
             }
          }
@@ -131,7 +144,7 @@ bool ReplicaConfig::readConfigFile()
          if( !param.m_vstrValue.empty() )
              configData.m_iPctSlavesToConsider = atoi(param.m_vstrValue[0].c_str());
          else
-             cerr << "no value specified for REPLICATION_MAX_TRANS" << endl;
+             cerr << "no value specified for PCT_SLAVES_TO_CONSIDER" << endl;
       }
       else if ("REPLICATION_START_DELAY" == param.m_strName)
       {
@@ -210,8 +223,8 @@ std::string ReplicaConfData::toString() const
    buf << "PCT_SLAVES_TO_CONSIDER " << m_iPctSlavesToConsider << std::endl;
    buf << "CHECK_REPLICA_CLUSTER " << m_bCheckReplicaCluster << std::endl;
    buf << "Number of replicas:\n"; 
-   for( std::map<std::string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++i )
-      buf << i->first << " => " << i->second << '\n';
+   for( std::map<std::string, pair<int,int> >::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++i )
+      buf << i->first << " => " << i->second.first << " " << i->second.second << '\n';
 
    buf << "Replication distance:\n";
    for( std::map<std::string, int>::const_iterator i = m_mReplicaDist.begin(); i != m_mReplicaDist.end(); ++i )
@@ -233,13 +246,21 @@ std::string ReplicaConfData::toString() const
 
 int ReplicaConfData::getReplicaNum(const std::string& path, int default_val) const
 {
-   for (map<string, int>::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++ i)
+   for (map<string, std::pair<int,int> >::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++ i)
       if (WildCard::contain(i->first, path))
-         return i->second;
+         return i->second.first;
 
    return default_val;
 }
 
+int ReplicaConfData::getMaxReplicaNum(const std::string& path, int default_val) const
+{
+   for (map<string, std::pair<int,int> >::const_iterator i = m_mReplicaNum.begin(); i != m_mReplicaNum.end(); ++ i)
+      if (WildCard::contain(i->first, path))
+         return i->second.second;
+
+   return default_val;
+}
 
 int ReplicaConfData::getReplicaDist(const std::string& path, int default_val) const
 {

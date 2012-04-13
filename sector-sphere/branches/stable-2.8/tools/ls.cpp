@@ -159,7 +159,8 @@ int main(int argc, char** argv)
       for (char* p = buf; *p != '\n'; ++ p)
          cout << *p;
       if (r_level > 0) 
-        cout << setiosflags(ios::right) << setw(4) << i->m_sLocation.size() << setw(4) << i->m_iReplicaNum;
+        cout << setiosflags(ios::right) << setw(4) << i->m_sLocation.size() << setw(4) << i->m_iReplicaNum 
+             << setw(4) << i->m_iMaxReplicaNum;
 
       cout << setiosflags(ios::right) << setw(16) << i->m_llSize << " bytes    ";
 

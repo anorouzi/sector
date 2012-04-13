@@ -617,7 +617,7 @@ int64_t Index::getTotalDataSize(const string& path)
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
+   for (vector<string>::const_iterator d = dir.begin(), end = dir.end(); d != end; ++ d)
    {
       s = currdir->find(*d);
       if (s == currdir->end())
@@ -644,6 +644,7 @@ int64_t Index::getTotalDataSizeRootCached()
      m_iLastTotalDiskSpaceTs = tsNow;
      m_iLastTotalDiskSpace = total;
   }
+  cout << "df cache miss, new total size " << m_iLastTotalDiskSpace << std::endl;
   return total;
 }
 
@@ -657,7 +658,7 @@ int64_t Index::getTotalFileNum(const string& path)
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
+   for (vector<string>::const_iterator d = dir.begin(), end = dir.end(); d != end; ++ d)
    {
       s = currdir->find(*d);
       if (s == currdir->end())
@@ -724,7 +725,7 @@ int Index::checkReplica(const string& path, vector<string>& under, vector<string
 
    map<string, SNode>* currdir = &m_mDirectory;
    map<string, SNode>::iterator s;
-   for (vector<string>::const_iterator d = dir.begin(); d != dir.end(); ++ d)
+   for (vector<string>::const_iterator d = dir.begin(), end = dir.end(); d != end; ++ d)
    {
       s = currdir->find(*d);
       if (s == currdir->end())
@@ -748,7 +749,7 @@ int Index::getSlaveMeta(Metadata* branch, const Address& addr)
 
 int Index::serialize(ofstream& ofs, map<string, SNode>& currdir, int level)
 {
-   for (map<string, SNode>::iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   for (map<string, SNode>::iterator i = currdir.begin(), end = currdir.end(); i != end; ++ i)
    {
       char* buf = NULL;
       if (i->second.serialize(buf) >= 0)
@@ -944,7 +945,7 @@ int64_t Index::getTotalDataSize(const map<string, SNode>& currdir) const
 {
    int64_t size = 0;
 
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   for (map<string, SNode>::const_iterator i = currdir.begin(), end = currdir.end(); i != end; ++ i)
    {
       if (!i->second.m_bIsDir)
          size += i->second.m_llSize;
@@ -1019,7 +1020,7 @@ set<int> getClustersForPath( const std::string& path, const std::map<std::string
 int Index::checkReplica(const string& path, const map<string, SNode>& currdir, vector<string>& under, 
                      vector<string>& over, const std::map< std::string, int> & IPToCluster) const
 {
-   for (map<string, SNode>::const_iterator i = currdir.begin(); i != currdir.end(); ++ i)
+   for (map<string, SNode>::const_iterator i = currdir.begin(), end = currdir.end(); i != end; ++ i)
    {
       string abs_path = path;
       if (path == "/")
@@ -1179,7 +1180,7 @@ int Index::getSlaveMeta(const map<string, SNode>& currdir, const vector<string>&
    return 0;
 }
 
-void Index::refreshRepSetting(const string& path, int default_num, int default_dist, const map<string, pair<int,int>>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+void Index::refreshRepSetting(const string& path, int default_num, int default_dist, const map<string, pair<int,int> >& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    RWGuard mg(m_MetaLock, RW_WRITE);
 
@@ -1205,7 +1206,7 @@ void Index::refreshRepSetting(const string& path, int default_num, int default_d
      refreshRepSetting(path, *currdir, default_num, default_dist, rep_num, rep_dist, restrict_loc);
 }
 
-int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, const map<string, pair<int,int>>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, int default_num, int default_dist, const map<string, pair<int,int> >& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
    //TODO: use wildcard match each level of dir, instead of contain()
    string slash = "/";
@@ -1220,7 +1221,7 @@ int Index::refreshRepSetting(const string& path, map<string, SNode>& currdir, in
    return 0;
 }
 
-int Index::refreshRepSetting(const string& path, SNode & node, int default_num, int default_dist, const map<string, pair<int,int>>& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
+int Index::refreshRepSetting(const string& path, SNode & node, int default_num, int default_dist, const map<string, pair<int,int> >& rep_num, const map<string, int>& rep_dist, const map<string, vector<int> >& restrict_loc)
 {
 //  string abs_path = path;
 //  if (path == "/")
@@ -1230,7 +1231,7 @@ int Index::refreshRepSetting(const string& path, SNode & node, int default_num, 
 
   // set replication factor
   node.m_iReplicaNum = default_num;
-  for (map<string, int>::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
+  for (map<string, std::pair<int,int> >::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
   {
      if (WildCard::contain(rn->first, path))
      {

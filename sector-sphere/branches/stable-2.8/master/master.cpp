@@ -1306,6 +1306,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          else if (change == FileChangeType::FILE_UPDATE_NEW)
          {
             sn.m_iReplicaNum = ReplicaConfig::getCached().getReplicaNum(sn.m_strName, m_SysConfig.m_iReplicaNum);
+            sn.m_iMaxReplicaNum = ReplicaConfig::getCached().getMaxReplicaNum(sn.m_strName, m_SysConfig.m_iReplicaNum);
             sn.m_iReplicaDist = ReplicaConfig::getCached().getReplicaDist(sn.m_strName, m_SysConfig.m_iReplicaDist);
             ReplicaConfig::getCached().getRestrictedLoc(sn.m_strName, sn.m_viRestrictedLoc);
             m_pMetadata->create(sn);
@@ -1900,6 +1901,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
       sn.m_strName = path;
       sn.m_bIsDir = true;
       sn.m_iReplicaNum = ReplicaConfig::getCached().getReplicaNum(path, m_SysConfig.m_iReplicaNum);
+      sn.m_iMaxReplicaNum = ReplicaConfig::getCached().getMaxReplicaNum(path, m_SysConfig.m_iReplicaNum);
       sn.m_iReplicaDist = ReplicaConfig::getCached().getReplicaDist(path, m_SysConfig.m_iReplicaDist);
 
       ReplicaConfig::getCached().getRestrictedLoc(path, sn.m_viRestrictedLoc);
@@ -2398,6 +2400,7 @@ int Master::processFSCmd(const string& ip, const int port,  const User* user, co
          sn.m_strName = path;
          sn.m_bIsDir = false;
          sn.m_iReplicaNum = ReplicaConfig::getCached().getReplicaNum(path, m_SysConfig.m_iReplicaNum);
+         sn.m_iMaxReplicaNum = ReplicaConfig::getCached().getMaxReplicaNum(path, m_SysConfig.m_iReplicaNum);
          sn.m_iReplicaDist = ReplicaConfig::getCached().getReplicaDist(path, m_SysConfig.m_iReplicaDist);
          ReplicaConfig::getCached().getRestrictedLoc(path, sn.m_viRestrictedLoc);
 
@@ -3168,6 +3171,9 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
                 if ((attr.m_bIsDir) && (self->m_pMetadata->lookup(*orf + "/.nosplit", attr) < 0))
                   continue;
 
+                if (attr.m_sLocation.size() <= (unsigned)attr.m_iMaxReplicaNum)
+                  continue;
+
                 if (ReplicaConfig::getCached().m_bCheckReplicaCluster)
                 {
                   set<int> clustersOfPath;
@@ -3304,7 +3310,7 @@ int Master::createReplica(const ReplicaJob& job)
       if (!attr.m_bIsDir)
       {
          // do not over replicate
-         if (attr.m_sLocation.size() > (unsigned int)attr.m_iReplicaNum)
+         if (attr.m_sLocation.size() > (unsigned int)attr.m_iMaxReplicaNum)
          {
             m_SectorLog << LogStart(9) << "Replica create: more replicas than needed " << job.m_strSource << LogEnd();
             return 0;

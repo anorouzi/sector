@@ -48,7 +48,7 @@ written by
 // Sector version. The digit version is for compatibility check, so it is the earliest compatible version number
 // FORMAT 3-digit Major 3-digit Minor 3-digit revision
 const int32_t SectorVersion = 2006031;
-const std::string SectorVersionString = "Sector SVN version 828 build Fri Dec 23 13:41:49 CST 2011";
+const std::string SectorVersionString = "Sector SVN version 865 build Fri Apr  6 13:28:10 CDT 2012";
 
 
 struct Address
@@ -82,6 +82,7 @@ public:
    int64_t m_llSize;
    std::string m_strChecksum;
    int m_iReplicaNum;
+   int m_iMaxReplicaNum;
    int m_iReplicaDist;
    std::vector<int> m_viRestrictedLoc;
 

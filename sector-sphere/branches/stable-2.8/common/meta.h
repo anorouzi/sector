@@ -139,7 +139,7 @@ public:
       // Returned value:
       //    0 on success, or -1 on error.
 
-   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, const std::map<std::string, int>& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc) = 0;
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, const std::map<std::string, std::pair<int,int> >& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc) = 0;
 
 protected:
    // TODO: The locking can be sharded.

@@ -57,7 +57,8 @@ public:
    int m_iSecServPort;                  // security server port
    int m_iMaxActiveUser;                // maximum active user
    std::string m_strHomeDir;            // data directory
-   int m_iReplicaNum;                   // number of replicas of each file
+   int m_iReplicaNum;                   // min number of replicas of each file
+   int m_iMaxReplicaNum;                // max number of replicas of each file
    int m_iReplicaDist;			// replication distance
    MetaForm m_MetaType;                 // form of metadata
    int m_iSlaveTimeOut;                 // slave timeout threshold

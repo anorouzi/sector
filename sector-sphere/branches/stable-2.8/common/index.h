@@ -67,7 +67,7 @@ public:
    virtual int getSlaveMeta(Metadata* branch, const Address& addr);
 
 public:
-   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, const std::map<std::string, int>& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
+   virtual void refreshRepSetting(const std::string& path, int default_num, int default_dist, const std::map<std::string, std::pair<int,int> >& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
    int serialize(std::ofstream& ofs, std::map<std::string, SNode>& currdir, int level);
@@ -83,9 +83,9 @@ private:
    int list_r(const std::map<std::string, SNode>& currdir, const std::string& path, std::vector<std::string>& filelist) const;
    int getSlaveMeta(const std::map<std::string, SNode>& currdir, const std::vector<std::string>& path, std::map<std::string, SNode>& target, const Address& addr) const;
 
-   int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, const std::map<std::string, int>& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
+   int refreshRepSetting(const std::string& path, std::map<std::string, SNode>& currdir, int default_num, int default_dist, const std::map<std::string, std::pair<int, int> >& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
 
-   int refreshRepSetting(const std::string& path, SNode& curnode, int default_num, int default_dist, const std::map<std::string, int>& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
+   int refreshRepSetting(const std::string& path, SNode& curnode, int default_num, int default_dist, const std::map<std::string, std::pair<int,int> >& rep_num, const std::map<std::string, int>& rep_dist, const std::map<std::string, std::vector<int> >& restrict_loc);
 
 private:
    std::map<std::string, SNode> m_mDirectory;

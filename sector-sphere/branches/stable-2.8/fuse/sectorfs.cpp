@@ -35,6 +35,7 @@ Session SectorFS::g_SectorConfig;
 map<string, FileTracker*> SectorFS::m_mOpenFileList;
 pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
+pthread_mutex_t SectorFS::m_reinitLock = PTHREAD_MUTEX_INITIALIZER;
 
 
 namespace
@@ -799,6 +800,8 @@ int SectorFS::restart()
       log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
       return 0;
    }
+
+   // CGuard lock( m_reinitLock );  FIXME: uncomment this later
 
    DirCache::clear();
 
