@@ -1390,6 +1390,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
    case 2: // client logout
    {
       m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << user->m_strName << " UID " << user->m_iKey << " logout " << ip << LogEnd();
+      m_UserManager.remove(key);
       m_GMP.sendto(ip, port, id, msg);
 
       break;
