@@ -27,7 +27,8 @@ written by
 #include <set>
 #include <string>
 #include <vector>
-
+#include <deque>
+#include <ctime>
 #include <udt.h>
 
 
@@ -48,7 +49,7 @@ written by
 // Sector version. The digit version is for compatibility check, so it is the earliest compatible version number
 // FORMAT 3-digit Major 3-digit Minor 3-digit revision
 const int32_t SectorVersion = 2006031;
-const std::string SectorVersionString = "Sector SVN version 865 build Fri Apr  6 13:28:10 CDT 2012";
+const std::string SectorVersionString = "Sector SVN version 869 build Fri Apr 13 10:59:06 CDT 2012";
 
 
 struct Address
@@ -427,6 +428,17 @@ public:
    ClientConf();
    int init(const std::string& path);
 
+   struct DirCacheLifetimeSpec 
+   {
+      DirCacheLifetimeSpec( const std::string& path, time_t duration ) :
+          m_sPathMask( path ), m_seconds( duration ) {}
+
+      std::string m_sPathMask;
+      time_t      m_seconds;
+   };
+
+   typedef std::deque<DirCacheLifetimeSpec> CacheLifetimes;
+
 public:
    std::string m_strUserName;
    std::string m_strPassword;
@@ -437,6 +449,7 @@ public:
    int64_t m_llMaxWriteCacheSize;
    std::string m_strLog;
    int m_iLogLevel;
+   CacheLifetimes m_pathCache;
 
 public:
    //void print(string&);

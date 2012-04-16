@@ -1,4 +1,7 @@
+#include <iostream>
+
 #include "fusedircache.h"
+#include "sectorfs.h"
 
 DirCache* DirCache::inst = NULL;
 
@@ -31,21 +34,40 @@ void DirCache::clearLastUnresolvedStatLocal(){
 }
 
 void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) {
+    ClientConf& config = SectorFS::g_SectorConfig.m_ClientConf;
+    
+    pthread_mutex_lock( &mutex );
 
-    Lock l(mutex);
     time_t tsNow = time(0);
-    CacheMap::iterator nit = cache.begin();
-    while( nit != cache.end() ) {
-        if (nit->second.ts + TIME_OUT < tsNow) {
-            cache.erase(nit++);
-        } else
-        {
-          ++nit;
-        }
+
+    for( CacheMap::iterator nit = cache.begin(), end = cache.end(); nit != end; )
+    {
+       if( nit->second.expirationTime < tsNow )
+           cache.erase( nit++ );
+       else
+           ++nit;
     }
+
+    pthread_mutex_unlock( &mutex );
+
+    time_t expirationDuration = DEFAULT_TIME_OUT;
+
+    typedef ClientConf::CacheLifetimes CacheLifetimes;
+    for( CacheLifetimes::const_iterator i = config.m_pathCache.begin(), end = config.m_pathCache.end(); i != end; ++i )
+        if( WildCard::match( i->m_sPathMask, path ) )
+        {
+            expirationDuration = i->m_seconds;
+            //std::cout << "Add: path " << path << " found cache lifetime " << i->m_sPathMask << " " << i->m_seconds << std::endl;
+            break;
+        }
+
+    pthread_mutex_lock( &mutex );
+
+    // add new entry with specified lifetime
+
     CacheRec& rec = cache[path];
     rec.path = path;
-    rec.ts = tsNow;
+    rec.expirationTime = time(0) + expirationDuration;
 // clear map if record already present
     rec.filemap.clear();
     
@@ -55,6 +77,8 @@ void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) 
       rec.filemap[fit->m_strName] = *fit;
       ++fit;
     }
+
+    pthread_mutex_unlock( &mutex );
 
 }
 
@@ -86,12 +110,13 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
         CacheMap::iterator it = cache.find(dirpath);
         if (it != cache.end())
         {
-          if (it->second.ts + TIME_OUT < tsNow)
+          if (it->second.expirationTime < tsNow)
           {
             cache.erase(it);
           }
           else 
           {
+            //std::cout << "Get: path " << path << " hit cache" << std::endl;
             FileMap::iterator fit = it->second.filemap.find(filename);
             if (fit != it->second.filemap.end())
             {
@@ -106,7 +131,7 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 
     { 
        Lock lock( mutex );
-       isUnresolvedPath = lastUnresolvedStatPathTs + TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath;
+       isUnresolvedPath = lastUnresolvedStatPathTs + DEFAULT_TIME_OUT >= tsNow && lastUnresolvedStatPath == dirpath;
     }
 
     if (isUnresolvedPath) {
@@ -135,3 +160,39 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 
 }
 
+
+int DirCache::readdir( std::string dirpath, std::vector<SNode>& filelist) {
+// return codes : 1 - cache miss, 0 - cache hit
+    time_t tsNow = time(0);
+
+    if( dirpath.empty() )
+        dirpath = '/';
+    else if( dirpath[0] != '/' )
+        dirpath = '/' + dirpath;
+
+    if( dirpath.length() > 1 && dirpath[ dirpath.length() - 1 ] == '/' )
+        dirpath.erase( dirpath.length() - 1 );
+
+    Lock lock(mutex);
+      
+    CacheMap::iterator it = cache.find(dirpath);
+    if (it != cache.end())
+    {
+      if (it->second.expirationTime < tsNow)
+      {
+        cache.erase(it);
+        return 1;
+      }
+      else 
+      {
+        //std::cout << "Readdir: path " << dirpath << " hit cache" << std::endl;
+        filelist.clear();
+        filelist.reserve( it->second.filemap.size() );
+        for( FileMap::iterator fit = it->second.filemap.begin(), end = it->second.filemap.end(); fit != end; ++fit )
+            filelist.push_back( fit->second );
+        return 0;
+      }
+    }
+
+    return 1;
+}

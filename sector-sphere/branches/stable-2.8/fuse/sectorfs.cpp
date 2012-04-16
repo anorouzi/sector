@@ -105,6 +105,9 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 
    g_bConnected = true;
    DirCache::instance().init_root( g_SectorClient );
+   log().trace << "Directory cache lifetimes:" << std::endl;
+   for( ClientConf::CacheLifetimes::const_iterator i = conf.m_pathCache.begin(); i != conf.m_pathCache.end(); ++i )
+      log().trace << "   " << i->m_sPathMask << " => " << i->m_seconds << " secs" << std::endl;
    log().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
    return NULL;
 }
@@ -372,7 +375,11 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
 
    CONN_CHECK( path );
    vector<SNode> filelist;
-   int r = g_SectorClient.list(path, filelist,false);
+
+   int r = 0;
+   bool foundInCache = DirCache::instance().readdir( path, filelist ) == 0;
+   if( !foundInCache )
+       r = g_SectorClient.list(path, filelist,false);
    if (r < 0)
    {
       checkConnection(r);
@@ -381,7 +388,8 @@ int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t
       return translateErr(r);
    }
 
-   DirCache::instance().add(path, filelist);
+   if( !foundInCache )
+       DirCache::instance().add(path, filelist);
    for (vector<SNode>::iterator i = filelist.begin(); i != filelist.end(); ++ i)
    {
       struct stat st;

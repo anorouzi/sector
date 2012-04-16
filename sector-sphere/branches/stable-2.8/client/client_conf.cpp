@@ -25,16 +25,32 @@ written by
 #include <cstring>
 #include <sys/stat.h>
 #include <iostream>
+#include <sstream>
 
 #include "conf.h"
 #include "osportable.h"
 #include "sector.h"
+#include "meta.h"
 
 #ifdef WIN32
    #define atoll _atoi64
 #endif
 
 using namespace std;
+
+namespace 
+{
+    int parseItem(const string& input, string& path, time_t& val)
+    {
+       val = -1;
+
+       //format: path num
+       stringstream ssinput(input);
+       ssinput >> path >> val;
+       return val;
+    }
+}
+
 
 ClientConf::ClientConf():
 m_strUserName(),
@@ -119,6 +135,20 @@ int ClientConf::init(const string& path)
       else if ("LOG_LEVEL" == param.m_strName)
       {
          m_iLogLevel = atoi(param.m_vstrValue[0].c_str());
+      }
+      else if ("DIRECTORY_CACHE" == param.m_strName)
+      {
+         for (vector<string>::iterator i = param.m_vstrValue.begin(); i != param.m_vstrValue.end(); ++ i)
+         {
+            string path;
+            time_t num;
+            if (parseItem(*i, path, num) >= 0)
+            {
+               string rp = Metadata::revisePath(path);
+               if (rp.length() > 0)
+                  m_pathCache.push_back( DirCacheLifetimeSpec( path, num ) );
+            }
+         }
       }
       else
       {

@@ -23,13 +23,13 @@ public:
 };
 
 class DirCache {
-    static const time_t TIME_OUT = 2; // expiration time for cache - 2 sec
+    static const time_t DEFAULT_TIME_OUT = 2; // expiration time for cache - 2 sec
 
     typedef std::map<std::string, SNode> FileMap;
 
     struct CacheRec {
         std::string path;
-        time_t ts;
+        time_t expirationTime;
 // filelist is primary placeholder, while filemap contains pointers to SNodes in filelist 
 // and used for fast search by file name
 //        std::vector<SNode> filelist;
@@ -42,7 +42,7 @@ public:
     ~DirCache();
 
     void add(const std::string& path, const std::vector<SNode>& filelist);
-
+    int readdir( std::string path, std::vector<SNode>& filelist);
     int get(const std::string& path, Sector& sectorClient, SNode& node);
 
     int init_root( Sector& sectorClient );
