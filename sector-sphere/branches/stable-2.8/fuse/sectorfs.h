@@ -47,6 +47,7 @@ struct FileTracker
    int m_iCount;
    State m_State;
    SectorFile* m_pHandle;
+   bool m_bModified;
 };
 
 class SectorFS

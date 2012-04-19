@@ -53,6 +53,15 @@ namespace
 
       return myLogger;
    }
+
+   std::string parentDirOf( std::string path )
+   {
+      std::string parent = path;
+      if( parent[ parent.length() - 1 ] == '/' )
+         parent = parent.substr( 0, parent.length() - 2 );
+      parent = parent.substr( 0, parent.rfind( '/' ) );
+      return parent;
+   }
 }
 
 
@@ -105,6 +114,8 @@ void* SectorFS::init(struct fuse_conn_info * /*conn*/)
 
    g_bConnected = true;
    DirCache::instance().init_root( g_SectorClient );
+   DirCache::clear();
+
    log().trace << "Directory cache lifetimes:" << std::endl;
    for( ClientConf::CacheLifetimes::const_iterator i = conf.m_pathCache.begin(); i != conf.m_pathCache.end(); ++i )
       log().trace << "   " << i->m_sPathMask << " => " << i->m_seconds << " secs" << std::endl;
@@ -196,7 +207,7 @@ int SectorFS::mkdir(const char* path, mode_t mode )
 
    CONN_CHECK( path );
 
-   DirCache::clear();
+   DirCache::clear( parentDirOf( path ) );
 
    int r = g_SectorClient.mkdir(path);
    if (r < 0)
@@ -206,6 +217,8 @@ int SectorFS::mkdir(const char* path, mode_t mode )
         << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
+
+   DirCache::clear( parentDirOf( path ) );
 
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -218,7 +231,7 @@ int SectorFS::unlink(const char* path)
 
    CONN_CHECK( path );
 
-   DirCache::clear();
+   DirCache::clear( parentDirOf( path ) );
 
    // If the file has been opened, close it first.
    if (lookup(path) != NULL)
@@ -233,6 +246,8 @@ int SectorFS::unlink(const char* path)
       return -1;
    }
 
+   DirCache::clear( parentDirOf( path ) );
+
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
@@ -244,7 +259,8 @@ int SectorFS::rmdir(const char* path)
 
    CONN_CHECK( path );
 
-   DirCache::clear();
+   DirCache::clear( path );
+   DirCache::clear( parentDirOf( path ) );
 
    int r = g_SectorClient.remove(path);
    if (r < 0)
@@ -254,6 +270,9 @@ int SectorFS::rmdir(const char* path)
         << ", rc=-1)" << std::endl;
       return -1;
    }
+
+   DirCache::clear( path );
+   DirCache::clear( parentDirOf( path ) );
 
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -266,7 +285,10 @@ int SectorFS::rename(const char* src, const char* dst)
 
    CONN_CHECK( src << ' ' << dst );
 
-   DirCache::clear();
+   DirCache::clear( src );
+   DirCache::clear( parentDirOf( src ) );
+   DirCache::clear( dst );
+   DirCache::clear( parentDirOf( dst ) );
 
    // If the file has been opened, close it first.
    if (lookup(src) != NULL)
@@ -280,6 +302,11 @@ int SectorFS::rename(const char* src, const char* dst)
         << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
+
+   DirCache::clear( src );
+   DirCache::clear( parentDirOf( src ) );
+   DirCache::clear( dst );
+   DirCache::clear( parentDirOf( dst ) );
 
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -324,6 +351,8 @@ int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 
    CONN_CHECK( path );
 
+   DirCache::clear( parentDirOf( path ) );
+
    int r = g_SectorClient.utime(path, ubuf->modtime);
    if (r < 0)
    {
@@ -332,6 +361,8 @@ int SectorFS::utime(const char* path, struct utimbuf* ubuf)
         << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
+
+   DirCache::clear( parentDirOf( path ) );
 
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -344,6 +375,8 @@ int SectorFS::utimens(const char* path, const struct timespec tv[2])
 
    CONN_CHECK( path );
 
+   DirCache::clear( parentDirOf( path ) );
+
    int r = g_SectorClient.utime(path, tv[1].tv_sec);
    if (r < 0)
    {
@@ -352,6 +385,8 @@ int SectorFS::utimens(const char* path, const struct timespec tv[2])
         << ", rc=" << translateErr(r) << ')' << std::endl;
       return translateErr(r);
    }
+
+   DirCache::clear( parentDirOf( path ) );
 
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -469,7 +504,7 @@ int SectorFS::create(const char* path, mode_t mode, struct fuse_file_info* info)
 
    CONN_CHECK( path );
 
-   DirCache::clear();
+   DirCache::clear( parentDirOf( path ) );
 
    SNode s;
    if (g_SectorClient.stat(path, s) < 0)
@@ -488,6 +523,8 @@ int SectorFS::create(const char* path, mode_t mode, struct fuse_file_info* info)
       return -1;
    }
 
+   DirCache::clear( parentDirOf( path ) );
+
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << r << std::endl;
    return r;
 }
@@ -497,22 +534,17 @@ int SectorFS::truncate(const char* path, off_t size )
    log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
       << " Path = " << path << ", size = " << size << std::endl;
 
-   // If the file is already openned, call the truncate() API of the SectorFiel handle.
-   SectorFile* h = lookup(path);
-   if (NULL != h)
-   {
-      //return h->truncate(size);
-   }
-
    CONN_CHECK( path );
 
-   DirCache::clear();
+   DirCache::clear( parentDirOf( path ) );
 
    // Otherwise open the file and perform trunc.
    fuse_file_info option;
    option.flags = O_WRONLY | O_TRUNC;
    open(path, &option);
    release(path, &option);
+
+   DirCache::clear( parentDirOf( path ) );
 
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -533,8 +565,6 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       << " Path = " << path << std::endl;
 
    CONN_CHECK( path );
-
-   DirCache::clear();
 
    // TODO: file option should be checked.
    bool owner = false;
@@ -565,6 +595,7 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
       ft->m_iCount = 1;
       ft->m_State = FileTracker::OPENING;
       ft->m_pHandle = NULL;
+      ft->m_bModified = false;
       m_mOpenFileList[path] = ft;
       owner = true;
    }
@@ -613,6 +644,9 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    if (fi->flags & O_APPEND)
       permission |= SF_MODE::APPEND;
 
+   if( permission & ( SF_MODE::WRITE | SF_MODE::TRUNC | SF_MODE::APPEND ) )
+      DirCache::clear( parentDirOf( path ) );
+
    int r = f->open(path, permission);
    if (r < 0)
    {
@@ -635,6 +669,10 @@ int SectorFS::open(const char* path, struct fuse_file_info* fi)
    ft->m_pHandle = f;
    ft->m_State = FileTracker::OPEN;
    pthread_mutex_unlock(&m_OpenFileLock);
+
+   if( permission & ( SF_MODE::WRITE | SF_MODE::TRUNC | SF_MODE::APPEND ) )
+      DirCache::clear( parentDirOf( path ) );
+
    log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
@@ -714,8 +752,6 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
       << " Path = " << path << std::endl;
 
-   DirCache::clear();
-
    pthread_mutex_lock(&m_OpenFileLock);
    map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
    if ((t == m_mOpenFileList.end()) || (FileTracker::OPEN != t->second->m_State))
@@ -724,11 +760,14 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
       log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << -EBADF << std::endl;
       return -EBADF;
    }
+
+   if( t->second->m_bModified )
+      DirCache::clear( parentDirOf( path ) );
+
    if (t->second->m_iCount > 1)
    {
       t->second->m_iCount --;
       pthread_mutex_unlock(&m_OpenFileLock);
-      DirCache::clear();
       log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
       return 0;
    }
@@ -738,6 +777,9 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
    // File close/release may take some time, so do it out of mutex protection.
    ft->m_pHandle->close();
    g_SectorClient.releaseSectorFile(ft->m_pHandle);
+
+   if( t->second->m_bModified )
+      DirCache::clear( parentDirOf( path ) );
 
    pthread_mutex_lock(&m_OpenFileLock);
    ft->m_pHandle = NULL;
@@ -749,8 +791,6 @@ int SectorFS::release(const char* path, struct fuse_file_info* /*info*/)
       m_mOpenFileList.erase(t);
    }
    pthread_mutex_unlock(&m_OpenFileLock);
-
-   DirCache::clear();
 
 //   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
@@ -810,8 +850,6 @@ int SectorFS::restart()
    }
 
    // CGuard lock( m_reinitLock );  FIXME: uncomment this later
-
-   DirCache::clear();
 
    g_SectorClient.logout();
    g_SectorClient.close();
