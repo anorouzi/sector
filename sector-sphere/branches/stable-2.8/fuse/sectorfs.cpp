@@ -285,8 +285,7 @@ int SectorFS::rename(const char* src, const char* dst)
 
    CONN_CHECK( src << ' ' << dst );
 
-   DirCache::clear( src );
-   DirCache::clear( parentDirOf( src ) );
+   DirCache::clear_recursive( parentDirOf( src ) );
    DirCache::clear( dst );
    DirCache::clear( parentDirOf( dst ) );
 
@@ -303,8 +302,7 @@ int SectorFS::rename(const char* src, const char* dst)
       return translateErr(r);
    }
 
-   DirCache::clear( src );
-   DirCache::clear( parentDirOf( src ) );
+   DirCache::clear_recursive( parentDirOf( src ) );
    DirCache::clear( dst );
    DirCache::clear( parentDirOf( dst ) );
 

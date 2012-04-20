@@ -48,6 +48,7 @@ public:
     int init_root( Sector& sectorClient );
     void clear_cache();
     void clear_cache( std::string path );
+    void clear_cache_recursive( std::string path );
 
     void clearLastUnresolvedStatLocal();
 
@@ -65,6 +66,10 @@ public:
 
     static void clear( const std::string& path ) {
         instance().clear_cache( path );
+    }
+
+    static void clear_recursive( const std::string& path ) {
+        instance().clear_cache_recursive( path );
     }
 
     static void clearLastUnresolvedStat() {

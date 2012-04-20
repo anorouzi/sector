@@ -2,6 +2,7 @@
 #include "fusedircache.h"
 #include "sectorfs.h"
 #include "../common/log.h"
+#include "../common/meta.h"
 
 
 namespace
@@ -22,25 +23,27 @@ namespace
 }
 
 
-
 DirCache* DirCache::inst = NULL;
+
 
 DirCache::DirCache()
 {
-    pthread_mutex_init(&mutex, 0);
+    pthread_mutex_init( &mutex, 0 );
 }
 
 DirCache::~DirCache()
 {
-    pthread_mutex_destroy(&mutex);
+    pthread_mutex_destroy( &mutex );
 }
 
 // Must be called prior to multithreaded use because we do not acquire lock
-int DirCache::init_root( Sector& sectorClient ) {
+int DirCache::init_root( Sector& sectorClient ) 
+{
     return sectorClient.stat("/", rootNode);
 }
 
-void DirCache::clear_cache() {
+void DirCache::clear_cache() 
+{
     LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
 
     Lock l(mutex);
@@ -51,18 +54,24 @@ void DirCache::clear_cache() {
     LOG().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
 }
 
-void DirCache::clearLastUnresolvedStatLocal(){
+void DirCache::clearLastUnresolvedStatLocal()
+{
     LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl;
     lastUnresolvedStatPathTs = 0;
     LOG().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
 }
 
-void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) {
+void DirCache::add( const std::string& path, const std::vector<SNode>& filelist ) 
+{
     LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
        << " Path = " << path << ", filelist (" << filelist.size() << " entries)" << std::endl;
 
     ClientConf& config = SectorFS::g_SectorConfig.m_ClientConf;
+
+    std::string canonical_path = Metadata::revisePath( path );
     
+    LOG().debug << "Normalized path to " << canonical_path << " for insertion of " << filelist.size() << " entries" << std::endl;
+
     pthread_mutex_lock( &mutex );
 
     time_t tsNow = time(0);
@@ -88,7 +97,7 @@ void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) 
 
     typedef ClientConf::CacheLifetimes CacheLifetimes;
     for( CacheLifetimes::const_iterator i = config.m_pathCache.begin(), end = config.m_pathCache.end(); i != end; ++i )
-        if( WildCard::match( i->m_sPathMask, path ) )
+        if( WildCard::match( i->m_sPathMask, canonical_path ) )
         {
             expirationDuration = i->m_seconds;
             LOG().debug << "Pattern '" << i->m_sPathMask << "' matches path '" << path << "' with expiration time "
@@ -98,7 +107,7 @@ void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) 
 
     pthread_mutex_lock( &mutex );
 
-    std::pair< CacheMap::iterator, bool > rc = cache.insert( std::make_pair( path, CacheRec() ) );
+    std::pair< CacheMap::iterator, bool > rc = cache.insert( std::make_pair( canonical_path, CacheRec() ) );
     if( !rc.second )
         LOG().error << "BUG: Path " << path << " already exists in cache map (time left = " << ( rc.first->second.expirationTime - time(0) )
            << ") ; will overwrite expiration time!" << std::endl;
@@ -107,11 +116,10 @@ void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) 
     rc.first->second.path = path;
     rc.first->second.expirationTime = tsNow + expirationDuration;
     rc.first->second.filemap.clear();
-    std::vector<SNode>::const_iterator fit = filelist.begin(), fend = filelist.end();
-    while (fit != fend)
+    for( std::vector<SNode>::const_iterator fit = filelist.begin(), fend = filelist.end(); fit != fend; ++fit )
     {
-      rc.first->second.filemap[fit->m_strName] = *fit;
-      ++fit;
+        rc.first->second.filemap[fit->m_strName] = *fit;
+        ++fit;
     }
 
     pthread_mutex_unlock( &mutex );
@@ -123,11 +131,14 @@ void DirCache::add(const std::string& path, const std::vector<SNode>& filelist) 
 
 
 // return codes : 1 - cache miss, 0 - cache hit, <0 - sector error
-int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
+int DirCache::get( const std::string& path, Sector& sectorClient, SNode& node ) 
+{
     LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
        << " Path = " << path << std::endl;
 
-    if (path == "/") 
+    std::string canonical_path = Metadata::revisePath( path );
+
+    if ( canonical_path == "/" ) 
     {
         node = rootNode;
         LOG().info << "CACHE HIT: path = " << path << std::endl;
@@ -135,22 +146,12 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
         return 0;
     }
 
-    time_t tsNow = time(0);
-    std::string::size_type pos = path.find_last_of('/');
+    time_t                 tsNow = time(0);
+    std::string::size_type pos = canonical_path.find_last_of('/');
+    std::string            dirpath( pos == 0 ? canonical_path : canonical_path.substr( 0, pos ) );
+    std::string            filename( canonical_path.substr( pos + 1 ) );
 
-    std::string dirpath;
-    std::string filename;
-    if( pos == std::string::npos )
-    {
-        filename = path;
-    } else {
-        if (pos == 0 )
-          dirpath = "/";
-        else
-          dirpath=path.substr(0, pos);
-        filename = path.substr(pos + 1);
-    }
-
+    LOG().debug << "Normalized path to " << canonical_path << " for lookup" << std::endl;
     LOG().debug << "Path = " << dirpath << ", file = " << filename << std::endl;
 
     { // BEGIN CRITICAL SECTION
@@ -238,25 +239,19 @@ int DirCache::get(const std::string& path, Sector& sectorClient, SNode& node) {
 
 
 // return codes : 1 - cache miss, 0 - cache hit
-int DirCache::readdir( std::string dirpath, std::vector<SNode>& filelist) {
+int DirCache::readdir( std::string dirpath, std::vector<SNode>& filelist) 
+{
     LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
        << " Path = " << dirpath << std::endl;
 
-    time_t tsNow = time(0);
+    std::string canonical_path = Metadata::revisePath( dirpath );
+    time_t      tsNow = time(0);
 
-    if( dirpath.empty() )
-        dirpath = '/';
-    else if( dirpath[0] != '/' )
-        dirpath = '/' + dirpath;
-
-    if( dirpath.length() > 1 && dirpath[ dirpath.length() - 1 ] == '/' )
-        dirpath.erase( dirpath.length() - 1 );
-
-    LOG().debug << "Normalized path to " << dirpath << " for lookup" << std::endl;
+    LOG().debug << "Normalized path to " << canonical_path << " for lookup" << std::endl;
 
     Lock lock(mutex);
       
-    CacheMap::iterator it = cache.find(dirpath);
+    CacheMap::iterator it = cache.find(canonical_path);
     if (it != cache.end())
     {
       if (it->second.expirationTime < tsNow)
@@ -285,24 +280,20 @@ int DirCache::readdir( std::string dirpath, std::vector<SNode>& filelist) {
 }
 
 
+// Clears the cache entry for path, where path is assumed to be a directory.  It DOES NOT clear the cache
+// entries for subdirectories contained within this directory.
 void DirCache::clear_cache( std::string path ) 
 {
     LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
        << " Path = " << path << std::endl;
 
-    if( path.empty() )
-        path = '/';
-    else if( path[0] != '/' )
-        path = '/' + path;
+    std::string canonical_path = Metadata::revisePath( path );
 
-    if( path.length() > 1 && path[ path.length() - 1 ] == '/' )
-        path.erase( path.length() - 1 );
-
-    LOG().debug << "Normalized path to " << path << " for lookup" << std::endl;
+    LOG().debug << "Normalized path to " << canonical_path << " for lookup" << std::endl;
 
     Lock lock(mutex);
     
-    CacheMap::iterator it = cache.find(path);
+    CacheMap::iterator it = cache.find( canonical_path );
     if (it != cache.end())
     {
         LOG().debug << "Entry " << path << " found, removing..." << std::endl;   
@@ -313,4 +304,33 @@ void DirCache::clear_cache( std::string path )
 
     LOG().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
 }
+
+
+// Clears the cache entry for path, where path is assumed to be a directory, and all entries for all directories
+// below this directory.
+void DirCache::clear_cache_recursive( std::string path )
+{
+    LOG().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+       << " Path = " << path << std::endl;
+
+    std::string canonical_path = Metadata::revisePath( path );
+
+    LOG().debug << "Normalized path to " << canonical_path << " for lookup" << std::endl;
+
+    Lock lock(mutex);
+    
+    for( CacheMap::iterator it = cache.begin(); it != cache.end(); )
+    {
+       if( it->first.find( path ) == 0 )
+       {
+          LOG().debug << "Entry " << path << " matches, removing..." << std::endl;   
+          cache.erase( it++ );
+       }
+       else
+          ++it;
+    }
+
+    LOG().trace << __PRETTY_FUNCTION__ << " exited" << std::endl;
+}
+
 
