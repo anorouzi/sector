@@ -25,6 +25,7 @@ written by
 
 #include <assert.h>
 #include <queue>
+#include <vector>
 #include <osportable.h>
 
 // TODO: this may be changed to thread_util.h
@@ -73,13 +74,12 @@ public:
    int registerThread(int key, int limit = 1024);
    void release();
 
-   int getNumOfJob() { return m_iTotalJob; }
+   int getNumOfJobs( std::vector<int>& jobs );
 
 private:
    std::map<int, JobQueue*> m_mJobs;	// Each thread is associated with a job queue.
    std::vector<int> m_vKeyMap;		// A list of thread IDs.
 
-   int m_iTotalJob;			// Total number of jobs in queue.
    int m_iRRSeed;			// Used to send jobs to queues in a round-robin fashion.
 
    CMutex m_Lock;

@@ -28,7 +28,6 @@ using namespace sector;
 ThreadJobQueue::ThreadJobQueue():
 m_mJobs(),
 m_vKeyMap(),
-m_iTotalJob(0),
 m_iRRSeed(0),
 m_Lock()
 {
@@ -70,7 +69,6 @@ int ThreadJobQueue::push(void* param, int tag)
    ptr->second->m_qJobs.push(job);
    ptr->second->m_QueueCond.signal();
 
-   ++ m_iTotalJob;
    return 0;
 }
 
@@ -89,7 +87,6 @@ void* ThreadJobQueue::pop(int key)
    Job job = q.m_qJobs.front();
    q.m_qJobs.pop();
 
-   -- m_iTotalJob;
    return job.m_pParam;
 }
 
@@ -122,5 +119,24 @@ void ThreadJobQueue::release()
       i->second->m_qJobs.push(NULL);
       i->second->m_QueueCond.signal();
    }
+}
+ 
+int ThreadJobQueue::getNumOfJobs( std::vector<int>& jobs )
+{
+   int totalJobs = 0;
+
+   jobs.clear();
+
+   CGuardEx tg(m_Lock);
+   jobs.reserve( m_mJobs.size() );
+
+   for (map<int, JobQueue*>::iterator i = m_mJobs.begin(); i != m_mJobs.end(); ++ i)
+   {
+      CGuardEx tg(i->second->m_QueueLock);
+      jobs.push_back( i->second->m_qJobs.size() );
+      totalJobs += i->second->m_qJobs.size();
+   }
+
+   return totalJobs;
 }
 

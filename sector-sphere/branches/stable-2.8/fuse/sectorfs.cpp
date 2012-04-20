@@ -715,11 +715,25 @@ int SectorFS::write(const char* path, const char* buf, size_t size, off_t offset
 
    CONN_CHECK( path );
 
-   SectorFile* h = lookup(path);
-   if (NULL == h) {
+   pthread_mutex_lock(&m_OpenFileLock);
+   map<string, FileTracker*>::iterator t = m_mOpenFileList.find(path);
+   if( t == m_mOpenFileList.end() ) 
+   {
+      pthread_mutex_unlock( &m_OpenFileLock );
+      log().error << __PRETTY_FUNCTION__ << " failed to find file " << path << std::endl;
       log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << -EBADF << std::endl;
       return -EBADF;
    }
+
+   SectorFile* h = t->second->m_pHandle;
+   if (NULL == h) {
+      pthread_mutex_unlock( &m_OpenFileLock );
+      log().trace << __PRETTY_FUNCTION__ << " exited, rc = " << -EBADF << std::endl;
+      return -EBADF;
+   }
+
+   t->second->m_bModified = true;
+   pthread_mutex_unlock( &m_OpenFileLock );
 
    int r = h->write(buf, offset, size);
    if (r < 0) {

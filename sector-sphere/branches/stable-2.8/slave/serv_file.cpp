@@ -597,6 +597,7 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
    }
    int change = file_change ? +FileChangeType::FILE_UPDATE_WRITE : +FileChangeType::FILE_UPDATE_NO;
 
+   DBG_MSG("Updating master");
    self->report(master_ip, master_port, transid, sname, change);
 
    if (bSecure)
@@ -609,12 +610,12 @@ DWORD WINAPI Slave::fileHandler(LPVOID p)
 
    if (success)
    {
-      DBG_MSG("Updating master with success");
+      DBG_MSG("Updating peer with success");
       self->m_DataChn.send(client_ip, client_port, transid, (char*)&cmd, 4);
    }
    else
    {
-      ERR_MSG("Updating master with error status");
+      ERR_MSG("Updating peer with error status");
       self->m_DataChn.sendError(client_ip, client_port, transid);
    }
 
@@ -656,6 +657,12 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
    while (!td.empty())
    {
+      // FIXME: The logic in this function just doesn't handle the case where there are
+      //        multiple files to be replicated and some fail while others succeed.
+      DBG_REP( "BUG: attempt to replicate whole directory; this DOES NOT WORK, skipping" );
+      success = false;
+      break;
+
       // If the file to be replicated is a directory, recursively list all files first
 
       string src_path = td.front();
@@ -707,6 +714,11 @@ DWORD WINAPI Slave::copy(LPVOID p)
       }
    }
 
+   // FIXME: The logic in this function just doesn't handle the case where there are
+   //        multiple files to be replicated and some fail while others succeed.
+   if( tr.size() > 1 )
+      DBG_REP( "BUG: attempt to replicate multiple files; good luck if only some succeed." );
+
    while (!tr.empty())
    {
       string src_path = tr.front();
@@ -753,59 +765,98 @@ DWORD WINAPI Slave::copy(LPVOID p)
 
          if ((self->m_GMP.rpc(addr.m_strIP.c_str(), addr.m_iPort, &msg, &msg) < 0) || (msg.getType() < 0))
          {
-            DBG_REP("Error opening file in master");
+            DBG_REP("Error opening file in slave");
             success = false;
-            break;
          }
 
-         int32_t session = *(int32_t*)msg.getData();
-         int64_t size = *(int64_t*)(msg.getData() + 4);
-         time_t ts = *(int64_t*)(msg.getData() + 12);
+         int32_t session;
+         int64_t size;
+         time_t ts;
+         string ip;
+         int32_t port;
 
-         string ip = msg.getData() + 24;
-         int32_t port = *(int32_t*)(msg.getData() + 64 + 24);
-
-         DBG_REP("Creating replica from " << ip << ":" << port);
-         if (!self->m_DataChn.isConnected(ip, port))
+         if( success )
          {
-            DBG_REP("Not connected to slave - connect " << ip << ":" << port);
-            if (self->m_DataChn.connect(ip, port) < 0)
-            {
-               DBG_REP("Failed to connect to slave " << ip << ":" << port);
-               success = false;
-               break;
-            }
+             session = *(int32_t*)msg.getData();
+             size = *(int64_t*)(msg.getData() + 4);
+             ts = *(int64_t*)(msg.getData() + 12);
+             ip = msg.getData() + 24;
+             port = *(int32_t*)(msg.getData() + 64 + 24);
+
+             DBG_REP("Creating replica from " << ip << ":" << port);
+             if (!self->m_DataChn.isConnected(ip, port))
+             {
+                DBG_REP("Not connected to slave - connect " << ip << ":" << port);
+                if (self->m_DataChn.connect(ip, port) < 0)
+                {
+                   DBG_REP("Failed to connect to slave " << ip << ":" << port);
+                   success = false;
+                }
+             }
          }
 
          // download command: 3
          int32_t cmd = 3;
-         int rc = self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
-         if (rc < 0) DBG_REP("Error sending download command");
+         int rc = 0;
+         if( success )
+         {
+             rc = self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
+             if (rc < 0) 
+             {
+                 DBG_REP("Error sending download command");
+                 success = false;
+             }
+         }
 
          int64_t offset = 0;
-         rc = self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
-         if (rc < 0) DBG_REP("Error sending download command offset");
+         if( success )
+         {
+             rc = self->m_DataChn.send(ip, port, session, (char*)&offset, 8);
+             if (rc < 0)
+             {
+                 DBG_REP("Error sending download command offset");
+                 success = false;
+             }
+         }
 
          int response = -1;
-         if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
+         if( success )
          {
-            DBG_REP("Error receiving download response");
-            success = false;
-            break;
+             if ((self->m_DataChn.recv4(ip, port, session, response) < 0) || (-1 == response))
+             {
+                DBG_REP("Error receiving download response");
+                success = false;
+             }
          }
 
          string dst_path = dst;
          if (src != src_path)
             dst_path += "/" + src_path.substr(src.length() + 1, src_path.length() - src.length() - 1);
 
-         //copy to .tmp first, then move to real location
-         rc = self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
-         if (rc < 0) DBG_REP("Error creating temp dir");
+         if( success )
+         {
+             //copy to .tmp first, then move to real location
+             rc = self->createDir(string(".tmp") + dst_path.substr(0, dst_path.rfind('/')));
+             if (rc < 0) 
+             {
+                 DBG_REP("Error creating temp dir");
+                 success = false;
+             }
+         }
 
          fstream ofs;
-         ofs.open((self->m_strHomeDir + ".tmp" + dst_path).c_str(), ios::out | ios::binary | ios::trunc);
-          if (ofs.fail()) DBG_REP("Error creating opening file");
+         if( success )
+         {
+             ofs.open((self->m_strHomeDir + ".tmp" + dst_path).c_str(), ios::out | ios::binary | ios::trunc);
+             if (ofs.fail()) 
+             {
+                  DBG_REP("Error creating opening file");
+                  success = false;
+             }
+         }
 
+         if( success ) 
+         {
          int64_t unit = 64000000; //send 64MB each time
          int64_t torecv = size;
          int64_t recd = 0;
@@ -822,25 +873,34 @@ DWORD WINAPI Slave::copy(LPVOID p)
             recd += block;
             torecv -= block;
          }
-
-         ofs.close();
+         }
 
          // update total received data size
          self->m_SlaveStat.updateIO(ip, size, +SlaveStat::SYS_IN);
 
+         ofs.close();
+
+         // FIXME: the next two commands can fail, but should failure mean the replication failed, or not?
+         //        Technically, we got the whole file;  it's just the source slave's state hasn't been
+         //        updated.  Right now, we're assuming success.
          cmd = 5;
          rc = self->m_DataChn.send(ip, port, session, (char*)&cmd, 4);
-         if (rc < 0) DBG_REP("Error sending close command");
+         if (rc < 0) 
+             DBG_REP("Error sending close command");
          rc = self->m_DataChn.recv4(ip, port, session, cmd);
-         if (rc < 0) DBG_REP("Error receiving close confirmation");
+         if (rc < 0)
+             DBG_REP("Error receiving close confirmation");
 
-         if (src == dst)
+         if( success )
          {
-            //utime: update timestamp according to the original copy, for replica only; files created by "cp" have new timestamp
-            utimbuf ut;
-            ut.actime = ts;
-            ut.modtime = ts;
-            utime((self->m_strHomeDir + ".tmp" + dst_path).c_str(), &ut);
+             if (src == dst)
+             {
+                //utime: update timestamp according to the original copy, for replica only; files created by "cp" have new timestamp
+                utimbuf ut;
+                ut.actime = ts;
+                ut.modtime = ts;
+                utime((self->m_strHomeDir + ".tmp" + dst_path).c_str(), &ut);
+             }
          }
       }
    }
@@ -850,8 +910,15 @@ DWORD WINAPI Slave::copy(LPVOID p)
       // move from temporary dir to the real dir when the copy is completed
       self->createDir(dst.substr(0, dst.rfind('/')));
       rc = LocalFS::rename(self->m_strHomeDir + ".tmp" + dst, self->m_strHomeDir + dst);
-      if (rc < 0 ) DBG_REP("Error moving copied file from tmp");
+      if (rc < 0 ) 
+      {
+         DBG_REP("Error moving copied file from tmp");
+         success = false;
+      }
+   }
 
+   if( success )
+   {
       // if the file has been modified during the replication, remove this replica
       int32_t type = (src == dst) ? +FileChangeType::FILE_UPDATE_REPLICA : +FileChangeType::FILE_UPDATE_NEW;
       DBG_REP("Updating master with success");

@@ -1636,8 +1636,19 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       int sesCount = m_UserManager.m_mActiveUsers.size();
       m_UserManager.m_Lock.release();
 
-      sbuf << "Processing queues size \t" << m_ProcessJobQueue.getNumOfJob() << std::endl;
-      sbuf << "Service queues size    \t" << m_ServiceJobQueue.getNumOfJob() << std::endl;
+      std::vector<int> processJobQueueSizes;
+      int totalProcessJobs = m_ProcessJobQueue.getNumOfJobs( processJobQueueSizes );
+      std::vector<int> serviceJobQueueSizes;
+      int totalServiceJobs = m_ServiceJobQueue.getNumOfJobs( serviceJobQueueSizes );
+
+      sbuf << "Processing queues size \t" << totalProcessJobs << "  [ ";
+      for( size_t i = 0; i < processJobQueueSizes.size(); ++i )
+         sbuf << processJobQueueSizes[ i ] << ' ';
+      sbuf << ']' << std::endl;
+      sbuf << "Service queues size    \t" << totalServiceJobs << "  [ ";
+      for( size_t i = 0; i < serviceJobQueueSizes.size(); ++i )
+         sbuf << serviceJobQueueSizes[ i ] << ' ';
+      sbuf << ']' << std::endl;
       sbuf << "Active replications    \t" << repInFlight << std::endl;
       sbuf << "Replication queue size \t" << reqQueueSize << std::endl;
       sbuf << "Active transactions    \t" << m_TransManager.getTotalTrans() << std::endl;
@@ -3425,7 +3436,7 @@ int Master::createReplica(const ReplicaJob& job)
    }
 
    int transid = m_TransManager.create(TransType::REPLICA, 0, 111, job.m_strDest, 0);
-   m_SectorLog << LogStart(9) << "Replica create: Trasnaction open " << transid << " " << job.m_strDest << LogEnd();
+   m_SectorLog << LogStart(9) << "Replica create: Transaction open " << transid << " " << job.m_strDest << LogEnd();
  
    if (job.m_strSource == job.m_strDest)
       m_sstrOnReplicate.insert(job.m_strSource);
