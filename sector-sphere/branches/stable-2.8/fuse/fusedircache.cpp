@@ -117,10 +117,7 @@ void DirCache::add( const std::string& path, const std::vector<SNode>& filelist 
     rc.first->second.expirationTime = tsNow + expirationDuration;
     rc.first->second.filemap.clear();
     for( std::vector<SNode>::const_iterator fit = filelist.begin(), fend = filelist.end(); fit != fend; ++fit )
-    {
         rc.first->second.filemap[fit->m_strName] = *fit;
-        ++fit;
-    }
 
     pthread_mutex_unlock( &mutex );
 

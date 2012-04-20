@@ -1,6 +1,6 @@
 include ../Makefile.common
 
-CCFLAGS += -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I../client
+CCFLAGS += -D_FILE_OFFSET_BITS=64 -DFUSE_USE_VERSION=26 -I../client -I../common
 
 ifeq ($(STATIC), 1)
    LDFLAGS += ../lib/libclient.a ../lib/libsecurity.a ../lib/librpc.a ../lib/libcommon.a ../lib/libudt.a
