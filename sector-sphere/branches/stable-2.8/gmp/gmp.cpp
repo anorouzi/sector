@@ -476,7 +476,7 @@ int CGMP::recvfrom(string& ip, int& port, int32_t& id, CUserMessage* msg, const 
             timeval now;
             timespec expiretime;
             gettimeofday(&now, 0);
-            expiretime.tv_sec = now.tv_sec + 1;
+            expiretime.tv_sec = now.tv_sec + 15;
             expiretime.tv_nsec = now.tv_usec * 1000;
             if (pthread_cond_timedwait(&m_RcvQueueCond, &m_RcvQueueLock, &expiretime) != 0)
                timeout = true;
@@ -533,7 +533,7 @@ int CGMP::recv(const int32_t& id, CUserMessage* msg)
          timeval now;
          timespec timeout;
          gettimeofday(&now, 0);
-         timeout.tv_sec = now.tv_sec + 1;
+         timeout.tv_sec = now.tv_sec + 15;
          timeout.tv_nsec = now.tv_usec * 1000;
          pthread_cond_timedwait(&m_ResQueueCond, &m_ResQueueLock, &timeout);
       #else
@@ -594,8 +594,8 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
          WaitForSingleObject(self->m_SndQueueCond, 1000);
       #endif
 
-      vector<CMsgRecord*> udtsend;
-      udtsend.clear();
+//      vector<CMsgRecord*> udtsend;
+//      udtsend.clear();
 
       CGuard::enterCS(self->m_SndQueueLock);
 
@@ -605,6 +605,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
       {
          int64_t diff = ts - (*i)->m_llTimeStamp;
 
+/*
          if (diff > 10 * 1000000)
          {
             // timeout, send with UDT...
@@ -614,8 +615,12 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
             self->m_lSndQueue.erase(j);
             continue;
          }
-         else if (diff > 1000000)
+         else */
+         if (diff > 15 * 1000000)
+         {
             self->UDPsend((*i)->m_strIP.c_str(), (*i)->m_iPort, (*i)->m_pMsg);
+            (*i)->m_llTimeStamp = ts;
+         }
 
          // check next msg
          ++ i;
@@ -623,6 +628,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
 
       CGuard::leaveCS(self->m_SndQueueLock);
 
+/*
       for (vector<CMsgRecord*>::iterator i = udtsend.begin(); i != udtsend.end(); ++ i)
       {
          self->UDTsend((*i)->m_strIP.c_str(), (*i)->m_iPort, (*i)->m_pMsg);
@@ -630,6 +636,7 @@ DWORD WINAPI CGMP::sndHandler(LPVOID s)
          delete (*i);
       }
       udtsend.clear();
+*/
    }
 
    return NULL;
@@ -1094,7 +1101,7 @@ int CGMP::rtt(const string& ip, const int& port, const bool& clear)
       timeval now;
       timespec timeout;
       gettimeofday(&now, 0);
-      timeout.tv_sec = now.tv_sec + 1;
+      timeout.tv_sec = now.tv_sec + 30;
       timeout.tv_nsec = now.tv_usec * 1000;
       pthread_mutex_lock(&m_RTTLock);
       pthread_cond_timedwait(&m_RTTCond, &m_RTTLock, &timeout);

@@ -411,7 +411,9 @@ int Master::run()
                m_SlaveManager.decActTrans(*s);
                m_TransManager.updateSlave(*t, *s);
             }
+            m_pMetadata->unlock( x.m_strFile.c_str(), (*i)->m_iKey, SF_MODE::WRITE | SF_MODE::READ );
          }
+
          m_SectorLog << LogStart(LogLevel::LEVEL_1) << "User " << (*i)->m_strName << " UID " << (*i)->m_iKey << 
             " " << (*i)->m_strIP << " Timeout. Kicked out." << LogEnd();
 
