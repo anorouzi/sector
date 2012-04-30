@@ -1231,6 +1231,7 @@ int Index::refreshRepSetting(const string& path, SNode & node, int default_num, 
 
   // set replication factor
   node.m_iReplicaNum = default_num;
+  node.m_iMaxReplicaNum = default_num;
   for (map<string, std::pair<int,int> >::const_iterator rn = rep_num.begin(); rn != rep_num.end(); ++ rn)
   {
      if (WildCard::contain(rn->first, path))
