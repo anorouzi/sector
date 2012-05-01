@@ -57,6 +57,11 @@ namespace
 }
 
 Master::Master():
+m_iDfTs(0),
+m_iDfTimeout(30),
+m_bDfBeingEvaluated(false),
+m_iDfUsedSpace(0),
+m_iDfAvailSpace(0),
 m_pMetadata(NULL),
 m_llLastUpdateTime(0),
 m_pcTopoData(NULL),
@@ -1742,7 +1747,7 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
       break;
 
    }
-   case 12: // df - Sector disk usage - for use by df command on fuse mounts, more effective than sysinfo that require locks
+   case 12: // df - Sector disk usage - for use by df command on fuse mounts, more effective than sysinfo that require large operations
    {
 
       m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey << " " << ip << " df " << LogEnd();
@@ -1752,9 +1757,45 @@ int Master::processSysCmd(const string& ip, const int port, const User* user, co
          break;
       }
 
-      char* buf = NULL;
-      int size = 0;
-      serializeDf(buf, size);
+      time_t tsNow = time(0);
+      uint64_t usedSpace;
+      uint64_t availSpace;
+      m_DfLock.acquire();
+      if (m_iDfTs < tsNow)
+      {   
+         if (m_bDfBeingEvaluated)
+         {
+            usedSpace = m_iDfUsedSpace;
+            availSpace = m_iDfAvailSpace;
+            m_DfLock.release();
+         } else
+         {
+            m_bDfBeingEvaluated = true;
+            m_DfLock.release();
+            usedSpace = m_pMetadata->getTotalDataSize("/");
+            availSpace = m_SlaveManager.getTotalDiskSpace();
+            m_DfLock.acquire();
+            m_bDfBeingEvaluated = false;
+            m_iDfUsedSpace = usedSpace;
+            m_iDfAvailSpace = availSpace;
+            m_iDfTs = tsNow + m_iDfTimeout;
+            m_DfLock.release();
+            m_SectorLog << LogStart(LogLevel::LEVEL_9) << "User " << user->m_strName << " UID " << user->m_iKey 
+             << " " << ip << " df recaching: used space " << usedSpace << " avail space " << availSpace 
+             << " will expire in " << m_iDfTimeout << " sec" << LogEnd();
+         }
+      } else
+      {
+         usedSpace = m_iDfUsedSpace;
+         availSpace = m_iDfAvailSpace;
+         m_DfLock.release();
+      }
+
+      int size = 16;
+      char* buf = new char[size];
+      *(int64_t*)buf = availSpace;
+      *(int64_t*)(buf + 8) = usedSpace;
+
       msg->setData(0, buf, size);
       delete [] buf;
       m_GMP.sendto(ip, port, id, msg);
@@ -3275,16 +3316,10 @@ void Master::reject(const string& ip, const int port, int id, int32_t code)
             break;
          }
 
-         if (self->createReplica(*i) >= 0)
-         {
-            ReplicaMgmt::iterator tmp = i;
-            ++ i;
-            self->m_ReplicaMgmt.erase(tmp);
-         }
-         else
-         {
-            ++ i;
-         }
+         self->createReplica(*i);
+         ReplicaMgmt::iterator tmp = i;
+         ++ i;
+         self->m_ReplicaMgmt.erase(tmp);
       }
       self->m_ReplicaLock.release();
    }
@@ -3332,7 +3367,8 @@ int Master::createReplica(const ReplicaJob& job)
          {
             m_SectorLog << LogStart(9) << "Replica create: replication forced " << job.m_strSource << LogEnd();
          }
-         else if( attr.m_sLocation.size() == (unsigned int)attr.m_iReplicaNum)
+         else if( attr.m_sLocation.size() >= (unsigned int)attr.m_iReplicaNum &&
+                  attr.m_sLocation.size() <= (unsigned int)attr.m_iMaxReplicaNum)
          {
             m_SectorLog << LogStart(9) << "Replica create: number of replicas correct " << job.m_strSource << LogEnd();
             bool proceed = false;
@@ -3546,15 +3582,6 @@ int Master::serializeSysStat(char*& buf, int& size)
    delete [] slave_info;
 
    return size;
-}
-
-int Master::serializeDf(char*& buf, int& size)
-{
-  size = 16;
-  buf = new char[size];
-  *(int64_t*)buf = m_SlaveManager.getTotalDiskSpace();
-  *(int64_t*)(buf + 8) = m_pMetadata->getTotalDataSizeRootCached();
-  return size;
 }
 
 int Master::removeSlave(const int& id, const Address& addr)

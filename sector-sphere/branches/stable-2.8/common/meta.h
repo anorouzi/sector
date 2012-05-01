@@ -115,7 +115,6 @@ public:	// medadata and file system operations
 
    virtual int substract(const std::string& path, const Address& addr) = 0;
    virtual int64_t getTotalDataSize(const std::string& path) = 0;
-   virtual int64_t getTotalDataSizeRootCached() = 0;
    virtual int64_t getTotalFileNum(const std::string& path) = 0;
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result) = 0;
    virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster) = 0;

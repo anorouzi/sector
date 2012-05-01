@@ -60,7 +60,6 @@ public:
    virtual int substract(const std::string& path, const Address& addr);
 
    virtual int64_t getTotalDataSize(const std::string& path);
-   virtual int64_t getTotalDataSizeRootCached();
    virtual int64_t getTotalFileNum(const std::string& path);
    virtual int collectDataInfo(const std::string& path, std::vector<std::string>& result);
    virtual int checkReplica(const std::string& path, std::vector<std::string>& under, std::vector<std::string>& over,  const std::map< std::string, int> & IPToCluster);

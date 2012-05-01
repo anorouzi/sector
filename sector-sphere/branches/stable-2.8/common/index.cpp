@@ -629,25 +629,6 @@ int64_t Index::getTotalDataSize(const string& path)
    return getTotalDataSize(*currdir);
 }
 
-int64_t Index::getTotalDataSizeRootCached()
-{
-  time_t tsNow = time(NULL);
-  {
-     RWGuard mg(m_MetaLock, RW_READ);
-     if (m_iLastTotalDiskSpaceTs + m_iLastTotalDiskSpaceTimeout < tsNow)
-       return m_iLastTotalDiskSpace;
-  }
-  int64_t total = getTotalDataSize("/");
-  tsNow = time(NULL);
-  {
-     RWGuard mg(m_MetaLock, RW_READ);
-     m_iLastTotalDiskSpaceTs = tsNow;
-     m_iLastTotalDiskSpace = total;
-  }
-  cout << "df cache miss, new total size " << m_iLastTotalDiskSpace << std::endl;
-  return total;
-}
-
 int64_t Index::getTotalFileNum(const string& path)
 {
    RWGuard mg(m_MetaLock, RW_READ);

@@ -202,6 +202,14 @@ private: // replication
    int chooseDataToMove(std::vector<std::string>& path, const Address& addr, const int64_t& target_size);
 
 private:
+   
+   CMutex m_DfLock;
+   time_t m_iDfTs;
+   time_t m_iDfTimeout;
+   bool m_bDfBeingEvaluated;
+   int64_t m_iDfUsedSpace;
+   int64_t m_iDfAvailSpace;
+
    CGMP m_GMP;						// GMP messenger
 
    std::string m_strSectorHome;				// $SECTOR_HOME directory, for code and configuration file location
@@ -239,7 +247,6 @@ public:
 private:
    int64_t m_llStartTime;
    int serializeSysStat(char*& buf, int& size);
-   int serializeDf(char*& buf, int& size);
    #ifdef DEBUG
    int processDebugCmd(const std::string& ip, const int port,  const User* user, const int32_t key, int id, SectorMsg* msg);
    #endif
