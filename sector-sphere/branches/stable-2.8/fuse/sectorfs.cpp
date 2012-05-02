@@ -37,6 +37,12 @@ pthread_mutex_t SectorFS::m_OpenFileLock = PTHREAD_MUTEX_INITIALIZER;
 bool SectorFS::g_bConnected = false;
 pthread_mutex_t SectorFS::m_reinitLock = PTHREAD_MUTEX_INITIALIZER;
 
+time_t SectorFS::g_iDfTs = 0;
+time_t SectorFS::g_iDfTimeout=600;
+bool SectorFS::g_bDfBeingEvaluated = false;
+int64_t SectorFS::g_iDfUsedSpace = 0;
+int64_t SectorFS::g_iDfAvailSpace = 0;
+CMutex SectorFS::g_DfLock;
 
 namespace
 {
@@ -319,22 +325,58 @@ int SectorFS::statfs(const char* path, struct statvfs* buf)
 
    CONN_CHECK( "df" );
 
-   int64_t availableSize;
-   int64_t totalSize;
-   int r = g_SectorClient.df(availableSize, totalSize);
-   if (r < 0)
+   time_t tsNow = time(0);
+   int64_t usedSpace;
+   int64_t availSpace;
+   g_DfLock.acquire();
+   if (g_iDfTs < tsNow)
    {
-      checkConnection(r);
-      log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
-        << ", rc=" << translateErr(r) << ')' << std::endl;
-      return translateErr(r);
-   }
+      if (g_bDfBeingEvaluated)
+      {
+         usedSpace = g_iDfUsedSpace;
+         availSpace = g_iDfAvailSpace;
+         g_DfLock.release();
+      } else
+      {
+         g_bDfBeingEvaluated = true;
+         g_DfLock.release();
+
+         int r = g_SectorClient.df(availSpace, usedSpace);
+         if (r < 0)
+         {
+            checkConnection(r);
+            log().trace << __PRETTY_FUNCTION__ << " exited (err=" << r
+              << ", rc=" << translateErr(r) << ')' << std::endl;
+            return translateErr(r);
+         }
+
+         g_DfLock.acquire();
+         g_bDfBeingEvaluated = false;
+         g_iDfUsedSpace = usedSpace;
+         g_iDfAvailSpace = availSpace;
+         if (availSpace == 0)
+         { // Sector still starting - no slaves - smaller timeout
+           g_iDfTs = tsNow + 2;
+         } else
+         {
+           g_iDfTs = tsNow + g_iDfTimeout;
+         }
+         g_DfLock.release();
+         log().trace << "Df recaching: used space " << usedSpace << " avail space " << availSpace
+             << " will expire in " << g_iDfTimeout << " sec" << std::endl;
+         }
+      } else
+      {
+         usedSpace = g_iDfUsedSpace;
+         availSpace = g_iDfAvailSpace;
+         g_DfLock.release();
+      }
 
    buf->f_namemax = 256;
    buf->f_bsize = g_iBlockSize;
    buf->f_frsize = buf->f_bsize;
-   buf->f_blocks = (availableSize + totalSize) / buf->f_bsize;
-   buf->f_bfree = buf->f_bavail = availableSize / buf->f_bsize;
+   buf->f_blocks = (availSpace + usedSpace) / buf->f_bsize;
+   buf->f_bfree = buf->f_bavail = availSpace / buf->f_bsize;
    buf->f_files = 0;
    buf->f_ffree = 0xFFFFFFFFULL;
 

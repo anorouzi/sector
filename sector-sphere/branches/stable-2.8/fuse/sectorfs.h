@@ -38,6 +38,7 @@ written by
 #include <time.h>
 
 #include "sector.h"
+#include "osportable.h"
 
 struct FileTracker
 {
@@ -118,6 +119,15 @@ private:
 private:
    static const int g_iBlockSize = 512;
    static bool g_bConnected;
+
+private:
+   static CMutex g_DfLock;
+   static time_t g_iDfTs;
+   static time_t g_iDfTimeout;
+   static bool g_bDfBeingEvaluated;
+   static int64_t g_iDfUsedSpace;
+   static int64_t g_iDfAvailSpace;
+
 };
 
 #endif
