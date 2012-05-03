@@ -318,10 +318,10 @@ int SectorFS::rename(const char* src, const char* dst)
 
 int SectorFS::statfs(const char* path, struct statvfs* buf)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-      << "path = " << path << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//      << "path = " << path << std::endl;
 
-   log().warning << "path parameter is ignored" << std::endl;
+//   log().warning << "path parameter is ignored" << std::endl;
 
    CONN_CHECK( "df" );
 
@@ -372,6 +372,8 @@ int SectorFS::statfs(const char* path, struct statvfs* buf)
          g_DfLock.release();
       }
 
+//   log().trace << "Df" << std::endl;
+
    buf->f_namemax = 256;
    buf->f_bsize = g_iBlockSize;
    buf->f_frsize = buf->f_bsize;
@@ -380,14 +382,14 @@ int SectorFS::statfs(const char* path, struct statvfs* buf)
    buf->f_files = 0;
    buf->f_ffree = 0xFFFFFFFFULL;
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
    return 0;
 }
 
 int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-      << " path = " << path << ", actime = " << ubuf->actime << ", modtime = " << ubuf->modtime << std::endl;
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//      << " path = " << path << ", actime = " << ubuf->actime << ", modtime = " << ubuf->modtime << std::endl;
 
    CONN_CHECK( path );
 
@@ -404,8 +406,8 @@ int SectorFS::utime(const char* path, struct utimbuf* ubuf)
 
    DirCache::clear( parentDirOf( path ) );
 
-   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
-   return 0;
+//   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
+//   return 0;
 }
 
 int SectorFS::utimens(const char* path, const struct timespec tv[2])
@@ -443,8 +445,8 @@ int SectorFS::opendir(const char * path, struct fuse_file_info *)
 
 int SectorFS::readdir(const char* path, void* buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info* /*info*/)
 {
-   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
-      << " path = " << path << ", offset = " << offset << std::endl;  
+//   log().trace << __PRETTY_FUNCTION__ << " entered" << std::endl
+//      << " path = " << path << ", offset = " << offset << std::endl;  
 
 //   log().warning << "offset parameter is ignored" << std::endl;
 

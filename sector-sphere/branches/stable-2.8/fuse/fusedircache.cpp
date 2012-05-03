@@ -109,7 +109,7 @@ void DirCache::add( const std::string& path, const std::vector<SNode>& filelist 
 
     std::pair< CacheMap::iterator, bool > rc = cache.insert( std::make_pair( canonical_path, CacheRec() ) );
     if( !rc.second )
-        LOG().error << "BUG: Path " << path << " already exists in cache map (time left = " << ( rc.first->second.expirationTime - time(0) )
+        LOG().error << "Add: Path " << path << " already exists in cache map (time left = " << ( rc.first->second.expirationTime - time(0) )
            << ") ; will overwrite expiration time!" << std::endl;
 
     tsNow = time(0);
@@ -145,11 +145,11 @@ int DirCache::get( const std::string& path, Sector& sectorClient, SNode& node )
 
     time_t                 tsNow = time(0);
     std::string::size_type pos = canonical_path.find_last_of('/');
-    std::string            dirpath( pos == 0 ? canonical_path : canonical_path.substr( 0, pos ) );
+    std::string            dirpath( pos == 0 ? "/" : canonical_path.substr( 0, pos ) );
     std::string            filename( canonical_path.substr( pos + 1 ) );
 
-//    LOG().debug << "Normalized path to " << canonical_path << " for lookup" << std::endl;
-//    LOG().debug << "Path = " << dirpath << ", file = " << filename << std::endl;
+//    LOG().debug << "GET Normalized path to " << canonical_path << " for lookup" << std::endl;
+//    LOG().debug << "GET Path = " << dirpath << ", file = " << filename << std::endl;
 
     { // BEGIN CRITICAL SECTION
         Lock lock(mutex);
@@ -168,7 +168,7 @@ int DirCache::get( const std::string& path, Sector& sectorClient, SNode& node )
                 FileMap::iterator fit = it->second.filemap.find(filename);
                 if (fit != it->second.filemap.end())
                 {
-//                    LOG().info << "CACHE HIT: dir = " << dirpath << ", file = " << filename << ", expiration in "
+//                    LOG().info << "GET CACHE HIT: dir = " << dirpath << ", file = " << filename << ", expiration in "
 //                       << it->second.expirationTime - tsNow << " seconds" << std::endl;
                     node = fit->second;
 //                    LOG().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
@@ -178,7 +178,7 @@ int DirCache::get( const std::string& path, Sector& sectorClient, SNode& node )
         }
     } // END CRITICAL SECTION
 
-//    LOG().info << "CACHE MISS: dir = " << dirpath << ", file = " << filename << std::endl;
+//    LOG().info << "GET CACHE MISS: dir = " << dirpath << ", file = " << filename << std::endl;
 
     bool listParentDir = false;
     // Check if this stat belong to dir listed as non-default timeout, i.e. should be cached for long time
@@ -223,7 +223,7 @@ int DirCache::get( const std::string& path, Sector& sectorClient, SNode& node )
               if (i->m_strName == filename)
               {
                    node = *i;
-//                   LOG().info << "CACHE HIT (after master ls): dir = " << dirpath << ", file = " << filename << std::endl;
+//                   LOG().info << "GET CACHE HIT (after master ls): dir = " << dirpath << ", file = " << filename << std::endl;
 //                   LOG().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
                    return 0;
               }
@@ -266,13 +266,13 @@ int DirCache::readdir( std::string dirpath, std::vector<SNode>& filelist)
       {
 //        LOG().debug << "Entry " << dirpath << " expired, removing..." << std::endl;   
         cache.erase(it);
-//        LOG().info << "CACHE MISS (entry expired): dir = " << dirpath << std::endl;
+//        LOG().info << "DIR CACHE MISS (entry expired): dir = " << dirpath << std::endl;
 //        LOG().trace << __PRETTY_FUNCTION__ << " exited, rc = 1" << std::endl;
         return 1;
       }
       else 
       {
-//        LOG().info << "CACHE HIT: dir = " << dirpath << " with " << it->second.filemap.size() << " entries" << std::endl;
+//        LOG().info << "DIR CACHE HIT: dir = " << dirpath << " with " << it->second.filemap.size() << " entries" << std::endl;
         filelist.clear();
         filelist.reserve( it->second.filemap.size() );
         for( FileMap::iterator fit = it->second.filemap.begin(), end = it->second.filemap.end(); fit != end; ++fit )
@@ -282,7 +282,7 @@ int DirCache::readdir( std::string dirpath, std::vector<SNode>& filelist)
       }
     }
 
-//    LOG().info << "CACHE MISS: dir = " << dirpath << std::endl;
+//    LOG().info << "DIR CACHE MISS: dir = " << dirpath << std::endl;
 //    LOG().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
     return 1;
 }
