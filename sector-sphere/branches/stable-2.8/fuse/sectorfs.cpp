@@ -407,7 +407,7 @@ int SectorFS::utime(const char* path, struct utimbuf* ubuf)
    DirCache::clear( parentDirOf( path ) );
 
 //   log().trace << __PRETTY_FUNCTION__ << " exited, rc = 0" << std::endl;
-//   return 0;
+   return 0;
 }
 
 int SectorFS::utimens(const char* path, const struct timespec tv[2])

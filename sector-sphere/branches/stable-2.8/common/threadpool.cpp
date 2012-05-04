@@ -19,17 +19,12 @@ written by
    Yunhong Gu, last updated 08/19/2010
 *****************************************************************************/
 
-#include <iostream>
+
 #include "threadpool.h"
 
 using namespace std;
-using namespace sector;
 
-ThreadJobQueue::ThreadJobQueue():
-m_mJobs(),
-m_vKeyMap(),
-m_iRRSeed(0),
-m_Lock()
+ThreadJobQueue::ThreadJobQueue()
 {
 }
 
@@ -37,106 +32,39 @@ ThreadJobQueue::~ThreadJobQueue()
 {
 }
 
-int ThreadJobQueue::push(void* param, int tag)
+int ThreadJobQueue::push(void* param)
 {
-   // In general case, there should be a default queue to accept requests,
-   // even if no processing thread is listening. However, in Sector,
-   // we skip ths step as the situation should not happen.
-   if (m_mJobs.empty())
-     return -1;
+   CGuardEx tg(m_QueueLock);
 
-   Job job;
-   job.m_pParam = param;
-   if (tag >= 0)
-   {
-      job.m_iTag = tag;
-   }
-   else
-   {
-      // When a negative tag value is provided, jobs assignment is round robin.
-      job.m_iTag = m_iRRSeed ++;
-   }
-
-   m_Lock.acquire();
-   int key = m_vKeyMap[job.m_iTag % m_mJobs.size()];
-   map<int, JobQueue*>::iterator ptr = m_mJobs.find(key);
-   assert(ptr != m_mJobs.end());
-   m_Lock.release();
-
-   CGuardEx tg(ptr->second->m_QueueLock);
-   if (static_cast<int>(ptr->second->m_qJobs.size()) >= ptr->second->m_iLimit)
-      return -1;
-   ptr->second->m_qJobs.push(job);
-   ptr->second->m_QueueCond.signal();
+   m_qJobs.push(param);
+   m_QueueCond.signal();
 
    return 0;
 }
 
-void* ThreadJobQueue::pop(int key)
+void* ThreadJobQueue::pop()
 {
-   m_Lock.acquire();
-   map<int, JobQueue*>::iterator ptr = m_mJobs.find(key);
-   assert(ptr != m_mJobs.end());
-   m_Lock.release();
+   CGuardEx tg(m_QueueLock);
 
-   JobQueue& q = *ptr->second;
-   CGuardEx tg(q.m_QueueLock);
-   while (q.m_qJobs.empty())
-      q.m_QueueCond.wait(q.m_QueueLock);
+   while (m_qJobs.empty())
+      m_QueueCond.wait(m_QueueLock);
 
-   Job job = q.m_qJobs.front();
-   q.m_qJobs.pop();
+   void* param = m_qJobs.front();
+   m_qJobs.pop();
 
-   return job.m_pParam;
+   return param;
 }
 
-int ThreadJobQueue::registerThread(int key, int limit)
+int ThreadJobQueue::release(int num)
 {
-   CGuardEx tg(m_Lock);
+   for (int i = 0; i < num; ++ i)
+      push(NULL);
 
-   if (m_mJobs.find(key) != m_mJobs.end())
-      return -1;
-
-cout << "register " << key << endl;
-   JobQueue* q = new JobQueue;
-   if (limit > 0)
-      q->m_iLimit = limit;
-   m_mJobs[key] = q;
-   m_vKeyMap.push_back(key);
-
-cout << "returned...............................\n";
    return 0;
 }
 
-void ThreadJobQueue::release()
+size_t ThreadJobQueue::size()
 {
-   CGuardEx tg(m_Lock);
-
-   for (map<int, JobQueue*>::iterator i = m_mJobs.begin(); i != m_mJobs.end(); ++ i)
-   {
-      // If the job parameter is NULL, this is a signal for the thread to quit.
-      CGuardEx tg(i->second->m_QueueLock);
-      i->second->m_qJobs.push(NULL);
-      i->second->m_QueueCond.signal();
-   }
+   CGuardEx tg(m_QueueLock);
+   return m_qJobs.size();
 }
- 
-int ThreadJobQueue::getNumOfJobs( std::vector<int>& jobs )
-{
-   int totalJobs = 0;
-
-   jobs.clear();
-
-   CGuardEx tg(m_Lock);
-   jobs.reserve( m_mJobs.size() );
-
-   for (map<int, JobQueue*>::iterator i = m_mJobs.begin(); i != m_mJobs.end(); ++ i)
-   {
-      CGuardEx tg(i->second->m_QueueLock);
-      jobs.push_back( i->second->m_qJobs.size() );
-      totalJobs += i->second->m_qJobs.size();
-   }
-
-   return totalJobs;
-}
-

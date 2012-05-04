@@ -23,9 +23,7 @@ written by
 #ifndef __SECTOR_THREAD_POOL_H__
 #define __SECTOR_THREAD_POOL_H__
 
-#include <assert.h>
 #include <queue>
-#include <vector>
 #include <osportable.h>
 
 // TODO: this may be changed to thread_util.h
@@ -33,30 +31,17 @@ written by
 
 // add routine to assign meaningful names to threads, for easier debug
 
-namespace sector
-{
+// TODO: enable namespace
+//namespace sector
+//{
 
 struct Job
 {
-   Job(void* param = NULL): m_pParam(param), m_llTTL(-1), m_iPriority(0), m_iTag(-1) {}
+   Job(void* param = NULL);
 
-   void* m_pParam;	// job paramters, job specific.
-   int64_t m_llTTL;	// each job may be assigned a TTL. Expired job will be discarded without further processing.
-   int m_iPriority;	// the thread job queue is a priority queue, higher priority jobs will be scheduled first.
-   int m_iTag;		// app specified value used to assign this job to a queue.
-};
-
-struct JobQueue
-{
-   JobQueue(): m_iLimit(1024) {}
-
-   std::queue<Job> m_qJobs;
-   CMutex m_QueueLock;
-   CCond m_QueueCond;
-
-   // We enforce a threshold for max in-flight jobs in each queue.
-   // TODO: In a more advanced version, we should enforce this at per-client level.
-   int m_iLimit;
+   void* m_pParam;	// job paramters, job specific
+   int64_t m_llTTL;	// each job may be assigned a TTL. Expired job will be discarded without further processing
+   int m_iPriority;	// the thread job queue is a priority queue, higher priority jobs will be scheduled first
 };
 
 class ThreadJobQueue
@@ -66,26 +51,24 @@ public:
    ~ThreadJobQueue();
 
 public:
-   int push(void* param, int tag);
-   void* pop(int key);
+   int push(void* param);
+   void* pop();
 
-   // A thread should register a unique ID, usually its own thread ID.
-   // Thus it will be assigned its own job queue.
-   int registerThread(int key, int limit = 1024);
-   void release();
+   int release(int num);
 
-   int getNumOfJobs( std::vector<int>& jobs );
+   size_t size();
 
 private:
-   std::map<int, JobQueue*> m_mJobs;	// Each thread is associated with a job queue.
-   std::vector<int> m_vKeyMap;		// A list of thread IDs.
+   // TODO: use priority queue
+   std::queue<void*> m_qJobs;
 
-   int m_iRRSeed;			// Used to send jobs to queues in a round-robin fashion.
+   // TODO: set maximum queue length
+   // int getCurrQueueLen();
 
-   CMutex m_Lock;
+   CMutex m_QueueLock;
+   CCond m_QueueCond;
 };
 
-}  // namespace sector
+//} // namespace sector
 
 #endif
-
